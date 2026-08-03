@@ -1,0 +1,57 @@
+/**
+ * Design tokens do sistema "Liquid Glass" da TaqCITi — fonte única de cor e efeito.
+ *
+ * As cores existem em DUAS formas de propósito:
+ * 1. `--c-*` = canais RGB crus. É o que o Tailwind consome como
+ *    `rgb(var(--c-x) / <alpha-value>)`, e é o que faz `text-muted/70`
+ *    funcionar. Com rgba() pronto o modificador de opacidade gera CSS
+ *    inválido e é descartado em silêncio.
+ * 2. `--color-*` = cores prontas, para CSS escrito à mão (gradientes, SVG).
+ *
+ * ── Por que DOIS seletores ─────────────────────────────────────────────────
+ *
+ * O painel dentro do Meet vive num shadow root, e `:root` não atravessa a
+ * fronteira do shadow DOM: lá os tokens precisam estar em `:host`. Antes cada
+ * lado mantinha a SUA lista, e elas divergiram em silêncio — o vidro do painel
+ * do Meet era `0.86/0.93` contra `0.72/0.86` daqui, e `--color-surface`,
+ * `--color-text`, `--motion-flow` e `--motion-pop` nem existiam lá. Era essa a
+ * causa estrutural de "cada tela parece outro produto".
+ *
+ * A lista de seletores resolve sem build extra: no documento `:root` casa e
+ * `:host` não casa nada; dentro do shadow root é o contrário. Um arquivo, uma
+ * paleta, as três superfícies sempre iguais.
+ *
+ * NÃO declare token de cor em nenhum outro lugar.
+ */
+:root,
+:host {
+  --c-background: 7 9 12;
+  --c-surface: 15 19 25;
+  --c-elevated: 21 26 33;
+  --c-primary: 45 219 96;
+  --c-glow: 122 242 165;
+  --c-text: 246 248 250;
+  --c-muted: 150 165 178;
+
+  --color-background: rgb(7 9 12);
+  --color-surface: rgb(15 19 25);
+  --color-primary: rgb(45 219 96);
+  --color-glow: rgb(122 242 165);
+  --color-text: rgb(246 248 250);
+  --color-text-secondary: rgb(150 165 178);
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+
+  /*
+   * Um vidro só para as três telas. As duas receitas antigas existiam por um
+   * motivo real — o painel do Meet flutua sobre vídeo em movimento e precisava
+   * de mais corpo para o texto ficar legível — mas manter duas era o que fazia
+   * as telas parecerem produtos diferentes. Este valor fica entre as duas,
+   * puxado para o lado denso: sobre vídeo a transcrição continua confortável,
+   * e sobre o fundo aurora do side panel a diferença não se nota.
+   */
+  --glass-bg: linear-gradient(155deg, rgba(24, 29, 37, 0.82), rgba(9, 12, 16, 0.9));
+  --glass-blur: 24px;
+  --motion-flow: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-pop: cubic-bezier(0.34, 1.45, 0.64, 1);
+}

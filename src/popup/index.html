@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>TaqCITi</title>
+    <style>
+      /*
+       * O popup dimensiona pela ALTURA DO CONTEÚDO, então `height: 100%` aqui
+       * daria zero. O que ele precisa é de um teto: o max-height abaixo limita a
+       * janela e dá ao flex interno um limite contra o qual `flex-1 min-h-0`
+       * consegue rolar.
+       */
+      html {
+        margin: 0;
+      }
+      body {
+        margin: 0;
+        width: 372px;
+        min-height: 300px;
+        max-height: 560px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
