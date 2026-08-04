@@ -1,0 +1,56 @@
+# Como instalar a extensão TaqCITi no Chrome
+
+Siga esses 5 passos. Leva menos de 2 minutos.
+
+## 1. Baixe o arquivo
+
+Você vai receber um arquivo chamado algo como `taqciti-v0.1.0.zip`. Salve ele em
+qualquer pasta do seu computador (por exemplo, na área de trabalho).
+
+## 2. Descompacte o arquivo
+
+Clique com o botão direito no arquivo `.zip` e escolha **"Extrair tudo..."**
+(ou "Descompactar"). Isso vai criar uma pasta com o mesmo nome, contendo os
+arquivos da extensão.
+
+> Guarde essa pasta em um lugar fixo — não é possível apagar ou mover a pasta
+> depois de instalar a extensão sem que ela pare de funcionar.
+
+## 3. Abra a página de extensões do Chrome
+
+Copie e cole este endereço na barra de endereços do Chrome e aperte Enter:
+
+```
+chrome://extensions
+```
+
+## 4. Ative o "Modo do desenvolvedor"
+
+No canto superior direito da página, tem um botão/interruptor chamado
+**"Modo do desenvolvedor"**. Clique para ativar.
+
+## 5. Carregue a extensão
+
+Com o "Modo do desenvolvedor" ativado, vão aparecer novos botões no topo da
+página. Clique em **"Carregar sem compactação"** e selecione a pasta que você
+descompactou no passo 2 (não o arquivo `.zip`, a pasta).
+
+Pronto! A extensão TaqCITi vai aparecer na lista e já está pronta para uso.
+
+---
+
+### Perguntas frequentes
+
+**Preciso repetir esses passos toda vez que abrir o Chrome?**
+Não. Depois de carregada, a extensão fica instalada normalmente, como
+qualquer outra.
+
+**Recebi uma versão nova. O que eu faço?**
+Descompacte o novo arquivo `.zip` em uma pasta separada, vá em
+`chrome://extensions`, remova a versão antiga (botão "Remover") e repita o
+passo 5 apontando para a pasta nova.
+
+**O Chrome mostra um aviso dizendo que o "Modo do desenvolvedor" pode ser
+perigoso. É normal?**
+Sim. Esse aviso aparece para qualquer extensão carregada dessa forma (fora da
+Chrome Web Store) e não indica nenhum problema com a TaqCITi.

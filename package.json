@@ -13,7 +13,8 @@
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\" \"*.{ts,json,md}\"",
     "icons": "node scripts/generate-icons.mjs",
-    "preview:ui": "vite --config preview/vite.config.ts"
+    "preview:ui": "vite --config preview/vite.config.ts",
+    "package": "node scripts/package-release.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
