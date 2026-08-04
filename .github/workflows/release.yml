@@ -122,3 +122,48 @@ jobs:
         with:
           files: release-assets/*
           generate_release_notes: true
+
+  # Canal de distribuição adicional pro time que ainda não tem acesso ao
+  # GitHub — a Release acima continua existindo e é o canal técnico/de
+  # auditoria; este job só soma o Drive como segundo destino, nunca
+  # substitui. Só roda depois que os 3 builds E a Release já tiverem
+  # terminado com sucesso ("needs: [release]" cobre isso transitivamente,
+  # já que o job release também depende dos 3 builds).
+  distribute-gdrive:
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: gdrive-assets
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-installer
+          path: gdrive-assets
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-installer
+          path: gdrive-assets
+
+      # Autentica como a Service Account (sem fluxo OAuth interativo) e
+      # gera um access token de curta duração. O token é registrado pela
+      # própria action como segredo (mascarado nos logs), além da chave
+      # JSON crua em si já ser mascarada automaticamente pelo Actions por
+      # vir de um "secrets.*".
+      - name: Autenticar no Google Drive
+        id: gdrive-auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GDRIVE_SA_KEY }}
+          token_format: access_token
+
+      - name: Publicar instaladores no Google Drive
+        env:
+          GDRIVE_ACCESS_TOKEN: ${{ steps.gdrive-auth.outputs.access_token }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_TAQCITI_FOLDER_ID }}
+        run: bash .github/scripts/upload-to-gdrive.sh gdrive-assets

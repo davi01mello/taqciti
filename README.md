@@ -24,6 +24,24 @@ npm test
 Depois do build, carregue a pasta `dist/` em `chrome://extensions` → Modo
 desenvolvedor → "Carregar sem compactação".
 
+## Distribuição
+
+Cada tag `v*.*.*` dispara `.github/workflows/release.yml`, que builda e
+compila três instaladores nativos (Windows `.exe`, Linux `.run`, macOS
+`.pkg` — ver `installer/`) e os publica em dois canais:
+
+- **GitHub Release da tag** — canal técnico/de auditoria. É onde os
+  artefatos ficam versionados de forma permanente, junto do changelog
+  gerado automaticamente; útil para debugar qual build gerou qual arquivo.
+- **Pasta do Google Drive do time** (`GDRIVE_TAQCITI_FOLDER_ID`) — **canal
+  oficial de distribuição pro time**, porque nem todo mundo tem acesso ao
+  GitHub ainda. Um upload repetido da mesma versão sobrescreve o arquivo
+  existente na pasta em vez de duplicar (ver
+  `.github/scripts/upload-to-gdrive.sh`).
+
+Os dois canais coexistem — a Release do GitHub nunca é removida ou
+substituída pelo Drive; o Drive é só um destino adicional.
+
 ## Estrutura
 
 - `src/content/` — captura das legendas do Meet e o painel injetado na página.
