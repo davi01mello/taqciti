@@ -198,9 +198,9 @@ begin
 
     CopyPathToClipboard(InstallPath);
 
-    { {localappdata}\TaqCITi\guide já existe neste ponto: o [Files] acima
-      instala index.html ali durante a etapa de cópia de arquivos, que
-      roda antes de ssPostInstall. }
+    { A pasta LocalAppData\TaqCITi\guide já existe neste ponto: o [Files]
+      acima instala index.html ali durante a etapa de cópia de arquivos,
+      que roda antes de ssPostInstall. }
     GuideDir := ExpandConstant('{localappdata}\TaqCITi\guide');
     WriteInstallPathScript(GuideDir, InstallPath);
 
