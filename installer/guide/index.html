@@ -354,6 +354,34 @@
     color: rgb(255, 199, 92);
   }
 
+  .mac-note {
+    margin-top: 14px;
+    background: rgba(96, 165, 250, 0.08);
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    border-radius: 14px;
+    padding: 16px 18px;
+    font-size: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .mac-note[hidden] {
+    display: none;
+  }
+
+  .mac-note strong {
+    color: rgb(147, 197, 253);
+  }
+
+  .mac-note code {
+    background: var(--elevated);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.9em;
+  }
+
   footer {
     text-align: center;
     color: var(--muted);
@@ -481,6 +509,17 @@
       </span>
     </div>
 
+    <div class="mac-note" id="mac-gatekeeper-note" hidden>
+      <span>🍎</span>
+      <span>
+        <strong>No Mac:</strong> se um dia baixar uma versão nova do instalador
+        e o duplo-clique no <code>.pkg</code> não funcionar ("desenvolvedor não
+        identificado"), isso é esperado — ainda não temos assinatura de
+        desenvolvedor Apple. Clique com o <strong>botão direito</strong> (ou
+        Control+clique) no arquivo e escolha <strong>Abrir</strong>.
+      </span>
+    </div>
+
     <footer>TaqCITi — captura local de transcrição do Google Meet.</footer>
   </div>
 
@@ -498,6 +537,15 @@
     if (typeof window.TAQCITI_INSTALL_PATH === 'undefined') {
       window.TAQCITI_INSTALL_PATH = '__INSTALL_PATH__';
     }
+
+    (function () {
+      var platform = (navigator.platform || navigator.userAgent || '');
+      var isMac = /Mac/i.test(platform);
+      var macNote = document.getElementById('mac-gatekeeper-note');
+      if (isMac && macNote) {
+        macNote.hidden = false;
+      }
+    })();
 
     (function () {
       var path = window.TAQCITI_INSTALL_PATH;

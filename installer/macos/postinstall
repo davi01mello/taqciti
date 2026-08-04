@@ -1,0 +1,165 @@
+#!/bin/bash
+#
+# postinstall do pacote .pkg do TaqCITi (rodado pelo Installer.app / pelo
+# comando `installer` depois que o pkgbuild copia o payload).
+#
+# ---------------------------------------------------------------------------
+# Por que isso tudo não pode ser feito "direto": o postinstall roda como
+# ROOT, não como o usuário logado
+# ---------------------------------------------------------------------------
+# Instalação de .pkg no macOS é sempre uma operação privilegiada — mesmo
+# instalando só dentro de /tmp, o Installer.app pede senha de admin e roda
+# preinstall/postinstall como root. Isso quebra qualquer suposição de que
+# "$HOME", `pbcopy` ou `open` vão se referir à sessão da pessoa que clicou
+# no instalador:
+#   - $HOME aqui é o de root (/var/root), não o do usuário real — copiar
+#     para "$HOME/Desktop" copiaria para o Desktop de root, que ninguém vê;
+#   - `pbcopy` rodado direto como root escreve no clipboard da sessão de
+#     root, que não tem sessão gráfica — o comando não falha, só não afeta
+#     nada que o usuário enxergue;
+#   - `open` rodado direto como root tenta abrir um app na sessão gráfica
+#     de root (que não existe do jeito que o Finder/Dock esperam) — ou
+#     falha silenciosamente, ou abre a janela "errada" (fora da sessão do
+#     usuário), dependendo da versão do macOS.
+#
+# A saída documentada pela Apple para isso é `launchctl asuser <uid> sudo
+# -u <user> <comando>`: o `launchctl asuser` reencaminha o comando pro
+# "Mach bootstrap context" da sessão gráfica daquele UID específico (é
+# esse contexto que dá acesso ao clipboard/Finder/apps abertos do
+# usuário), e o `sudo -u` troca o UID efetivo do processo pra combinar.
+# Sem os dois juntos, ou o comando roda no contexto errado, ou o
+# `launchctl` recusa por não ter permissão de trocar de usuário sozinho.
+set -u
+
+FOLDER_NAME="TaqCITi (não apagar)"
+PAYLOAD_ROOT="/private/tmp/taqciti-installer-payload"
+PAYLOAD_DIST="$PAYLOAD_ROOT/dist"
+PAYLOAD_GUIDE="$PAYLOAD_ROOT/guide/index.html"
+
+log() {
+  echo "[TaqCITi postinstall] $1"
+}
+
+# --- 1. Descobre o usuário de console real (não root) -----------------------
+# /dev/console pertence sempre ao usuário atualmente logado na tela — é a
+# forma padrão (documentada pela Apple) de descobrir "quem é a pessoa de
+# verdade" de dentro de um script que roda como root via installer/launchd.
+CONSOLE_USER="$(stat -f "%Su" /dev/console 2>/dev/null || true)"
+
+if [ -z "$CONSOLE_USER" ] || [ "$CONSOLE_USER" = "root" ] || [ "$CONSOLE_USER" = "loginwindow" ]; then
+  log "Erro: não encontrei um usuário de console logado (peguei '$CONSOLE_USER')."
+  log "Rode o instalador com alguém logado na tela do Mac."
+  exit 1
+fi
+
+CONSOLE_UID="$(id -u "$CONSOLE_USER" 2>/dev/null || true)"
+if [ -z "$CONSOLE_UID" ]; then
+  log "Erro: não consegui resolver o UID de '$CONSOLE_USER'."
+  exit 1
+fi
+
+# A pasta pessoal "de verdade" nem sempre é /Users/<nome> (contas de rede,
+# volumes externos etc.) — dscl é a forma correta de perguntar ao sistema,
+# em vez de supor o caminho.
+CONSOLE_HOME="$(dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+if [ -z "$CONSOLE_HOME" ] || [ ! -d "$CONSOLE_HOME" ]; then
+  log "Erro: não consegui resolver a pasta pessoal de '$CONSOLE_USER'."
+  exit 1
+fi
+
+# --- 2. Helper: roda um comando dentro da sessão gráfica do usuário --------
+run_as_user() {
+  launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" "$@"
+}
+
+# --- 3. Copia dist/ (payload deste .pkg) para a pasta certa -----------------
+if [ ! -d "$PAYLOAD_DIST" ]; then
+  log "Erro: payload dist/ não encontrado em $PAYLOAD_DIST. Pacote corrompido?"
+  exit 1
+fi
+
+if [ -d "$CONSOLE_HOME/Desktop" ]; then
+  INSTALL_DIR="$CONSOLE_HOME/Desktop/$FOLDER_NAME"
+else
+  log "Aviso: a pasta ~/Desktop de $CONSOLE_USER não existe (Área de Trabalho"
+  log "desativada, ou gerenciada em outro lugar pelo iCloud Drive)."
+  log "Instalando em ~/$FOLDER_NAME em vez disso."
+  INSTALL_DIR="$CONSOLE_HOME/$FOLDER_NAME"
+fi
+
+if ! mkdir -p "$INSTALL_DIR"; then
+  log "Erro: não foi possível criar a pasta de instalação em $INSTALL_DIR"
+  exit 1
+fi
+
+if ! cp -R "$PAYLOAD_DIST"/. "$INSTALL_DIR"/; then
+  log "Erro: falha ao copiar os arquivos para $INSTALL_DIR"
+  exit 1
+fi
+
+# cp acima rodou como root, então os arquivos ficaram com dono root:wheel.
+# Sem este chown, o Chrome (rodando na sessão do usuário) não consegue nem
+# ler os arquivos que precisa carregar em "Carregar sem compactação".
+chown -R "$CONSOLE_USER":staff "$INSTALL_DIR"
+
+log "TaqCITi instalado em: $INSTALL_DIR"
+
+# --- 4. Copia o caminho para a área de transferência (melhor esforço) ------
+# Passa os bytes do caminho por um pipe em vez de interpolar numa string de
+# comando — evita ter que escapar espaços/parênteses/acentos do caminho
+# pra dentro de outro shell (o mesmo cuidado que já foi necessário no
+# instalador Windows, por um motivo diferente: lá era code page, aqui é
+# param de shell aninhado via sudo/launchctl).
+if printf '%s' "$INSTALL_DIR" | run_as_user pbcopy 2>/dev/null; then
+  log "(caminho copiado para a área de transferência)"
+else
+  log "Não consegui copiar o caminho automaticamente. Copie-o manualmente no próximo passo:"
+  log "  $INSTALL_DIR"
+fi
+
+# --- 5. Gera a cópia do guia com o caminho já preenchido --------------------
+# Mesmo mecanismo de substituição de texto (sed) do instalador Linux —
+# não o de install-path.js do Windows, que existe especificamente para
+# contornar a conversão via code page do Pascal Script. Aqui, como em
+# qualquer Unix, sed opera em bytes crus, então não há esse risco.
+GUIDE_DIR="$CONSOLE_HOME/Library/Application Support/TaqCITi/guide"
+GUIDE_DEST="$GUIDE_DIR/index.html"
+
+if [ -f "$PAYLOAD_GUIDE" ]; then
+  mkdir -p "$GUIDE_DIR"
+
+  JS_ESCAPED=$(printf '%s' "$INSTALL_DIR" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+  SED_SAFE=$(printf '%s' "$JS_ESCAPED" | sed -e 's/[\&|]/\\&/g')
+
+  if sed "s|__INSTALL_PATH__|$SED_SAFE|g" "$PAYLOAD_GUIDE" > "$GUIDE_DEST" 2>/dev/null; then
+    chown -R "$CONSOLE_USER":staff "$CONSOLE_HOME/Library/Application Support/TaqCITi"
+  else
+    log "Aviso: não consegui gerar o guia em $GUIDE_DEST."
+    GUIDE_DEST=""
+  fi
+else
+  log "Aviso: guia visual não encontrado no pacote; pulando essa etapa."
+  GUIDE_DEST=""
+fi
+
+# --- 6. Abre o Chrome em chrome://extensions (fallback: navegador padrão) --
+if [ -d "/Applications/Google Chrome.app" ] || [ -d "$CONSOLE_HOME/Applications/Google Chrome.app" ]; then
+  run_as_user open -a "Google Chrome" "chrome://extensions" >/dev/null 2>&1
+else
+  log "Aviso: Google Chrome não encontrado em /Applications. Tentando abrir"
+  log "chrome://extensions no navegador padrão (pode não ter efeito se ele"
+  log "não reconhecer esse endereço interno)."
+  run_as_user open "chrome://extensions" >/dev/null 2>&1
+fi
+
+# --- 7. Abre o guia visual ---------------------------------------------------
+if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ]; then
+  run_as_user open "$GUIDE_DEST" >/dev/null 2>&1
+fi
+
+# Limpa o payload temporário — já foi copiado pro destino final, não tem
+# motivo pra sobrar em /private/tmp.
+rm -rf "$PAYLOAD_ROOT" 2>/dev/null || true
+
+log "Pronto. Siga as instruções na aba do guia que acabou de abrir."
+exit 0
