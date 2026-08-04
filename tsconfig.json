@@ -15,9 +15,8 @@
     "noUnusedParameters": true,
     "exactOptionalPropertyTypes": false,
 
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     "skipLibCheck": true,
