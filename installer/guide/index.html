@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TaqCITi — Como ativar a extensão</title>
+<style>
+  :root {
+    --bg: rgb(7 9 12);
+    --surface: rgb(15 19 25);
+    --elevated: rgb(21 26 33);
+    --primary: rgb(45 219 96);
+    --glow: rgb(122 242 165);
+    --text: rgb(246 248 250);
+    --muted: rgb(150 165 178);
+    --border: rgba(255, 255, 255, 0.1);
+    --border-soft: rgba(255, 255, 255, 0.06);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: radial-gradient(120% 140% at 20% -10%, rgb(20 26 24) 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.5;
+    padding: 32px 20px 80px;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  header.page-header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  header.page-header h1 {
+    font-size: 26px;
+    margin: 0 0 8px;
+  }
+
+  header.page-header p {
+    color: var(--muted);
+    margin: 0;
+    font-size: 15px;
+  }
+
+  .badge-mark {
+    position: fixed;
+    top: 18px;
+    left: 18px;
+    background: #000;
+    color: #fff;
+    font-style: italic;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    z-index: 50;
+  }
+
+  .path-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 22px;
+    margin-bottom: 28px;
+  }
+
+  .path-card h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+
+  .path-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .path-value {
+    flex: 1 1 320px;
+    background: var(--elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-family: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+    font-size: 13px;
+    color: var(--glow);
+    word-break: break-all;
+    user-select: all;
+  }
+
+  .copy-btn {
+    background: var(--primary);
+    color: #04170a;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .copy-btn:active {
+    transform: translateY(1px);
+  }
+
+  .copy-btn[data-state='copied'] {
+    background: var(--glow);
+  }
+
+  .path-hint {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .step-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .step-card h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    margin: 0 0 6px;
+  }
+
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #04170a;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .step-card p.step-desc {
+    color: var(--muted);
+    margin: 0 0 18px;
+    font-size: 14px;
+  }
+
+  /* Mock da página chrome://extensions */
+  .mock {
+    background: var(--elevated);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .mock-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .mock-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .mock-url {
+    margin-left: 8px;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace;
+  }
+
+  .mock-body {
+    padding: 18px;
+  }
+
+  .mock-toprow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .mock-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .toggle-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toggle {
+    width: 34px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    position: relative;
+  }
+
+  .toggle.on {
+    background: var(--primary);
+  }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s ease;
+  }
+
+  .toggle.on::after {
+    transform: translateX(16px);
+  }
+
+  .toggle-label {
+    font-size: 12.5px;
+    color: var(--text);
+  }
+
+  .mock-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .mock-btn {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .mock-btn.primary {
+    background: var(--primary);
+    color: #04170a;
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  .mock-filepicker {
+    background: var(--surface);
+    border: 1px dashed rgba(45, 219, 96, 0.5);
+    border-radius: 10px;
+    padding: 12px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    color: var(--glow);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mock-filepicker svg {
+    flex-shrink: 0;
+  }
+
+  /* Setas animadas */
+  .arrow-anchor {
+    position: relative;
+  }
+
+  .arrow {
+    position: absolute;
+    animation: arrow-bounce 1.1s ease-in-out infinite;
+    filter: drop-shadow(0 0 6px rgba(122, 242, 165, 0.65));
+  }
+
+  .arrow.to-toggle {
+    top: -6px;
+    right: 118px;
+  }
+
+  .arrow.to-upload {
+    top: -34px;
+    left: 8px;
+  }
+
+  @keyframes arrow-bounce {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(6px);
+    }
+  }
+
+  .warning {
+    margin-top: 30px;
+    background: rgba(255, 176, 32, 0.08);
+    border: 1px solid rgba(255, 176, 32, 0.35);
+    border-radius: 14px;
+    padding: 16px 18px;
+    font-size: 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .warning strong {
+    color: rgb(255, 199, 92);
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 36px;
+  }
+</style>
+</head>
+<body>
+  <div class="badge-mark">Citi</div>
+
+  <div class="wrap">
+    <header class="page-header">
+      <h1>Falta pouco — ative a extensão TaqCITi</h1>
+      <p>Siga os dois passos abaixo. Leva menos de um minuto.</p>
+    </header>
+
+    <section class="path-card">
+      <h2>Sua pasta de instalação</h2>
+      <div class="path-row">
+        <div class="path-value" id="install-path">carregando…</div>
+        <button class="copy-btn" id="copy-btn" type="button">Copiar caminho</button>
+      </div>
+      <p class="path-hint">
+        Esse caminho já foi copiado para a área de transferência automaticamente. Se
+        colar (Ctrl+V) não funcionar no passo 2, copie manualmente aqui.
+      </p>
+    </section>
+
+    <div class="steps">
+      <article class="step-card">
+        <h3><span class="step-num">1</span> Ative o "Modo do desenvolvedor"</h3>
+        <p class="step-desc">
+          A página <strong>chrome://extensions</strong> já deve ter aberto sozinha numa
+          aba. No canto superior direito dela, ative esse interruptor.
+        </p>
+        <div class="mock arrow-anchor">
+          <div class="mock-titlebar">
+            <span class="mock-dot"></span><span class="mock-dot"></span
+            ><span class="mock-dot"></span>
+            <span class="mock-url">chrome://extensions</span>
+          </div>
+          <div class="mock-body">
+            <div class="mock-toprow">
+              <span class="mock-title">Extensões</span>
+              <div class="toggle-wrap">
+                <span class="toggle-label">Modo do desenvolvedor</span>
+                <span class="toggle on"></span>
+              </div>
+            </div>
+            <svg
+              class="arrow to-toggle"
+              width="34"
+              height="34"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M12 3v14M12 17l-5-5M12 17l5-5"
+                stroke="rgb(45 219 96)"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+      </article>
+
+      <article class="step-card">
+        <h3><span class="step-num">2</span> Carregue a extensão</h3>
+        <p class="step-desc">
+          Com o modo do desenvolvedor ativo, clique em
+          <strong>"Carregar sem compactação"</strong> e cole o caminho acima (já
+          copiado pra você) na janela que abrir.
+        </p>
+        <div class="mock arrow-anchor">
+          <div class="mock-titlebar">
+            <span class="mock-dot"></span><span class="mock-dot"></span
+            ><span class="mock-dot"></span>
+            <span class="mock-url">chrome://extensions</span>
+          </div>
+          <div class="mock-body">
+            <div class="mock-buttons">
+              <span class="mock-btn primary">Carregar sem compactação</span>
+              <span class="mock-btn">Empacotar extensão</span>
+              <span class="mock-btn">Atualizar</span>
+            </div>
+            <svg
+              class="arrow to-upload"
+              width="30"
+              height="30"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path
+                d="M12 3v14M12 17l-5-5M12 17l5-5"
+                stroke="rgb(45 219 96)"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <div class="mock-filepicker">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
+                  stroke="rgb(122 242 165)"
+                  stroke-width="1.6"
+                />
+              </svg>
+              <span id="install-path-mini">…</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="warning">
+      <span>⚠️</span>
+      <span>
+        <strong>Não mova, renomeie ou apague</strong> a pasta de instalação depois de
+        carregada — o Chrome lê os arquivos direto dela, e a extensão para de
+        funcionar se ela sumir ou mudar de lugar.
+      </span>
+    </div>
+
+    <footer>TaqCITi — captura local de transcrição do Google Meet.</footer>
+  </div>
+
+  <script>
+    window.TAQCITI_INSTALL_PATH = '__INSTALL_PATH__';
+
+    (function () {
+      var path = window.TAQCITI_INSTALL_PATH;
+      // Token partido em duas partes de propósito: o instalador faz uma
+      // troca de texto simples do placeholder (linha acima) pelo caminho
+      // real. Se esta comparação tivesse o token inteiro escrito aqui,
+      // ela também seria substituída, quebrando a detecção depois que o
+      // caminho real for preenchido.
+      var placeholderToken = '__INSTALL' + '_PATH__';
+      var isPlaceholder = !path || path === placeholderToken;
+      var display = isPlaceholder ? '(caminho não informado pelo instalador)' : path;
+
+      document.getElementById('install-path').textContent = display;
+      document.getElementById('install-path-mini').textContent = display;
+
+      var btn = document.getElementById('copy-btn');
+      btn.addEventListener('click', function () {
+        if (isPlaceholder) return;
+        var done = function () {
+          btn.textContent = 'Copiado!';
+          btn.dataset.state = 'copied';
+          setTimeout(function () {
+            btn.textContent = 'Copiar caminho';
+            delete btn.dataset.state;
+          }, 1800);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(path).then(done, function () {
+            fallbackCopy(path, done);
+          });
+        } else {
+          fallbackCopy(path, done);
+        }
+      });
+
+      function fallbackCopy(text, done) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          done();
+        } catch (e) {
+          // Sem suporte a cópia por aqui — o caminho já está visível na tela.
+        }
+        document.body.removeChild(ta);
+      }
+    })();
+  </script>
+</body>
+</html>
