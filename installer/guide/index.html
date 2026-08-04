@@ -484,8 +484,20 @@
     <footer>TaqCITi — captura local de transcrição do Google Meet.</footer>
   </div>
 
+  <!--
+    install-path.js é opcional: só existe quando o instalador Windows o
+    escreve do zero ao lado deste arquivo (ver WriteInstallPathScript em
+    installer/windows/taqciti.iss). O instalador Linux, em vez disso, edita
+    este próprio arquivo por substituição de texto simples (sed), trocando
+    o placeholder logo abaixo pelo caminho real. Os dois mecanismos
+    convivem: se install-path.js existir e carregar primeiro, ele já
+    define window.TAQCITI_INSTALL_PATH e o placeholder abaixo é ignorado.
+  -->
+  <script src="install-path.js"></script>
   <script>
-    window.TAQCITI_INSTALL_PATH = '__INSTALL_PATH__';
+    if (typeof window.TAQCITI_INSTALL_PATH === 'undefined') {
+      window.TAQCITI_INSTALL_PATH = '__INSTALL_PATH__';
+    }
 
     (function () {
       var path = window.TAQCITI_INSTALL_PATH;
