@@ -89,6 +89,8 @@ export const sessionStateSchema = z.object({
   captureDegradedCount: z.number().int().nonnegative().default(0),
   lastChunkAt: z.number().int().nonnegative().nullable().default(null),
   wasDiscardedAndRestarted: z.boolean(),
+  captionLanguage: z.enum(['pt', 'en', 'unknown']).default('unknown'),
+  languageWarningDismissed: z.boolean().default(false),
 });
 
 export const meetingStateSchema = z.object({
@@ -139,6 +141,7 @@ const uiMessages = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ui/finish') }),
   z.object({ type: z.literal('ui/rename'), title: z.string().min(1).max(200) }),
   z.object({ type: z.literal('ui/reset') }),
+  z.object({ type: z.literal('ui/dismissLanguageWarning') }),
   z.object({ type: z.literal('ui/history/delete'), id: z.string() }),
   z.object({
     type: z.literal('ui/history/rename'),

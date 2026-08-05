@@ -64,6 +64,8 @@ export class ContentController {
     onResumeCapture: () => this.redetect(),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
     onEnableCaptions: () => this.attemptEnableCaptions(),
+    onDismissLanguageWarning: () =>
+      void sendMessage({ type: 'ui/dismissLanguageWarning' }),
     onToggleNativeCaptions: (hidden) => {
       this.prefs = { ...this.prefs, hideMeetCaptions: hidden };
       savePanelPrefs(this.prefs);

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { MeetingState } from '@/shared/types/domain';
 import { IDLE_STATE } from '@/shared/types/domain';
-import { REJOIN_RESUME_WINDOW_MS } from '@/shared/config/constants';
+import {
+  LANGUAGE_DETECTION_CHUNK_INTERVAL,
+  REJOIN_RESUME_WINDOW_MS,
+} from '@/shared/config/constants';
 import type { MeetingEvent } from './machine';
 import { transition } from './machine';
 
@@ -382,5 +385,42 @@ describe('presença, histórico de participação e falantes observados', () => 
     });
     expect(degraded.session?.lastChunkAt).toBe(T0 + 3_000);
     expect(degraded.session?.captureDegradedCount).toBe(1);
+  });
+
+  // ---- aviso de idioma da legenda ----
+
+  it('idioma da legenda só é reavaliado a cada LANGUAGE_DETECTION_CHUNK_INTERVAL chunks aplicados', () => {
+    let state = recordingState();
+    expect(state.session?.captionLanguage).toBe('unknown');
+
+    const english =
+      "so I think that we are going to do this because you know what that is not what we have with the plan";
+    for (let i = 0; i < LANGUAGE_DETECTION_CHUNK_INTERVAL - 1; i += 1) {
+      state = transition(state, chunk(`c${i}`, english, T0 + 1000 * (i + 1)));
+    }
+    expect(state.session?.captionLanguage).toBe('unknown');
+
+    state = transition(
+      state,
+      chunk('c-last', english, T0 + 1000 * LANGUAGE_DETECTION_CHUNK_INTERVAL),
+    );
+    expect(state.session?.captionLanguage).toBe('en');
+  });
+
+  it('LANGUAGE_WARNING_DISMISSED silencia o aviso só para a sessão atual', () => {
+    const rec = recordingState();
+    const dismissed = transition(rec, { type: 'LANGUAGE_WARNING_DISMISSED' });
+    expect(dismissed.session?.languageWarningDismissed).toBe(true);
+
+    // Reunião nova não herda a supressão da anterior.
+    const next = transition(
+      dismissed,
+      detected({ meetingId: 'm-2', meetingCode: 'zzz-nova-sala', captionsEnabled: true }),
+    );
+    expect(next.session?.languageWarningDismissed).toBe(false);
+  });
+
+  it('LANGUAGE_WARNING_DISMISSED fora de uma sessão ativa não faz nada', () => {
+    expect(transition(IDLE_STATE, { type: 'LANGUAGE_WARNING_DISMISSED' })).toBe(IDLE_STATE);
   });
 });

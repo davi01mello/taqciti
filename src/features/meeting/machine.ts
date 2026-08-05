@@ -17,19 +17,25 @@
 import type {
   AccountBoundaryState,
   CaptionChunk,
+  LiveSegment,
   MeetingSessionState,
   MeetingState,
   Participant,
   SpeakerObservation,
 } from '@/shared/types/domain';
 import { IDLE_STATE } from '@/shared/types/domain';
-import { REJOIN_RESUME_WINDOW_MS } from '@/shared/config/constants';
+import {
+  LANGUAGE_DETECTION_CHUNK_INTERVAL,
+  LANGUAGE_DETECTION_WINDOW_CHARS,
+  REJOIN_RESUME_WINDOW_MS,
+} from '@/shared/config/constants';
 import {
   applyCaptionChunk,
   collectCaptionIds,
   mergeSealedIds,
   renameSpeaker,
 } from '@/features/transcription/aggregator';
+import { detectCaptionLanguage, recentSegmentsText } from '@/features/transcription/languageHeuristic';
 import type { SpeakerRename } from '@/features/transcription/speakerIdentity';
 import { deriveMeetingTitle } from './naming';
 
@@ -54,6 +60,8 @@ export type MeetingEvent =
   /** Grafias que eram a mesma pessoa viraram uma: corrige o já capturado. */
   | { type: 'SPEAKERS_MERGED'; renames: SpeakerRename[] }
   | { type: 'RECONNECT' }
+  /** "Não avisar de novo nesta reunião" no banner de idioma da legenda. */
+  | { type: 'LANGUAGE_WARNING_DISMISSED' }
   | { type: 'PAUSE' }
   | { type: 'RESUME' }
   | { type: 'CLEAR_TRANSCRIPT' }
@@ -137,6 +145,26 @@ function observeSpeaker(
   return next;
 }
 
+/**
+ * Reavalia o idioma da legenda a cada `LANGUAGE_DETECTION_CHUNK_INTERVAL`
+ * chunks aplicados — rodar a heurística em toda linha custaria CPU à toa sem
+ * ganhar nada em precisão.
+ */
+function nextLanguageState(
+  session: MeetingSessionState,
+  segments: readonly LiveSegment[],
+): Pick<MeetingSessionState, 'captionLanguage' | 'chunksSinceLanguageCheck'> {
+  const chunksSinceLanguageCheck = session.chunksSinceLanguageCheck + 1;
+  if (chunksSinceLanguageCheck < LANGUAGE_DETECTION_CHUNK_INTERVAL) {
+    return { captionLanguage: session.captionLanguage, chunksSinceLanguageCheck };
+  }
+  const window = recentSegmentsText(segments, LANGUAGE_DETECTION_WINDOW_CHARS);
+  return {
+    captionLanguage: detectCaptionLanguage(window).language,
+    chunksSinceLanguageCheck: 0,
+  };
+}
+
 function freshSession(
   event: Extract<MeetingEvent, { type: 'MEETING_DETECTED' }>,
 ): MeetingState {
@@ -160,6 +188,9 @@ function freshSession(
     captureDegradedCount: 0,
     lastChunkAt: null,
     wasDiscardedAndRestarted: false,
+    captionLanguage: 'unknown',
+    languageWarningDismissed: false,
+    chunksSinceLanguageCheck: 0,
   };
   return {
     phase: event.captionsEnabled ? 'recording' : 'captionsRequired',
@@ -253,10 +284,16 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
           speakersObserved,
         });
       }
+      const { captionLanguage, chunksSinceLanguageCheck } = nextLanguageState(
+        state.session,
+        segments,
+      );
       return withSession(state, {
         segments,
         speakersObserved,
         lastChunkAt: event.chunk.atMs,
+        captionLanguage,
+        chunksSinceLanguageCheck,
       });
     }
 
@@ -362,6 +399,11 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
       return withSession(state, {
         reconnectCount: state.session.reconnectCount + 1,
       });
+    }
+
+    case 'LANGUAGE_WARNING_DISMISSED': {
+      if (!isActive(state) || state.session === null) return state;
+      return withSession(state, { languageWarningDismissed: true });
     }
 
     case 'PAUSE': {

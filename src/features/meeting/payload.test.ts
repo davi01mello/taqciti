@@ -32,6 +32,9 @@ function session(overrides: Partial<MeetingSessionState> = {}): MeetingSessionSt
     droppedSegments: 2,
     reconnectCount: 1,
     wasDiscardedAndRestarted: true,
+    captionLanguage: 'unknown',
+    languageWarningDismissed: false,
+    chunksSinceLanguageCheck: 0,
     ...overrides,
   };
 }

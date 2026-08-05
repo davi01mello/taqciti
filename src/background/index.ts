@@ -132,6 +132,8 @@ onMessage((message, sender) => {
         return { ok: true };
       case 'ui/reset':
         return dispatch({ type: 'RESET' });
+      case 'ui/dismissLanguageWarning':
+        return dispatch({ type: 'LANGUAGE_WARNING_DISMISSED' });
 
       // ---- Histórico ----
       case 'ui/history/delete': {

@@ -118,6 +118,9 @@ export interface LiveSegment extends TranscriptSegment {
   captionId: string;
 }
 
+/** Idioma da legenda, estimado por heurística de stopwords — nunca automatiza o menu do Meet. */
+export type CaptionLanguage = 'pt' | 'en' | 'unknown';
+
 export interface MeetingSessionState {
   meetingId: string;
   /** Código da sala (ex.: "abc-defg-hij") — chave da retomada pós-queda. */
@@ -149,6 +152,12 @@ export interface MeetingSessionState {
   /** Último trecho recebido, sem expor seu conteúdo em diagnóstico/log. */
   lastChunkAt?: number | null;
   wasDiscardedAndRestarted: boolean;
+  /** Última leitura da heurística de idioma sobre a janela recente de texto. */
+  captionLanguage: CaptionLanguage;
+  /** "Não avisar de novo nesta reunião" — silencia o aviso só para esta sessão. */
+  languageWarningDismissed: boolean;
+  /** Throttle interno: chunks aplicados desde a última checagem de idioma. */
+  chunksSinceLanguageCheck: number;
 }
 
 export interface MeetingState {
