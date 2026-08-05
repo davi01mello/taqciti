@@ -1,7 +1,7 @@
 /**
  * Máquina de estados do ciclo de vida da reunião — um reducer puro.
  *
- *   idle → captionsRequired → recording ⇄ paused → ended → sent
+ *   idle → captionsRequired → recording ⇄ paused → ended
  *
  * Toda transição é `transition(state, event) → state`: sem efeitos, sem
  * Date.now() interno (timestamps chegam nos eventos), 100% testável.
@@ -31,7 +31,6 @@ import {
   renameSpeaker,
 } from '@/features/transcription/aggregator';
 import type { SpeakerRename } from '@/features/transcription/speakerIdentity';
-import { computeCommercialConfidence } from './commercialConfidence';
 import { deriveMeetingTitle } from './naming';
 
 export type MeetingEvent =
@@ -60,18 +59,16 @@ export type MeetingEvent =
   | { type: 'CLEAR_TRANSCRIPT' }
   | { type: 'RENAME'; title: string }
   | { type: 'MEETING_FINISHED'; at: number }
-  | { type: 'MARK_SENT' }
   | { type: 'RESET' };
 
 const ACTIVE_PHASES = ['captionsRequired', 'recording', 'paused'] as const;
-const POST_MEETING_PHASES = ['ended', 'sent'] as const;
 
 function isActive(state: MeetingState): boolean {
   return (ACTIVE_PHASES as readonly string[]).includes(state.phase);
 }
 
 function isPostMeeting(state: MeetingState): boolean {
-  return (POST_MEETING_PHASES as readonly string[]).includes(state.phase);
+  return state.phase === 'ended';
 }
 
 function withSession(
@@ -163,7 +160,6 @@ function freshSession(
     captureDegradedCount: 0,
     lastChunkAt: null,
     wasDiscardedAndRestarted: false,
-    commercialConfidence: null,
   };
   return {
     phase: event.captionsEnabled ? 'recording' : 'captionsRequired',
@@ -205,7 +201,6 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
             captionsEnabled: event.captionsEnabled,
             endedAt: null,
             reconnectCount: current.reconnectCount + 1,
-            commercialConfidence: null,
           },
         };
       }
@@ -421,14 +416,8 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
         session: {
           ...state.session,
           endedAt: event.at,
-          commercialConfidence: computeCommercialConfidence(state.session.segments),
         },
       };
-    }
-
-    case 'MARK_SENT': {
-      if (state.phase !== 'ended') return state;
-      return { ...state, phase: 'sent' };
     }
 
     case 'RESET': {

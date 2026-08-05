@@ -20,7 +20,6 @@ const SAFE_LOG_KEYS = new Set([
   'durationSeconds',
   'participants',
   'segments',
-  'commercialConfidence',
   'processingStatus',
   'attempts',
   'reconnectCount',

@@ -31,7 +31,7 @@ export function HistoryCard({ record, onOpen }: HistoryCardProps) {
           <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-snug">
             {record.title}
           </p>
-          <StatusBadge status={record.status} syncState={record.syncState} />
+          <StatusBadge status={record.status} />
         </div>
 
         <p className="mt-2 truncate text-xs text-muted">

@@ -93,8 +93,7 @@ async function runSideEffects(
     state.session &&
     prev.session.meetingId !== state.session.meetingId &&
     prev.session.segments.length > 0 &&
-    prev.phase !== 'ended' &&
-    prev.phase !== 'sent'
+    prev.phase !== 'ended'
   ) {
     await upsertRecord(buildMeetingRecord(prev.session, 'ready', now));
   }
@@ -125,13 +124,8 @@ async function runSideEffects(
   if (event.type === 'RENAME' && state !== prev && state.session) {
     if (isLive(state)) {
       await saveLiveRecord(true, now);
-    } else if (state.phase === 'ended' || state.phase === 'sent') {
-      await upsertRecord(
-        buildMeetingRecord(
-          state.session,
-          state.phase === 'sent' ? 'sent' : 'ready',
-        ),
-      );
+    } else if (state.phase === 'ended') {
+      await upsertRecord(buildMeetingRecord(state.session, 'ready'));
     }
   }
 

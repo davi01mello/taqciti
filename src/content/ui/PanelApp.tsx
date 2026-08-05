@@ -322,7 +322,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
             </>
           )}
 
-          {(phase === 'ended' || phase === 'sent') && (
+          {phase === 'ended' && (
             <div
               style={{ maxHeight: bodyBudget }}
               className="min-h-0 overflow-y-auto overscroll-contain pt-1"

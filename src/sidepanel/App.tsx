@@ -26,7 +26,6 @@ export function App() {
         />
       );
     case 'ended':
-    case 'sent':
       if (!state.session) return <HomeScreen />;
       return <SummaryScreen session={state.session} />;
   }

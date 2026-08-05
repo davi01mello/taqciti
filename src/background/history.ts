@@ -1,20 +1,19 @@
 /**
  * Repositório do histórico de reuniões em chrome.storage.local — a fonte da
  * verdade das transcrições. Registros ordenados do mais recente para o mais
- * antigo, com teto de tamanho. Statuses da era Companion ("pending",
- * "ignored", "discarded") são normalizados para "ready" na leitura: nenhuma
- * transcrição antiga se perde na migração.
+ * antigo, com teto de tamanho. Statuses de eras anteriores da extensão
+ * ("pending", "ignored", "discarded", "sent") são normalizados para "ready"
+ * na leitura: nenhuma transcrição antiga se perde na migração.
  */
 import type { HistoryStatus, MeetingRecord } from '@/shared/types/domain';
 import { MAX_HISTORY_RECORDS, STORAGE_KEYS } from '@/shared/config/constants';
 import { readLocal, writeLocal } from '@/shared/services/storage';
 
-const VALID_STATUSES: readonly HistoryStatus[] = ['recording', 'ready', 'sent'];
+const VALID_STATUSES: readonly HistoryStatus[] = ['recording', 'ready'];
 
 function normalizeRecord(record: MeetingRecord): MeetingRecord {
   if ((VALID_STATUSES as readonly string[]).includes(record.status)) return record;
-  const legacy = record.status as string;
-  return { ...record, status: legacy === 'sent' ? 'sent' : 'ready' };
+  return { ...record, status: 'ready' };
 }
 
 export async function listHistory(): Promise<MeetingRecord[]> {
@@ -25,21 +24,7 @@ export async function listHistory(): Promise<MeetingRecord[]> {
 export async function upsertRecord(record: MeetingRecord): Promise<void> {
   const history = await listHistory();
   const previous = history.find((item) => item.id === record.id);
-  const merged = previous
-    ? {
-        ...previous,
-        ...record,
-        ...(record.pendingFlow === undefined
-          ? { pendingFlow: previous.pendingFlow }
-          : {}),
-        ...(record.pendingDiagnostic === undefined
-          ? { pendingDiagnostic: previous.pendingDiagnostic }
-          : {}),
-        ...(record.syncState === undefined
-          ? { syncState: previous.syncState }
-          : {}),
-      }
-    : record;
+  const merged = previous ? { ...previous, ...record } : record;
   const without = history.filter((r) => r.id !== record.id);
   const next = [merged, ...without]
     .sort((a, b) => b.startedAt - a.startedAt)
@@ -54,12 +39,7 @@ export async function getRecord(id: string): Promise<MeetingRecord | null> {
 
 export async function patchRecord(
   id: string,
-  patch: Partial<
-    Pick<
-      MeetingRecord,
-      'title' | 'status' | 'pendingFlow' | 'pendingDiagnostic' | 'syncState'
-    >
-  >,
+  patch: Partial<Pick<MeetingRecord, 'title' | 'status'>>,
 ): Promise<void> {
   const history = await listHistory();
   const next = history.map((r) => (r.id === id ? { ...r, ...patch } : r));

@@ -107,11 +107,10 @@ describe('máquina de estados da reunião', () => {
     expect(after.session?.segments).toHaveLength(1);
   });
 
-  it('finalizar → ended com endedAt e confiança calculada', () => {
+  it('finalizar → ended com endedAt', () => {
     const done = endedState();
     expect(done.phase).toBe('ended');
     expect(done.session?.endedAt).toBe(T0 + 60_000);
-    expect(done.session?.commercialConfidence).toBeGreaterThan(0);
   });
 
   it('finalizar sem nenhuma fala capturada termina explicando, não sumindo', () => {
@@ -134,10 +133,7 @@ describe('máquina de estados da reunião', () => {
     expect(abandoned.session?.segments).toEqual([]);
   });
 
-  it('ended → sent → idle via reset', () => {
-    const sent = transition(endedState(), { type: 'MARK_SENT' });
-    expect(sent.phase).toBe('sent');
-    expect(transition(sent, { type: 'RESET' })).toEqual(IDLE_STATE);
+  it('ended → idle via reset', () => {
     expect(transition(endedState(), { type: 'RESET' })).toEqual(IDLE_STATE);
   });
 
@@ -222,7 +218,6 @@ describe('máquina de estados da reunião', () => {
 
   it('transições ilegais retornam o estado inalterado', () => {
     expect(transition(IDLE_STATE, { type: 'PAUSE' })).toBe(IDLE_STATE);
-    expect(transition(IDLE_STATE, { type: 'MARK_SENT' })).toBe(IDLE_STATE);
     const rec = recordingState();
     expect(transition(rec, { type: 'RESUME' })).toBe(rec);
     expect(transition(rec, { type: 'RESET' })).toBe(rec);

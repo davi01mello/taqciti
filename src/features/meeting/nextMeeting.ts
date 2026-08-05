@@ -55,8 +55,8 @@
  * Sendo puro, roda sobre os segmentos quantas vezes quiser: durante a reunião,
  * para o painel mostrar a hipótese, e no fim, para o fluxo confirmar.
  *
- * Irmão de `commercialConfidence.ts`: mesma forma, mesmo lugar, mesma regra de
- * não sair daqui para lugar nenhum.
+ * Mesma regra dos outros heurísticos puros da pasta: não sair daqui para
+ * lugar nenhum.
  */
 import type { TranscriptSegment } from '@/shared/types/domain';
 import {

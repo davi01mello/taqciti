@@ -36,10 +36,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   void ready.then(() => {
     const current = getState();
-    if (
-      (current.phase === 'ended' || current.phase === 'sent') &&
-      current.session?.tabId === tabId
-    ) {
+    if (current.phase === 'ended' && current.session?.tabId === tabId) {
       void dispatch({ type: 'RESET' });
     }
   });
@@ -139,10 +136,7 @@ onMessage((message, sender) => {
       // ---- Histórico ----
       case 'ui/history/delete': {
         const current = getState();
-        if (
-          current.session?.meetingId === message.id &&
-          (current.phase === 'ended' || current.phase === 'sent')
-        ) {
+        if (current.session?.meetingId === message.id && current.phase === 'ended') {
           await dispatch({ type: 'RESET' });
         }
         await deleteRecord(message.id);
@@ -156,11 +150,6 @@ onMessage((message, sender) => {
         return { ok: true };
       }
 
-      // Mensagens de fluxos que não existem nesta versão standalone (envio a
-      // backend, auth de produto, diagnóstico técnico) continuam declaradas
-      // em shared/types/messages.ts (não vale a pena editar o schema por
-      // isto), mas nenhuma UI deste repo as envia mais — não precisam de
-      // case aqui.
       case 'state/updated':
         return undefined;
     }

@@ -1,6 +1,6 @@
 /**
- * Montagem do MeetingPayload final (contrato do CITi Flow) e do registro de
- * histórico a partir do estado interno da sessão. Funções puras.
+ * Montagem do MeetingPayload final e do registro de histórico a partir do
+ * estado interno da sessão. Funções puras.
  */
 import type {
   MeetingPayload,
@@ -9,7 +9,6 @@ import type {
   TranscriptSegment,
 } from '@/shared/types/domain';
 import { buildTemporalContext, resolveLocalTimezone } from '@/shared/temporal';
-import { computeCommercialConfidence } from './commercialConfidence';
 
 function toPublicSegments(session: MeetingSessionState): TranscriptSegment[] {
   // captionId é detalhe interno de agregação — não faz parte do contrato.
@@ -21,10 +20,7 @@ function toPublicSegments(session: MeetingSessionState): TranscriptSegment[] {
   }));
 }
 
-export function buildMeetingPayload(
-  session: MeetingSessionState,
-  diagnostic?: { report: string | null; sessionId: string },
-): MeetingPayload {
+export function buildMeetingPayload(session: MeetingSessionState): MeetingPayload {
   const endedAt = session.endedAt ?? session.startedAt;
   const base: MeetingPayload = {
     meetingId: session.meetingId,
@@ -51,8 +47,6 @@ export function buildMeetingPayload(
       ? { speakersObserved: session.speakersObserved }
       : {}),
     transcript: toPublicSegments(session),
-    commercialConfidence:
-      session.commercialConfidence ?? computeCommercialConfidence(session.segments),
     metadata: {
       capturedCaptions: session.segments.length > 0,
       droppedSegments: session.droppedSegments,
@@ -62,10 +56,6 @@ export function buildMeetingPayload(
       wasDiscardedAndRestarted: session.wasDiscardedAndRestarted,
     },
   };
-  if (diagnostic) {
-    base.diagnostic_report = diagnostic.report;
-    base.diagnostic_session_id = diagnostic.sessionId;
-  }
   return base;
 }
 
@@ -89,41 +79,7 @@ export function buildMeetingRecord(
       ? { speakersObserved: session.speakersObserved }
       : {}),
     segments: session.segments,
-    commercialConfidence: payload.commercialConfidence,
     status,
     metadata: payload.metadata,
-  };
-}
-
-/** Payload de envio a partir de um registro do histórico (envio tardio). */
-export function payloadFromRecord(record: MeetingRecord): MeetingPayload {
-  return {
-    meetingId: record.id,
-    provider: 'google-meet',
-    title: record.title,
-    startedAt: new Date(record.startedAt).toISOString(),
-    endedAt: new Date(record.endedAt).toISOString(),
-    // Envio tardio a partir do histórico: o fuso continua sendo o desta
-    // máquina, que é a mesma que capturou.
-    temporal: buildTemporalContext({
-      startedAtMs: record.startedAt,
-      endedAtMs: record.endedAt,
-      timezone: resolveLocalTimezone(),
-      source: 'extensao',
-    }),
-    durationSeconds: record.durationSeconds,
-    participants: record.participants,
-    ...(record.presentNow !== undefined ? { presentNow: record.presentNow } : {}),
-    ...(record.speakersObserved !== undefined
-      ? { speakersObserved: record.speakersObserved }
-      : {}),
-    transcript: record.segments.map(({ speaker, text, startOffsetMs, endOffsetMs }) => ({
-      speaker,
-      text,
-      startOffsetMs,
-      endOffsetMs,
-    })),
-    commercialConfidence: record.commercialConfidence,
-    metadata: record.metadata,
   };
 }

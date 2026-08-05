@@ -8,7 +8,7 @@ import type { HistoryStatus, MeetingRecord } from '@/shared/types/domain';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange, readLocal } from '@/shared/services/storage';
 
-const VALID_STATUSES: readonly HistoryStatus[] = ['recording', 'ready', 'sent'];
+const VALID_STATUSES: readonly HistoryStatus[] = ['recording', 'ready'];
 
 function normalize(records: MeetingRecord[] | null): MeetingRecord[] {
   if (!records) return [];

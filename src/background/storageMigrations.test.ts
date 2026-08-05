@@ -20,7 +20,6 @@ function legacyMeeting(): MeetingRecord {
     durationSeconds: 1,
     participants: [],
     segments: [],
-    commercialConfidence: 0,
     status: 'ready',
     metadata: {
       capturedCaptions: false,

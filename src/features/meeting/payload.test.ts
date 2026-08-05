@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MeetingSessionState } from '@/shared/types/domain';
-import { buildMeetingPayload, buildMeetingRecord, payloadFromRecord } from './payload';
+import { buildMeetingPayload, buildMeetingRecord } from './payload';
 
 const START = Date.UTC(2026, 6, 6, 14, 0, 0);
 const END = START + 45 * 60 * 1000;
@@ -32,7 +32,6 @@ function session(overrides: Partial<MeetingSessionState> = {}): MeetingSessionSt
     droppedSegments: 2,
     reconnectCount: 1,
     wasDiscardedAndRestarted: true,
-    commercialConfidence: 0.42,
     ...overrides,
   };
 }
@@ -66,7 +65,6 @@ describe('buildMeetingPayload', () => {
           endOffsetMs: 4000,
         },
       ],
-      commercialConfidence: 0.42,
       metadata: {
         capturedCaptions: true,
         droppedSegments: 2,
@@ -87,11 +85,6 @@ describe('buildMeetingPayload', () => {
     const payload = buildMeetingPayload(session({ segments: [] }));
     expect(payload.metadata.capturedCaptions).toBe(false);
   });
-
-  it('confiança ausente é recalculada na hora', () => {
-    const payload = buildMeetingPayload(session({ commercialConfidence: null }));
-    expect(payload.commercialConfidence).toBeGreaterThan(0);
-  });
 });
 
 describe('registro de histórico', () => {
@@ -101,12 +94,6 @@ describe('registro de histórico', () => {
     expect(record.status).toBe('recording');
     expect(record.endedAt).toBe(START + 10 * 60 * 1000);
     expect(record.durationSeconds).toBe(10 * 60);
-  });
-
-  it('payloadFromRecord reproduz o payload do envio direto', () => {
-    const record = buildMeetingRecord(session(), 'ready');
-    const fromRecord = payloadFromRecord(record);
-    expect(fromRecord).toEqual(buildMeetingPayload(session()));
   });
 });
 

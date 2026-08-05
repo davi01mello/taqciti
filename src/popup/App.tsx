@@ -22,7 +22,6 @@ function subtitleFor(phase: string): string {
     case 'captionsRequired':
       return 'Preparando a transcrição…';
     case 'ended':
-    case 'sent':
       return 'Transcrição salva no histórico';
     default:
       return 'Aguardando reunião no Meet';
@@ -106,7 +105,7 @@ export function App() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-body font-medium">{record.title}</p>
-                    <StatusBadge status={record.status} syncState={record.syncState} />
+                    <StatusBadge status={record.status} />
                   </div>
                   <p className="text-micro text-muted">
                     {formatDate(record.startedAt)} ·{' '}
