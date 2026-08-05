@@ -96,9 +96,19 @@ for filepath in "${FILES[@]}"; do
   # --- 1. Procura um arquivo com esse nome já existente na pasta ---
   # curl -G --data-urlencode monta a query string com o encoding certo
   # sozinho — evita ter que escapar aspas/espaços/acentos na mão.
+  #
+  # supportsAllDrives + includeItemsFromAllDrives=true são obrigatórios
+  # pra essa busca "enxergar" arquivos dentro de um Drive compartilhado —
+  # a pasta de destino migrou de "Meu Drive" pra um Shared Drive porque
+  # Service Account não tem cota de armazenamento própria ("Service
+  # Accounts do not have storage quota"), e sem esses dois parâmetros a
+  # API simplesmente não retorna (nem enxerga) itens de Drives
+  # compartilhados, mesmo com a permissão de Content Manager certa.
   search_response="$(drive_request "consultar o Drive por '$filename'" -G \
     --data-urlencode "q=name='${filename}' and '${GDRIVE_FOLDER_ID}' in parents and trashed=false" \
     --data-urlencode "fields=files(id,name)" \
+    --data-urlencode "supportsAllDrives=true" \
+    --data-urlencode "includeItemsFromAllDrives=true" \
     "${DRIVE_API}/files")"
 
   match_count="$(printf '%s' "$search_response" | jq '.files | length')"
@@ -110,13 +120,15 @@ for filepath in "${FILES[@]}"; do
 
   if [ -z "$file_id" ]; then
     # --- 2a. Não existe: cria o registro do arquivo (sem conteúdo ainda) ---
+    # supportsAllDrives=true também é obrigatório aqui — sem ele, criar um
+    # arquivo com "parents" apontando pra um Shared Drive é rejeitado.
     echo "[gdrive] Ainda não existe — criando."
     create_response="$(drive_request "criar o registro de '$filename'" \
       -X POST \
       -H "Content-Type: application/json; charset=UTF-8" \
       --data "$(jq -n --arg name "$filename" --arg parent "$GDRIVE_FOLDER_ID" \
         '{name: $name, parents: [$parent]}')" \
-      "${DRIVE_API}/files?fields=id")"
+      "${DRIVE_API}/files?fields=id&supportsAllDrives=true")"
 
     file_id="$(printf '%s' "$create_response" | jq -r '.id // empty')"
     if [ -z "$file_id" ]; then
@@ -127,11 +139,13 @@ for filepath in "${FILES[@]}"; do
   fi
 
   # --- 2b. Sobe/atualiza o conteúdo binário — mesmo passo pros dois casos ---
+  # supportsAllDrives=true de novo — mesmo motivo, agora pro upload de
+  # mídia (files.update) em vez do registro de metadados.
   drive_request "enviar o conteúdo de '$filename' (id=$file_id)" \
     -X PATCH \
     -H "Content-Type: application/octet-stream" \
     --data-binary "@${filepath}" \
-    "${DRIVE_UPLOAD_API}/files/${file_id}?uploadType=media" >/dev/null
+    "${DRIVE_UPLOAD_API}/files/${file_id}?uploadType=media&supportsAllDrives=true" >/dev/null
 
   echo "[gdrive] OK: $filename (id=$file_id)."
 done
