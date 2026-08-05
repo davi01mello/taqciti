@@ -82,7 +82,18 @@ else
   GUIDE_DEST=""
 fi
 
-# --- Abre o navegador padrão (melhor esforço) ---
+# --- Abre o guia visual (melhor esforço) ---
+#
+# NÃO tentamos mais abrir chrome://extensions automaticamente. Em testes
+# manuais reais (feitos no instalador Windows, mas o comportamento é do
+# Chrome, não do SO), passar essa URL como argumento de linha de comando
+# pro Chrome nunca funcionou — o navegador parece filtrar/ignorar URLs do
+# esquema chrome:// recebidas de um processo externo, por segurança. Não
+# é bug do xdg-open nem do Chrome-binário-direto que existia aqui antes;
+# é o próprio Chrome recusando esse esquema por essa via, então não tem
+# workaround confiável. O guia (aberto abaixo) orienta a pessoa a abrir
+# uma aba nova e colar o endereço manualmente — já copiado automaticamente
+# por um botão dedicado nele.
 open_target() {
   local target="$1"
   if command -v xdg-open >/dev/null 2>&1; then
@@ -90,21 +101,6 @@ open_target() {
     disown >/dev/null 2>&1 || true
   fi
 }
-
-CHROME_BIN=""
-for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
-  if command -v "$candidate" >/dev/null 2>&1; then
-    CHROME_BIN="$candidate"
-    break
-  fi
-done
-
-if [ -n "$CHROME_BIN" ]; then
-  "$CHROME_BIN" "chrome://extensions" >/dev/null 2>&1 &
-  disown >/dev/null 2>&1 || true
-else
-  open_target "chrome://extensions"
-fi
 
 if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ]; then
   open_target "$GUIDE_DEST"

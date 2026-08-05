@@ -138,6 +138,10 @@
     font-size: 12.5px;
   }
 
+  .chrome-url-row {
+    margin-bottom: 18px;
+  }
+
   .steps {
     display: flex;
     flex-direction: column;
@@ -415,9 +419,14 @@
       <article class="step-card">
         <h3><span class="step-num">1</span> Ative o "Modo do desenvolvedor"</h3>
         <p class="step-desc">
-          A página <strong>chrome://extensions</strong> já deve ter aberto sozinha numa
-          aba. No canto superior direito dela, ative esse interruptor.
+          Abra uma nova aba no Chrome e cole (Ctrl+V) o endereço abaixo — já
+          copiado pra você. No canto superior direito da página, ative o
+          interruptor "Modo do desenvolvedor".
         </p>
+        <div class="path-row chrome-url-row">
+          <div class="path-value">chrome://extensions</div>
+          <button class="copy-btn" id="copy-chrome-url-btn" type="button">Copiar</button>
+        </div>
         <div class="mock arrow-anchor">
           <div class="mock-titlebar">
             <span class="mock-dot"></span><span class="mock-dot"></span
@@ -538,6 +547,25 @@
       window.TAQCITI_INSTALL_PATH = '__INSTALL_PATH__';
     }
 
+    // Compartilhado pelos dois botões "Copiar" da página (caminho de
+    // instalação e chrome://extensions) — só o fallback pra quando
+    // navigator.clipboard não está disponível.
+    function fallbackCopy(text, done) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        done();
+      } catch (e) {
+        // Sem suporte a cópia por aqui — o valor já está visível na tela.
+      }
+      document.body.removeChild(ta);
+    }
+
     (function () {
       var platform = (navigator.platform || navigator.userAgent || '');
       var isMac = /Mac/i.test(platform);
@@ -580,22 +608,30 @@
           fallbackCopy(path, done);
         }
       });
+    })();
 
-      function fallbackCopy(text, done) {
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand('copy');
-          done();
-        } catch (e) {
-          // Sem suporte a cópia por aqui — o caminho já está visível na tela.
+    // Botão "Copiar" do endereço chrome://extensions (Passo 1). Texto fixo,
+    // sem placeholder pra checar — bem mais simples que o do caminho acima.
+    (function () {
+      var CHROME_URL = 'chrome://extensions';
+      var btn = document.getElementById('copy-chrome-url-btn');
+      btn.addEventListener('click', function () {
+        var done = function () {
+          btn.textContent = 'Copiado!';
+          btn.dataset.state = 'copied';
+          setTimeout(function () {
+            btn.textContent = 'Copiar';
+            delete btn.dataset.state;
+          }, 1800);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(CHROME_URL).then(done, function () {
+            fallbackCopy(CHROME_URL, done);
+          });
+        } else {
+          fallbackCopy(CHROME_URL, done);
         }
-        document.body.removeChild(ta);
-      }
+      });
     })();
   </script>
 </body>

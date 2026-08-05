@@ -142,17 +142,17 @@ else
   GUIDE_DEST=""
 fi
 
-# --- 6. Abre o Chrome em chrome://extensions (fallback: navegador padrão) --
-if [ -d "/Applications/Google Chrome.app" ] || [ -d "$CONSOLE_HOME/Applications/Google Chrome.app" ]; then
-  run_as_user open -a "Google Chrome" "chrome://extensions" >/dev/null 2>&1
-else
-  log "Aviso: Google Chrome não encontrado em /Applications. Tentando abrir"
-  log "chrome://extensions no navegador padrão (pode não ter efeito se ele"
-  log "não reconhecer esse endereço interno)."
-  run_as_user open "chrome://extensions" >/dev/null 2>&1
-fi
-
-# --- 7. Abre o guia visual ---------------------------------------------------
+# --- 6. Abre o guia visual ---------------------------------------------------
+#
+# NÃO tentamos mais abrir chrome://extensions automaticamente (essa etapa
+# existia aqui antes, via "open -a Google Chrome chrome://extensions").
+# Em testes manuais reais (no instalador Windows, mas o comportamento é
+# do Chrome, não do SO) essa URL nunca abriu quando passada como argumento
+# de linha de comando pro Chrome vindo de um processo externo — o
+# navegador parece filtrar/ignorar esse esquema por segurança nesse
+# cenário, então não tem workaround confiável. O guia (aberto abaixo)
+# orienta a pessoa a abrir uma aba nova e colar o endereço manualmente —
+# já copiado automaticamente por um botão dedicado nele.
 if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ]; then
   run_as_user open "$GUIDE_DEST" >/dev/null 2>&1
 fi

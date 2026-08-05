@@ -38,10 +38,16 @@ baixados como executáveis sem confirmação explícita):
 2. Copia esse caminho para a área de transferência via `xclip` ou `xsel`, se
    algum dos dois estiver instalado. Se nenhum estiver, só imprime o caminho
    no terminal — não falha a instalação.
-3. Abre o navegador padrão em `chrome://extensions` (via `xdg-open`, ou
-   diretamente via `google-chrome`/`chromium` se algum estiver no PATH).
-4. Abre o guia visual (`installer/guide/index.html`) com o caminho já
-   preenchido, numa cópia salva em `~/.local/share/taqciti/guide/`.
+3. Abre o guia visual (`installer/guide/index.html`) com o caminho já
+   preenchido, numa cópia salva em `~/.local/share/taqciti/guide/` (via
+   `xdg-open`).
+
+> **Não abre `chrome://extensions` sozinho** (essa etapa existia aqui
+> antes). Em testes reais isso nunca funcionou — o Chrome parece
+> filtrar/ignorar URLs `chrome://` recebidas via linha de comando de um
+> processo externo, por segurança, independente do sistema operacional. O
+> guia orienta a pessoa a abrir uma aba nova e colar o endereço (já
+> copiado por um botão dedicado nele).
 
 ## Testar localmente
 

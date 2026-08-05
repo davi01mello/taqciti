@@ -3,8 +3,11 @@
 ; Compila para um .exe único que embute o conteúdo de dist/ (build de
 ; produção da extensão) e, ao rodar, copia esses arquivos para uma pasta
 ; fixa na Área de Trabalho do usuário, copia o caminho para a área de
-; transferência, abre o Google Chrome especificamente em
-; chrome://extensions e abre o guia visual de instalação.
+; transferência, e abre o guia visual de instalação no Google Chrome
+; especificamente. NÃO tenta abrir chrome://extensions sozinho — ver o
+; comentário em CurStepChanged no [Code] abaixo sobre por que isso foi
+; removido (Chrome ignora esse esquema de URL quando vem via linha de
+; comando de outro processo).
 ;
 ; Por que Chrome especificamente, e não "o navegador padrão": a extensão
 ; só funciona no Chrome (é carregada via chrome://extensions), então abrir
@@ -233,17 +236,16 @@ begin
       estivesse vazio, a instalação teria sido abortada antes de chegar
       aqui, então não precisa checar de novo.
 
-      As duas URLs vão numa ÚNICA chamada Exec, não em duas separadas:
-      com o Chrome ainda não aberto, dois "Exec(ChromeExePath, ...)"
-      consecutivos (mesmo com ewNoWait) disparam dois processos chrome.exe
-      que competem pra virar a instância principal — o que perde a
-      corrida cai no seletor de perfil ("Quem está usando o Chrome?") em
-      vez de abrir a URL pretendida. Isso foi reproduzido de verdade num
-      teste manual. Passando as duas URLs como argumentos da mesma
-      invocação, só um processo chrome.exe é iniciado, e ele abre as duas
-      como abas da mesma janela — sem corrida nenhuma. }
-    Exec(ChromeExePath,
-      '"chrome://extensions" "' + GuideDir + '\index.html"',
-      '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+      Só abrimos o guia aqui — NÃO tentamos mais abrir chrome://extensions
+      via Exec. Em dois testes manuais reais, com duas abordagens de
+      código diferentes (dois Exec separados, depois um Exec só com as
+      duas URLs como argumentos), o guia sempre abriu certo, mas
+      chrome://extensions nunca abriu. Isso não é bug do nosso Exec: o
+      Chrome parece filtrar/ignorar URLs de esquema chrome:// recebidas
+      como argumento de linha de comando de um processo externo, por
+      segurança. Não tem workaround confiável — o guia agora instrui a
+      pessoa a abrir uma aba nova e colar o endereço (já copiado por um
+      botão dedicado), em vez de prometer que a aba abre sozinha. }
+    Exec(ChromeExePath, '"' + GuideDir + '\index.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;

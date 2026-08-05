@@ -69,13 +69,17 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 3. Copia esse caminho para a área de transferência via `pbcopy`, rodado no
    contexto do usuário. Se falhar, só avisa e imprime o caminho — não derruba
    a instalação.
-4. Abre o Google Chrome (`/Applications/Google Chrome.app`) em
-   `chrome://extensions`, no contexto do usuário. Se o Chrome não estiver
-   instalado, tenta abrir esse endereço no navegador padrão do sistema via
-   `open` — sem falhar o instalador se isso não tiver efeito.
-5. Abre o guia visual (`installer/guide/index.html`) com o caminho já
+4. Abre o guia visual (`installer/guide/index.html`) com o caminho já
    preenchido, numa cópia salva em
-   `~/Library/Application Support/TaqCITi/guide/`.
+   `~/Library/Application Support/TaqCITi/guide/`, no contexto do usuário.
+
+> **Não abre `chrome://extensions` sozinho** (essa etapa existia aqui
+> antes, via `open -a "Google Chrome" chrome://extensions`). Em testes
+> reais isso nunca funcionou — o Chrome parece filtrar/ignorar URLs
+> `chrome://` recebidas via linha de comando de um processo externo, por
+> segurança, independente do sistema operacional. O guia orienta a pessoa
+> a abrir uma aba nova e colar o endereço (já copiado por um botão
+> dedicado nele).
 
 ## Testar localmente
 

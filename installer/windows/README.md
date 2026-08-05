@@ -44,11 +44,16 @@ real do `package.json` (ou de uma tag), passe `/D`:
 1. Instala silenciosamente (sem tela de licença, sem escolha de pasta) em
    `%USERPROFILE%\Desktop\TaqCITi (não apagar)\`.
 2. Copia esse caminho para a área de transferência.
-3. Abre o Chrome (o mesmo executável encontrado no passo 0) em
-   `chrome://extensions`.
-4. Abre o guia visual (`installer/guide/index.html`) com o caminho já
-   preenchido, numa cópia salva em `%LOCALAPPDATA%\TaqCITi\guide\`, também
-   no Chrome.
+3. Abre o guia visual (`installer/guide/index.html`) com o caminho já
+   preenchido, numa cópia salva em `%LOCALAPPDATA%\TaqCITi\guide\`, no
+   Chrome (o mesmo executável encontrado no passo 0).
+
+> **Não abre `chrome://extensions` sozinho.** Chegamos a tentar (passando
+> a URL como argumento pro Chrome), mas em testes reais isso nunca
+> funcionou — o Chrome parece filtrar/ignorar URLs `chrome://` recebidas
+> via linha de comando de um processo externo, por segurança. O guia
+> orienta a pessoa a abrir uma aba nova e colar o endereço (já copiado
+> por um botão dedicado nele) em vez de prometer que a aba abre sozinha.
 
 Não é necessário desinstalar entre versões: rodar o instalador de novo
 sobrescreve os arquivos na mesma pasta.
