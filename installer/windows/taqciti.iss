@@ -3,8 +3,18 @@
 ; Compila para um .exe único que embute o conteúdo de dist/ (build de
 ; produção da extensão) e, ao rodar, copia esses arquivos para uma pasta
 ; fixa na Área de Trabalho do usuário, copia o caminho para a área de
-; transferência, abre o navegador padrão em chrome://extensions e abre o
-; guia visual de instalação.
+; transferência, abre o Google Chrome especificamente em
+; chrome://extensions e abre o guia visual de instalação.
+;
+; Por que Chrome especificamente, e não "o navegador padrão": a extensão
+; só funciona no Chrome (é carregada via chrome://extensions), então abrir
+; "o navegador padrão" nunca fez sentido — e na prática quebrou: numa
+; máquina com Edge como padrão, o Windows tentava resolver "chrome"
+; genericamente e mostrava "não instalado, procure na Microsoft Store",
+; mesmo com o Chrome de fato instalado. Ver FindChromeExe/InitializeSetup
+; no [Code] abaixo. Se o Chrome não for encontrado, a instalação inteira é
+; abortada antes de copiar qualquer arquivo (nenhuma extensão sem Chrome
+; faz sentido pela metade).
 ;
 ; Pré-requisito: rodar `npm run build` (na raiz do repo) ANTES de compilar
 ; este script, para que dist/ exista e esteja atualizada. Ver README.md
@@ -51,84 +61,91 @@ Source: "..\..\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 Source: "..\guide\index.html"; DestDir: "{localappdata}\TaqCITi\guide"; Flags: ignoreversion
 
 [Code]
+var
+  { Resolvido uma única vez em InitializeSetup e reaproveitado depois em
+    CurStepChanged — se estivesse vazio nesse ponto, a instalação já
+    teria sido abortada, então todo uso posterior pode supor que está
+    preenchido. }
+  ChromeExePath: String;
+
 function GetInstallPath(): String;
 begin
   Result := ExpandConstant('{app}');
 end;
 
-{ Extrai o caminho do executável de dentro de uma string de comando de
-  associação de URL/arquivo do Windows, que costuma vir como
-  ""C:\caminho\app.exe" -- "%1"" ou, mais raramente, sem aspas. }
-function ExtractExePath(const Cmd: String): String;
+{ Localiza o executável do Google Chrome especificamente — não "o
+  navegador padrão do Windows" (ver comentário no topo do arquivo sobre
+  por que essa distinção importa). Ordem de busca, do mais para o menos
+  confiável:
+  1. Chave "App Paths" do Chrome em HKLM — instalação por máquina (todos
+     os usuários), o caso mais comum.
+  2. A mesma chave em HKCU — instalação só para o usuário atual.
+  3. Caminhos fixos mais comuns, como último recurso, cobrindo instalações
+     que por algum motivo não registraram a chave App Paths. }
+function FindChromeExe(): String;
+const
+  AppPathsKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe';
 var
-  S: String;
-  P: Integer;
+  ChromePath: String;
 begin
   Result := '';
-  S := Trim(Cmd);
-  if S = '' then Exit;
-  if S[1] = '"' then
+
+  if RegQueryStringValue(HKLM, AppPathsKey, '', ChromePath) and FileExists(ChromePath) then
   begin
-    S := Copy(S, 2, Length(S) - 1);
-    P := Pos('"', S);
-    if P > 0 then
-      Result := Copy(S, 1, P - 1)
-    else
-      Result := S;
-  end
-  else
+    Result := ChromePath;
+    Exit;
+  end;
+
+  if RegQueryStringValue(HKCU, AppPathsKey, '', ChromePath) and FileExists(ChromePath) then
   begin
-    P := Pos(' ', S);
-    if P > 0 then
-      Result := Copy(S, 1, P - 1)
-    else
-      Result := S;
+    Result := ChromePath;
+    Exit;
+  end;
+
+  ChromePath := ExpandConstant('{pf}\Google\Chrome\Application\chrome.exe');
+  if FileExists(ChromePath) then
+  begin
+    Result := ChromePath;
+    Exit;
+  end;
+
+  ChromePath := ExpandConstant('{pf32}\Google\Chrome\Application\chrome.exe');
+  if FileExists(ChromePath) then
+  begin
+    Result := ChromePath;
+    Exit;
+  end;
+
+  ChromePath := ExpandConstant('{localappdata}\Google\Chrome\Application\chrome.exe');
+  if FileExists(ChromePath) then
+  begin
+    Result := ChromePath;
+    Exit;
   end;
 end;
 
-{ Resolve o executável do navegador padrão do Windows via as chaves de
-  associação de URL do usuário (mesmo mecanismo que "Abrir com" usa).
-  Funciona para Chrome e qualquer navegador baseado em Chromium (Edge,
-  Brave, Opera, Vivaldi), que entendem chrome://extensions nativamente. }
-function GetDefaultBrowserExe(): String;
-var
-  ProgId, Cmd, ExePath: String;
-  Found: Boolean;
+{ Roda antes de qualquer página do assistente ou cópia de arquivo.
+  Retornar False aqui aborta a instalação inteira imediatamente — nada é
+  copiado, nenhuma pasta é criada. É o único lugar cedo o suficiente pra
+  bloquear a instalação por completo se o Chrome não existir, em vez de
+  descobrir isso só depois de já ter copiado tudo. }
+function InitializeSetup: Boolean;
 begin
-  Result := '';
-
-  Found := RegQueryStringValue(HKCU,
-    'Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice',
-    'ProgId', ProgId);
-  if not Found then
-    Found := RegQueryStringValue(HKCU,
-      'Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice',
-      'ProgId', ProgId);
-  if not Found then Exit;
-
-  Found := RegQueryStringValue(HKCR, ProgId + '\shell\open\command', '', Cmd);
-  if not Found then
-    Found := RegQueryStringValue(HKCU, 'Software\Classes\' + ProgId + '\shell\open\command', '', Cmd);
-  if not Found then Exit;
-
-  ExePath := ExtractExePath(Cmd);
-  if (ExePath <> '') and FileExists(ExePath) then
-    Result := ExePath;
-end;
-
-{ Abre uma URL (ou caminho de arquivo local) no navegador padrão. Se não
-  conseguir resolver o navegador padrão, cai para o ShellExec genérico do
-  Windows como melhor esforço — nunca interrompe a instalação. }
-procedure OpenWithDefaultBrowser(const Target: String);
-var
-  BrowserExe: String;
-  ResultCode: Integer;
-begin
-  BrowserExe := GetDefaultBrowserExe();
-  if BrowserExe <> '' then
-    Exec(BrowserExe, '"' + Target + '"', '', SW_SHOWNORMAL, ewNoWait, ResultCode)
-  else
-    ShellExec('open', Target, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+  ChromeExePath := FindChromeExe();
+  if ChromeExePath = '' then
+  begin
+    MsgBox(
+      'O Google Chrome não foi encontrado nesta máquina.' + #13#10 + #13#10 +
+      'A extensão TaqCITi só funciona no Chrome (é carregada via ' +
+      'chrome://extensions), então a instalação não pode continuar sem ele.' +
+      #13#10 + #13#10 +
+      'Instale o Chrome e rode este instalador de novo:' + #13#10 +
+      'https://www.google.com/chrome/',
+      mbCriticalError, MB_OK);
+    Result := False;
+    Exit;
+  end;
+  Result := True;
 end;
 
 function JsEscape(const S: String): String;
@@ -191,6 +208,7 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   InstallPath, GuideDir: String;
+  ResultCode: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -204,7 +222,10 @@ begin
     GuideDir := ExpandConstant('{localappdata}\TaqCITi\guide');
     WriteInstallPathScript(GuideDir, InstallPath);
 
-    OpenWithDefaultBrowser('chrome://extensions');
-    OpenWithDefaultBrowser(GuideDir + '\index.html');
+    { ChromeExePath já foi resolvido (e validado) em InitializeSetup — se
+      estivesse vazio, a instalação teria sido abortada antes de chegar
+      aqui, então não precisa checar de novo. }
+    Exec(ChromeExePath, '"chrome://extensions"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+    Exec(ChromeExePath, '"' + GuideDir + '\index.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;

@@ -34,12 +34,21 @@ real do `package.json` (ou de uma tag), passe `/D`:
 
 ## O que o instalador faz
 
+0. Antes de qualquer coisa, procura o **Google Chrome especificamente**
+   (não "o navegador padrão" — a extensão só funciona no Chrome de
+   qualquer forma). Se não encontrar em nenhum dos lugares de sempre
+   (registro `App Paths` em HKLM/HKCU, depois `Program Files`,
+   `Program Files (x86)` e `%LOCALAPPDATA%`), mostra um aviso com o link
+   pra baixar o Chrome e **aborta a instalação inteira** — nada é
+   copiado.
 1. Instala silenciosamente (sem tela de licença, sem escolha de pasta) em
    `%USERPROFILE%\Desktop\TaqCITi (não apagar)\`.
 2. Copia esse caminho para a área de transferência.
-3. Abre o navegador padrão em `chrome://extensions`.
+3. Abre o Chrome (o mesmo executável encontrado no passo 0) em
+   `chrome://extensions`.
 4. Abre o guia visual (`installer/guide/index.html`) com o caminho já
-   preenchido, numa cópia salva em `%LOCALAPPDATA%\TaqCITi\guide\`.
+   preenchido, numa cópia salva em `%LOCALAPPDATA%\TaqCITi\guide\`, também
+   no Chrome.
 
 Não é necessário desinstalar entre versões: rodar o instalador de novo
 sobrescreve os arquivos na mesma pasta.
