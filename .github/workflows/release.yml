@@ -155,12 +155,22 @@ jobs:
       # própria action como segredo (mascarado nos logs), além da chave
       # JSON crua em si já ser mascarada automaticamente pelo Actions por
       # vir de um "secrets.*".
+      #
+      # access_token_scopes explícito é necessário: sem ele, o default da
+      # action é o escopo genérico "cloud-platform", que NÃO dá acesso à
+      # Drive API mesmo com o IAM da Service Account correto na pasta —
+      # foi exatamente isso que causou um 403 em "files.list"/"files.create"
+      # numa rodada anterior. O nome do parâmetro é "access_token_scopes"
+      # (conferido direto no action.yml da v3) — não existe input "scopes"
+      # nesta action; usar esse nome errado seria ignorado em silêncio pelo
+      # Actions e reproduziria o mesmo 403.
       - name: Autenticar no Google Drive
         id: gdrive-auth
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GDRIVE_SA_KEY }}
           token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/drive
 
       - name: Publicar instaladores no Google Drive
         env:
