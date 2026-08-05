@@ -7,6 +7,7 @@
  * isso que lá a transcrição não rolava.
  */
 import type { MeetingSessionState } from '@/shared/types/domain';
+import { sendMessage } from '@/shared/services/messaging';
 import { hostName } from '@/shared/ui/format';
 import { AppShell } from '@/shared/ui/AppShell';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
@@ -61,6 +62,16 @@ export function LiveScreen({ session, phase }: LiveScreenProps) {
           selfName={hostName(session.participants)}
           live={phase === 'recording'}
           dimmed={phase === 'paused'}
+          onDeleteSegment={(segmentId) => void sendMessage({ type: 'ui/deleteSegment', segmentId })}
+          onEditSegment={(segmentId, text) =>
+            void sendMessage({ type: 'ui/editSegment', segmentId, text })
+          }
+          onRestoreSegment={(segmentId) =>
+            void sendMessage({ type: 'ui/restoreSegment', segmentId })
+          }
+          onAddManualSegment={(text, speaker) =>
+            void sendMessage({ type: 'ui/addManualSegment', text, speaker })
+          }
         />
       </div>
     </AppShell>

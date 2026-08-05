@@ -74,3 +74,12 @@ export const ANONYMOUS_IDENTITY_NAMESPACE = 'anonymous';
 export const MAX_HISTORY_RECORDS = 100;
 
 export const PROVIDER_GOOGLE_MEET = 'google-meet';
+
+/** Idioma que a extensão espera nas legendas. Fixo por ora — sem preferência de usuário nesta versão. */
+export const EXPECTED_CAPTION_LANGUAGE = 'pt' as const;
+
+/** Chunks aplicados entre cada nova checagem da heurística de idioma da legenda. */
+export const LANGUAGE_DETECTION_CHUNK_INTERVAL = 8;
+
+/** Janela de texto (chars) que a heurística de idioma examina — só a fala recente. */
+export const LANGUAGE_DETECTION_WINDOW_CHARS = 800;

@@ -12,11 +12,14 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  CaptionLanguage,
   DockEdge,
   MeetingSessionState,
   MeetingState,
   PanelPrefs,
 } from '@/shared/types/domain';
+import { getSegmentDisplayText } from '@/shared/types/domain';
+import { EXPECTED_CAPTION_LANGUAGE } from '@/shared/config/constants';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { Button } from '@/shared/ui/Button';
@@ -44,6 +47,11 @@ export interface PanelCallbacks {
   onResumeCapture(): void;
   onCloseEnded(): void;
   onEnableCaptions(): void;
+  onDismissLanguageWarning(): void;
+  onDeleteSegment(segmentId: string): void;
+  onEditSegment(segmentId: string, text: string): void;
+  onRestoreSegment(segmentId: string): void;
+  onAddManualSegment(text: string, speaker?: string): void;
   onToggleNativeCaptions(hidden: boolean): void;
   onDockChange(edge: DockEdge, offset: number): void;
 }
@@ -283,6 +291,15 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
               <div className="mb-2 shrink-0">
                 <AccountBoundaryNotice boundary={session.accountBoundary} compact />
               </div>
+              {session.captionLanguage !== 'unknown' &&
+                session.captionLanguage !== EXPECTED_CAPTION_LANGUAGE &&
+                !session.languageWarningDismissed && (
+                  <LanguageWarningBanner
+                    key={session.captionLanguage}
+                    language={session.captionLanguage}
+                    onDismissMeeting={callbacks.onDismissLanguageWarning}
+                  />
+                )}
               {!ctx.captureHealthy && (
                 <p className="mb-2 shrink-0 rounded-control border border-[#f2c94c]/25 bg-[#f2c94c]/10 px-3 py-2 text-caption leading-relaxed text-[#f7dd8f]">
                   As legendas do Meet pararam de chegar. Religando sozinho.
@@ -295,6 +312,10 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
                 dimmed={phase === 'paused'}
                 query={query}
                 emptyMessage="Ouvindo a reunião. As falas aparecem aqui automaticamente."
+                onDeleteSegment={callbacks.onDeleteSegment}
+                onEditSegment={callbacks.onEditSegment}
+                onRestoreSegment={callbacks.onRestoreSegment}
+                onAddManualSegment={callbacks.onAddManualSegment}
               />
               <LiveStats session={session} toast={toast} hypothesis={hypothesis} />
               <LiveControls
@@ -365,12 +386,14 @@ function EndedSummary({
   onOpenHistory: () => void;
   onClose: () => void;
 }) {
+  // Linhas apagadas (soft-delete) não contam como fala.
+  const activeCount = session.segments.filter((s) => s.status !== 'deleted').length;
   return (
     <div className="flex flex-col gap-3 py-1 animate-fade-in motion-reduce:animate-none">
       <div className="text-center">
         <h2 className="text-title font-semibold">Transcrição salva</h2>
         <p className="mt-1 text-body leading-relaxed text-muted">
-          {session.segments.length} {session.segments.length === 1 ? 'fala' : 'falas'} guardadas
+          {activeCount} {activeCount === 1 ? 'fala' : 'falas'} guardadas
           no histórico local, nada se perde.
         </p>
       </div>
@@ -497,15 +520,17 @@ function LiveStats({
   toast: string | null;
   hypothesis: NextMeetingHypothesis;
 }) {
+  // Linhas apagadas (soft-delete) não contam como fala nas estatísticas.
+  const activeSegments = session.segments.filter((segment) => segment.status !== 'deleted');
   const people = new Set(
-    session.segments
+    activeSegments
       .map((segment) => segment.speaker)
       .filter((name): name is string => name !== null),
   ).size;
-  const words = countWords(session.segments.map((segment) => segment.text));
+  const words = countWords(activeSegments.map((segment) => getSegmentDisplayText(segment)));
 
   const summary = [
-    `${session.segments.length} ${session.segments.length === 1 ? 'fala' : 'falas'}`,
+    `${activeSegments.length} ${activeSegments.length === 1 ? 'fala' : 'falas'}`,
     people > 0 ? `${people} ${people === 1 ? 'pessoa' : 'pessoas'}` : null,
     words > 0 ? `${formatCount(words)} palavras` : null,
   ]
@@ -594,6 +619,56 @@ function LiveControls({
         <Icon name="stop" size={13} />
         Finalizar
       </Button>
+    </div>
+  );
+}
+
+/** Nomes de exibição só para os idiomas que a heurística sabe distinguir. */
+const LANGUAGE_NAMES: Record<Exclude<CaptionLanguage, 'unknown'>, string> = {
+  pt: 'português',
+  en: 'inglês',
+};
+
+/**
+ * Nudge de idioma: a extensão detecta, mas NUNCA mexe no menu de legendas do
+ * Meet sozinha (seletores ofuscados, risco alto demais para automatizar). O
+ * "x" só esconde por agora; "não avisar de novo" grava a decisão na sessão.
+ */
+function LanguageWarningBanner({
+  language,
+  onDismissMeeting,
+}: {
+  language: Exclude<CaptionLanguage, 'unknown'>;
+  onDismissMeeting: () => void;
+}) {
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+
+  return (
+    <div className="mb-2 shrink-0 rounded-control border border-[#f2c94c]/25 bg-[#f2c94c]/10 px-3 py-2 text-caption leading-relaxed text-[#f7dd8f]">
+      <div className="flex items-start justify-between gap-2">
+        <p>
+          A legenda parece estar em {LANGUAGE_NAMES[language]}. O Google Meet tem um
+          seletor de idioma da legenda no próprio menu de legendas — abra o menu de
+          legendas do Meet e escolha &quot;Português&quot; para melhorar a precisão.
+        </p>
+        <button
+          type="button"
+          onClick={() => setHidden(true)}
+          title="Fechar"
+          aria-label="Fechar aviso"
+          className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-sm leading-none text-[#f7dd8f]/70 transition-colors duration-200 ease-flow hover:bg-white/10 hover:text-[#f7dd8f]"
+        >
+          ×
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={onDismissMeeting}
+        className="mt-1.5 text-micro font-semibold underline decoration-dotted underline-offset-2 hover:text-[#f7dd8f]"
+      >
+        Não avisar de novo nesta reunião
+      </button>
     </div>
   );
 }

@@ -3,6 +3,7 @@
  * com busca (título, pessoa ou conteúdo da fala) e detalhe de cada reunião.
  */
 import { useMemo, useState } from 'react';
+import { getSegmentDisplayText } from '@/shared/types/domain';
 import { useHistory } from '@/features/history/useHistory';
 import { Icon } from '@/shared/ui/Icon';
 import { Wave } from '@/shared/ui/Wave';
@@ -23,12 +24,24 @@ export function HomeScreen() {
       (r) =>
         r.title.toLowerCase().includes(q) ||
         r.participants.some((p) => p.name.toLowerCase().includes(q)) ||
-        r.segments.some((s) => s.text.toLowerCase().includes(q)),
+        r.segments.some(
+          (s) => s.status !== 'deleted' && getSegmentDisplayText(s).toLowerCase().includes(q),
+        ),
     );
   }, [records, query]);
 
+  // Linhas apagadas (soft-delete) não contam como fala, e a contagem reflete
+  // o texto corrigido — mesmo critério de transcriptToText.
   const totalWords = useMemo(
-    () => records.reduce((sum, r) => sum + countWords(r.segments.map((s) => s.text)), 0),
+    () =>
+      records.reduce(
+        (sum, r) =>
+          sum +
+          countWords(
+            r.segments.filter((s) => s.status !== 'deleted').map((s) => getSegmentDisplayText(s)),
+          ),
+        0,
+      ),
     [records],
   );
 

@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 import type { MeetingSessionState } from '@/shared/types/domain';
+import { getSegmentDisplayText } from '@/shared/types/domain';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { sendMessage } from '@/shared/services/messaging';
@@ -25,6 +26,8 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
     ((session.endedAt ?? session.startedAt) - session.startedAt) / 1000,
   );
   const empty = session.segments.length === 0;
+  // Linhas apagadas (soft-delete) não contam como fala nas estatísticas.
+  const activeSegments = session.segments.filter((s) => s.status !== 'deleted');
 
   const copy = async () => {
     await navigator.clipboard.writeText(transcriptToText(session.segments));
@@ -60,9 +63,9 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
                 value={formatDurationHuman(durationSeconds).replace(' ', '')}
                 label="duração"
               />
-              <StatTile value={String(session.segments.length)} label="falas" />
+              <StatTile value={String(activeSegments.length)} label="falas" />
               <StatTile
-                value={formatCount(countWords(session.segments.map((s) => s.text)))}
+                value={formatCount(countWords(activeSegments.map((s) => getSegmentDisplayText(s))))}
                 label="palavras"
               />
             </div>

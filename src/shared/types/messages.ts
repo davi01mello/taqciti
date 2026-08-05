@@ -53,11 +53,15 @@ export const captionChunkSchema = z.object({
 });
 
 const liveSegmentSchema = z.object({
-  captionId: z.string(),
+  id: z.string(),
+  captionId: z.string().nullable(),
   speaker: z.string().nullable(),
   text: z.string(),
+  editedText: z.string().optional(),
   startOffsetMs: z.number(),
   endOffsetMs: z.number(),
+  source: z.enum(['caption', 'manual']).default('caption'),
+  status: z.enum(['active', 'deleted']).default('active'),
 });
 
 export const meetingPhaseSchema = z.enum([
@@ -89,6 +93,8 @@ export const sessionStateSchema = z.object({
   captureDegradedCount: z.number().int().nonnegative().default(0),
   lastChunkAt: z.number().int().nonnegative().nullable().default(null),
   wasDiscardedAndRestarted: z.boolean(),
+  captionLanguage: z.enum(['pt', 'en', 'unknown']).default('unknown'),
+  languageWarningDismissed: z.boolean().default(false),
 });
 
 export const meetingStateSchema = z.object({
@@ -139,6 +145,19 @@ const uiMessages = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ui/finish') }),
   z.object({ type: z.literal('ui/rename'), title: z.string().min(1).max(200) }),
   z.object({ type: z.literal('ui/reset') }),
+  z.object({ type: z.literal('ui/dismissLanguageWarning') }),
+  z.object({ type: z.literal('ui/deleteSegment'), segmentId: z.string().min(1) }),
+  z.object({
+    type: z.literal('ui/editSegment'),
+    segmentId: z.string().min(1),
+    text: z.string().min(1).max(4000),
+  }),
+  z.object({ type: z.literal('ui/restoreSegment'), segmentId: z.string().min(1) }),
+  z.object({
+    type: z.literal('ui/addManualSegment'),
+    text: z.string().min(1).max(4000),
+    speaker: z.string().max(120).optional(),
+  }),
   z.object({ type: z.literal('ui/history/delete'), id: z.string() }),
   z.object({
     type: z.literal('ui/history/rename'),

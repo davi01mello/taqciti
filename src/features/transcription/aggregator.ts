@@ -52,7 +52,10 @@ export function applyCaptionChunk(
 
   if (index === -1) {
     return {
-      segments: [...segments, newSegment(chunk.captionId, speaker, text, offsetMs)],
+      segments: [
+        ...segments,
+        newSegment(nextSegmentId(segments), chunk.captionId, speaker, text, offsetMs),
+      ],
       outcome: 'applied',
     };
   }
@@ -62,7 +65,10 @@ export function applyCaptionChunk(
   // Trocou de falante na mesma linha: é outra pessoa, é outra fala.
   if (speaker !== null && existing.speaker !== null && speaker !== existing.speaker) {
     return {
-      segments: [...segments, newSegment(chunk.captionId, speaker, text, offsetMs)],
+      segments: [
+        ...segments,
+        newSegment(nextSegmentId(segments), chunk.captionId, speaker, text, offsetMs),
+      ],
       outcome: 'applied',
     };
   }
@@ -73,7 +79,13 @@ export function applyCaptionChunk(
     return {
       segments: [
         ...segments,
-        newSegment(chunk.captionId, speaker ?? existing.speaker, text, offsetMs),
+        newSegment(
+          nextSegmentId(segments),
+          chunk.captionId,
+          speaker ?? existing.speaker,
+          text,
+          offsetMs,
+        ),
       ],
       outcome: 'applied',
     };
@@ -94,25 +106,47 @@ export function applyCaptionChunk(
   return { segments: next, outcome: 'applied' };
 }
 
+/**
+ * Id de linha lógica, derivado do tamanho atual do array. Determinístico e
+ * sem estado externo: como o array só cresce (nunca há splice), a posição
+ * ANTES do push é um contador monotônico único para toda a sessão — não
+ * precisa de `crypto.randomUUID()` nem de contador à parte, e mantém
+ * `applyCaptionChunk` 100% puro e testável.
+ */
+function nextSegmentId(segments: readonly LiveSegment[]): string {
+  return `seg-${segments.length}`;
+}
+
 function newSegment(
+  id: string,
   captionId: string,
   speaker: string | null,
   text: string,
   offsetMs: number,
 ): LiveSegment {
   return {
+    id,
     captionId,
     speaker,
     text,
     startOffsetMs: offsetMs,
     endOffsetMs: offsetMs,
+    source: 'caption',
+    status: 'active',
   };
 }
 
-function lastIndexOfCaption(
+/**
+ * Último índice com este `captionId` — a fala VIVA daquela linha do DOM.
+ * `captionId === null` é o marcador de segmento manual: nunca casa com nada,
+ * então nunca pode ser confundido com um chunk real (guard explícito, não só
+ * consequência de `===` estrito).
+ */
+export function lastIndexOfCaption(
   segments: readonly LiveSegment[],
-  captionId: string,
+  captionId: string | null,
 ): number {
+  if (captionId === null) return -1;
   for (let i = segments.length - 1; i >= 0; i -= 1) {
     if (segments[i]?.captionId === captionId) return i;
   }
@@ -139,9 +173,12 @@ export function renameSpeaker(
   return changed ? next : (segments as LiveSegment[]);
 }
 
-/** Ids atuais a selar ao pausar/limpar: falas em andamento não recebem mais updates. */
+/** Ids atuais a selar ao pausar/limpar: falas em andamento não recebem mais updates.
+ *  Segmentos manuais (`captionId: null`) não têm nó de DOM a selar. */
 export function collectCaptionIds(segments: readonly LiveSegment[]): string[] {
-  return segments.map((s) => s.captionId);
+  return segments
+    .map((s) => s.captionId)
+    .filter((captionId): captionId is string => captionId !== null);
 }
 
 export function mergeSealedIds(
@@ -149,4 +186,47 @@ export function mergeSealedIds(
   toSeal: readonly string[],
 ): string[] {
   return [...new Set([...current, ...toSeal])];
+}
+
+export interface SealIfLiveResult {
+  /** Índice do segmento no array; -1 quando `segmentId` não existe. */
+  index: number;
+  sealedCaptionIds: string[];
+}
+
+/**
+ * Decide se apagar/editar um segmento precisa selar o `captionId` dele.
+ *
+ * Um segmento só continua recebendo chunks do Meet quando é o ÚLTIMO da
+ * lista com aquele `captionId` (é o que `applyCaptionChunk` consulta via
+ * `lastIndexOfCaption`). Editar/apagar um segmento nessa condição sem selar
+ * deixaria a linha "ressuscitar" no próximo ciclo de captura, se o nó do DOM
+ * ainda estiver na tela mudando de texto. Um segmento já assentado (não é
+ * mais o último do seu `captionId`) nunca mais é alvo de merge de qualquer
+ * jeito — selar seria inofensivo, mas também não muda nada; por isso só
+ * selamos quando é preciso.
+ *
+ * Segmentos manuais (`captionId: null`) nunca são "vivos" nesse sentido —
+ * `lastIndexOfCaption(segments, null)` sempre devolve -1 — então caem
+ * naturalmente no caminho "já assentado", sem selar nada.
+ */
+export function sealIfLive(
+  segments: readonly LiveSegment[],
+  sealedCaptionIds: readonly string[],
+  segmentId: string,
+): SealIfLiveResult {
+  const index = segments.findIndex((segment) => segment.id === segmentId);
+  if (index === -1) {
+    return { index, sealedCaptionIds: [...sealedCaptionIds] };
+  }
+
+  const segment = segments[index] as LiveSegment;
+  const isLive = lastIndexOfCaption(segments, segment.captionId) === index;
+
+  return {
+    index,
+    sealedCaptionIds: isLive
+      ? mergeSealedIds(sealedCaptionIds, [segment.captionId as string])
+      : [...sealedCaptionIds],
+  };
 }

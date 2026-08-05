@@ -64,6 +64,16 @@ export class ContentController {
     onResumeCapture: () => this.redetect(),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
     onEnableCaptions: () => this.attemptEnableCaptions(),
+    onDismissLanguageWarning: () =>
+      void sendMessage({ type: 'ui/dismissLanguageWarning' }),
+    onDeleteSegment: (segmentId) =>
+      void sendMessage({ type: 'ui/deleteSegment', segmentId }),
+    onEditSegment: (segmentId, text) =>
+      void sendMessage({ type: 'ui/editSegment', segmentId, text }),
+    onRestoreSegment: (segmentId) =>
+      void sendMessage({ type: 'ui/restoreSegment', segmentId }),
+    onAddManualSegment: (text, speaker) =>
+      void sendMessage({ type: 'ui/addManualSegment', text, speaker }),
     onToggleNativeCaptions: (hidden) => {
       this.prefs = { ...this.prefs, hideMeetCaptions: hidden };
       savePanelPrefs(this.prefs);

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { MeetingState } from '@/shared/types/domain';
 import { IDLE_STATE } from '@/shared/types/domain';
-import { REJOIN_RESUME_WINDOW_MS } from '@/shared/config/constants';
+import {
+  LANGUAGE_DETECTION_CHUNK_INTERVAL,
+  REJOIN_RESUME_WINDOW_MS,
+} from '@/shared/config/constants';
 import type { MeetingEvent } from './machine';
 import { transition } from './machine';
 
@@ -382,5 +385,137 @@ describe('presença, histórico de participação e falantes observados', () => 
     });
     expect(degraded.session?.lastChunkAt).toBe(T0 + 3_000);
     expect(degraded.session?.captureDegradedCount).toBe(1);
+  });
+
+  // ---- aviso de idioma da legenda ----
+
+  it('idioma da legenda só é reavaliado a cada LANGUAGE_DETECTION_CHUNK_INTERVAL chunks aplicados', () => {
+    let state = recordingState();
+    expect(state.session?.captionLanguage).toBe('unknown');
+
+    const english =
+      "so I think that we are going to do this because you know what that is not what we have with the plan";
+    for (let i = 0; i < LANGUAGE_DETECTION_CHUNK_INTERVAL - 1; i += 1) {
+      state = transition(state, chunk(`c${i}`, english, T0 + 1000 * (i + 1)));
+    }
+    expect(state.session?.captionLanguage).toBe('unknown');
+
+    state = transition(
+      state,
+      chunk('c-last', english, T0 + 1000 * LANGUAGE_DETECTION_CHUNK_INTERVAL),
+    );
+    expect(state.session?.captionLanguage).toBe('en');
+  });
+
+  it('LANGUAGE_WARNING_DISMISSED silencia o aviso só para a sessão atual', () => {
+    const rec = recordingState();
+    const dismissed = transition(rec, { type: 'LANGUAGE_WARNING_DISMISSED' });
+    expect(dismissed.session?.languageWarningDismissed).toBe(true);
+
+    // Reunião nova não herda a supressão da anterior.
+    const next = transition(
+      dismissed,
+      detected({ meetingId: 'm-2', meetingCode: 'zzz-nova-sala', captionsEnabled: true }),
+    );
+    expect(next.session?.languageWarningDismissed).toBe(false);
+  });
+
+  it('LANGUAGE_WARNING_DISMISSED fora de uma sessão ativa não faz nada', () => {
+    expect(transition(IDLE_STATE, { type: 'LANGUAGE_WARNING_DISMISSED' })).toBe(IDLE_STATE);
+  });
+
+  // ---- edição ao vivo da transcrição ----
+
+  it('apagar segmento já ASSENTADO marca status, mas não sela nada', () => {
+    let state = recordingState();
+    // Mesma linha do DOM (mesmo captionId), conteúdo totalmente diferente:
+    // caso 4 do mergeVisible — o Meet reaproveitou o nó pra outra fala.
+    state = transition(state, chunk('c1', 'bom dia pessoal tudo certo'));
+    state = transition(state, chunk('c1', 'então sobre o orçamento', T0 + 9000));
+    expect(state.session?.segments).toHaveLength(2);
+    // seg-0 não é mais o último segmento de 'c1' — está assentado.
+
+    const deleted = transition(state, { type: 'DELETE_SEGMENT', segmentId: 'seg-0' });
+    expect(deleted.session?.segments[0]).toMatchObject({ id: 'seg-0', status: 'deleted' });
+    expect(deleted.session?.sealedCaptionIds).toEqual([]);
+  });
+
+  it('apagar segmento VIVO sela o captionId', () => {
+    let state = recordingState();
+    state = transition(state, chunk('c1', 'proposta comercial'));
+
+    const deleted = transition(state, { type: 'DELETE_SEGMENT', segmentId: 'seg-0' });
+    expect(deleted.session?.segments[0]).toMatchObject({ id: 'seg-0', status: 'deleted' });
+    expect(deleted.session?.sealedCaptionIds).toEqual(['c1']);
+  });
+
+  it('editar segmento vivo sela o captionId; chunk seguinte não sobrescreve nem reabre', () => {
+    let state = recordingState();
+    state = transition(state, chunk('c1', 'proposta comercial'));
+
+    const edited = transition(state, {
+      type: 'EDIT_SEGMENT',
+      segmentId: 'seg-0',
+      text: 'proposta comercial revisada',
+    });
+    expect(edited.session?.segments[0]?.editedText).toBe('proposta comercial revisada');
+    expect(edited.session?.segments[0]?.text).toBe('proposta comercial');
+    expect(edited.session?.sealedCaptionIds).toEqual(['c1']);
+
+    // O Meet "continua falando" na mesma linha do DOM — o chunk deve ser
+    // DESCARTADO inteiro: nem reabre o segmento, nem toca editedText/text.
+    const afterChunk = transition(
+      edited,
+      chunk('c1', 'proposta comercial revisada e ampliada', T0 + 6000),
+    );
+    expect(afterChunk.session?.segments).toHaveLength(1);
+    expect(afterChunk.session?.segments[0]?.editedText).toBe('proposta comercial revisada');
+    expect(afterChunk.session?.segments[0]?.text).toBe('proposta comercial');
+    expect(afterChunk.session?.droppedSegments).toBe(1);
+  });
+
+  it('RESTORE_SEGMENT devolve status active mas NÃO dessela o captionId', () => {
+    let state = recordingState();
+    state = transition(state, chunk('c1', 'proposta comercial'));
+    const deleted = transition(state, { type: 'DELETE_SEGMENT', segmentId: 'seg-0' });
+    expect(deleted.session?.sealedCaptionIds).toEqual(['c1']);
+
+    const restored = transition(deleted, { type: 'RESTORE_SEGMENT', segmentId: 'seg-0' });
+    expect(restored.session?.segments[0]?.status).toBe('active');
+    expect(restored.session?.sealedCaptionIds).toEqual(['c1']);
+
+    // Mesmo restaurado, o pipeline de captura não volta a escrever ali.
+    const afterChunk = transition(restored, chunk('c1', 'proposta comercial nova', T0 + 7000));
+    expect(afterChunk.session?.segments).toHaveLength(1);
+    expect(afterChunk.session?.segments[0]?.text).toBe('proposta comercial');
+    expect(afterChunk.session?.droppedSegments).toBe(1);
+  });
+
+  it('segmento manual nunca reage a nenhum CAPTION_CHUNK', () => {
+    const state = recordingState();
+    const withManual = transition(state, {
+      type: 'ADD_MANUAL_SEGMENT',
+      text: 'nota digitada à mão',
+      at: T0 + 2000,
+    });
+    expect(withManual.session?.segments).toHaveLength(1);
+    expect(withManual.session?.segments[0]).toMatchObject({
+      id: 'seg-0',
+      captionId: null,
+      source: 'manual',
+      status: 'active',
+      text: 'nota digitada à mão',
+    });
+
+    const afterChunk = transition(withManual, chunk('c1', 'fala real da legenda', T0 + 3000));
+    expect(afterChunk.session?.segments).toHaveLength(2);
+    expect(afterChunk.session?.segments[0]).toMatchObject({
+      source: 'manual',
+      text: 'nota digitada à mão',
+    });
+    expect(afterChunk.session?.segments[1]).toMatchObject({
+      source: 'caption',
+      captionId: 'c1',
+    });
   });
 });

@@ -3,13 +3,17 @@
  * como arquivo .txt. Helpers puros de apresentação + um efeito de download.
  */
 import type { LiveSegment, MeetingRecord } from '@/shared/types/domain';
+import { getSegmentDisplayText } from '@/shared/types/domain';
 import { formatDate, formatElapsedClock, formatTime } from '@/shared/ui/format';
 
+/** Linhas apagadas (soft-delete) ficam de fora — "removida da view" vale para
+ *  a exportação também. O texto exportado é o corrigido, quando houver. */
 export function transcriptToText(segments: readonly LiveSegment[]): string {
   return segments
+    .filter((s) => s.status !== 'deleted')
     .map(
       (s) =>
-        `[${formatElapsedClock(s.startOffsetMs)}] ${s.speaker ?? 'Falante'}: ${s.text}`,
+        `[${formatElapsedClock(s.startOffsetMs)}] ${s.speaker ?? 'Falante'}: ${getSegmentDisplayText(s)}`,
     )
     .join('\n');
 }

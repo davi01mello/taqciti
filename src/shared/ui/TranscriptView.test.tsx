@@ -17,11 +17,14 @@ class ResizeObserverMock implements ResizeObserver {
 
 function segment(index: number, text = `fala ${index}`): LiveSegment {
   return {
+    id: `seg-${index}`,
     captionId: `caption-${index}`,
     speaker: index % 2 === 0 ? 'Ana' : 'Bruno',
     text,
     startOffsetMs: index * 1_000,
     endOffsetMs: index * 1_000 + 500,
+    source: 'caption',
+    status: 'active',
   };
 }
 

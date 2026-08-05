@@ -8,16 +8,26 @@ import type {
   MeetingSessionState,
   TranscriptSegment,
 } from '@/shared/types/domain';
+import { getSegmentDisplayText } from '@/shared/types/domain';
 import { buildTemporalContext, resolveLocalTimezone } from '@/shared/temporal';
 
+/**
+ * O contrato público não é o array bruto: `captionId`/`id`/`source`/`status`
+ * são detalhe interno de agregação, linhas apagadas (soft-delete) não fazem
+ * parte da transcrição "de verdade", e o texto é o que a pessoa CORRIGIU
+ * (`getSegmentDisplayText`), não o bruto da captura. `MeetingRecord.segments`
+ * (histórico) continua com o array completo — é ele que alimenta o "mostrar
+ * linhas removidas" do painel.
+ */
 function toPublicSegments(session: MeetingSessionState): TranscriptSegment[] {
-  // captionId é detalhe interno de agregação — não faz parte do contrato.
-  return session.segments.map(({ speaker, text, startOffsetMs, endOffsetMs }) => ({
-    speaker,
-    text,
-    startOffsetMs,
-    endOffsetMs,
-  }));
+  return session.segments
+    .filter((segment) => segment.status !== 'deleted')
+    .map((segment) => ({
+      speaker: segment.speaker,
+      text: getSegmentDisplayText(segment),
+      startOffsetMs: segment.startOffsetMs,
+      endOffsetMs: segment.endOffsetMs,
+    }));
 }
 
 export function buildMeetingPayload(session: MeetingSessionState): MeetingPayload {

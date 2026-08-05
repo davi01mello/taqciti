@@ -113,10 +113,36 @@ export interface CaptionChunk {
   atMs: number; // epoch ms do momento da captura
 }
 
-/** Segmento em construção; `captionId` é interno e removido no payload final. */
+/**
+ * Segmento em construção; `captionId` é interno e removido no payload final.
+ *
+ * `id` é a identidade de LINHA LÓGICA (estável, nunca reescrita) — diferente
+ * de `captionId`, que é identidade de NÓ DO DOM e pode ser compartilhada por
+ * vários segmentos ao longo da reunião (o Meet reaproveita a linha). `id` é
+ * `null` em `captionId` só para segmentos `source: 'manual'`, que não
+ * correspondem a nenhum nó real e por isso nunca podem casar com um chunk.
+ *
+ * `text` continua sendo exclusivamente o que a captura/merge produz — nunca
+ * escreva nele por edição do usuário. `editedText`, quando presente, é a
+ * sobreposição de exibição; use `getSegmentDisplayText` para ler o que deve
+ * aparecer na tela/exportação.
+ */
 export interface LiveSegment extends TranscriptSegment {
-  captionId: string;
+  id: string;
+  captionId: string | null;
+  source: 'caption' | 'manual';
+  editedText?: string;
+  /** `deleted` é soft-delete: a linha nunca sai do array, só some da view padrão. */
+  status: 'active' | 'deleted';
 }
+
+/** O que deve aparecer na tela/exportação: a correção do usuário, se houver. */
+export function getSegmentDisplayText(segment: LiveSegment): string {
+  return segment.editedText ?? segment.text;
+}
+
+/** Idioma da legenda, estimado por heurística de stopwords — nunca automatiza o menu do Meet. */
+export type CaptionLanguage = 'pt' | 'en' | 'unknown';
 
 export interface MeetingSessionState {
   meetingId: string;
@@ -149,6 +175,12 @@ export interface MeetingSessionState {
   /** Último trecho recebido, sem expor seu conteúdo em diagnóstico/log. */
   lastChunkAt?: number | null;
   wasDiscardedAndRestarted: boolean;
+  /** Última leitura da heurística de idioma sobre a janela recente de texto. */
+  captionLanguage: CaptionLanguage;
+  /** "Não avisar de novo nesta reunião" — silencia o aviso só para esta sessão. */
+  languageWarningDismissed: boolean;
+  /** Throttle interno: chunks aplicados desde a última checagem de idioma. */
+  chunksSinceLanguageCheck: number;
 }
 
 export interface MeetingState {

@@ -17,19 +17,27 @@
 import type {
   AccountBoundaryState,
   CaptionChunk,
+  LiveSegment,
   MeetingSessionState,
   MeetingState,
   Participant,
   SpeakerObservation,
 } from '@/shared/types/domain';
 import { IDLE_STATE } from '@/shared/types/domain';
-import { REJOIN_RESUME_WINDOW_MS } from '@/shared/config/constants';
+import {
+  LANGUAGE_DETECTION_CHUNK_INTERVAL,
+  LANGUAGE_DETECTION_WINDOW_CHARS,
+  REJOIN_RESUME_WINDOW_MS,
+} from '@/shared/config/constants';
 import {
   applyCaptionChunk,
   collectCaptionIds,
   mergeSealedIds,
   renameSpeaker,
+  sealIfLive,
 } from '@/features/transcription/aggregator';
+import { detectCaptionLanguage, recentSegmentsText } from '@/features/transcription/languageHeuristic';
+import { sanitizeCaptionText, sanitizeSpeakerName } from '@/features/transcription/sanitize';
 import type { SpeakerRename } from '@/features/transcription/speakerIdentity';
 import { deriveMeetingTitle } from './naming';
 
@@ -54,6 +62,16 @@ export type MeetingEvent =
   /** Grafias que eram a mesma pessoa viraram uma: corrige o já capturado. */
   | { type: 'SPEAKERS_MERGED'; renames: SpeakerRename[] }
   | { type: 'RECONNECT' }
+  /** "Não avisar de novo nesta reunião" no banner de idioma da legenda. */
+  | { type: 'LANGUAGE_WARNING_DISMISSED' }
+  /** Soft-delete: a linha nunca sai do array, só muda de status. */
+  | { type: 'DELETE_SEGMENT'; segmentId: string }
+  /** Sobrepõe `editedText`; `text` continua sendo o que a captura produziu. */
+  | { type: 'EDIT_SEGMENT'; segmentId: string; text: string }
+  /** Desfaz o soft-delete. NÃO dessela o captionId — ver `sealIfLive`. */
+  | { type: 'RESTORE_SEGMENT'; segmentId: string }
+  /** Linha digitada pelo usuário, nunca produzida pela captura do Meet. */
+  | { type: 'ADD_MANUAL_SEGMENT'; text: string; speaker?: string; at: number }
   | { type: 'PAUSE' }
   | { type: 'RESUME' }
   | { type: 'CLEAR_TRANSCRIPT' }
@@ -137,6 +155,26 @@ function observeSpeaker(
   return next;
 }
 
+/**
+ * Reavalia o idioma da legenda a cada `LANGUAGE_DETECTION_CHUNK_INTERVAL`
+ * chunks aplicados — rodar a heurística em toda linha custaria CPU à toa sem
+ * ganhar nada em precisão.
+ */
+function nextLanguageState(
+  session: MeetingSessionState,
+  segments: readonly LiveSegment[],
+): Pick<MeetingSessionState, 'captionLanguage' | 'chunksSinceLanguageCheck'> {
+  const chunksSinceLanguageCheck = session.chunksSinceLanguageCheck + 1;
+  if (chunksSinceLanguageCheck < LANGUAGE_DETECTION_CHUNK_INTERVAL) {
+    return { captionLanguage: session.captionLanguage, chunksSinceLanguageCheck };
+  }
+  const window = recentSegmentsText(segments, LANGUAGE_DETECTION_WINDOW_CHARS);
+  return {
+    captionLanguage: detectCaptionLanguage(window).language,
+    chunksSinceLanguageCheck: 0,
+  };
+}
+
 function freshSession(
   event: Extract<MeetingEvent, { type: 'MEETING_DETECTED' }>,
 ): MeetingState {
@@ -160,6 +198,9 @@ function freshSession(
     captureDegradedCount: 0,
     lastChunkAt: null,
     wasDiscardedAndRestarted: false,
+    captionLanguage: 'unknown',
+    languageWarningDismissed: false,
+    chunksSinceLanguageCheck: 0,
   };
   return {
     phase: event.captionsEnabled ? 'recording' : 'captionsRequired',
@@ -253,10 +294,16 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
           speakersObserved,
         });
       }
+      const { captionLanguage, chunksSinceLanguageCheck } = nextLanguageState(
+        state.session,
+        segments,
+      );
       return withSession(state, {
         segments,
         speakersObserved,
         lastChunkAt: event.chunk.atMs,
+        captionLanguage,
+        chunksSinceLanguageCheck,
       });
     }
 
@@ -362,6 +409,71 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
       return withSession(state, {
         reconnectCount: state.session.reconnectCount + 1,
       });
+    }
+
+    case 'LANGUAGE_WARNING_DISMISSED': {
+      if (!isActive(state) || state.session === null) return state;
+      return withSession(state, { languageWarningDismissed: true });
+    }
+
+    case 'DELETE_SEGMENT': {
+      if (!isActive(state) || state.session === null) return state;
+      const { index, sealedCaptionIds } = sealIfLive(
+        state.session.segments,
+        state.session.sealedCaptionIds,
+        event.segmentId,
+      );
+      if (index === -1) return state;
+      const segments = [...state.session.segments];
+      segments[index] = { ...(segments[index] as LiveSegment), status: 'deleted' };
+      return withSession(state, { segments, sealedCaptionIds });
+    }
+
+    case 'EDIT_SEGMENT': {
+      if (!isActive(state) || state.session === null) return state;
+      const text = sanitizeCaptionText(event.text);
+      if (text.length === 0) return state;
+      const { index, sealedCaptionIds } = sealIfLive(
+        state.session.segments,
+        state.session.sealedCaptionIds,
+        event.segmentId,
+      );
+      if (index === -1) return state;
+      const segments = [...state.session.segments];
+      segments[index] = { ...(segments[index] as LiveSegment), editedText: text };
+      return withSession(state, { segments, sealedCaptionIds });
+    }
+
+    // NÃO dessela o captionId (ver sealIfLive/aggregator.ts): o pipeline de
+    // captura nunca deve voltar a escrever numa linha que já foi editada.
+    case 'RESTORE_SEGMENT': {
+      if (!isActive(state) || state.session === null) return state;
+      const index = state.session.segments.findIndex((s) => s.id === event.segmentId);
+      if (index === -1) return state;
+      const segments = [...state.session.segments];
+      segments[index] = { ...(segments[index] as LiveSegment), status: 'active' };
+      return withSession(state, { segments });
+    }
+
+    case 'ADD_MANUAL_SEGMENT': {
+      if (!isActive(state) || state.session === null) return state;
+      const text = sanitizeCaptionText(event.text);
+      if (text.length === 0) return state;
+      const speaker = sanitizeSpeakerName(event.speaker ?? null);
+      const offsetMs = Math.max(0, event.at - state.session.startedAt);
+      const segment: LiveSegment = {
+        id: `seg-${state.session.segments.length}`,
+        // Nenhum nó de DOM por trás: nunca pode casar com um chunk real
+        // (ver guard em lastIndexOfCaption).
+        captionId: null,
+        speaker,
+        text,
+        startOffsetMs: offsetMs,
+        endOffsetMs: offsetMs,
+        source: 'manual',
+        status: 'active',
+      };
+      return withSession(state, { segments: [...state.session.segments, segment] });
     }
 
     case 'PAUSE': {

@@ -132,6 +132,25 @@ onMessage((message, sender) => {
         return { ok: true };
       case 'ui/reset':
         return dispatch({ type: 'RESET' });
+      case 'ui/dismissLanguageWarning':
+        return dispatch({ type: 'LANGUAGE_WARNING_DISMISSED' });
+      case 'ui/deleteSegment':
+        return dispatch({ type: 'DELETE_SEGMENT', segmentId: message.segmentId });
+      case 'ui/editSegment':
+        return dispatch({
+          type: 'EDIT_SEGMENT',
+          segmentId: message.segmentId,
+          text: message.text,
+        });
+      case 'ui/restoreSegment':
+        return dispatch({ type: 'RESTORE_SEGMENT', segmentId: message.segmentId });
+      case 'ui/addManualSegment':
+        return dispatch({
+          type: 'ADD_MANUAL_SEGMENT',
+          text: message.text,
+          speaker: message.speaker,
+          at: now,
+        });
 
       // ---- Histórico ----
       case 'ui/history/delete': {

@@ -21,17 +21,23 @@ function session(overrides: Partial<MeetingSessionState> = {}): MeetingSessionSt
     ],
     segments: [
       {
+        id: 'seg-0',
         captionId: 'c1',
         speaker: 'Ana',
         text: 'vamos falar do orçamento da proposta',
         startOffsetMs: 1000,
         endOffsetMs: 4000,
+        source: 'caption',
+        status: 'active',
       },
     ],
     sealedCaptionIds: ['c0'],
     droppedSegments: 2,
     reconnectCount: 1,
     wasDiscardedAndRestarted: true,
+    captionLanguage: 'unknown',
+    languageWarningDismissed: false,
+    chunksSinceLanguageCheck: 0,
     ...overrides,
   };
 }

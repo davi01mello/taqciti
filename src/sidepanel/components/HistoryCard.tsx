@@ -3,6 +3,7 @@
  * Clique abre o detalhe.
  */
 import type { MeetingRecord } from '@/shared/types/domain';
+import { getSegmentDisplayText } from '@/shared/types/domain';
 import { Avatar } from '@/shared/ui/Avatar';
 import {
   countWords,
@@ -19,7 +20,11 @@ interface HistoryCardProps {
 }
 
 export function HistoryCard({ record, onOpen }: HistoryCardProps) {
-  const words = countWords(record.segments.map((s) => s.text));
+  // Linhas apagadas (soft-delete) não contam como fala, e a contagem reflete
+  // o texto corrigido — mesmo critério de transcriptToText.
+  const words = countWords(
+    record.segments.filter((s) => s.status !== 'deleted').map((s) => getSegmentDisplayText(s)),
+  );
 
   return (
     <li className="animate-entry">
