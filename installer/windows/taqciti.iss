@@ -231,8 +231,19 @@ begin
 
     { ChromeExePath já foi resolvido (e validado) em InitializeSetup — se
       estivesse vazio, a instalação teria sido abortada antes de chegar
-      aqui, então não precisa checar de novo. }
-    Exec(ChromeExePath, '"chrome://extensions"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
-    Exec(ChromeExePath, '"' + GuideDir + '\index.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+      aqui, então não precisa checar de novo.
+
+      As duas URLs vão numa ÚNICA chamada Exec, não em duas separadas:
+      com o Chrome ainda não aberto, dois "Exec(ChromeExePath, ...)"
+      consecutivos (mesmo com ewNoWait) disparam dois processos chrome.exe
+      que competem pra virar a instância principal — o que perde a
+      corrida cai no seletor de perfil ("Quem está usando o Chrome?") em
+      vez de abrir a URL pretendida. Isso foi reproduzido de verdade num
+      teste manual. Passando as duas URLs como argumentos da mesma
+      invocação, só um processo chrome.exe é iniciado, e ele abre as duas
+      como abas da mesma janela — sem corrida nenhuma. }
+    Exec(ChromeExePath,
+      '"chrome://extensions" "' + GuideDir + '\index.html"',
+      '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;
