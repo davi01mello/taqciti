@@ -81,13 +81,21 @@ end;
      os usuários), o caso mais comum.
   2. A mesma chave em HKCU — instalação só para o usuário atual.
   3. Caminhos fixos mais comuns, como último recurso, cobrindo instalações
-     que por algum motivo não registraram a chave App Paths. }
+     que por algum motivo não registraram a chave App Paths.
+
+  Nota sobre a declaração: o Pascal Script do Inno Setup não suporta
+  seção "const" local dentro de function/procedure — só "var" é permitido
+  como bloco de declaração antes do "begin" (documentado em
+  jrsoftware.org/ishelp/topic_scriptintro.htm: "No local const or type
+  declarations. Only var and label blocks are allowed before begin.").
+  Por isso AppPathsKey é var, atribuído logo no início do corpo, em vez
+  de const — era exatamente isso que quebrava a compilação antes. }
 function FindChromeExe(): String;
-const
-  AppPathsKey = 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe';
 var
   ChromePath: String;
+  AppPathsKey: String;
 begin
+  AppPathsKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe';
   Result := '';
 
   if RegQueryStringValue(HKLM, AppPathsKey, '', ChromePath) and FileExists(ChromePath) then
@@ -129,7 +137,7 @@ end;
   copiado, nenhuma pasta é criada. É o único lugar cedo o suficiente pra
   bloquear a instalação por completo se o Chrome não existir, em vez de
   descobrir isso só depois de já ter copiado tudo. }
-function InitializeSetup: Boolean;
+function InitializeSetup(): Boolean;
 begin
   ChromeExePath := FindChromeExe();
   if ChromeExePath = '' then
