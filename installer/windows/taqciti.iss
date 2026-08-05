@@ -137,8 +137,7 @@ begin
     MsgBox(
       'O Google Chrome não foi encontrado nesta máquina.' + #13#10 + #13#10 +
       'A extensão TaqCITi só funciona no Chrome (é carregada via ' +
-      'chrome://extensions), então a instalação não pode continuar sem ele.' +
-      #13#10 + #13#10 +
+      'chrome://extensions), então a instalação não pode continuar sem ele.' + #13#10 + #13#10 +
       'Instale o Chrome e rode este instalador de novo:' + #13#10 +
       'https://www.google.com/chrome/',
       mbCriticalError, MB_OK);
