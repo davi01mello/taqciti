@@ -5,12 +5,19 @@
 import type { LiveSegment, MeetingRecord } from '@/shared/types/domain';
 import { formatDate, formatElapsedClock, formatTime } from '@/shared/ui/format';
 
+/**
+ * Falas seguidas da mesma pessoa não repetem `[hora] Nome:` — mesma regra de
+ * agrupamento do TranscriptView (ver `grouped` em TranscriptView.tsx), pra a
+ * transcrição copiada/baixada ler igual à que aparece na tela.
+ */
 export function transcriptToText(segments: readonly LiveSegment[]): string {
   return segments
-    .map(
-      (s) =>
-        `[${formatElapsedClock(s.startOffsetMs)}] ${s.speaker ?? 'Falante'}: ${s.text}`,
-    )
+    .map((s, index) => {
+      const name = s.speaker ?? 'Falante';
+      const previous = segments[index - 1];
+      const grouped = previous !== undefined && (previous.speaker ?? 'Falante') === name;
+      return grouped ? s.text : `[${formatElapsedClock(s.startOffsetMs)}] ${name}: ${s.text}`;
+    })
     .join('\n');
 }
 
