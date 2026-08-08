@@ -153,6 +153,11 @@ onMessage((message, sender) => {
         }
         return { ok: true };
       }
+      case 'document/openRequest':
+        await chrome.tabs.create({
+          url: chrome.runtime.getURL(`src/document/index.html?meetingId=${message.meetingId}`),
+        });
+        return { ok: true };
 
       case 'state/updated':
         return undefined;

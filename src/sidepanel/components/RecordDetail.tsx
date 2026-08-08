@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { sendMessage } from '@/shared/services/messaging';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
+import { openDocumentPage } from '@/document/openDocumentPage';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
@@ -82,11 +83,7 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
         <Button
           variant="primary"
           className="w-full"
-          onClick={() =>
-            chrome.tabs.create({
-              url: chrome.runtime.getURL(`src/document/index.html?meetingId=${record.id}`),
-            })
-          }
+          onClick={() => openDocumentPage(record.id)}
         >
           Continuar fluxo
         </Button>

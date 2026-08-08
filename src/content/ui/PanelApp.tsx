@@ -43,6 +43,7 @@ export interface PanelCallbacks {
   onFinish(): void;
   onRename(title: string): void;
   onOpenHistory(): void;
+  onOpenDocument(meetingId: string): void;
   onResumeCapture(): void;
   onCloseEnded(): void;
   onEnableCaptions(): void;
@@ -351,6 +352,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
                   onCopy={copy}
                   onDownload={download}
                   onOpenHistory={callbacks.onOpenHistory}
+                  onOpenDocument={callbacks.onOpenDocument}
                   onClose={callbacks.onCloseEnded}
                 />
               )}
@@ -369,12 +371,14 @@ function EndedSummary({
   onCopy,
   onDownload,
   onOpenHistory,
+  onOpenDocument,
   onClose,
 }: {
   session: MeetingSessionState;
   onCopy: () => void;
   onDownload: () => void;
   onOpenHistory: () => void;
+  onOpenDocument: (meetingId: string) => void;
   onClose: () => void;
 }) {
   return (
@@ -394,6 +398,15 @@ function EndedSummary({
           Baixar .txt
         </Button>
       </div>
+      {/* Agrupado logo abaixo de "Baixar .txt": as duas ações que fazem algo
+       * com o CONTEÚDO da reunião, separadas de navegação (histórico/fechar). */}
+      <Button
+        variant="primary"
+        className="w-full"
+        onClick={() => onOpenDocument(session.meetingId)}
+      >
+        Continuar fluxo
+      </Button>
       <Button variant="primary" className="w-full" onClick={onOpenHistory}>
         Ver no histórico
       </Button>

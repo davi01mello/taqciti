@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { MeetingSessionState } from '@/shared/types/domain';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
+import { openDocumentPage } from '@/document/openDocumentPage';
 import { sendMessage } from '@/shared/services/messaging';
 import { Button } from '@/shared/ui/Button';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
@@ -84,13 +85,7 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
             <Button
               variant="primary"
               className="mb-3 w-full"
-              onClick={() =>
-                chrome.tabs.create({
-                  url: chrome.runtime.getURL(
-                    `src/document/index.html?meetingId=${session.meetingId}`,
-                  ),
-                })
-              }
+              onClick={() => openDocumentPage(session.meetingId)}
             >
               Continuar fluxo
             </Button>
