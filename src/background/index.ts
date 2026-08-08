@@ -153,11 +153,15 @@ onMessage((message, sender) => {
         }
         return { ok: true };
       }
-      case 'document/openRequest':
+      case 'document/openRequest': {
+        // Abre uma aba nova a partir de um meetingId vindo da mensagem: só
+        // aceita de um sender desta própria extensão.
+        if (sender.id !== chrome.runtime.id) return { ok: false };
         await chrome.tabs.create({
           url: chrome.runtime.getURL(`src/document/index.html?meetingId=${message.meetingId}`),
         });
         return { ok: true };
+      }
 
       case 'state/updated':
         return undefined;
