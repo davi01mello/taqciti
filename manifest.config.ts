@@ -44,7 +44,7 @@ export default defineManifest({
     },
   ],
 
-  // Sem identidade de produto, sem backend: só storage local e o painel.
+  // Sem identidade de produto: só storage local e o painel.
   permissions: ['storage', 'sidePanel'],
 
   // A marca desenhada vive no painel injetado dentro do Meet, e conteúdo
@@ -59,7 +59,11 @@ export default defineManifest({
     },
   ],
 
-  // Nenhum host_permissions: esta versão não fala com nenhum backend.
+  // Nenhum host_permissions: `document/index.html` (fase 2) chama o
+  // servidor de geração de documento via `fetch` comum, de dentro de uma
+  // página normal da extensão — CORS do lado do servidor, não permissão de
+  // manifest. host_permissions só entraria se o fetch fosse feito do
+  // background com bypass de CORS, o que não é o caso aqui.
 
   content_security_policy: {
     extension_pages: "script-src 'self'; object-src 'self'",
