@@ -79,6 +79,17 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
             Apagar
           </Button>
         </div>
+        <Button
+          variant="primary"
+          className="w-full"
+          onClick={() =>
+            chrome.tabs.create({
+              url: chrome.runtime.getURL(`src/document/index.html?meetingId=${record.id}`),
+            })
+          }
+        >
+          Continuar fluxo
+        </Button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">

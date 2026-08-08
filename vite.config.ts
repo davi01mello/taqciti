@@ -16,5 +16,13 @@ export default defineConfig({
     sourcemap: false,
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      // Terceiro entry point, além de popup/side panel: nenhum campo do
+      // manifesto MV3 cobre "página avulsa da extensão", então ela entra
+      // direto aqui, no jeito padrão de app multi-página do Vite.
+      input: {
+        document: fileURLToPath(new URL('./src/document/index.html', import.meta.url)),
+      },
+    },
   },
 });

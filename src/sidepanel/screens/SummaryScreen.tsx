@@ -81,6 +81,20 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
           </Button>
         ) : (
           <>
+            <Button
+              variant="primary"
+              className="mb-3 w-full"
+              onClick={() =>
+                chrome.tabs.create({
+                  url: chrome.runtime.getURL(
+                    `src/document/index.html?meetingId=${session.meetingId}`,
+                  ),
+                })
+              }
+            >
+              Continuar fluxo
+            </Button>
+
             <div className="mb-3 flex items-center justify-center gap-2">
               <Button variant="secondary" className="!min-h-[38px] text-xs" onClick={() => void copy()}>
                 {copied ? 'Copiado ✓' : 'Copiar'}
