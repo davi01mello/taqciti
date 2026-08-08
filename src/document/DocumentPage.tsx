@@ -4,11 +4,11 @@
  * string e mostra a transcrição completa — mesma leitura direta de
  * `chrome.storage.local` que o resto do histórico usa, nenhum jeito novo.
  *
- * "Gerar com IA" chama o servidor em `server/` (fase 2, ver README de lá).
- * A geração de lá é um stub por enquanto — nenhuma IA de verdade, nenhuma
- * chave de API aqui. Quando a IA real entrar, só o servidor muda; o fetch
- * abaixo já fala o contrato definitivo (`{ transcript, title, date }` →
- * `{ title, content }`).
+ * Os botões de geração chamam o servidor em `server/` (fase 2, ver README de
+ * lá). A geração de lá é um stub por enquanto — nenhuma IA de verdade,
+ * nenhuma chave de API aqui. Quando a IA real entrar, só o servidor muda; o
+ * fetch abaixo já fala o contrato definitivo (`{ transcript, title, date,
+ * documentType }` → `{ title, content }`).
  */
 import { useEffect, useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
@@ -18,6 +18,7 @@ import { readLocal } from '@/shared/services/storage';
 import { transcriptToText } from '@/features/history/export';
 import { Button } from '@/shared/ui/Button';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
+import { Wordmark } from '@/shared/ui/Wordmark';
 import { formatDate, formatDurationHuman, formatTime, hostName } from '@/shared/ui/format';
 
 type LoadState =
@@ -25,17 +26,33 @@ type LoadState =
   | { status: 'not-found' }
   | { status: 'ready'; record: MeetingRecord };
 
+/** Espelha DOCUMENT_TYPES em server/lib/generateDocument.ts — os únicos
+ *  tipos que o servidor aceita nesta fase. "personal" não entra aqui: fica
+ *  desabilitado no front, nunca chega a ser enviado. */
+type DocumentType = 'ata' | 'x1' | 'daily' | 'planning' | 'review';
+
+const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  ata: 'Ata de Reunião',
+  x1: 'Doc Conversa (X1)',
+  daily: 'Daily',
+  planning: 'Planning',
+  review: 'Review',
+};
+
 type GenerationState =
   | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'success'; title: string; content: string }
-  | { status: 'error'; message: string };
+  | { status: 'loading'; documentType: DocumentType }
+  | { status: 'success'; documentType: DocumentType; title: string; content: string }
+  | { status: 'error'; documentType: DocumentType; message: string };
 
 function readMeetingIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('meetingId');
 }
 
-async function requestGeneration(record: MeetingRecord): Promise<GenerationState> {
+async function requestGeneration(
+  record: MeetingRecord,
+  documentType: DocumentType,
+): Promise<GenerationState> {
   try {
     const response = await fetch(`${SERVER_BASE_URL}/api/generate`, {
       method: 'POST',
@@ -44,26 +61,101 @@ async function requestGeneration(record: MeetingRecord): Promise<GenerationState
         transcript: transcriptToText(record.segments),
         title: record.title,
         date: new Date(record.startedAt).toISOString(),
+        documentType,
       }),
     });
 
     if (!response.ok) {
-      return { status: 'error', message: `O servidor respondeu com erro (${response.status}).` };
+      return {
+        status: 'error',
+        documentType,
+        message: `O servidor respondeu com erro (${response.status}).`,
+      };
     }
 
     const data = (await response.json()) as { title: string; content: string };
-    return { status: 'success', title: data.title, content: data.content };
+    return { status: 'success', documentType, title: data.title, content: data.content };
   } catch {
     return {
       status: 'error',
+      documentType,
       message: 'Não foi possível falar com o servidor. Ele está rodando em localhost:3000?',
     };
   }
 }
 
+/** Menu "Outros" — mesmo padrão visual do ConfirmModal (overlay + glass
+ *  card), mas com uma lista de opções em vez de confirmar/cancelar. Não
+ *  existia nenhum componente de menu genérico reaproveitável, então este
+ *  fica local a esta página até um segundo consumidor justificar extrair. */
+function OtherDocumentTypesModal({
+  open,
+  busy,
+  onClose,
+  onSelect,
+}: {
+  open: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onSelect: (type: DocumentType) => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 animate-fade-in"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Outros tipos de documento"
+    >
+      <div
+        className="glass w-full max-w-sm rounded-card p-5 shadow-soft animate-entry"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="mb-3 text-sm font-semibold">Outros tipos de documento</h2>
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="secondary"
+            className="w-full justify-start"
+            disabled={busy}
+            onClick={() => onSelect('daily')}
+          >
+            Daily
+          </Button>
+          <Button
+            variant="secondary"
+            className="w-full justify-start"
+            disabled={busy}
+            onClick={() => onSelect('planning')}
+          >
+            Planning
+          </Button>
+          <Button
+            variant="secondary"
+            className="w-full justify-start"
+            disabled={busy}
+            onClick={() => onSelect('review')}
+          >
+            Review
+          </Button>
+          <Button variant="secondary" className="w-full justify-start" disabled title="Em breve">
+            Personal <span className="ml-2 text-micro text-muted">em breve</span>
+          </Button>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <Button variant="ghost" onClick={onClose}>
+            Fechar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DocumentPage() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [generation, setGeneration] = useState<GenerationState>({ status: 'idle' });
+  const [othersOpen, setOthersOpen] = useState(false);
 
   useEffect(() => {
     const meetingId = readMeetingIdFromUrl();
@@ -104,10 +196,35 @@ export function DocumentPage() {
   }
 
   const { record } = state;
+  const busy = generation.status === 'loading';
+
+  // Handler único, parametrizado por tipo — os 5 botões funcionais (linha
+  // principal + os 3 de dentro do "Outros") chamam este mesmo caminho.
+  const generate = (documentType: DocumentType) => {
+    setOthersOpen(false);
+    setGeneration({ status: 'loading', documentType });
+    void requestGeneration(record, documentType).then(setGeneration);
+  };
+
+  const buttonLabel = (documentType: DocumentType, idleLabel: string) =>
+    busy && generation.status === 'loading' && generation.documentType === documentType
+      ? `Gerando ${DOCUMENT_TYPE_LABELS[documentType]}...`
+      : idleLabel;
+
+  const othersBusyLabel =
+    busy &&
+    generation.status === 'loading' &&
+    (generation.documentType === 'daily' ||
+      generation.documentType === 'planning' ||
+      generation.documentType === 'review')
+      ? `Gerando ${DOCUMENT_TYPE_LABELS[generation.documentType]}...`
+      : 'Outros';
 
   return (
     <div className="mx-auto flex h-[100dvh] min-h-0 max-w-[760px] flex-col overflow-hidden">
       <header className="glass shrink-0 rounded-b-panel px-6 py-5">
+        <Wordmark height={40} className="mb-4" />
+
         <h1 className="text-title font-bold">{record.title}</h1>
         <p className="mt-1 text-caption text-muted/85">
           {formatDate(record.startedAt)} · {formatTime(record.startedAt)} ·{' '}
@@ -115,16 +232,16 @@ export function DocumentPage() {
           {record.participants.length > 0 &&
             ` · ${record.participants.map((p) => p.name).join(', ')}`}
         </p>
-        <div className="mt-3 flex justify-end">
-          <Button
-            variant="primary"
-            disabled={generation.status === 'loading'}
-            onClick={() => {
-              setGeneration({ status: 'loading' });
-              void requestGeneration(record).then(setGeneration);
-            }}
-          >
-            {generation.status === 'loading' ? 'Gerando...' : 'Gerar com IA'}
+
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          <Button variant="primary" disabled={busy} onClick={() => generate('ata')}>
+            {buttonLabel('ata', 'Gerar Ata de Reunião')}
+          </Button>
+          <Button variant="primary" disabled={busy} onClick={() => generate('x1')}>
+            {buttonLabel('x1', 'Gerar Doc Conversa (X1)')}
+          </Button>
+          <Button variant="secondary" disabled={busy} onClick={() => setOthersOpen(true)}>
+            {othersBusyLabel}
           </Button>
         </div>
       </header>
@@ -140,7 +257,7 @@ export function DocumentPage() {
         {generation.status === 'success' && (
           <div className="mt-6 border-t border-borderc pt-6">
             <p className="mb-3 text-caption font-semibold uppercase tracking-wide text-muted">
-              Documento gerado
+              Documento gerado — {DOCUMENT_TYPE_LABELS[generation.documentType]}
             </p>
             <h2 className="mb-2 text-title font-bold">{generation.title}</h2>
             <p className="whitespace-pre-wrap text-read text-foreground/90">
@@ -152,12 +269,19 @@ export function DocumentPage() {
         {generation.status === 'error' && (
           <div className="mt-6 border-t border-borderc pt-6">
             <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted">
-              Documento gerado
+              Documento gerado — {DOCUMENT_TYPE_LABELS[generation.documentType]}
             </p>
             <p className="text-body text-red-300">{generation.message}</p>
           </div>
         )}
       </div>
+
+      <OtherDocumentTypesModal
+        open={othersOpen}
+        busy={busy}
+        onClose={() => setOthersOpen(false)}
+        onSelect={generate}
+      />
     </div>
   );
 }

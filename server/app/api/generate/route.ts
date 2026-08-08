@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { generateDocument } from '@/lib/generateDocument';
+import { DOCUMENT_TYPES, generateDocument, isDocumentType } from '@/lib/generateDocument';
 
 /**
  * CORS permissivo por design NESTA FASE: a extensão chama esta rota a partir
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { transcript, title, date } = body as Record<string, unknown>;
+  const { transcript, title, date, documentType } = body as Record<string, unknown>;
 
   if (typeof transcript !== 'string' || transcript.trim().length === 0) {
     return NextResponse.json(
@@ -72,7 +72,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 400, headers },
     );
   }
+  if (!isDocumentType(documentType)) {
+    return NextResponse.json(
+      { error: `"documentType" é obrigatório e precisa ser um de: ${DOCUMENT_TYPES.join(', ')}.` },
+      { status: 400, headers },
+    );
+  }
 
-  const result = generateDocument({ transcript, title, date });
+  const result = generateDocument({ transcript, title, date, documentType });
   return NextResponse.json(result, { status: 200, headers });
 }
