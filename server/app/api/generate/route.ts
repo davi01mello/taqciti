@@ -79,6 +79,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const result = generateDocument({ transcript, title, date, documentType });
+  const result = await generateDocument({ transcript, title, date, documentType });
   return NextResponse.json(result, { status: 200, headers });
 }
