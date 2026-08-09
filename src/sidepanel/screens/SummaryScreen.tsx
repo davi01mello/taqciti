@@ -87,7 +87,7 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
               className="mb-3 w-full"
               onClick={() => openDocumentPage(session.meetingId)}
             >
-              Continuar fluxo
+              Gerar Documento
             </Button>
 
             <div className="mb-3 flex items-center justify-center gap-2">

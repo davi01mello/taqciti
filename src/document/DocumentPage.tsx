@@ -1,8 +1,13 @@
 /**
- * Página de continuação do fluxo: aba própria aberta pelo botão "Continuar
- * fluxo" (histórico ou tela de fim de reunião). Lê `meetingId` da query
- * string e mostra a transcrição completa — mesma leitura direta de
- * `chrome.storage.local` que o resto do histórico usa, nenhum jeito novo.
+ * Página de continuação do fluxo — órfã desde que o botão "Gerar Documento"
+ * passou a abrir o site do DocsCiti (server/public/mockup) em vez desta
+ * página. Fica no repo porque tem a lógica real (leitura de
+ * chrome.storage.local, chamada a /api/generate) que o mockup ainda não
+ * tem — referência pra quando o mockup for integrado de verdade.
+ *
+ * Lê `meetingId` da query string e mostra a transcrição completa — mesma
+ * leitura direta de `chrome.storage.local` que o resto do histórico usa,
+ * nenhum jeito novo.
  *
  * Os botões de geração chamam o servidor em `server/` (fase 2, ver README de
  * lá). A geração de lá é um stub por enquanto — nenhuma IA de verdade,

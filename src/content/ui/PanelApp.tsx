@@ -405,7 +405,7 @@ function EndedSummary({
         className="w-full"
         onClick={() => onOpenDocument(session.meetingId)}
       >
-        Continuar fluxo
+        Gerar Documento
       </Button>
       <Button variant="primary" className="w-full" onClick={onOpenHistory}>
         Ver no histórico

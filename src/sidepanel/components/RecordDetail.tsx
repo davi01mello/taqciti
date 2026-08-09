@@ -85,7 +85,7 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
           className="w-full"
           onClick={() => openDocumentPage(record.id)}
         >
-          Continuar fluxo
+          Gerar Documento
         </Button>
       </div>
 

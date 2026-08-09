@@ -8,6 +8,7 @@
  * transcrição.
  */
 import { PROVIDER_GOOGLE_MEET } from '@/shared/config/constants';
+import { SERVER_BASE_URL } from '@/shared/config/serverConfig';
 import { onMessage } from '@/shared/services/messaging';
 import { logger } from '@/shared/services/log';
 import {
@@ -157,8 +158,11 @@ onMessage((message, sender) => {
         // Abre uma aba nova a partir de um meetingId vindo da mensagem: só
         // aceita de um sender desta própria extensão.
         if (sender.id !== chrome.runtime.id) return { ok: false };
+        // Site do DocsCiti (server/public/mockup) substitui a página interna
+        // src/document/index.html como destino de "Gerar Documento" — essa
+        // ainda existe no repo, só não é mais o alvo do botão.
         await chrome.tabs.create({
-          url: chrome.runtime.getURL(`src/document/index.html?meetingId=${message.meetingId}`),
+          url: `${SERVER_BASE_URL}/mockup/docsciti_mockup.html?meetingId=${message.meetingId}`,
         });
         return { ok: true };
       }
