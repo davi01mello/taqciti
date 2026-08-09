@@ -49,3 +49,12 @@ quem chamar, não só o TaqCITi** — não existe autenticação nenhuma nesta
 fase. É um risco real e conhecido, deixado assim de propósito por enquanto;
 a correção (restringir por id conhecido e/ou exigir uma chave de API) fica
 para quando a integração de IA de verdade entrar.
+
+## Mockup do hero animado
+
+`public/mockup/docsciti_mockup.html` é um mockup HTML standalone (sem build,
+sem framework) da tela de geração de documento, com a animação de onda
+reativa ao cursor/clique. Serve como referência visual — ainda não está
+integrado à extensão. Antes de mexer nele, leia
+[`docs/HANDOFF.md`](docs/HANDOFF.md): tem parâmetros ajustáveis e uma lista
+de otimizações que parecem descuido e não são.
