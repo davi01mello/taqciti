@@ -95,30 +95,92 @@
   .pill:hover{ background: var(--pill-bg-hover); transform: translateY(-1px); }
   .pill:active{ transform: translateY(0px) scale(0.98); }
   .pill:focus-visible{ outline:2px solid var(--cyan); outline-offset:3px; }
-  .pill.ata:hover{ box-shadow: 0 0 28px -6px var(--green); }
-  .pill.x1:hover{ box-shadow: 0 0 28px -6px var(--purple); }
-  .pill.outros:hover{ box-shadow: 0 0 28px -6px var(--blue); }
+  /* gatilho único: com um botão só no lugar de três, ele precisa carregar
+     sozinho o peso visual que a fileira tinha. Daí o corpo maior e o halo fixo. */
+  .pill.primary{
+    font-size:1.02rem; padding: 16px 34px;
+    border-color: rgba(119,189,232,0.30);
+    box-shadow: 0 0 30px -12px var(--purple), 0 0 30px -12px var(--green);
+  }
+  .pill.primary:hover{ box-shadow: 0 0 34px -6px var(--purple), 0 0 34px -10px var(--green); }
+  .pill.primary.open{ background: var(--pill-bg-hover); }
   .pill.is-loading{ opacity:0.7; cursor:progress; }
   .pill .chev{ font-style:normal; font-size:0.75rem; opacity:0.7; transition: transform .2s ease; }
-  .pill.outros.open .chev{ transform: rotate(180deg); }
+  .pill.primary.open .chev{ transform: rotate(180deg); }
 
   .popover{
     position:absolute; top: calc(100% + 12px); left:50%; transform: translate(-50%, -6px);
-    display:flex; flex-direction:column; gap:8px; min-width: 220px;
-    background: rgba(39,18,84,0.88); border:1px solid var(--pill-border); border-radius:18px;
-    padding: 10px; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    display:flex; flex-direction:column; gap:6px; min-width: 288px;
+    /* mesmos tokens do submenu: cor neutra, transparência alta, blur forte.
+       Os dois níveis de popup são esteticamente iguais — só a largura difere. */
+    background: var(--pill-bg);
+    border:1px solid var(--pill-border); border-radius:16px; padding:8px;
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    /* rolável: o teto em vh evita que a lista atravesse a borda inferior em
+       telas baixas, e o cap absoluto evita um menu gigante em telas altas */
+    /* o teto real é calculado na abertura (ver setMenu); este é só o inicial */
+    max-height: 300px; overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: rgba(119,189,232,0.35) transparent;
     opacity:0; pointer-events:none; transition: opacity .18s ease, transform .18s ease;
-    box-shadow: 0 20px 50px -20px rgba(10,3,32,0.85);
+    box-shadow: 0 18px 44px -18px rgba(6,2,16,0.9);
   }
   .popover.open{ opacity:1; pointer-events:auto; transform: translate(-50%, 0); }
+  /* abre pra cima quando não há espaço embaixo */
+  .popover.up{ top:auto; bottom: calc(100% + 12px); transform: translate(-50%, 6px); }
+  .popover.up.open{ transform: translate(-50%, 0); }
   .popover button{
     font-family:inherit; font-style:italic; font-size:0.88rem; font-weight:500;
     color:var(--ink); background:transparent; border:none; text-align:left;
     padding:10px 14px; border-radius:12px; cursor:pointer; transition: background .15s ease;
   }
-  .popover button:hover:not(:disabled){ background: rgba(119,189,232,0.12); }
+  .popover button:hover:not(:disabled){ background: rgba(119,189,232,0.14); }
   .popover button:focus-visible{ outline:2px solid var(--cyan); outline-offset:-2px; }
-  .popover button:disabled{ color: var(--ink-dim); cursor:not-allowed; display:flex; justify-content:space-between; align-items:center; }
+  .popover button:disabled, .submenu button:disabled{ color: var(--ink-dim); cursor:not-allowed; }
+  .popover button, .submenu button{ display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .popover .group .arrow{ font-style:normal; opacity:0.5; transition: transform .18s ease, opacity .18s ease; }
+  .popover .group[aria-expanded="true"]{ background: rgba(119,189,232,0.14); }
+  .popover .group[aria-expanded="true"] .arrow{ transform: translateX(3px); opacity:0.9; }
+
+  /* SUBMENU — popup sobre popup. Cor neutra e transparência alta, o mesmo par
+     de tokens da pílula. Só é legível porque o blur é forte: sem backdrop-filter
+     esse nível de transparência sobre a onda animada seria ilegível. */
+  .submenu{
+    position:absolute; z-index:3;
+    display:flex; flex-direction:column; gap:6px; min-width: 236px;
+    background: var(--pill-bg);
+    border:1px solid var(--pill-border); border-radius:16px; padding:8px;
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    box-shadow: 0 18px 44px -18px rgba(6,2,16,0.9);
+    opacity:0; pointer-events:none; transform: translateX(-6px);
+    transition: opacity .16s ease, transform .16s ease;
+    max-height: 300px; overflow-y:auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: rgba(119,189,232,0.35) transparent;
+  }
+  .submenu.open{ opacity:1; pointer-events:auto; transform: translateX(0); }
+  .submenu.flip{ transform: translateX(6px); }
+  .submenu.flip.open{ transform: translateX(0); }
+  .submenu button{
+    font-family:inherit; font-style:italic; font-size:0.88rem; font-weight:500;
+    color:var(--ink); background:transparent; border:none; text-align:left;
+    padding:10px 14px; border-radius:12px; cursor:pointer; transition: background .15s ease;
+  }
+  .submenu button:hover:not(:disabled){ background: rgba(119,189,232,0.14); }
+  .submenu button:focus-visible{ outline:2px solid var(--cyan); outline-offset:-2px; }
+  .submenu::-webkit-scrollbar{ width:8px; }
+  .submenu::-webkit-scrollbar-track{ background:transparent; }
+  .submenu::-webkit-scrollbar-thumb{
+    background: rgba(119,189,232,0.30); border-radius:99px;
+    border:2px solid transparent; background-clip:content-box;
+  }
+  .popover::-webkit-scrollbar{ width:8px; }
+  .popover::-webkit-scrollbar-track{ background:transparent; }
+  .popover::-webkit-scrollbar-thumb{
+    background: rgba(119,189,232,0.30); border-radius:99px;
+    border:2px solid transparent; background-clip:content-box;
+  }
+  .popover::-webkit-scrollbar-thumb:hover{ background: rgba(119,189,232,0.50); background-clip:content-box; }
   .popover button .soon{
     font-style:normal; font-size:0.62rem; letter-spacing:0.06em; text-transform:uppercase;
     border:1px solid var(--pill-border); border-radius:999px; padding:2px 7px; opacity:0.7;

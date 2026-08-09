@@ -348,7 +348,7 @@
   var BURST_LIFE = 3.6;   // s — precisa durar até o componente mais lento cruzar a tela
 
   window.addEventListener('click', function(e){
-    if(e.target.closest('.pill') || e.target.closest('.popover')) return; // não duplica sobre botões
+    if(e.target.closest('.pill') || e.target.closest('.popover') || e.target.closest('.submenu')) return; // não duplica sobre botões
     ripplesClick.push({x:e.clientX, y:e.clientY, start:performance.now(), rings:3});
     var onRibbon = Math.abs(e.clientY-ribbonY) < 160;
 
@@ -1085,19 +1085,100 @@
     updateRibbonY();   // as letras viraram inline-block; recalcula a altura da faixa
   }
 
-  // ---- popover "Outros" ----
-  var outrosBtn = document.getElementById('outrosBtn');
-  var popover = document.getElementById('outrosPopover');
-  outrosBtn.addEventListener('click', function(e){
+  // ---- menu "Gerar Documento" ----
+  var genBtn = document.getElementById('genBtn');
+  var popover = document.getElementById('genMenu');
+  // O menu é rolável, então o teto de altura não pode ser fixo: numa tela baixa
+  // um valor fixo atravessa a borda inferior. Mede o espaço real dos dois lados
+  // na abertura, escolhe o lado mais folgado e limita a altura ao que cabe.
+  var MENU_MARGIN = 16, MENU_GAP = 12, MENU_MAX = 320;
+  function setMenu(open){
+    if(open){
+      var r = genBtn.getBoundingClientRect();
+      var below = innerHeight - r.bottom - MENU_GAP - MENU_MARGIN;
+      var above = r.top - MENU_GAP - MENU_MARGIN;
+      // preferência forte por abrir pra BAIXO: pra cima o menu cobre o título e a
+      // onda, que é o que a pessoa veio ver. Só inverte quando embaixo é apertado
+      // de verdade e em cima sobra mais.
+      var up = below < 200 && above > below;
+      popover.classList.toggle('up', up);
+      popover.style.maxHeight = Math.max(120, Math.min(MENU_MAX, up ? above : below)) + 'px';
+      popover.scrollTop = 0;
+    }
+    if(!open) closeSub();
+    popover.classList.toggle('open', open);
+    genBtn.classList.toggle('open', open);
+    genBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  addEventListener('resize', function(){ if(popover.classList.contains('open')) setMenu(true); });
+  genBtn.addEventListener('click', function(e){
     e.stopPropagation();
-    var isOpen = popover.classList.toggle('open');
-    outrosBtn.classList.toggle('open', isOpen);
+    setMenu(!popover.classList.contains('open'));
   });
-  document.addEventListener('click', function(){
-    popover.classList.remove('open');
-    outrosBtn.classList.remove('open');
+  // ---- submenus por área (popup sobre popup) ----
+  var actionsEl = document.querySelector('.actions');
+  var subs = {};
+  ['gestao','producao','custom'].forEach(function(k){ subs[k] = document.getElementById('sub-'+k); });
+  var openGroup = null;
+
+  function closeSub(){
+    if(!openGroup) return;
+    subs[openGroup].classList.remove('open');
+    var g = popover.querySelector('[data-group="'+openGroup+'"]');
+    if(g) g.setAttribute('aria-expanded','false');
+    openGroup = null;
+  }
+
+  function openSub(key, rowEl){
+    if(openGroup && openGroup !== key) closeSub();
+    var sub = subs[key];
+    var host = actionsEl.getBoundingClientRect();
+    var row  = rowEl.getBoundingClientRect();
+
+    // altura primeiro: o teto precisa ser conhecido antes de medir a largura útil
+    var maxH = Math.max(140, Math.min(300, innerHeight - row.top - MENU_MARGIN));
+    sub.style.maxHeight = maxH + 'px';
+
+    // sai pela direita da linha, com uma sobreposição de 10px na borda do menu
+    // pai — é o encaixe de "popup sobre popup". Vira pra esquerda se não couber.
+    var w = sub.offsetWidth || 236;
+    var pr = popover.getBoundingClientRect();
+    var flip = (pr.right - 10 + w + MENU_MARGIN) > innerWidth;
+    sub.classList.toggle('flip', flip);
+    var left = flip ? (pr.left + 10 - w) : (pr.right - 10);
+    if(left < MENU_MARGIN) left = MENU_MARGIN;
+    if(left + w > innerWidth - MENU_MARGIN) left = innerWidth - MENU_MARGIN - w;
+
+    // alinha pelo topo da linha, mas nunca deixa transbordar embaixo
+    var top = row.top;
+    if(top + maxH > innerHeight - MENU_MARGIN) top = innerHeight - MENU_MARGIN - maxH;
+    if(top < MENU_MARGIN) top = MENU_MARGIN;
+
+    sub.style.left = (left - host.left) + 'px';
+    sub.style.top  = (top  - host.top ) + 'px';
+    sub.classList.add('open');
+    rowEl.setAttribute('aria-expanded','true');
+    openGroup = key;
+  }
+
+  popover.addEventListener('click', function(e){
+    e.stopPropagation();
+    var g = e.target.closest('[data-group]');
+    if(!g) return;
+    var key = g.getAttribute('data-group');
+    if(openGroup === key) closeSub(); else openSub(key, g);
   });
-  popover.addEventListener('click', function(e){ e.stopPropagation(); });
+  Object.keys(subs).forEach(function(k){
+    subs[k].addEventListener('click', function(e){ e.stopPropagation(); });
+  });
+
+  document.addEventListener('click', function(){ setMenu(false); });
+  // Esc fecha em camadas: primeiro o submenu, depois o menu
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    if(openGroup){ var g = popover.querySelector('[data-group="'+openGroup+'"]'); closeSub(); if(g) g.focus(); return; }
+    if(popover.classList.contains('open')){ setMenu(false); genBtn.focus(); }
+  });
 
   // ---- feedback visual de clique (simulação — troca pela chamada real depois) ----
   document.querySelectorAll('[data-type]').forEach(function(btn){
@@ -1110,6 +1191,7 @@
         btn.classList.remove('is-loading');
         btn.childNodes[0].textContent = original;
       }, 1300, this);
+      setMenu(false);
     });
   });
 })();

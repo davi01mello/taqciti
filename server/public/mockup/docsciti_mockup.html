@@ -23,15 +23,40 @@
     <h1 id="heroLine">Criado para <em class="ouvir">ouvir</em> e <em class="doc">documentar</em>.</h1>
 
     <div class="actions">
-      <button class="pill ata" data-type="ata">Gerar Ata de Reunião</button>
-      <button class="pill x1" data-type="x1">Gerar Doc Conversa (X1)</button>
-      <button class="pill outros" id="outrosBtn">Outros <span class="chev">⌄</span></button>
+      <button class="pill primary" id="genBtn"
+              aria-haspopup="menu" aria-expanded="false" aria-controls="genMenu">
+        Gerar Documento <span class="chev" aria-hidden="true">⌄</span>
+      </button>
 
-      <div class="popover" id="outrosPopover">
-        <button data-type="daily">Daily</button>
-        <button data-type="planning">Planning</button>
-        <button data-type="review">Review</button>
-        <button disabled>Personal <span class="soon">em breve</span></button>
+      <div class="popover" id="genMenu" role="menu" aria-labelledby="genBtn">
+        <button class="group" role="menuitem" data-group="gestao"
+                aria-haspopup="menu" aria-expanded="false">
+          Gente e gestão <span class="arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="group" role="menuitem" data-group="producao"
+                aria-haspopup="menu" aria-expanded="false">
+          Produção <span class="arrow" aria-hidden="true">›</span>
+        </button>
+        <button class="group" role="menuitem" data-group="custom"
+                aria-haspopup="menu" aria-expanded="false">
+          Personalizado <span class="arrow" aria-hidden="true">›</span>
+        </button>
+      </div>
+
+      <!-- submenus são IRMÃOS do #genMenu, nunca filhos: dentro dele o
+           overflow-y:auto do menu rolável os recortaria -->
+      <div class="submenu" id="sub-gestao" role="menu" aria-label="Gente e gestão">
+        <button role="menuitem" data-type="x1">Doc Conversa (X1)</button>
+        <button role="menuitem" disabled>Feedback <span class="soon">em breve</span></button>
+      </div>
+      <div class="submenu" id="sub-producao" role="menu" aria-label="Produção">
+        <button role="menuitem" data-type="ata">Ata de Reunião</button>
+        <button role="menuitem" data-type="daily">Daily</button>
+        <button role="menuitem" data-type="planning">Planning</button>
+        <button role="menuitem" data-type="review">Review</button>
+      </div>
+      <div class="submenu" id="sub-custom" role="menu" aria-label="Personalizado">
+        <button role="menuitem" data-type="custom">Criar modelo</button>
       </div>
     </div>
   </div>
