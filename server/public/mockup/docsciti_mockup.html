@@ -1,0 +1,45 @@
+<!-- Handoff (parâmetros, o que não mexer, checklist de verificação): ../../docs/HANDOFF.md -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocsCiti — mockup</title>
+<link rel="stylesheet" href="docsciti_mockup.css">
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="stage">
+  <div class="topbar">
+    <div class="logo">
+      <img src="doccciti-brand.webp" alt="DocCiti">
+      <span class="tag">por TaqCiti</span>
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1 id="heroLine">Criado para <em class="ouvir">ouvir</em> e <em class="doc">documentar</em>.</h1>
+
+    <div class="actions">
+      <button class="pill ata" data-type="ata">Gerar Ata de Reunião</button>
+      <button class="pill x1" data-type="x1">Gerar Doc Conversa (X1)</button>
+      <button class="pill outros" id="outrosBtn">Outros <span class="chev">⌄</span></button>
+
+      <div class="popover" id="outrosPopover">
+        <button data-type="daily">Daily</button>
+        <button data-type="planning">Planning</button>
+        <button data-type="review">Review</button>
+        <button disabled>Personal <span class="soon">em breve</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">chegue perto da onda com o mouse · clique nela e ouça o impacto se espalhar · clique no título pra embaralhar as cores</div>
+</div>
+
+<script src="docsciti_mockup.js"></script>
+
+</body>
+</html>
