@@ -48,7 +48,7 @@
    * de mais corpo para o texto ficar legível — mas manter duas era o que fazia
    * as telas parecerem produtos diferentes. Este valor fica entre as duas,
    * puxado para o lado denso: sobre vídeo a transcrição continua confortável,
-   * e sobre o fundo aurora do side panel a diferença não se nota.
+   * e sobre o fundo aurora da janela principal a diferença não se nota.
    */
   --glass-bg: linear-gradient(155deg, rgba(24, 29, 37, 0.82), rgba(9, 12, 16, 0.9));
   --glass-blur: 24px;

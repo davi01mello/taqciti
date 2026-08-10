@@ -19,17 +19,14 @@ import {
 import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
+import { openMainWindow, registerMainWindowListeners } from './mainWindow';
 
 const ready: Promise<void> = migrateLocalStorage()
   .then(() => hydrate())
   .then(() => recoverInterruptedMeetings())
   .catch((error) => logger.error('falha na inicialização', error));
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: false })
-    .catch(() => undefined);
-});
+registerMainWindowListeners();
 
 // A aba da reunião fechou depois do fim: o resumo já está salvo no histórico,
 // então o estado global volta ao idle sozinho — sem tela presa para a próxima.
@@ -49,22 +46,6 @@ function defaultTitle(now: Date): string {
 }
 
 onMessage((message, sender) => {
-  // chrome.sidePanel.open() só é aceito quando chamado sincronamente a
-  // partir do gesto do usuário: qualquer `await` antes (mesmo o `await ready`
-  // abaixo, já resolvido) derruba a ativação e a chamada falha em silêncio.
-  // Por isso este caso precisa ser resolvido aqui fora, antes do IIFE async.
-  if (message.type === 'panel/openRequest') {
-    const tabId = sender.tab?.id;
-    if (tabId === undefined) return { ok: false };
-    return chrome.sidePanel
-      .open({ tabId })
-      .then(() => ({ ok: true }))
-      .catch(() => {
-        logger.debug('side panel: abertura via content recusada');
-        return { ok: false };
-      });
-  }
-
   return (async () => {
     await ready;
     const now = Date.now();
@@ -118,7 +99,12 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
-      // ---- UIs (popup / side panel / painel no Meet) ----
+      case 'panel/openRequest':
+        // Abre/foca a janela principal — vem do popup ou do botão "Ver no
+        // histórico" no painel do Meet. Único lugar que chama openMainWindow.
+        await openMainWindow();
+        return { ok: true };
+      // ---- UIs (popup / janela principal / painel no Meet) ----
       case 'ui/getState':
         return getState();
       case 'ui/pause':

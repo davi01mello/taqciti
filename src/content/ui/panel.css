@@ -1,7 +1,7 @@
 /**
  * Folha de estilo do painel injetado no Meet.
  *
- * É o MESMO Tailwind e os MESMOS tokens do side panel e do popup: o painel
+ * É o MESMO Tailwind e os MESMOS tokens da janela principal e do popup: o painel
  * dentro da reunião deixou de ter um CSS próprio (era daí que vinha "página
  * diferente de página"). Vive dentro de um shadow root, então:
  *
@@ -54,7 +54,7 @@
   /*
    * Vidro em camadas: blur + saturação, fio de luz de 1px em gradiente
    * (::before) e grão fino (::after) que tira o aspecto plástico do blur puro.
-   * Idêntico ao do side panel — é literalmente a mesma receita.
+   * Idêntico ao da janela principal — é literalmente a mesma receita.
    */
   .glass {
     position: relative;

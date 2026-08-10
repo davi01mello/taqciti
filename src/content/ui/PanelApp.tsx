@@ -1,6 +1,6 @@
 /**
  * O painel TaqCITi dentro do Meet — em React, com os MESMOS componentes e
- * tokens do side panel.
+ * tokens da janela principal.
  *
  * Dois corpos, um componente:
  * - a cápsula recolhida, arrastável para qualquer borda;

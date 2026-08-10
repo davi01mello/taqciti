@@ -1,6 +1,6 @@
 /**
- * O contrato de layout das telas da TaqCITi — popup, side panel e painel do
- * Meet montam a geometria AQUI, e não cada uma do seu jeito.
+ * O contrato de layout das telas da TaqCITi — popup, janela principal e
+ * painel do Meet montam a geometria AQUI, e não cada uma do seu jeito.
  *
  * ── Por que isto existe ────────────────────────────────────────────────────
  *
@@ -35,8 +35,8 @@ interface AppShellProps {
   /** Faixa fixa do rodapé: controles, ação principal. */
   footer?: ReactNode;
   /**
-   * Altura do shell. `'viewport'` para telas que ocupam a janela (side panel,
-   * popup); um número em pixels para o painel flutuante, que recebe a altura
+   * Altura do shell. `'viewport'` para telas que ocupam a janela (janela
+   * principal, popup); um número em pixels para o painel flutuante, que recebe a altura
    * calculada pelo dock.
    */
   height?: 'viewport' | number;

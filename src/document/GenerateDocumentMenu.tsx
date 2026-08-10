@@ -1,6 +1,6 @@
 /**
  * Botão "Gerar Documento" com menu de dois níveis. Nenhum dos contextos onde
- * este botão vive (side panel redimensionável, painel flutuante no Meet) tem
+ * este botão vive (janela principal redimensionável, painel flutuante no Meet) tem
  * largura garantida pra dois níveis lado a lado, então o nível 2 SUBSTITUI o
  * nível 1 (drill-down) em vez de abrir como submenu lateral.
  */
@@ -83,7 +83,6 @@ export function GenerateDocumentMenu({
     };
     document.addEventListener('pointerdown', onPointerDown, { capture: true });
     return () => document.removeEventListener('pointerdown', onPointerDown, { capture: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, busy]);
 
   // Escape volta um nível antes de fechar. Listener na fase de CAPTURA do
@@ -103,7 +102,6 @@ export function GenerateDocumentMenu({
     };
     document.addEventListener('keydown', onKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', onKeyDown, { capture: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, area, busy]);
 
   const goToArea = (key: Area) => {

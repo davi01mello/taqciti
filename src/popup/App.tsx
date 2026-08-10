@@ -1,12 +1,11 @@
 /**
  * Popup: estado atual num relance, controles rápidos da captura e as
- * reuniões recentes — o histórico completo vive no side panel.
+ * reuniões recentes — o histórico completo vive na janela principal.
  */
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
 import { useHistory } from '@/features/history/useHistory';
 import { useElapsedTime } from '@/shared/hooks/useElapsedTime';
 import { sendMessage } from '@/shared/services/messaging';
-import { openSidePanelInCurrentWindow } from '@/shared/services/sidePanel';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Wordmark } from '@/shared/ui/Wordmark';
@@ -35,7 +34,7 @@ export function App() {
   const elapsedMs = useElapsedTime(live ? (state.session?.startedAt ?? null) : null);
 
   const openPanel = () => {
-    void openSidePanelInCurrentWindow().then(() => window.close());
+    void sendMessage({ type: 'panel/openRequest' }).then(() => window.close());
   };
 
   return (

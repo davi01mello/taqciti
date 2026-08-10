@@ -13,6 +13,12 @@
       body {
         margin: 0;
         overflow: hidden;
+        /* Antes side panel do Chrome (largura controlada pelo navegador),
+           agora janela flutuante própria (chrome.windows.create) — sem piso
+           o conteúdo comprime até ficar ilegível se o usuário encolher
+           demais. Mesmo layout de sempre, só um limite embaixo. */
+        min-width: 320px;
+        min-height: 480px;
       }
     </style>
   </head>

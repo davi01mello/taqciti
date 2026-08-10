@@ -17,11 +17,17 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      // Terceiro entry point, além de popup/side panel: nenhum campo do
-      // manifesto MV3 cobre "página avulsa da extensão", então ela entra
-      // direto aqui, no jeito padrão de app multi-página do Vite.
+      // Entry points que nenhum campo do manifesto MV3 descobre sozinho, no
+      // jeito padrão de app multi-página do Vite:
+      // - document: página avulsa da extensão, sem campo de manifesto.
+      // - sidepanel: era descoberto via a chave `side_panel` do manifesto: a
+      //   janela principal migrou de side panel do Chrome pra
+      //   `chrome.windows.create` (ver src/background/mainWindow.ts), então
+      //   esse campo saiu do manifesto e o @crxjs parou de achar este HTML
+      //   sozinho — precisa entrar aqui, senão some do build.
       input: {
         document: fileURLToPath(new URL('./src/document/index.html', import.meta.url)),
+        sidepanel: fileURLToPath(new URL('./src/sidepanel/index.html', import.meta.url)),
       },
     },
   },

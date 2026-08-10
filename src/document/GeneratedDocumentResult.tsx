@@ -1,7 +1,7 @@
 /**
  * Exibição do resultado de POST /api/generate — mesma marcação que
  * DocumentPage.tsx já usava inline, extraída pra ser reaproveitada onde o
- * menu "Gerar Documento" também aparece (side panel, painel no Meet).
+ * menu "Gerar Documento" também aparece (janela principal, painel no Meet).
  */
 import { DOCUMENT_TYPE_LABELS, type GenerationResult } from './generateDocument';
 

@@ -38,6 +38,8 @@ function makeArea(initial: StorageValues = {}) {
 export function installChromeStorageMock(options: {
   local?: StorageValues;
   session?: StorageValues;
+  /** Mescladas no mock do `chrome` global — outras APIs além de storage (ex.: windows, system.display). */
+  extra?: Record<string, unknown>;
 } = {}) {
   const local = makeArea(options.local);
   const session = makeArea(options.session);
@@ -50,6 +52,7 @@ export function installChromeStorageMock(options: {
         removeListener: vi.fn(),
       },
     },
+    ...options.extra,
   };
   vi.stubGlobal('chrome', chromeMock);
   return { local, session, chrome: chromeMock };

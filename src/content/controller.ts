@@ -254,7 +254,7 @@ export class ContentController {
    */
   private recutIfNeeded(prev: MeetingState | null, next: MeetingState): void {
     // A pausa vale para QUALQUER origem: o botão do painel injetado já pausou
-    // otimista, mas o side panel e o popup chegam só por aqui.
+    // otimista, mas a janela principal e o popup chegam só por aqui.
     if (next.phase === 'paused') {
       this.provider.setCapturePaused(true);
       return;

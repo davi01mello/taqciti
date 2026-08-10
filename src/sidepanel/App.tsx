@@ -1,5 +1,5 @@
 /**
- * Side panel: roteia telas pela fase da máquina de estados — a UI reflete o
+ * Janela principal: roteia telas pela fase da máquina de estados — a UI reflete o
  * estado, nunca decide transições.
  */
 import { useMeetingState } from '@/shared/hooks/useMeetingState';

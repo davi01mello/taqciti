@@ -1,5 +1,5 @@
 /**
- * A transcrição — UM componente para o painel dentro do Meet, o side panel e o
+ * A transcrição — UM componente para o painel dentro do Meet, a janela principal e o
  * histórico. Antes eram dois (TranscriptFeed e TranscriptList) com espaçamento,
  * tipografia e agrupamento diferentes; a mesma reunião parecia outra em cada
  * tela.

@@ -1,5 +1,5 @@
 /**
- * Tela inicial do side panel: marca, estado de espera e o histórico completo
+ * Tela inicial da janela principal: marca, estado de espera e o histórico completo
  * com busca (título, pessoa ou conteúdo da fala) e detalhe de cada reunião.
  */
 import { useMemo, useState } from 'react';

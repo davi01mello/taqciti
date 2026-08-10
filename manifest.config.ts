@@ -1,6 +1,7 @@
 /**
  * Manifesto MV3 da extensão — fonte única de verdade consumida pelo @crxjs/vite-plugin.
- * Permissões seguem o princípio do mínimo: nada além de storage, sidePanel e o Meet.
+ * Permissões seguem o princípio do mínimo: nada além de storage, system.display
+ * (restaurar a janela principal na tela certa) e o Meet.
  */
 import { defineManifest } from '@crxjs/vite-plugin';
 
@@ -27,10 +28,6 @@ export default defineManifest({
     },
   },
 
-  side_panel: {
-    default_path: 'src/sidepanel/index.html',
-  },
-
   background: {
     service_worker: 'src/background/index.ts',
     type: 'module',
@@ -44,8 +41,11 @@ export default defineManifest({
     },
   ],
 
-  // Sem identidade de produto: só storage local e o painel.
-  permissions: ['storage', 'sidePanel'],
+  // Sem identidade de produto: storage local, e system.display só pra
+  // validar se a posição salva da janela principal ainda cabe na tela atual
+  // ao reabrir (chrome.system.display.getInfo — sem isso não dá pra saber os
+  // monitores conectados agora).
+  permissions: ['storage', 'system.display'],
 
   // A marca desenhada vive no painel injetado dentro do Meet, e conteúdo
   // injetado só alcança arquivo da extensão que esteja declarado aqui. Só a

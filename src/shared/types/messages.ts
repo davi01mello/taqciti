@@ -129,11 +129,13 @@ const contentMessages = z.discriminatedUnion('type', [
     type: z.literal('meet/captureDegraded'),
     reason: z.enum(['parser', 'stall']),
   }),
-  z.object({ type: z.literal('panel/openRequest') }),
 ]);
 
-/** Mensagens das UIs (popup / side panel / painel no Meet) → background. */
+/** Mensagens das UIs (popup / janela principal / painel no Meet) → background. */
 const uiMessages = z.discriminatedUnion('type', [
+  /** Abre/foca a janela principal (chrome.windows.create) — botão do popup
+   *  ou "Ver no histórico" no painel do Meet. */
+  z.object({ type: z.literal('panel/openRequest') }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),
   z.object({ type: z.literal('ui/resume') }),
