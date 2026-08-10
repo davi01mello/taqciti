@@ -6,6 +6,10 @@ import type { DocumentTemplate } from './types';
  * de partida natural pra 3 SectionSpec (ontem/hoje/bloqueios) quando a
  * geração real entrar — não dividido nesta rodada, ainda 1 seção só (ver
  * observação na resposta).
+ *
+ * `audit`/`askWhenMissing`/`omitWhenEmpty`: placeholders neutros pra
+ * satisfazer o SectionSpec estendido (rodada da Ata) — daily não muda de
+ * conteúdo nesta rodada, ver observação na resposta.
  */
 export const daily: DocumentTemplate = {
   documentType: 'daily',
@@ -18,6 +22,9 @@ export const daily: DocumentTemplate = {
       required: true,
       needs: [],
       guidance: 'Formato ontem/hoje/bloqueios.',
+      audit: 'none',
+      askWhenMissing: [],
+      omitWhenEmpty: false,
     },
   ],
 };

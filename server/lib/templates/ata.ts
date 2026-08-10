@@ -3,11 +3,14 @@ import type { DocumentTemplate } from './types';
 /**
  * `guidance` vem do comentário que já existia em generateDocument.ts antes
  * desta extração: "'ata' pede resumo + decisões + próximos passos". Ainda
- * 1 seção só — o gerador atual nunca produziu mais que um bloco por tipo,
- * então dividir em 3 SectionSpec agora seria inventar estrutura que não
- * está implementada hoje. Esse texto é o ponto de partida natural pra
- * dividir em resumo/decisões/próximos-passos quando a geração real entrar;
- * não fiz a divisão nesta rodada (ver observação na resposta).
+ * 1 seção só — as nove seções reais (identificação, participantes,
+ * decisões etc.) dependem do PDF do modelo e da especificação do DocCiti,
+ * que não chegaram nesta rodada (ver observação na resposta). Divisão fica
+ * pra quando os dois anexos estiverem disponíveis.
+ *
+ * `audit`/`askWhenMissing`/`omitWhenEmpty`: placeholders neutros só pra
+ * satisfazer o SectionSpec estendido — mesma ressalva do `guidance` acima,
+ * não é decisão de conteúdo real pra esta seção-tronco única.
  */
 export const ata: DocumentTemplate = {
   documentType: 'ata',
@@ -20,6 +23,9 @@ export const ata: DocumentTemplate = {
       required: true,
       needs: [],
       guidance: 'Resumo, decisões e próximos passos.',
+      audit: 'none',
+      askWhenMissing: [],
+      omitWhenEmpty: false,
     },
   ],
 };

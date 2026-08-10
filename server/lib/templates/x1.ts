@@ -4,6 +4,10 @@ import type { DocumentTemplate } from './types';
  * `guidance` vem do comentário que já existia em generateDocument.ts:
  * "'x1' pede tom de conversa individual". Não há mais nada especificado
  * pra x1 no código atual além disso.
+ *
+ * `audit`/`askWhenMissing`/`omitWhenEmpty`: placeholders neutros pra
+ * satisfazer o SectionSpec estendido (rodada da Ata) — x1 não muda de
+ * conteúdo nesta rodada, ver observação na resposta.
  */
 export const x1: DocumentTemplate = {
   documentType: 'x1',
@@ -20,6 +24,9 @@ export const x1: DocumentTemplate = {
       required: true,
       needs: [],
       guidance: 'Tom de conversa individual.',
+      audit: 'none',
+      askWhenMissing: [],
+      omitWhenEmpty: false,
     },
   ],
 };
