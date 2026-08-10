@@ -17,19 +17,19 @@ import {
   type GenerationSource,
 } from './generateDocument';
 
-type Area = 'gente' | 'producao' | 'personalizado';
+type Area = 'gente' | 'producao';
 
-const AREAS: { key: Area; label: string }[] = [
+// "Abrir no DocCiti" fica fora do drill-down, direto no nível 1: é a única
+// saída pra quem quer montar algo fora do que o servidor já gera, então
+// precisa de um clique só, não dois.
+const AREA_DEFS: { key: Area; label: string }[] = [
   { key: 'gente', label: 'Gente e gestão' },
   { key: 'producao', label: 'Produção' },
-  { key: 'personalizado', label: 'Personalizado' },
 ];
 
 type MenuItem =
   | { kind: 'generate'; documentType: DocumentType; label: string }
-  | { kind: 'disabled'; label: string }
-  | { kind: 'openDocCiti'; label: string }
-  | { kind: 'createTemplate'; label: string };
+  | { kind: 'disabled'; label: string };
 
 const AREA_ITEMS: Record<Area, MenuItem[]> = {
   gente: [
@@ -41,10 +41,6 @@ const AREA_ITEMS: Record<Area, MenuItem[]> = {
     { kind: 'generate', documentType: 'daily', label: DOCUMENT_TYPE_LABELS.daily },
     { kind: 'generate', documentType: 'planning', label: DOCUMENT_TYPE_LABELS.planning },
     { kind: 'generate', documentType: 'review', label: DOCUMENT_TYPE_LABELS.review },
-  ],
-  personalizado: [
-    { kind: 'createTemplate', label: 'Criar modelo' },
-    { kind: 'openDocCiti', label: 'Abrir no DocCiti' },
   ],
 };
 
@@ -70,7 +66,6 @@ export function GenerateDocumentMenu({
   const [area, setArea] = useState<Area | null>(null);
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const [generating, setGenerating] = useState<Generating>({ status: 'idle' });
-  const [templateNote, setTemplateNote] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const busy = generating.status === 'loading';
@@ -79,7 +74,6 @@ export function GenerateDocumentMenu({
     setOpen(false);
     setArea(null);
     setGenerating({ status: 'idle' });
-    setTemplateNote(false);
   };
 
   // Clicar fora fecha — mas não durante uma geração em andamento, pra não
@@ -119,19 +113,16 @@ export function GenerateDocumentMenu({
   const goToArea = (key: Area) => {
     setDirection('forward');
     setArea(key);
-    setTemplateNote(false);
   };
 
   const goBack = () => {
     setDirection('back');
     setArea(null);
     setGenerating({ status: 'idle' });
-    setTemplateNote(false);
   };
 
   const generate = (documentType: DocumentType) => {
     if (busy) return;
-    setTemplateNote(false);
     setGenerating({ status: 'loading', documentType });
     void requestGeneration(source, documentType).then((result) => {
       if (result.status === 'success') {
@@ -162,7 +153,7 @@ export function GenerateDocumentMenu({
               key="root"
               className={direction === 'forward' ? 'animate-slide-in-right' : 'animate-slide-in-left'}
             >
-              {AREAS.map((a) => (
+              {AREA_DEFS.map((a) => (
                 <button
                   key={a.key}
                   type="button"
@@ -173,6 +164,16 @@ export function GenerateDocumentMenu({
                   <Icon name="chevron" size={14} className="-rotate-90 text-muted" />
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  openDocumentPage(meetingId);
+                  reset();
+                }}
+                className="flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/8"
+              >
+                Abrir no DocCiti
+              </button>
             </div>
           ) : (
             <div
@@ -186,7 +187,7 @@ export function GenerateDocumentMenu({
                 className={`mb-1 flex items-center gap-1.5 rounded-control px-3 py-2 text-caption font-semibold text-muted transition-colors duration-200 ease-flow hover:bg-white/5 hover:text-foreground ${busy ? 'pointer-events-none opacity-50' : ''}`}
               >
                 <Icon name="chevron" size={13} className="rotate-90" />
-                {AREAS.find((a) => a.key === area)?.label}
+                {AREA_DEFS.find((a) => a.key === area)?.label}
               </button>
 
               {AREA_ITEMS[area].map((item) => {
@@ -198,44 +199,6 @@ export function GenerateDocumentMenu({
                     >
                       {item.label}
                       <span className="text-micro">em breve</span>
-                    </div>
-                  );
-                }
-
-                if (item.kind === 'openDocCiti') {
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => {
-                        openDocumentPage(meetingId);
-                        reset();
-                      }}
-                      className="flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/8"
-                    >
-                      {item.label}
-                    </button>
-                  );
-                }
-
-                if (item.kind === 'createTemplate') {
-                  return (
-                    <div key={item.label}>
-                      <button
-                        type="button"
-                        // TODO: sem documentType correspondente no backend
-                        // ainda — só o feedback visual, até o servidor
-                        // aceitar modelos personalizados.
-                        onClick={() => setTemplateNote(true)}
-                        className="flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/8"
-                      >
-                        {item.label}
-                      </button>
-                      {templateNote && (
-                        <p className="px-3 pb-1.5 text-micro text-muted">
-                          Em breve — criação de modelos ainda não existe no servidor.
-                        </p>
-                      )}
                     </div>
                   );
                 }
