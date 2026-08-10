@@ -18,75 +18,28 @@
 import { useEffect, useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { STORAGE_KEYS } from '@/shared/config/constants';
-import { SERVER_BASE_URL } from '@/shared/config/serverConfig';
 import { readLocal } from '@/shared/services/storage';
-import { transcriptToText } from '@/features/history/export';
 import { Button } from '@/shared/ui/Button';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
 import { Wordmark } from '@/shared/ui/Wordmark';
 import { formatDate, formatDurationHuman, formatTime, hostName } from '@/shared/ui/format';
+import {
+  DOCUMENT_TYPE_LABELS,
+  requestGeneration,
+  type DocumentType,
+  type GenerationResult,
+} from './generateDocument';
+import { GeneratedDocumentResult } from './GeneratedDocumentResult';
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'not-found' }
   | { status: 'ready'; record: MeetingRecord };
 
-/** Espelha DOCUMENT_TYPES em server/lib/generateDocument.ts — os únicos
- *  tipos que o servidor aceita nesta fase. "personal" não entra aqui: fica
- *  desabilitado no front, nunca chega a ser enviado. */
-type DocumentType = 'ata' | 'x1' | 'daily' | 'planning' | 'review';
-
-const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
-  ata: 'Ata de Reunião',
-  x1: 'Doc Conversa (X1)',
-  daily: 'Daily',
-  planning: 'Planning',
-  review: 'Review',
-};
-
-type GenerationState =
-  | { status: 'idle' }
-  | { status: 'loading'; documentType: DocumentType }
-  | { status: 'success'; documentType: DocumentType; title: string; content: string }
-  | { status: 'error'; documentType: DocumentType; message: string };
+type GenerationState = { status: 'idle' } | { status: 'loading'; documentType: DocumentType } | GenerationResult;
 
 function readMeetingIdFromUrl(): string | null {
   return new URLSearchParams(window.location.search).get('meetingId');
-}
-
-async function requestGeneration(
-  record: MeetingRecord,
-  documentType: DocumentType,
-): Promise<GenerationState> {
-  try {
-    const response = await fetch(`${SERVER_BASE_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        transcript: transcriptToText(record.segments),
-        title: record.title,
-        date: new Date(record.startedAt).toISOString(),
-        documentType,
-      }),
-    });
-
-    if (!response.ok) {
-      return {
-        status: 'error',
-        documentType,
-        message: `O servidor respondeu com erro (${response.status}).`,
-      };
-    }
-
-    const data = (await response.json()) as { title: string; content: string };
-    return { status: 'success', documentType, title: data.title, content: data.content };
-  } catch {
-    return {
-      status: 'error',
-      documentType,
-      message: 'Não foi possível falar com o servidor. Ele está rodando em localhost:3000?',
-    };
-  }
 }
 
 /** Menu "Outros" — mesmo padrão visual do ConfirmModal (overlay + glass
@@ -259,17 +212,7 @@ export function DocumentPage() {
           className="!flex-none"
         />
 
-        {generation.status === 'success' && (
-          <div className="mt-6 border-t border-borderc pt-6">
-            <p className="mb-3 text-caption font-semibold uppercase tracking-wide text-muted">
-              Documento gerado — {DOCUMENT_TYPE_LABELS[generation.documentType]}
-            </p>
-            <h2 className="mb-2 text-title font-bold">{generation.title}</h2>
-            <p className="whitespace-pre-wrap text-read text-foreground/90">
-              {generation.content}
-            </p>
-          </div>
-        )}
+        {generation.status === 'success' && <GeneratedDocumentResult result={generation} />}
 
         {generation.status === 'error' && (
           <div className="mt-6 border-t border-borderc pt-6">

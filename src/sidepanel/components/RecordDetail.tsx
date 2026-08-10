@@ -6,7 +6,9 @@ import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { sendMessage } from '@/shared/services/messaging';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
-import { openDocumentPage } from '@/document/openDocumentPage';
+import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
+import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
+import type { GenerationResult } from '@/document/generateDocument';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
@@ -22,6 +24,9 @@ interface RecordDetailProps {
 export function RecordDetail({ record, onBack }: RecordDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
+    null,
+  );
 
   const copy = async () => {
     await navigator.clipboard.writeText(transcriptToText(record.segments));
@@ -80,13 +85,11 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
             Apagar
           </Button>
         </div>
-        <Button
-          variant="primary"
-          className="w-full"
-          onClick={() => openDocumentPage(record.id)}
-        >
-          Gerar Documento
-        </Button>
+        <GenerateDocumentMenu
+          meetingId={record.id}
+          source={record}
+          onGenerated={setGenerated}
+        />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
@@ -96,6 +99,8 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
           emptyMessage="Nenhuma fala foi capturada nesta reunião."
           className="!flex-none"
         />
+
+        {generated && <GeneratedDocumentResult result={generated} />}
       </div>
 
       <ConfirmModal

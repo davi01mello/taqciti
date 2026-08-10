@@ -24,7 +24,6 @@ import {
 } from '@/shared/config/constants';
 import { onMessage, sendMessage } from '@/shared/services/messaging';
 import { meetingStateSchema } from '@/shared/types/messages';
-import { openDocumentPage } from '@/document/openDocumentPage';
 import { setNativeCaptionsHidden } from './captionsVisibility';
 import { loadPanelPrefs, savePanelPrefs } from './prefs';
 import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
@@ -62,7 +61,6 @@ export class ContentController {
     onFinish: () => void sendMessage({ type: 'ui/finish' }),
     onRename: (title) => void sendMessage({ type: 'ui/rename', title }),
     onOpenHistory: () => void sendMessage({ type: 'panel/openRequest' }),
-    onOpenDocument: (meetingId) => openDocumentPage(meetingId),
     onResumeCapture: () => this.redetect(),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
     onEnableCaptions: () => this.attemptEnableCaptions(),

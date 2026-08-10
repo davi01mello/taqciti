@@ -6,7 +6,9 @@ import { useState } from 'react';
 import type { MeetingSessionState } from '@/shared/types/domain';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
-import { openDocumentPage } from '@/document/openDocumentPage';
+import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
+import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
+import type { GenerationResult } from '@/document/generateDocument';
 import { sendMessage } from '@/shared/services/messaging';
 import { Button } from '@/shared/ui/Button';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
@@ -21,6 +23,9 @@ interface SummaryScreenProps {
 
 export function SummaryScreen({ session }: SummaryScreenProps) {
   const [copied, setCopied] = useState(false);
+  const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
+    null,
+  );
 
   const durationSeconds = Math.round(
     ((session.endedAt ?? session.startedAt) - session.startedAt) / 1000,
@@ -82,13 +87,12 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
           </Button>
         ) : (
           <>
-            <Button
-              variant="primary"
-              className="mb-3 w-full"
-              onClick={() => openDocumentPage(session.meetingId)}
-            >
-              Gerar Documento
-            </Button>
+            <GenerateDocumentMenu
+              meetingId={session.meetingId}
+              source={session}
+              onGenerated={setGenerated}
+              className="mb-3"
+            />
 
             <div className="mb-3 flex items-center justify-center gap-2">
               <Button variant="secondary" className="!min-h-[38px] text-xs" onClick={() => void copy()}>
@@ -111,6 +115,8 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
               selfName={hostName(session.participants)}
               className="!flex-none"
             />
+
+            {generated && <GeneratedDocumentResult result={generated} />}
           </>
         )}
       </div>

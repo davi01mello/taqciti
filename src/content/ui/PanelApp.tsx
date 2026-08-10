@@ -21,6 +21,9 @@ import type {
 import { EXPECTED_CAPTION_LANGUAGE } from '@/shared/config/constants';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
+import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
+import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
+import type { GenerationResult } from '@/document/generateDocument';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
@@ -43,7 +46,6 @@ export interface PanelCallbacks {
   onFinish(): void;
   onRename(title: string): void;
   onOpenHistory(): void;
-  onOpenDocument(meetingId: string): void;
   onResumeCapture(): void;
   onCloseEnded(): void;
   onEnableCaptions(): void;
@@ -352,7 +354,6 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
                   onCopy={copy}
                   onDownload={download}
                   onOpenHistory={callbacks.onOpenHistory}
-                  onOpenDocument={callbacks.onOpenDocument}
                   onClose={callbacks.onCloseEnded}
                 />
               )}
@@ -371,16 +372,18 @@ function EndedSummary({
   onCopy,
   onDownload,
   onOpenHistory,
-  onOpenDocument,
   onClose,
 }: {
   session: MeetingSessionState;
   onCopy: () => void;
   onDownload: () => void;
   onOpenHistory: () => void;
-  onOpenDocument: (meetingId: string) => void;
   onClose: () => void;
 }) {
+  const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
+    null,
+  );
+
   return (
     <div className="flex flex-col gap-3 py-1 animate-fade-in motion-reduce:animate-none">
       <div className="text-center">
@@ -400,13 +403,8 @@ function EndedSummary({
       </div>
       {/* Agrupado logo abaixo de "Baixar .txt": as duas ações que fazem algo
        * com o CONTEÚDO da reunião, separadas de navegação (histórico/fechar). */}
-      <Button
-        variant="primary"
-        className="w-full"
-        onClick={() => onOpenDocument(session.meetingId)}
-      >
-        Gerar Documento
-      </Button>
+      <GenerateDocumentMenu meetingId={session.meetingId} source={session} onGenerated={setGenerated} />
+      {generated && <GeneratedDocumentResult result={generated} />}
       <Button variant="primary" className="w-full" onClick={onOpenHistory}>
         Ver no histórico
       </Button>
