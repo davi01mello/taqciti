@@ -148,11 +148,6 @@ const uiMessages = z.discriminatedUnion('type', [
     id: z.string(),
     title: z.string().min(1).max(200),
   }),
-  /** "Gerar Documento": abre o site do DocsCiti numa aba nova pra essa
-   *  reunião. Sempre por mensagem — o painel no Meet roda como content
-   *  script e não tem acesso a chrome.tabs, então o background sempre faz
-   *  essa parte. */
-  z.object({ type: z.literal('document/openRequest'), meetingId: z.string().min(1) }),
 ]);
 
 /** Broadcast do background → todos os contextos. */

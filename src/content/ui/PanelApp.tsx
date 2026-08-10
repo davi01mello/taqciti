@@ -403,7 +403,7 @@ function EndedSummary({
       </div>
       {/* Agrupado logo abaixo de "Baixar .txt": as duas ações que fazem algo
        * com o CONTEÚDO da reunião, separadas de navegação (histórico/fechar). */}
-      <GenerateDocumentMenu meetingId={session.meetingId} source={session} onGenerated={setGenerated} />
+      <GenerateDocumentMenu source={session} onGenerated={setGenerated} />
       {generated && <GeneratedDocumentResult result={generated} />}
       <Button variant="primary" className="w-full" onClick={onOpenHistory}>
         Ver no histórico

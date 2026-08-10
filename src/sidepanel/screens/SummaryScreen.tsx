@@ -87,12 +87,7 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
           </Button>
         ) : (
           <>
-            <GenerateDocumentMenu
-              meetingId={session.meetingId}
-              source={session}
-              onGenerated={setGenerated}
-              className="mb-3"
-            />
+            <GenerateDocumentMenu source={session} onGenerated={setGenerated} className="mb-3" />
 
             <div className="mb-3 flex items-center justify-center gap-2">
               <Button variant="secondary" className="!min-h-[38px] text-xs" onClick={() => void copy()}>

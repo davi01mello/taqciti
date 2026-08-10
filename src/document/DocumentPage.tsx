@@ -1,9 +1,8 @@
 /**
- * Página de continuação do fluxo — órfã desde que o botão "Gerar Documento"
- * passou a abrir o site do DocsCiti (server/public/mockup) em vez desta
- * página. Fica no repo porque tem a lógica real (leitura de
- * chrome.storage.local, chamada a /api/generate) que o mockup ainda não
- * tem — referência pra quando o mockup for integrado de verdade.
+ * Página de continuação do fluxo — órfã desde que "Gerar Documento" passou a
+ * ser um menu inline (GenerateDocumentMenu) que já faz a geração no lugar,
+ * sem navegar pra cá. Fica no repo como a origem de `generateDocument.ts` e
+ * `GeneratedDocumentResult.tsx`, que o menu reusa.
  *
  * Lê `meetingId` da query string e mostra a transcrição completa — mesma
  * leitura direta de `chrome.storage.local` que o resto do histórico usa,

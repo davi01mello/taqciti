@@ -4,6 +4,11 @@ Servidor Next.js (App Router) independente do resto do repositório, usado
 pela extensão na fase 2 do fluxo "Continuar fluxo": recebe a transcrição de
 uma reunião e devolve um documento gerado.
 
+Só backend — sem interface própria. O fluxo de "Gerar Documento" inteiro
+(escolher o tipo, mostrar loading/erro, exibir o resultado) vive dentro da
+extensão TaqCiti (`src/document/GenerateDocumentMenu.tsx`), que chama a
+única rota daqui.
+
 ## Rodando localmente
 
 ```
@@ -50,11 +55,12 @@ fase. É um risco real e conhecido, deixado assim de propósito por enquanto;
 a correção (restringir por id conhecido e/ou exigir uma chave de API) fica
 para quando a integração de IA de verdade entrar.
 
-## Mockup do hero animado
+## DocCiti (mockup do hero animado) — descontinuado
 
-`public/mockup/docsciti_mockup.html` é um mockup HTML standalone (sem build,
-sem framework) da tela de geração de documento, com a animação de onda
-reativa ao cursor/clique. Serve como referência visual — ainda não está
-integrado à extensão. Antes de mexer nele, leia
-[`docs/HANDOFF.md`](docs/HANDOFF.md): tem parâmetros ajustáveis e uma lista
-de otimizações que parecem descuido e não são.
+O mockup HTML standalone da tela de geração de documento (a animação de onda
+reativa ao cursor/clique) foi descartado como frontend: o fluxo real de
+geração agora vive inteiro dentro da extensão TaqCiti, sem nenhum caminho que
+leve pra fora dela. Os arquivos ficam arquivados, só como referência
+histórica, em [`Legado/`](Legado/) — fora de `public/`, então não são mais
+servidos por este servidor. Detalhes de manutenção da animação (caso algum
+dia vire algo reaproveitável) em [`Legado/HANDOFF.md`](Legado/HANDOFF.md).

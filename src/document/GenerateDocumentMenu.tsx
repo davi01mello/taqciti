@@ -2,13 +2,11 @@
  * Botão "Gerar Documento" com menu de dois níveis. Nenhum dos contextos onde
  * este botão vive (side panel redimensionável, painel flutuante no Meet) tem
  * largura garantida pra dois níveis lado a lado, então o nível 2 SUBSTITUI o
- * nível 1 (drill-down) em vez de abrir como submenu lateral — mesma decisão
- * já tomada no mockup do DocsCiti, aqui em React.
+ * nível 1 (drill-down) em vez de abrir como submenu lateral.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
-import { openDocumentPage } from './openDocumentPage';
 import {
   DOCUMENT_TYPE_LABELS,
   requestGeneration,
@@ -50,14 +48,12 @@ type Generating =
   | { status: 'error'; documentType: DocumentType; message: string };
 
 interface GenerateDocumentMenuProps {
-  meetingId: string;
   source: GenerationSource;
   onGenerated: (result: Extract<GenerationResult, { status: 'success' }>) => void;
   className?: string;
 }
 
 export function GenerateDocumentMenu({
-  meetingId,
   source,
   onGenerated,
   className = '',
@@ -164,16 +160,6 @@ export function GenerateDocumentMenu({
                   <Icon name="chevron" size={14} className="-rotate-90 text-muted" />
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => {
-                  openDocumentPage(meetingId);
-                  reset();
-                }}
-                className="flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/8"
-              >
-                Abrir no DocCiti
-              </button>
             </div>
           ) : (
             <div

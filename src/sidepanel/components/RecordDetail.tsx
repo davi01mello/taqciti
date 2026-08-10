@@ -85,11 +85,7 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
             Apagar
           </Button>
         </div>
-        <GenerateDocumentMenu
-          meetingId={record.id}
-          source={record}
-          onGenerated={setGenerated}
-        />
+        <GenerateDocumentMenu source={record} onGenerated={setGenerated} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
