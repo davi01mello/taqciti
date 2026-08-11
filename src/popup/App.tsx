@@ -5,7 +5,7 @@
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
 import { useHistory } from '@/features/history/useHistory';
 import { useElapsedTime } from '@/shared/hooks/useElapsedTime';
-import { sendMessage } from '@/shared/services/messaging';
+import { usePlatform } from '@/shared/platform/context';
 import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
@@ -29,13 +29,14 @@ function subtitleFor(phase: string): string {
 }
 
 export function App() {
+  const platform = usePlatform();
   const state = useMeetingState();
   const records = useHistory();
   const live = state.phase === 'recording' || state.phase === 'paused';
   const elapsedMs = useElapsedTime(live ? (state.session?.startedAt ?? null) : null);
 
   const openPanel = () => {
-    void sendMessage({ type: 'panel/openRequest' }).then(() => window.close());
+    void platform.send({ type: 'panel/openRequest' }).then(() => window.close());
   };
 
   return (
@@ -77,7 +78,7 @@ export function App() {
                       size="compact"
                       className="flex-1"
                       onClick={() =>
-                        void sendMessage({
+                        void platform.send({
                           type: state.phase === 'paused' ? 'ui/resume' : 'ui/pause',
                         })
                       }

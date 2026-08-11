@@ -16,7 +16,7 @@ import { downloadTranscript, transcriptToText } from '@/features/history/export'
 import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
 import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
 import type { GenerationResult } from '@/document/generateDocument';
-import { sendMessage } from '@/shared/services/messaging';
+import { usePlatform } from '@/shared/platform/context';
 import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
@@ -30,6 +30,7 @@ interface SummaryScreenProps {
 }
 
 export function SummaryScreen({ session }: SummaryScreenProps) {
+  const platform = usePlatform();
   const [copied, setCopied] = useState(false);
   const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
     null,
@@ -69,7 +70,7 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
               <div className="mt-3">
                 <EditableTitle
                   value={session.title}
-                  onRename={(title) => void sendMessage({ type: 'ui/rename', title })}
+                  onRename={(title) => void platform.send({ type: 'ui/rename', title })}
                   className="text-center text-sm font-semibold"
                 />
               </div>
@@ -94,7 +95,7 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
           <Button
             variant="secondary"
             className="w-full"
-            onClick={() => void sendMessage({ type: 'ui/reset' })}
+            onClick={() => void platform.send({ type: 'ui/reset' })}
           >
             Fechar
           </Button>
@@ -119,7 +120,7 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
             <Button
               variant="ghost"
               size="compact"
-              onClick={() => void sendMessage({ type: 'ui/reset' })}
+              onClick={() => void platform.send({ type: 'ui/reset' })}
             >
               Fechar
             </Button>

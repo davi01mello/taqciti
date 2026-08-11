@@ -131,8 +131,16 @@ const contentMessages = z.discriminatedUnion('type', [
   }),
 ]);
 
-/** Mensagens das UIs (popup / janela principal / painel no Meet) → background. */
-const uiMessages = z.discriminatedUnion('type', [
+/**
+ * Mensagens das UIs (popup / janela principal / painel no Meet) → background.
+ *
+ * Exportado porque é exatamente a fronteira que a camada de plataforma
+ * atravessa: é o conjunto de comandos que uma UI pode emitir, seja ela a
+ * janela dentro do Chrome ou a janela do app nativo falando pela ponte. Ter o
+ * schema de pé permite VALIDAR o que chega pelo socket com a mesma regra que
+ * já valida o que chega por `chrome.runtime` — a ponte não afrouxa nada.
+ */
+export const uiMessageSchema = z.discriminatedUnion('type', [
   /** Abre/foca a janela principal (chrome.windows.create) — botão do popup
    *  ou "Ver no histórico" no painel do Meet. */
   z.object({ type: z.literal('panel/openRequest') }),
@@ -157,9 +165,11 @@ const broadcastMessages = z.discriminatedUnion('type', [
   z.object({ type: z.literal('state/updated'), state: meetingStateSchema }),
 ]);
 
-export const messageSchema = z.union([contentMessages, uiMessages, broadcastMessages]);
+export const messageSchema = z.union([contentMessages, uiMessageSchema, broadcastMessages]);
 
 export type ExtensionMessage = z.infer<typeof messageSchema>;
+/** Um comando emitido por uma UI — o vocabulário da camada de plataforma. */
+export type UiCommand = z.infer<typeof uiMessageSchema>;
 export type MessageOf<T extends ExtensionMessage['type']> = Extract<
   ExtensionMessage,
   { type: T }

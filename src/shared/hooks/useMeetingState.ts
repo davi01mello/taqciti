@@ -1,36 +1,22 @@
 /**
- * Fonte única de estado para as UIs: pede o estado atual ao background na
- * montagem e assina os broadcasts `state/updated`.
+ * Fonte única de estado da reunião para as UIs.
+ *
+ * O passo duplo que morava aqui — pede o estado atual, e separadamente assina
+ * os broadcasts — desceu para a camada de plataforma, porque a forma de
+ * resolver a corrida entre os dois é diferente em cada mundo (`chrome.runtime`
+ * responde na mesma máquina; a ponte responde por um socket). Aqui sobrou o
+ * que é de fato do React: guardar o último valor.
  */
 import { useEffect, useState } from 'react';
 import type { MeetingState } from '@/shared/types/domain';
 import { IDLE_STATE } from '@/shared/types/domain';
-import { onMessage, sendMessage } from '@/shared/services/messaging';
-import { meetingStateSchema } from '@/shared/types/messages';
+import { usePlatform } from '@/shared/platform/context';
 
 export function useMeetingState(): MeetingState {
+  const platform = usePlatform();
   const [state, setState] = useState<MeetingState>(IDLE_STATE);
 
-  useEffect(() => {
-    let mounted = true;
-
-    void sendMessage<MeetingState>({ type: 'ui/getState' }).then((raw) => {
-      const parsed = meetingStateSchema.safeParse(raw);
-      if (mounted && parsed.success) setState(parsed.data as MeetingState);
-    });
-
-    const unsubscribe = onMessage((message) => {
-      if (message.type === 'state/updated') {
-        setState(message.state as MeetingState);
-      }
-      return undefined;
-    });
-
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
-  }, []);
+  useEffect(() => platform.subscribeMeeting(setState), [platform]);
 
   return state;
 }

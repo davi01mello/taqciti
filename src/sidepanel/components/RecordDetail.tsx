@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
-import { sendMessage } from '@/shared/services/messaging';
+import { usePlatform } from '@/shared/platform/context';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
 import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
@@ -27,6 +27,7 @@ interface RecordDetailProps {
 }
 
 export function RecordDetail({ record, onBack }: RecordDetailProps) {
+  const platform = usePlatform();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
   const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
@@ -55,7 +56,7 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
           <EditableTitle
             value={record.title}
             onRename={(title) =>
-              void sendMessage({ type: 'ui/history/rename', id: record.id, title })
+              void platform.send({ type: 'ui/history/rename', id: record.id, title })
             }
             className="-ml-2 text-title font-semibold"
           />
@@ -118,7 +119,7 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
         danger
         onConfirm={() => {
           setConfirmDelete(false);
-          void sendMessage({ type: 'ui/history/delete', id: record.id });
+          void platform.send({ type: 'ui/history/delete', id: record.id });
           onBack();
         }}
         onCancel={() => setConfirmDelete(false)}

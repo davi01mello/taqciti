@@ -14,10 +14,8 @@
  * fetch abaixo já fala o contrato definitivo (`{ transcript, title, date,
  * documentType }` → `{ title, content }`).
  */
-import { useEffect, useState } from 'react';
-import type { MeetingRecord } from '@/shared/types/domain';
-import { STORAGE_KEYS } from '@/shared/config/constants';
-import { readLocal } from '@/shared/services/storage';
+import { useState } from 'react';
+import { useHistoryState } from '@/features/history/useHistory';
 import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
@@ -30,11 +28,6 @@ import {
   type GenerationResult,
 } from './generateDocument';
 import { GeneratedDocumentResult } from './GeneratedDocumentResult';
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'not-found' }
-  | { status: 'ready'; record: MeetingRecord };
 
 type GenerationState = { status: 'idle' } | { status: 'loading'; documentType: DocumentType } | GenerationResult;
 
@@ -110,50 +103,45 @@ function OtherDocumentTypesModal({
   );
 }
 
+function NotFound() {
+  return (
+    <main className="grid h-full place-items-center px-6 text-center">
+      <div>
+        <h1 className="mb-1 text-title font-bold">Reunião não encontrada</h1>
+        <p className="max-w-sm text-body text-muted">
+          Essa reunião não existe mais no histórico local, ou o link está incompleto.
+        </p>
+      </div>
+    </main>
+  );
+}
+
 export function DocumentPage() {
-  const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [generation, setGeneration] = useState<GenerationState>({ status: 'idle' });
   const [othersOpen, setOthersOpen] = useState(false);
 
-  useEffect(() => {
-    const meetingId = readMeetingIdFromUrl();
-    if (!meetingId) {
-      setState({ status: 'not-found' });
-      return;
-    }
-    let mounted = true;
-    void readLocal<MeetingRecord[]>(STORAGE_KEYS.history).then((records) => {
-      if (!mounted) return;
-      const record = (records ?? []).find((r) => r.id === meetingId);
-      setState(record ? { status: 'ready', record } : { status: 'not-found' });
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  /*
+   * O histórico vem do mesmo hook que o resto do produto usa, em vez de uma
+   * leitura própria de `chrome.storage`: era a última tela que falava direto
+   * com a API da extensão, e por isso a única que não rodaria na janela do app
+   * nativo. De quebra, a reunião aberta aqui agora acompanha renomeações
+   * feitas em outra tela.
+   */
+  const { records, loaded } = useHistoryState();
+  const meetingId = readMeetingIdFromUrl();
+  const record = meetingId === null ? undefined : records.find((r) => r.id === meetingId);
 
-  if (state.status === 'loading') {
+  if (meetingId !== null && !loaded) {
     return (
       <main className="grid h-full place-items-center">
         <p className="text-body text-muted">Carregando...</p>
       </main>
     );
   }
-
-  if (state.status === 'not-found') {
-    return (
-      <main className="grid h-full place-items-center px-6 text-center">
-        <div>
-          <h1 className="mb-1 text-title font-bold">Reunião não encontrada</h1>
-          <p className="max-w-sm text-body text-muted">
-            Essa reunião não existe mais no histórico local, ou o link está incompleto.
-          </p>
-        </div>
-      </main>
-    );
+  if (record === undefined) {
+    return <NotFound />;
   }
 
-  const { record } = state;
   const busy = generation.status === 'loading';
 
   // Handler único, parametrizado por tipo — os 5 botões funcionais (linha

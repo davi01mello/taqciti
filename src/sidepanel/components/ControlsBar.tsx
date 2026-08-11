@@ -17,7 +17,7 @@
  * trabalho) e a transcrição termina exatamente onde a barra começa.
  */
 import { useState } from 'react';
-import { sendMessage } from '@/shared/services/messaging';
+import { usePlatform } from '@/shared/platform/context';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 import { Icon } from '@/shared/ui/Icon';
@@ -27,6 +27,7 @@ interface ControlsBarProps {
 }
 
 export function ControlsBar({ paused }: ControlsBarProps) {
+  const platform = usePlatform();
   const [confirmClear, setConfirmClear] = useState(false);
 
   return (
@@ -36,7 +37,7 @@ export function ControlsBar({ paused }: ControlsBarProps) {
           <Button
             variant="secondary"
             className="flex-1"
-            onClick={() => void sendMessage({ type: paused ? 'ui/resume' : 'ui/pause' })}
+            onClick={() => void platform.send({ type: paused ? 'ui/resume' : 'ui/pause' })}
           >
             <Icon name={paused ? 'play' : 'pause'} size={16} />
             {paused ? 'Retomar' : 'Pausar'}
@@ -55,7 +56,7 @@ export function ControlsBar({ paused }: ControlsBarProps) {
           <Button
             variant="primary"
             className="flex-1"
-            onClick={() => void sendMessage({ type: 'ui/finish' })}
+            onClick={() => void platform.send({ type: 'ui/finish' })}
           >
             <Icon name="stop" size={14} />
             Finalizar
@@ -71,7 +72,7 @@ export function ControlsBar({ paused }: ControlsBarProps) {
         danger
         onConfirm={() => {
           setConfirmClear(false);
-          void sendMessage({ type: 'ui/clearTranscript' });
+          void platform.send({ type: 'ui/clearTranscript' });
         }}
         onCancel={() => setConfirmClear(false)}
       />

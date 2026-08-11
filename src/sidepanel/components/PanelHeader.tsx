@@ -3,7 +3,7 @@
  * título editável inline.
  */
 import type { MeetingSessionState } from '@/shared/types/domain';
-import { sendMessage } from '@/shared/services/messaging';
+import { usePlatform } from '@/shared/platform/context';
 import { useElapsedTime } from '@/shared/hooks/useElapsedTime';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
 import { Wordmark } from '@/shared/ui/Wordmark';
@@ -15,6 +15,7 @@ interface PanelHeaderProps {
 }
 
 export function PanelHeader({ session, phase }: PanelHeaderProps) {
+  const platform = usePlatform();
   const elapsedMs = useElapsedTime(session.startedAt);
   const capturing = session.captionsEnabled;
 
@@ -54,7 +55,7 @@ export function PanelHeader({ session, phase }: PanelHeaderProps) {
       </div>
       <EditableTitle
         value={session.title}
-        onRename={(title) => void sendMessage({ type: 'ui/rename', title })}
+        onRename={(title) => void platform.send({ type: 'ui/rename', title })}
         className="-ml-2 text-title font-semibold"
       />
     </header>
