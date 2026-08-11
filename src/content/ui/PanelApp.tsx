@@ -41,6 +41,7 @@ import {
 } from '@/shared/ui/format';
 import { detectNextMeeting, type NextMeetingHypothesis } from '@/features/meeting/nextMeeting';
 import { useDock } from './useDock';
+import { PANEL_OPEN_EVENT } from './mount';
 
 export interface PanelCallbacks {
   onPause(): void;
@@ -69,12 +70,24 @@ interface PanelAppProps {
   ctx: PanelContext;
   prefs: PanelPrefs;
   callbacks: PanelCallbacks;
+  /**
+   * Nasce aberto em vez de recolhido. No Meet o painel aparece sozinho junto
+   * com a página e começar aberto seria invasivo; fora do Meet ele só existe
+   * porque alguém clicou no ícone pedindo por ele.
+   */
+  defaultOpen?: boolean;
 }
 
 const TOAST_MS = 2200;
 
-export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
-  const [open, setOpen] = useState(false);
+export function PanelApp({
+  state,
+  ctx,
+  prefs,
+  callbacks,
+  defaultOpen = false,
+}: PanelAppProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
@@ -122,6 +135,13 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
+
+  // Clicar no ícone numa aba que já tem o painel montado: ver PANEL_OPEN_EVENT.
+  useEffect(() => {
+    const onOpenRequest = () => setOpen(true);
+    document.addEventListener(PANEL_OPEN_EVENT, onOpenRequest);
+    return () => document.removeEventListener(PANEL_OPEN_EVENT, onOpenRequest);
+  }, []);
 
   // Clique em qualquer lugar da reunião recolhe o painel, sem roubar o clique
   // do Meet. `composedPath` é o que enxerga através do shadow DOM.
@@ -353,6 +373,9 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
               <LiveControls
                 paused={phase === 'paused'}
                 captionsHidden={ctx.nativeCaptionsHidden}
+                /* Só a aba do Meet tem legenda nativa para esconder. Numa aba
+                   qualquer o botão existiria sem fazer nada. */
+                canToggleCaptions={ctx.inMeeting}
                 onPauseToggle={() => {
                   if (phase === 'paused') {
                     callbacks.onResume();
@@ -699,6 +722,7 @@ function formatShortDate(date: string): string {
 function LiveControls({
   paused,
   captionsHidden,
+  canToggleCaptions,
   onPauseToggle,
   onToggleCaptions,
   onCopy,
@@ -706,6 +730,7 @@ function LiveControls({
 }: {
   paused: boolean;
   captionsHidden: boolean;
+  canToggleCaptions: boolean;
   onPauseToggle: () => void;
   onToggleCaptions: () => void;
   onCopy: () => void;
@@ -724,18 +749,20 @@ function LiveControls({
       >
         <Icon name={paused ? 'play' : 'pause'} size={15} />
       </button>
-      <button
-        type="button"
-        onClick={onToggleCaptions}
-        title={
-          captionsHidden
-            ? 'Mostrar as legendas do Meet na tela'
-            : 'Ocultar as legendas do Meet da tela'
-        }
-        className={`${ghost} ${captionsHidden ? '' : 'text-glow'}`}
-      >
-        <CaptionsIcon crossed={captionsHidden} />
-      </button>
+      {canToggleCaptions && (
+        <button
+          type="button"
+          onClick={onToggleCaptions}
+          title={
+            captionsHidden
+              ? 'Mostrar as legendas do Meet na tela'
+              : 'Ocultar as legendas do Meet da tela'
+          }
+          className={`${ghost} ${captionsHidden ? '' : 'text-glow'}`}
+        >
+          <CaptionsIcon crossed={captionsHidden} />
+        </button>
+      )}
       <button type="button" onClick={onCopy} title="Copiar transcrição" className={ghost}>
         <CopyIcon />
       </button>

@@ -20,8 +20,11 @@ export default defineManifest({
     '128': 'icons/icon-128.png',
   },
 
+  // Sem `default_popup` de propósito: com ele o Chrome abre o popup e
+  // `chrome.action.onClicked` NUNCA dispara. O clique no ícone agora injeta o
+  // painel flutuante na aba ativa — é ele o produto, não uma caixinha presa
+  // embaixo da barra do navegador.
   action: {
-    default_popup: 'src/popup/index.html',
     default_icon: {
       '16': 'icons/icon-16.png',
       '32': 'icons/icon-32.png',
@@ -41,21 +44,31 @@ export default defineManifest({
     },
   ],
 
-  // Sem identidade de produto: storage local, e system.display só pra
-  // validar se a posição salva da janela principal ainda cabe na tela atual
-  // ao reabrir (chrome.system.display.getInfo — sem isso não dá pra saber os
-  // monitores conectados agora).
-  permissions: ['storage', 'system.display'],
+  // storage local; system.display só pra validar se a posição salva da janela
+  // principal ainda cabe na tela atual ao reabrir.
+  //
+  // `activeTab` + `scripting` é o par que injeta o painel na aba ativa. A dupla
+  // é deliberada e NÃO troca por `host_permissions: ['<all_urls>']`: activeTab
+  // concede acesso à aba só no clique do ícone, é o próprio usuário pedindo, e
+  // não gera nenhum aviso na tela de instalação.
+  permissions: ['storage', 'system.display', 'scripting', 'activeTab'],
 
-  // A marca desenhada vive no painel injetado dentro do Meet, e conteúdo
-  // injetado só alcança arquivo da extensão que esteja declarado aqui. Só a
-  // pasta da marca é exposta, e só para o Meet: `web_accessible_resources`
-  // torna o arquivo legível por qualquer script da página listada, então a
-  // lista é a menor possível.
+  // Conteúdo injetado só alcança arquivo da extensão declarado aqui — e o
+  // loader do @crxjs faz `import()` dos chunks do painel, então eles precisam
+  // valer na aba onde o painel for parar. Como o painel agora abre em qualquer
+  // aba, a lista precisa alcançar qualquer origem.
+  //
+  // Isto NÃO é `host_permissions`: `web_accessible_resources` diz "quem pode
+  // LER estes arquivos meus", nunca "onde eu posso mexer". Não aparece na tela
+  // de instalação, e sem o clique no ícone nada é injetado — o alcance real
+  // continua sendo o do activeTab.
+  //
+  // (Os chunks do painel o próprio @crxjs acrescenta a esta entrada no build;
+  // por isso ela precisa ser a que casa com o content script.)
   web_accessible_resources: [
     {
       resources: ['brand/*'],
-      matches: ['https://meet.google.com/*'],
+      matches: ['<all_urls>'],
     },
   ],
 

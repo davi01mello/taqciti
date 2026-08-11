@@ -20,6 +20,7 @@ import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { openMainWindow, registerMainWindowListeners } from './mainWindow';
+import { openPanelInTab } from './injectPanel';
 
 const ready: Promise<void> = migrateLocalStorage()
   .then(() => hydrate())
@@ -27,6 +28,23 @@ const ready: Promise<void> = migrateLocalStorage()
   .catch((error) => logger.error('falha na inicialização', error));
 
 registerMainWindowListeners();
+
+/*
+ * O clique no ícone abre o painel NA PÁGINA em que a pessoa está — é isto que
+ * o `default_popup` ausente no manifesto libera.
+ *
+ * Não espera o `ready`: injetar não depende do estado hidratado, e o painel
+ * pede o estado por conta própria assim que monta. Segurar aqui só atrasaria a
+ * resposta ao clique.
+ *
+ * Páginas internas do Chrome não aceitam extensão nenhuma; ali o histórico
+ * abre na outra saída, que é onde ele sempre coube.
+ */
+chrome.action.onClicked.addListener((tab) => {
+  void openPanelInTab(tab).then((injected) => {
+    if (!injected) void openMainWindow();
+  });
+});
 
 // A aba da reunião fechou depois do fim: o resumo já está salvo no histórico,
 // então o estado global volta ao idle sozinho — sem tela presa para a próxima.

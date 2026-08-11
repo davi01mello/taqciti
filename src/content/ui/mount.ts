@@ -8,6 +8,17 @@
  */
 import PANEL_CSS from './panel.css?inline';
 
+/**
+ * "Abra o painel", disparado em `document`.
+ *
+ * Existe por causa da segunda injeção: clicar no ícone numa aba que já tem o
+ * painel não monta nada de novo — o módulo do content script fica em cache no
+ * mundo isolado, e um `executeScript` repetido só reexecuta o `onExecute`. Sem
+ * um recado como este, o segundo clique não teria efeito nenhum e pareceria
+ * defeito.
+ */
+export const PANEL_OPEN_EVENT = 'taqciti:open';
+
 let shadowRoot: ShadowRoot | null = null;
 let mountPoint: HTMLElement | null = null;
 
