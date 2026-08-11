@@ -4,6 +4,7 @@
  */
 import type { MeetingRecord } from '@/shared/types/domain';
 import { Avatar } from '@/shared/ui/Avatar';
+import { Sheen, SHEEN_HOST, trackSheen } from '@/shared/ui/Sheen';
 import {
   countWords,
   formatCount,
@@ -25,6 +26,7 @@ export function HistoryCard({ record, onOpen }: HistoryCardProps) {
     <li className="animate-entry">
       <button
         onClick={onOpen}
+        onPointerMove={trackSheen}
         /*
          * `glass-subtle`, e não o vidro cheio: cada item desta lista teria o
          * seu `backdrop-filter`, e um blur por item obriga o compositor a
@@ -32,9 +34,14 @@ export function HistoryCard({ record, onOpen }: HistoryCardProps) {
          * Numa lista longa é a diferença entre rolar liso e rolar aos
          * pedaços. A presença do cartão vem da elevação no hover, que custa
          * uma transformação — não um filtro.
+         *
+         * O reflexo verde é a exceção que vale o custo: ele pinta um gradiente
+         * numa camada própria, sem tocar o que está ATRÁS do cartão. É pintura,
+         * não recomposição do fundo — a rolagem não sente.
          */
-        className="glass-subtle w-full rounded-panel p-4 text-left transition-all duration-200 ease-flow hover:-translate-y-0.5 hover:bg-white/[0.075] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60"
+        className={`glass-subtle ${SHEEN_HOST} w-full rounded-panel p-4 text-left transition-all duration-200 ease-flow hover:-translate-y-0.5 hover:bg-white/[0.075] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60`}
       >
+        <Sheen />
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-snug">
             {record.title}

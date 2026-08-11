@@ -1,22 +1,52 @@
 /**
- * O painel TaqCITi dentro do Meet — em React, com os MESMOS componentes e
- * tokens da janela principal.
+ * O painel TaqCITi — uma janela flutuante, com os MESMOS componentes e tokens
+ * das outras superfícies.
  *
- * Dois corpos, um componente:
- * - a cápsula recolhida, arrastável para qualquer borda;
- * - o painel, que abre a partir dela: transcrição ao vivo, busca, controles e,
- *   ao fim da reunião, o resumo da captura (guardada no histórico local).
+ * ── Os estados, e por que são dois eixos e não uma lista ───────────────────
  *
- * Componente 100% de apresentação: recebe o estado e devolve intenções pelos
- * callbacks. Nenhuma decisão de negócio acontece aqui.
+ * A tentação é enumerar "minimizado, expandido, histórico, reunião, comprimido,
+ * fechado" como um estado só. Não são: presença, tamanho e conteúdo variam
+ * independentemente. Um painel pode estar aberto-comprimido-no-histórico ou
+ * aberto-alto-numa-reunião, e tratar isso como uma enumeração daria doze casos
+ * para manter em sincronia. Aqui são três eixos:
+ *
+ *   PRESENÇA   closed → minimized → open   (some / cápsula / janela)
+ *   TAMANHO    compact / regular / tall    (só a altura muda)
+ *   ROTA       auto / history / record     (o que o corpo mostra)
+ *
+ * `closed` e `minimized` são coisas DIFERENTES e essa distinção é o ponto:
+ * minimizar deixa a cápsula à mão, fechar tira o TaqCITi da tela e exige um
+ * gesto explícito para voltar. Por isso `closed` mora nas preferências
+ * (persistido) e `minimized` mora no estado local — fechar tem que durar mais
+ * que a aba, recolher não.
+ *
+ * ── Por que a rota tem um estado `auto` ────────────────────────────────────
+ *
+ * Quase sempre o corpo é uma função da fase da reunião: ociosa mostra o
+ * histórico, gravando mostra a transcrição, terminada mostra o resumo. `auto` é
+ * esse acompanhamento. As outras duas rotas são a navegação DELIBERADA do
+ * usuário, que precisa sobreviver a uma mudança de fase — ler uma reunião
+ * antiga enquanto outra grava tem que ser possível. Qualquer fase nova devolve
+ * a rota para `auto`, porque uma reunião começando é mais urgente do que a tela
+ * em que a pessoa estava.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import type {
   CaptionLanguage,
-  DockEdge,
+  MeetingRecord,
   MeetingSessionState,
   MeetingState,
   PanelPrefs,
+  PanelSize,
 } from '@/shared/types/domain';
 import { EXPECTED_CAPTION_LANGUAGE } from '@/shared/config/constants';
 import { useHistory } from '@/features/history/useHistory';
@@ -28,6 +58,7 @@ import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
 import type { GenerationResult } from '@/document/generateDocument';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
+import { Sheen, SHEEN_HOST, trackSheen } from '@/shared/ui/Sheen';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
 import { Wave } from '@/shared/ui/Wave';
 import { Wordmark } from '@/shared/ui/Wordmark';
@@ -40,7 +71,7 @@ import {
   hostName,
 } from '@/shared/ui/format';
 import { detectNextMeeting, type NextMeetingHypothesis } from '@/features/meeting/nextMeeting';
-import { useDock } from './useDock';
+import { useFloating } from './useFloating';
 import { PANEL_OPEN_EVENT } from './mount';
 
 export interface PanelCallbacks {
@@ -48,13 +79,15 @@ export interface PanelCallbacks {
   onResume(): void;
   onFinish(): void;
   onRename(title: string): void;
-  onOpenHistory(): void;
+  /** Abre o painel lateral do Chrome — o modo legado, preservado. */
+  onOpenSidePanel(): void;
   onResumeCapture(): void;
   onCloseEnded(): void;
   onEnableCaptions(): void;
   onDismissLanguageWarning(): void;
   onToggleNativeCaptions(hidden: boolean): void;
-  onDockChange(edge: DockEdge, offset: number): void;
+  /** Grava preferências (posição, tamanho, fechado). Sempre um patch. */
+  onPrefsChange(patch: Partial<PanelPrefs>): void;
 }
 
 export interface PanelContext {
@@ -78,7 +111,22 @@ interface PanelAppProps {
   defaultOpen?: boolean;
 }
 
+type Route = { kind: 'auto' } | { kind: 'history' } | { kind: 'record'; id: string };
+
 const TOAST_MS = 2200;
+
+/**
+ * Os degraus de altura. Só a ALTURA muda: variar a largura junto faria os
+ * cartões do histórico refluírem a cada clique, e o que se pede é espaço
+ * vertical para mais reuniões, não uma janela de proporção instável.
+ */
+const PANEL_WIDTH = 396;
+const PANEL_HEIGHTS: Record<PanelSize, number> = {
+  compact: 320,
+  regular: 564,
+  tall: 780,
+};
+const SIZE_ORDER: PanelSize[] = ['compact', 'regular', 'tall'];
 
 export function PanelApp({
   state,
@@ -87,10 +135,16 @@ export function PanelApp({
   callbacks,
   defaultOpen = false,
 }: PanelAppProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [expanded, setExpanded] = useState(defaultOpen);
+  const [route, setRoute] = useState<Route>({ kind: 'auto' });
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+
+  const session = state.session;
+  const phase = state.phase;
+  const live = phase === 'recording' || phase === 'paused';
+  const idle = !session || phase === 'idle';
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = (message: string) => {
@@ -105,12 +159,28 @@ export function PanelApp({
     [],
   );
 
-  const dock = useDock({ prefs, onDockChange: callbacks.onDockChange });
-  const dockRef = dock.dockRef;
+  const panelBox = useMemo(
+    () => ({ width: PANEL_WIDTH, height: PANEL_HEIGHTS[prefs.size] }),
+    [prefs.size],
+  );
 
-  const session = state.session;
-  const phase = state.phase;
-  const live = phase === 'recording' || phase === 'paused';
+  const floating = useFloating({
+    x: prefs.x,
+    y: prefs.y,
+    panel: panelBox,
+    onMove: (x, y) => callbacks.onPrefsChange({ x, y }),
+  });
+
+  /**
+   * Abrir é mais do que expandir: também desfaz o "fechado". Todo caminho que
+   * traz o TaqCITi de volta — clique na cápsula, atalho, clique no ícone da
+   * extensão — passa por aqui, senão um deles esqueceria de limpar `dismissed`
+   * e o painel abriria invisível.
+   */
+  const open = useCallback(() => {
+    setExpanded(true);
+    if (prefs.dismissed) callbacks.onPrefsChange({ dismissed: false });
+  }, [prefs.dismissed, callbacks]);
 
   // Relógio: só corre enquanto a reunião está viva.
   const [now, setNow] = useState(() => Date.now());
@@ -120,44 +190,53 @@ export function PanelApp({
     return () => clearInterval(timer);
   }, [live]);
 
+  /*
+   * A fase muda: a rota volta a acompanhar a reunião, e o fim dela abre o
+   * painel sozinho.
+   *
+   * Abrir sozinho no fim é o requisito da tela pós-reunião — ela precisa
+   * aparecer, não esperar um clique, senão a transcrição recém-salva fica
+   * escondida atrás de uma cápsula. E uma reunião COMEÇANDO desfaz o "fechado",
+   * que é a única coisa capaz de trazer o TaqCITi de volta sem o usuário pedir:
+   * é o comportamento que ele já tinha, e o único momento em que reabrir sozinho
+   * não contraria quem fechou de propósito.
+   */
+  useEffect(() => {
+    setRoute({ kind: 'auto' });
+    if (phase === 'ended') setExpanded(true);
+    if (phase === 'ended' || phase === 'captionsRequired' || phase === 'recording') {
+      if (prefs.dismissed) callbacks.onPrefsChange({ dismissed: false });
+    }
+    // `prefs.dismissed` fora das dependências de propósito: o efeito reage à
+    // MUDANÇA DE FASE, e reexecutá-lo quando as preferências chegam do storage
+    // jogaria a rota de volta para `auto` no meio da navegação do usuário.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   // Esc recolhe; Alt+Shift+T abre e fecha sem tirar a mão do teclado.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && open) {
-        setOpen(false);
+      if (event.key === 'Escape' && expanded) {
+        setExpanded(false);
         return;
       }
       if (event.altKey && event.shiftKey && event.code === 'KeyT') {
         event.preventDefault();
-        setOpen((current) => !current);
+        if (expanded) setExpanded(false);
+        else open();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [expanded, open]);
 
   // Clicar no ícone numa aba que já tem o painel montado: ver PANEL_OPEN_EVENT.
+  // Também é o caminho que desfaz o "fechado" — daí não bastar `setExpanded`.
   useEffect(() => {
-    const onOpenRequest = () => setOpen(true);
+    const onOpenRequest = () => open();
     document.addEventListener(PANEL_OPEN_EVENT, onOpenRequest);
     return () => document.removeEventListener(PANEL_OPEN_EVENT, onOpenRequest);
-  }, []);
-
-  // Clique em qualquer lugar da reunião recolhe o painel, sem roubar o clique
-  // do Meet. `composedPath` é o que enxerga através do shadow DOM.
-  const panelRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const path = event.composedPath();
-      if (panelRef.current && path.includes(panelRef.current)) return;
-      if (dockRef.current && path.includes(dockRef.current)) return;
-      setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown, { capture: true });
-    return () =>
-      document.removeEventListener('pointerdown', onPointerDown, { capture: true });
-  }, [open, dockRef]);
+  }, [open]);
 
   const elapsed = useMemo(() => {
     if (!session) return '00:00';
@@ -174,76 +253,70 @@ export function PanelApp({
     [session?.segments, session?.startedAt],
   );
 
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
-  useEffect(() => {
-    const el = headerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(([entry]) => {
-      setHeaderHeight(entry?.contentRect.height ?? 0);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  /*
-   * NÃO existe mais o guard `if (!session || phase === 'idle') return null`.
-   *
-   * Ele era a razão de o TaqCITi só existir durante uma gravação: fora de
-   * reunião a cápsula sumia, e o produto virava a janela do Chrome, com
-   * moldura de navegador. Agora a cápsula é permanente e o painel tem um
-   * corpo para o estado ocioso — o histórico. É a mesma janelinha sem
-   * moldura o tempo todo, que é o que o produto deveria ter sido desde o
-   * começo.
-   */
-
-  const copy = () => {
-    if (!session || session.segments.length === 0) {
+  const copySegments = (segments: MeetingRecord['segments']) => {
+    if (segments.length === 0) {
       showToast('Nada capturado ainda');
       return;
     }
     void navigator.clipboard
-      .writeText(transcriptToText(session.segments))
+      .writeText(transcriptToText(segments))
       .then(() => showToast('Transcrição copiada'))
       .catch(() => showToast('Não foi possível copiar'));
   };
 
-  const download = () => {
-    if (!session) return;
-    downloadTranscript(buildMeetingRecord(session, 'ready'));
+  const download = (record: MeetingRecord) => {
+    downloadTranscript(record);
     showToast('Baixando .txt');
   };
 
   /** Sem reunião não há nada acontecendo: a cápsula fica apagada, não verde. */
-  const idle = !session || phase === 'idle';
   const tone = idle
     ? 'dim'
     : phase === 'paused' || phase === 'captionsRequired'
       ? 'amber'
       : 'green';
 
-  /** O que sobra do painel para o corpo, depois do cabeçalho. */
-  const bodyBudget = Math.max(160, dock.geometry.panel.maxHeight - headerHeight);
+  // ---------- fechado: nada na tela ----------
+
+  /*
+   * O retorno antecipado é o estado "fechado" inteiro. Não há cápsula, não há
+   * resíduo — que é a diferença entre fechar e minimizar. Voltar exige o ícone
+   * da extensão ou uma reunião nova.
+   */
+  if (prefs.dismissed) return null;
+
+  const sizeIndex = SIZE_ORDER.indexOf(prefs.size);
+  const resize = (delta: number) => {
+    const next = SIZE_ORDER[sizeIndex + delta];
+    if (next) callbacks.onPrefsChange({ size: next });
+  };
+
+  const showingHistory =
+    route.kind === 'history' || (route.kind === 'auto' && idle);
+  const searchable = showingHistory || live;
 
   return (
     <>
       {/* ---------- cápsula recolhida ---------- */}
       <button
-        ref={dock.dockRef}
+        ref={floating.capsuleRef as RefObject<HTMLButtonElement>}
         type="button"
         title="TaqCITi — clique para abrir, arraste para mover"
-        onPointerDown={dock.onPointerDown}
-        onPointerMove={dock.onPointerMove}
-        onPointerUp={(event) => {
-          dock.onPointerUp(event);
-          if (dock.wasClick()) setOpen((current) => !current);
+        {...floating.dragHandlers}
+        onPointerMove={(event) => {
+          floating.dragHandlers.onPointerMove(event);
+          trackSheen(event);
         }}
-        style={{ left: dock.geometry.dock.left, top: dock.geometry.dock.top }}
-        className={`glass fixed z-[2147483000] flex items-center gap-2.5 rounded-full py-2.5 pl-3.5 pr-4 text-body font-semibold tabular-nums text-foreground transition-[opacity,transform] duration-300 ease-flow animate-dock-in ${
-          dock.dragging ? 'cursor-grabbing' : 'cursor-grab'
-        } ${open ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'}`}
+        onPointerUp={(event) => {
+          floating.dragHandlers.onPointerUp(event);
+          if (floating.wasClick()) open();
+        }}
+        style={{ left: floating.geometry.capsule.left, top: floating.geometry.capsule.top }}
+        className={`glass ${SHEEN_HOST} fixed z-[2147483000] flex items-center gap-2.5 rounded-full py-2.5 pl-3.5 pr-4 text-body font-semibold tabular-nums text-foreground transition-[opacity,transform] duration-300 ease-flow animate-dock-in ${
+          floating.dragging ? 'cursor-grabbing' : 'cursor-grab'
+        } ${expanded ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'}`}
       >
+        <Sheen />
         <Wave size={16} animated={phase === 'recording'} tone={tone} />
         {live ? (
           <span>{elapsed}</span>
@@ -267,53 +340,70 @@ export function PanelApp({
         )}
       </button>
 
-      {/* ---------- painel ---------- */}
+      {/* ---------- janela ---------- */}
       <section
-        ref={panelRef}
         style={{
-          left: dock.geometry.panel.left,
-          top: dock.geometry.panel.top,
-          width: dock.geometry.panel.width,
-          ...(live
-            ? { height: dock.geometry.panel.height }
-            : { maxHeight: dock.geometry.panel.maxHeight }),
-          transformOrigin: dock.geometry.panel.origin,
+          left: floating.geometry.panel.left,
+          top: floating.geometry.panel.top,
+          width: floating.geometry.panel.width,
+          height: floating.geometry.panel.height,
+          transformOrigin: floating.geometry.panel.origin,
         }}
         className={`glass fixed z-[2147483001] grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-card transition-all duration-300 ease-flow ${
-          open
+          expanded
             ? 'pointer-events-auto scale-100 opacity-100'
             : 'pointer-events-none scale-90 opacity-0'
         }`}
       >
-        <div ref={headerRef} className="min-h-0">
-          <PanelHeader
-            /* `null` em repouso: não há reunião para renomear, e um campo de
-               título editável vazio convidaria a editar o nada. */
-            title={idle ? null : (session?.title ?? '')}
-            phase={phase}
-            elapsed={elapsed}
-            searching={searching}
-            onToggleSearch={() => {
-              setSearching((current) => !current);
-              setQuery('');
-            }}
-            onCollapse={() => setOpen(false)}
-            onRename={(title) => {
-              callbacks.onRename(title);
-              showToast('Renomeada');
-            }}
-            /* Buscar vale ao vivo (uma fala nesta reunião) e em repouso (uma
-               reunião no histórico) — só não vale enquanto prepara. */
-            showSearch={idle || phase === 'recording' || phase === 'paused'}
-          />
-
+        <PanelHeader
+          title={idle || route.kind !== 'auto' ? null : (session?.title ?? '')}
+          status={
+            route.kind === 'record'
+              ? 'Reunião'
+              : showingHistory
+                ? 'Histórico'
+                : phase === 'recording'
+                  ? elapsed
+                  : phase === 'paused'
+                    ? `Pausado · ${elapsed}`
+                    : phase === 'captionsRequired'
+                      ? 'Preparando'
+                      : `Salva · ${elapsed}`
+          }
+          searching={searching}
+          showSearch={searchable}
+          showHistory={!showingHistory}
+          canGrow={sizeIndex < SIZE_ORDER.length - 1}
+          canShrink={sizeIndex > 0}
+          dragging={floating.dragging}
+          dragHandlers={floating.dragHandlers}
+          onToggleSearch={() => {
+            setSearching((current) => !current);
+            setQuery('');
+          }}
+          onHistory={() => {
+            setRoute({ kind: 'history' });
+            setQuery('');
+          }}
+          onGrow={() => resize(1)}
+          onShrink={() => resize(-1)}
+          onMinimize={() => setExpanded(false)}
+          onClose={() => {
+            setExpanded(false);
+            callbacks.onPrefsChange({ dismissed: true });
+          }}
+          onRename={(title) => {
+            callbacks.onRename(title);
+            showToast('Renomeada');
+          }}
+        >
           {searching && (
             <div className="px-3.5 pb-2">
               <SearchField
                 autoFocus
                 value={query}
                 placeholder={
-                  idle
+                  showingHistory
                     ? 'Buscar por título, pessoa ou fala…'
                     : 'Buscar uma fala nesta reunião…'
                 }
@@ -327,122 +417,236 @@ export function PanelApp({
               />
             </div>
           )}
-        </div>
+        </PanelHeader>
 
-        <div ref={bodyRef} className="flex min-h-0 flex-col px-3.5 pb-3.5">
-          {idle && <HistoryBody query={query} budget={bodyBudget} />}
-
-          {phase === 'captionsRequired' && (
-            <PreparingScreen
-              failed={ctx.captionsAutoFailed}
-              onEnable={callbacks.onEnableCaptions}
-            />
-          )}
-
-          {/* `session &&` além do `live`: sem o guard de saída antecipada, é
-              esta cadeia que garante — para o TypeScript e em tempo de
-              execução — que não se lê uma sessão inexistente. */}
-          {live && session && (
-            <>
-              <div className="mb-2 shrink-0">
-                <AccountBoundaryNotice boundary={session.accountBoundary} compact />
-              </div>
-              {session.captionLanguage !== 'unknown' &&
-                session.captionLanguage !== EXPECTED_CAPTION_LANGUAGE &&
-                !session.languageWarningDismissed && (
-                  <LanguageWarningBanner
-                    key={session.captionLanguage}
-                    language={session.captionLanguage}
-                    onDismissMeeting={callbacks.onDismissLanguageWarning}
-                  />
-                )}
-              {!ctx.captureHealthy && (
-                <p className="mb-2 shrink-0 rounded-control border border-[#f2c94c]/25 bg-[#f2c94c]/10 px-3 py-2 text-caption leading-relaxed text-[#f7dd8f]">
-                  As legendas do Meet pararam de chegar. Religando sozinho.
-                </p>
-              )}
-              <TranscriptView
-                segments={session.segments}
-                selfName={hostName(session.participants)}
-                live={phase === 'recording'}
-                dimmed={phase === 'paused'}
-                query={query}
-                emptyMessage="Ouvindo a reunião. As falas aparecem aqui automaticamente."
-              />
-              <LiveStats session={session} toast={toast} hypothesis={hypothesis} />
-              <LiveControls
-                paused={phase === 'paused'}
-                captionsHidden={ctx.nativeCaptionsHidden}
-                /* Só a aba do Meet tem legenda nativa para esconder. Numa aba
-                   qualquer o botão existiria sem fazer nada. */
-                canToggleCaptions={ctx.inMeeting}
-                onPauseToggle={() => {
-                  if (phase === 'paused') {
-                    callbacks.onResume();
-                    showToast('Captura retomada');
-                  } else {
-                    callbacks.onPause();
-                    showToast('Captura pausada');
-                  }
-                }}
-                onToggleCaptions={() => {
-                  const next = !ctx.nativeCaptionsHidden;
-                  callbacks.onToggleNativeCaptions(next);
-                  showToast(
-                    next ? 'Legendas ocultas na tela' : 'Legendas visíveis na tela',
-                  );
-                }}
-                onCopy={copy}
-                onFinish={callbacks.onFinish}
-              />
-            </>
-          )}
-
-          {phase === 'ended' && session && (
-            <div
-              style={{ maxHeight: bodyBudget }}
-              className="scroll-region pt-1"
-            >
-              {session.segments.length === 0 ? (
-                <EmptyCaptureScreen
-                  inMeeting={ctx.inMeeting}
-                  onResumeCapture={callbacks.onResumeCapture}
-                  onClose={callbacks.onCloseEnded}
-                />
-              ) : (
-                <EndedSummary
-                  session={session}
-                  onCopy={copy}
-                  onDownload={download}
-                  onOpenHistory={callbacks.onOpenHistory}
-                  onClose={callbacks.onCloseEnded}
-                />
-              )}
-            </div>
-          )}
+        <div className="flex min-h-0 flex-col px-3.5 pb-3.5">
+          <PanelBody
+            route={route}
+            state={state}
+            ctx={ctx}
+            query={query}
+            toast={toast}
+            hypothesis={hypothesis}
+            callbacks={callbacks}
+            onRoute={setRoute}
+            onCopy={copySegments}
+            onDownload={download}
+            onToast={showToast}
+          />
         </div>
       </section>
     </>
   );
 }
 
-// ---------- pedaços do painel ----------
+// ---------- o corpo, por rota ----------
+
+function PanelBody({
+  route,
+  state,
+  ctx,
+  query,
+  toast,
+  hypothesis,
+  callbacks,
+  onRoute,
+  onCopy,
+  onDownload,
+  onToast,
+}: {
+  route: Route;
+  state: MeetingState;
+  ctx: PanelContext;
+  query: string;
+  toast: string | null;
+  hypothesis: NextMeetingHypothesis;
+  callbacks: PanelCallbacks;
+  onRoute: (route: Route) => void;
+  onCopy: (segments: MeetingRecord['segments']) => void;
+  onDownload: (record: MeetingRecord) => void;
+  onToast: (message: string) => void;
+}) {
+  const records = useHistory();
+  const session = state.session;
+  const phase = state.phase;
+  const idle = !session || phase === 'idle';
+
+  // Uma reunião aberta pelo histórico. Se ela some do histórico (apagada de
+  // outra superfície), a rota deixa de ter destino e a lista volta.
+  if (route.kind === 'record') {
+    const record = records.find((item) => item.id === route.id);
+    if (!record) return <HistoryList records={records} query={query} onOpen={onRoute} />;
+    return (
+      <MeetingScreen
+        record={record}
+        heading={record.title}
+        onCopy={() => onCopy(record.segments)}
+        onDownload={() => onDownload(record)}
+        onHistory={() => onRoute({ kind: 'history' })}
+        historyLabel="Voltar ao histórico"
+        onClose={() => onRoute({ kind: 'history' })}
+      />
+    );
+  }
+
+  if (route.kind === 'history' || idle) {
+    return (
+      <HistoryList
+        records={records}
+        query={query}
+        onOpen={onRoute}
+        onOpenSidePanel={callbacks.onOpenSidePanel}
+      />
+    );
+  }
+
+  if (phase === 'captionsRequired') {
+    return (
+      <PreparingScreen
+        failed={ctx.captionsAutoFailed}
+        onEnable={callbacks.onEnableCaptions}
+      />
+    );
+  }
+
+  if (phase === 'ended' && session) {
+    if (session.segments.length === 0) {
+      return (
+        <EmptyCaptureScreen
+          inMeeting={ctx.inMeeting}
+          onResumeCapture={callbacks.onResumeCapture}
+          onClose={callbacks.onCloseEnded}
+        />
+      );
+    }
+    const record = buildMeetingRecord(session, 'ready');
+    return (
+      <MeetingScreen
+        record={record}
+        heading="Transcrição salva"
+        subtitle={`${session.segments.length} ${
+          session.segments.length === 1 ? 'fala guardada' : 'falas guardadas'
+        } no histórico local, nada se perde.`}
+        onCopy={() => onCopy(record.segments)}
+        onDownload={() => onDownload(record)}
+        /* Leva à reunião correspondente, não só à lista: é dela que se acabou
+           de sair, e cair na lista obrigaria a procurá-la de novo. */
+        onHistory={() => onRoute({ kind: 'record', id: record.id })}
+        historyLabel="Ver no histórico"
+        onClose={callbacks.onCloseEnded}
+      />
+    );
+  }
+
+  if (session) {
+    return (
+      <LiveBody
+        session={session}
+        phase={phase}
+        ctx={ctx}
+        query={query}
+        toast={toast}
+        hypothesis={hypothesis}
+        callbacks={callbacks}
+        onCopy={() => onCopy(session.segments)}
+        onToast={onToast}
+      />
+    );
+  }
+
+  return <HistoryList records={records} query={query} onOpen={onRoute} />;
+}
 
 /**
- * O corpo do painel em repouso: o histórico local.
+ * A tela de uma reunião — a MESMA para a que acabou de terminar e para a que
+ * foi aberta pelo histórico.
  *
- * É o que faz a cápsula valer a pena existir fora de uma reunião — sem isto,
- * abrir o painel sem reunião mostraria uma caixa vazia, e o produto continuaria
- * dependendo da janela com moldura para qualquer coisa que não fosse gravar.
+ * Um componente só, e não dois parecidos, porque a exigência é literalmente
+ * que as duas ofereçam as mesmas ações. Duas telas irmãs divergem: alguém
+ * acrescenta um botão na tela pós-reunião, ninguém lembra da outra, e reabrir
+ * uma reunião passa a ser uma versão pobre de tê-la acabado de gravar.
  *
- * Duas telas em uma, com navegação por estado local em vez de rota: a lista, e
- * a transcrição de um registro. Um roteador aqui seria maquinaria demais para
- * uma ida e uma volta.
+ * Recebe `MeetingRecord` — o formato do histórico — e não a sessão viva. É o
+ * denominador comum: a sessão vira registro com `buildMeetingRecord`, o
+ * contrário não existe.
  */
-function HistoryBody({ query, budget }: { query: string; budget: number }) {
-  const records = useHistory();
-  const [openId, setOpenId] = useState<string | null>(null);
+function MeetingScreen({
+  record,
+  heading,
+  subtitle,
+  onCopy,
+  onDownload,
+  onHistory,
+  historyLabel,
+  onClose,
+}: {
+  record: MeetingRecord;
+  heading: string;
+  subtitle?: string;
+  onCopy: () => void;
+  onDownload: () => void;
+  onHistory: () => void;
+  historyLabel: string;
+  onClose: () => void;
+}) {
+  const [generated, setGenerated] = useState<
+    Extract<GenerationResult, { status: 'success' }> | null
+  >(null);
 
+  return (
+    <div className="scroll-region flex min-h-0 flex-1 flex-col gap-3 py-1 animate-fade-in motion-reduce:animate-none">
+      <div className="shrink-0 text-center">
+        <h2 className="truncate text-title font-semibold">{heading}</h2>
+        {subtitle && (
+          <p className="mt-1 text-body leading-relaxed text-muted">{subtitle}</p>
+        )}
+      </div>
+
+      <div className="flex shrink-0 gap-2">
+        <Button variant="secondary" size="compact" className="flex-1" onClick={onCopy}>
+          Copiar
+        </Button>
+        <Button variant="secondary" size="compact" className="flex-1" onClick={onDownload}>
+          Baixar .txt
+        </Button>
+      </div>
+
+      {/* Agrupado logo abaixo de "Baixar .txt": as duas ações que fazem algo
+       * com o CONTEÚDO da reunião, separadas de navegação (histórico/fechar). */}
+      <div className="shrink-0">
+        <GenerateDocumentMenu source={record} onGenerated={setGenerated} />
+      </div>
+      {generated && <GeneratedDocumentResult result={generated} />}
+
+      <Button variant="primary" className="w-full shrink-0" onClick={onHistory}>
+        {historyLabel}
+      </Button>
+      <Button variant="ghost" className="w-full shrink-0" onClick={onClose}>
+        Fechar
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * O histórico local — o corpo em repouso, e a casa do painel.
+ *
+ * É o que faz a cápsula valer a pena existir fora de uma reunião: sem isto,
+ * abrir o painel sem reunião mostraria uma caixa vazia. A lista ocupa toda a
+ * altura que a janela tiver, e é por isso que o tamanho da janela virou um
+ * controle do usuário — o histórico é o conteúdo que mais precisa de espaço.
+ */
+function HistoryList({
+  records,
+  query,
+  onOpen,
+  onOpenSidePanel,
+}: {
+  records: MeetingRecord[];
+  query: string;
+  onOpen: (route: Route) => void;
+  onOpenSidePanel?: () => void;
+}) {
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return records;
@@ -454,50 +658,27 @@ function HistoryBody({ query, budget }: { query: string; budget: number }) {
     );
   }, [records, query]);
 
-  const open = openId === null ? null : (records.find((r) => r.id === openId) ?? null);
-
-  if (open) {
-    return (
-      <div className="flex min-h-0 flex-col" style={{ maxHeight: budget }}>
-        <div className="mb-1.5 flex shrink-0 items-center gap-1.5">
-          <Button variant="ghost" size="compact" onClick={() => setOpenId(null)}>
-            <Icon name="chevron" size={13} className="rotate-90" />
-            Histórico
-          </Button>
-          <span className="min-w-0 truncate text-caption font-semibold text-muted">
-            {open.title}
-          </span>
-        </div>
-        {/* `scroll` ligado: aqui a transcrição É a região que rola. */}
-        <TranscriptView
-          segments={open.segments}
-          selfName={hostName(open.participants)}
-          emptyMessage="Nenhuma fala foi capturada nesta reunião."
-        />
-      </div>
-    );
-  }
-
-  if (records.length === 0) {
-    return (
-      <div className="flex flex-col items-center px-3 py-8 text-center">
-        <div className="glass-subtle mb-3 grid h-12 w-12 place-items-center rounded-full">
-          <Wave size={18} tone="dim" />
-        </div>
-        <p className="max-w-[240px] text-body leading-relaxed text-muted">
-          Nenhuma reunião ainda. Entre num Meet e a captura cuida do resto.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-0 flex-col" style={{ maxHeight: budget }}>
+    <div className="flex min-h-0 flex-1 flex-col">
       <p className="mb-2 shrink-0 px-1 text-caption font-semibold uppercase tracking-wide text-muted">
-        {query ? `Resultados · ${filtered.length}` : `${records.length} reuniões`}
+        {query
+          ? `Resultados · ${filtered.length}`
+          : records.length === 1
+            ? '1 reunião'
+            : `${records.length} reuniões`}
       </p>
-      {filtered.length === 0 ? (
-        <p className="px-1 py-6 text-center text-body text-muted">
+
+      {records.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center px-3 text-center">
+          <div className="glass-subtle mb-3 grid h-12 w-12 place-items-center rounded-full">
+            <Wave size={18} tone="dim" />
+          </div>
+          <p className="max-w-[240px] text-body leading-relaxed text-muted">
+            Nenhuma reunião ainda. Entre num Meet e a captura cuida do resto.
+          </p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="flex-1 px-1 py-6 text-center text-body text-muted">
           Nada encontrado com essa busca.
         </p>
       ) : (
@@ -506,82 +687,163 @@ function HistoryBody({ query, budget }: { query: string; budget: number }) {
             <HistoryCard
               key={record.id}
               record={record}
-              onOpen={() => setOpenId(record.id)}
+              onOpen={() => onOpen({ kind: 'record', id: record.id })}
             />
           ))}
         </ul>
+      )}
+
+      {/*
+       * O modo legado. Continua existindo, e num lugar estável: o histórico é a
+       * tela de repouso do painel, então este é o ponto que está sempre a um
+       * clique. Some das outras rotas de propósito — durante uma gravação não é
+       * a saída que se procura.
+       */}
+      {onOpenSidePanel && (
+        <div className="mt-2 shrink-0 border-t border-white/[0.06] pt-2">
+          <Button
+            variant="ghost"
+            size="compact"
+            className="w-full justify-start"
+            onClick={onOpenSidePanel}
+          >
+            <Icon name="panel" size={14} />
+            Abrir no painel lateral
+          </Button>
+        </div>
       )}
     </div>
   );
 }
 
-function EndedSummary({
+function LiveBody({
   session,
+  phase,
+  ctx,
+  query,
+  toast,
+  hypothesis,
+  callbacks,
   onCopy,
-  onDownload,
-  onOpenHistory,
-  onClose,
+  onToast,
 }: {
   session: MeetingSessionState;
+  phase: MeetingState['phase'];
+  ctx: PanelContext;
+  query: string;
+  toast: string | null;
+  hypothesis: NextMeetingHypothesis;
+  callbacks: PanelCallbacks;
   onCopy: () => void;
-  onDownload: () => void;
-  onOpenHistory: () => void;
-  onClose: () => void;
+  onToast: (message: string) => void;
 }) {
-  const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
-    null,
-  );
-
   return (
-    <div className="flex flex-col gap-3 py-1 animate-fade-in motion-reduce:animate-none">
-      <div className="text-center">
-        <h2 className="text-title font-semibold">Transcrição salva</h2>
-        <p className="mt-1 text-body leading-relaxed text-muted">
-          {session.segments.length} {session.segments.length === 1 ? 'fala' : 'falas'} guardadas
-          no histórico local, nada se perde.
+    <>
+      <div className="mb-2 shrink-0">
+        <AccountBoundaryNotice boundary={session.accountBoundary} compact />
+      </div>
+      {session.captionLanguage !== 'unknown' &&
+        session.captionLanguage !== EXPECTED_CAPTION_LANGUAGE &&
+        !session.languageWarningDismissed && (
+          <LanguageWarningBanner
+            key={session.captionLanguage}
+            language={session.captionLanguage}
+            onDismissMeeting={callbacks.onDismissLanguageWarning}
+          />
+        )}
+      {!ctx.captureHealthy && (
+        <p className="mb-2 shrink-0 rounded-control border border-[#f2c94c]/25 bg-[#f2c94c]/10 px-3 py-2 text-caption leading-relaxed text-[#f7dd8f]">
+          As legendas do Meet pararam de chegar. Religando sozinho.
         </p>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="secondary" size="compact" className="flex-1" onClick={onCopy}>
-          Copiar
-        </Button>
-        <Button variant="secondary" size="compact" className="flex-1" onClick={onDownload}>
-          Baixar .txt
-        </Button>
-      </div>
-      {/* Agrupado logo abaixo de "Baixar .txt": as duas ações que fazem algo
-       * com o CONTEÚDO da reunião, separadas de navegação (histórico/fechar). */}
-      <GenerateDocumentMenu source={session} onGenerated={setGenerated} />
-      {generated && <GeneratedDocumentResult result={generated} />}
-      <Button variant="primary" className="w-full" onClick={onOpenHistory}>
-        Ver no histórico
-      </Button>
-      <Button variant="ghost" className="w-full" onClick={onClose}>
-        Fechar
-      </Button>
-    </div>
+      )}
+      <TranscriptView
+        segments={session.segments}
+        selfName={hostName(session.participants)}
+        live={phase === 'recording'}
+        dimmed={phase === 'paused'}
+        query={query}
+        emptyMessage="Ouvindo a reunião. As falas aparecem aqui automaticamente."
+      />
+      <LiveStats session={session} toast={toast} hypothesis={hypothesis} />
+      <LiveControls
+        paused={phase === 'paused'}
+        captionsHidden={ctx.nativeCaptionsHidden}
+        /* Só a aba do Meet tem legenda nativa para esconder. Numa aba
+           qualquer o botão existiria sem fazer nada. */
+        canToggleCaptions={ctx.inMeeting}
+        onPauseToggle={() => {
+          if (phase === 'paused') {
+            callbacks.onResume();
+            onToast('Captura retomada');
+          } else {
+            callbacks.onPause();
+            onToast('Captura pausada');
+          }
+        }}
+        onToggleCaptions={() => {
+          const next = !ctx.nativeCaptionsHidden;
+          callbacks.onToggleNativeCaptions(next);
+          onToast(next ? 'Legendas ocultas na tela' : 'Legendas visíveis na tela');
+        }}
+        onCopy={onCopy}
+        onFinish={callbacks.onFinish}
+      />
+    </>
   );
 }
 
+// ---------- cabeçalho e controles de janela ----------
+
+/**
+ * O cabeçalho é a BARRA DE TÍTULO: é por ele que a janela se move, e é nele que
+ * moram os controles de janela — comprimir, expandir, minimizar, fechar.
+ *
+ * Os controles precisam parar o `pointerdown` antes que ele chegue à alça de
+ * arraste. Sem isso, cada clique num botão começaria um arraste de zero pixels:
+ * inofensivo por acidente (o limiar de 5px o descarta), mas basta a mão tremer
+ * para o clique virar movimento e o botão não disparar.
+ */
 function PanelHeader({
   title,
-  phase,
-  elapsed,
+  status,
   searching,
   showSearch,
+  showHistory,
+  canGrow,
+  canShrink,
+  dragging,
+  dragHandlers,
   onToggleSearch,
-  onCollapse,
+  onHistory,
+  onGrow,
+  onShrink,
+  onMinimize,
+  onClose,
   onRename,
+  children,
 }: {
-  /** `null` = sem reunião: o painel mostra o histórico e não há o que renomear. */
+  /** `null` = não há reunião para renomear nesta rota. */
   title: string | null;
-  phase: MeetingState['phase'];
-  elapsed: string;
+  status: string;
   searching: boolean;
   showSearch: boolean;
+  showHistory: boolean;
+  canGrow: boolean;
+  canShrink: boolean;
+  dragging: boolean;
+  dragHandlers: {
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerMove: (event: ReactPointerEvent<HTMLElement>) => void;
+    onPointerUp: (event: ReactPointerEvent<HTMLElement>) => void;
+  };
   onToggleSearch: () => void;
-  onCollapse: () => void;
+  onHistory: () => void;
+  onGrow: () => void;
+  onShrink: () => void;
+  onMinimize: () => void;
+  onClose: () => void;
   onRename: (title: string) => void;
+  children?: ReactNode;
 }) {
   const [draft, setDraft] = useState(title ?? '');
   const [editing, setEditing] = useState(false);
@@ -589,80 +851,116 @@ function PanelHeader({
     if (!editing) setDraft(title ?? '');
   }, [title, editing]);
 
-  const status =
-    title === null
-      ? 'Histórico'
-      : phase === 'recording'
-        ? elapsed
-        : phase === 'paused'
-          ? `Pausado · ${elapsed}`
-          : phase === 'captionsRequired'
-            ? 'Preparando'
-            : `Salva · ${elapsed}`;
+  const stopDrag = (event: ReactPointerEvent) => event.stopPropagation();
 
   return (
-    <header className="shrink-0 px-3.5 pb-2.5 pt-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <Wordmark height={26} />
+    <div className="min-h-0">
+      <header
+        {...dragHandlers}
+        className={`select-none px-3.5 pb-2.5 pt-3.5 ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <Wordmark height={24} />
 
-        <div className="flex items-center gap-1.5">
-          <span className="truncate rounded-full bg-white/[0.06] px-2.5 py-1 text-micro font-semibold tabular-nums text-muted">
-            {status}
-          </span>
+          <div className="flex items-center gap-0.5" onPointerDown={stopDrag}>
+            <span className="mr-1 truncate rounded-full bg-white/[0.06] px-2.5 py-1 text-micro font-semibold tabular-nums text-muted">
+              {status}
+            </span>
 
-          {showSearch && (
-            <button
-              type="button"
-              onClick={onToggleSearch}
-              title="Buscar na transcrição"
-              aria-label="Buscar na transcrição"
-              className={`rounded-full p-1.5 transition-colors duration-200 ease-flow hover:bg-white/8 ${
-                searching ? 'text-glow' : 'text-muted hover:text-foreground'
-              }`}
-            >
-              <Icon name="search" size={15} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onCollapse}
-            title="Recolher"
-            aria-label="Recolher painel"
-            className="rounded-full p-1.5 text-muted transition-colors duration-200 ease-flow hover:bg-white/8 hover:text-foreground"
-          >
-            <Icon name="chevron" size={15} />
-          </button>
+            {showHistory && (
+              <HeaderButton label="Ver o histórico" onClick={onHistory}>
+                <Icon name="panel" size={14} />
+              </HeaderButton>
+            )}
+            {showSearch && (
+              <HeaderButton
+                label="Buscar"
+                active={searching}
+                onClick={onToggleSearch}
+              >
+                <Icon name="search" size={14} />
+              </HeaderButton>
+            )}
+            <HeaderButton label="Comprimir" disabled={!canShrink} onClick={onShrink}>
+              <Icon name="compress" size={14} />
+            </HeaderButton>
+            <HeaderButton label="Expandir" disabled={!canGrow} onClick={onGrow}>
+              <Icon name="expand" size={14} />
+            </HeaderButton>
+            <HeaderButton label="Minimizar" onClick={onMinimize}>
+              <Icon name="minimize" size={14} />
+            </HeaderButton>
+            <HeaderButton label="Fechar o TaqCITi" onClick={onClose}>
+              <Icon name="close" size={14} />
+            </HeaderButton>
+          </div>
         </div>
-      </div>
 
-      {title !== null && (
-        <input
-          value={draft}
-          maxLength={200}
-          spellCheck={false}
-          aria-label="Nome da reunião"
-          onFocus={() => setEditing(true)}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === 'Enter') event.currentTarget.blur();
-            if (event.key === 'Escape') {
-              setDraft(title);
-              event.currentTarget.blur();
-            }
-          }}
-          onBlur={() => {
-            setEditing(false);
-            const next = draft.trim();
-            if (next.length > 0 && next !== title) onRename(next);
-            else setDraft(title);
-          }}
-          className="mt-2.5 w-full rounded-control bg-transparent px-2 py-1.5 text-center text-title font-semibold text-foreground outline-none transition-colors duration-200 ease-flow hover:bg-white/[0.04] focus:bg-white/[0.06]"
-        />
-      )}
-    </header>
+        {title !== null && (
+          <input
+            value={draft}
+            maxLength={200}
+            spellCheck={false}
+            aria-label="Nome da reunião"
+            onPointerDown={stopDrag}
+            onFocus={() => setEditing(true)}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === 'Enter') event.currentTarget.blur();
+              if (event.key === 'Escape') {
+                setDraft(title);
+                event.currentTarget.blur();
+              }
+            }}
+            onBlur={() => {
+              setEditing(false);
+              const next = draft.trim();
+              if (next.length > 0 && next !== title) onRename(next);
+              else setDraft(title);
+            }}
+            className="mt-2.5 w-full cursor-text rounded-control bg-transparent px-2 py-1.5 text-center text-title font-semibold text-foreground outline-none transition-colors duration-200 ease-flow hover:bg-white/[0.04] focus:bg-white/[0.06]"
+          />
+        )}
+      </header>
+      {children}
+    </div>
   );
 }
+
+/** Controle de ícone do cabeçalho — pequeno, e com o mesmo reflexo verde. */
+function HeaderButton({
+  label,
+  active = false,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      onPointerMove={trackSheen}
+      className={`${SHEEN_HOST} grid h-7 w-7 place-items-center rounded-full transition-colors duration-200 ease-flow hover:bg-white/[0.07] disabled:pointer-events-none disabled:opacity-30 ${
+        active ? 'text-glow' : 'text-muted hover:text-foreground'
+      }`}
+    >
+      {!disabled && <Sheen />}
+      {children}
+    </button>
+  );
+}
+
+// ---------- pedaços da reunião ao vivo ----------
 
 function LiveStats({
   session,
@@ -736,23 +1034,25 @@ function LiveControls({
   onCopy: () => void;
   onFinish: () => void;
 }) {
-  const ghost =
-    'grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted transition-all duration-200 ease-flow hover:bg-white/8 hover:text-foreground active:scale-95';
+  const ghost = `${SHEEN_HOST} grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted transition-all duration-200 ease-flow hover:bg-white/8 hover:text-foreground active:scale-95`;
 
   return (
     <div className="mt-2.5 flex shrink-0 items-center gap-1.5">
       <button
         type="button"
         onClick={onPauseToggle}
+        onPointerMove={trackSheen}
         title={paused ? 'Retomar captura' : 'Pausar captura'}
         className={ghost}
       >
+        <Sheen />
         <Icon name={paused ? 'play' : 'pause'} size={15} />
       </button>
       {canToggleCaptions && (
         <button
           type="button"
           onClick={onToggleCaptions}
+          onPointerMove={trackSheen}
           title={
             captionsHidden
               ? 'Mostrar as legendas do Meet na tela'
@@ -760,17 +1060,21 @@ function LiveControls({
           }
           className={`${ghost} ${captionsHidden ? '' : 'text-glow'}`}
         >
+          <Sheen />
           <CaptionsIcon crossed={captionsHidden} />
         </button>
       )}
-      <button type="button" onClick={onCopy} title="Copiar transcrição" className={ghost}>
+      <button
+        type="button"
+        onClick={onCopy}
+        onPointerMove={trackSheen}
+        title="Copiar transcrição"
+        className={ghost}
+      >
+        <Sheen />
         <CopyIcon />
       </button>
-      <Button
-        variant="primary"
-        className="ml-auto !min-h-[40px] !px-5"
-        onClick={onFinish}
-      >
+      <Button variant="primary" className="ml-auto !min-h-[40px] !px-5" onClick={onFinish}>
         <Icon name="stop" size={13} />
         Finalizar
       </Button>
@@ -875,7 +1179,7 @@ function EmptyCaptureScreen({
   onClose: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center px-3 py-6 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center px-3 text-center">
       <div className="mb-4 grid h-14 w-14 place-items-center rounded-full border border-white/10 bg-white/[0.04]">
         <Wave size={22} tone="dim" />
       </div>

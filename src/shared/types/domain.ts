@@ -189,22 +189,50 @@ export interface MeetingRecord {
   metadata: MeetingPayload['metadata'];
 }
 
-// ---------- Preferências do painel no Meet ----------
+// ---------- Preferências do painel flutuante ----------
 
-export type DockEdge = 'left' | 'right' | 'bottom';
+/**
+ * Os degraus de altura da janela.
+ *
+ * Degraus, e não arraste contínuo: o produto é um painel que muda de ESTADO, e
+ * três alturas nomeadas são previsíveis de um clique — um arraste de borda
+ * exige mira, produz alturas quebradas e ainda teria que ser normalizado na
+ * volta. `tall` existe para o histórico respirar; `compact` para o painel sair
+ * da frente sem virar cápsula.
+ */
+export type PanelSize = 'compact' | 'regular' | 'tall';
 
 export interface PanelPrefs {
-  /** Borda onde o painel fica ancorado. */
-  edge: DockEdge;
-  /** Posição ao longo da borda, fração 0..1 (robusto a resize). */
-  offset: number;
+  /**
+   * Canto superior esquerdo, como fração 0..1 do espaço DISPONÍVEL (viewport
+   * menos a caixa, menos as margens). Fração e não pixel: a janela do
+   * navegador muda de tamanho o tempo todo, e um pixel salvo em 1920px de
+   * largura joga o painel para fora da tela em 1280px. Como é fração do espaço
+   * livre, 1 significa "encostado no canto oposto" em qualquer tamanho de tela
+   * — e vale igual para a cápsula e para o painel, que têm caixas diferentes.
+   */
+  x: number;
+  y: number;
+  /** Altura da janela quando aberta. */
+  size: PanelSize;
+  /**
+   * O usuário fechou o TaqCITi (não minimizou).
+   *
+   * Persistido de propósito: fechar precisa durar mais que a aba, senão a
+   * primeira navegação traria a interface de volta e "fechar" viraria
+   * "esconder até recarregar". Volta a `false` só por ação explícita — clique
+   * no ícone da extensão — ou quando uma reunião nova começa.
+   */
+  dismissed: boolean;
   /** Esconder as legendas nativas do Meet enquanto a captura roda. */
   hideMeetCaptions: boolean;
 }
 
 export const DEFAULT_PANEL_PREFS: PanelPrefs = {
-  edge: 'right',
-  offset: 0.62,
+  x: 0.97,
+  y: 0.62,
+  size: 'regular',
+  dismissed: false,
   hideMeetCaptions: true,
 };
 

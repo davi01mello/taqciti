@@ -54,7 +54,7 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
       onResume: () => void platform.send({ type: 'ui/resume' }),
       onFinish: () => void platform.send({ type: 'ui/finish' }),
       onRename: (title) => void platform.send({ type: 'ui/rename', title }),
-      onOpenHistory: () => void platform.send({ type: 'panel/openRequest' }),
+      onOpenSidePanel: () => void platform.send({ type: 'panel/openRequest' }),
       onCloseEnded: () => void platform.send({ type: 'ui/reset' }),
       onDismissLanguageWarning: () =>
         void platform.send({ type: 'ui/dismissLanguageWarning' }),
@@ -69,14 +69,13 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
       onEnableCaptions: () => {},
 
       /*
-       * O `prefs` do estado precisa acompanhar o que foi salvo. `useDock`
-       * recalcula a geometria a partir de `prefs.edge/offset`, então deixar o
-       * estado para trás faria a cápsula voltar para a posição antiga no
-       * primeiro resize da janela, depois de o arraste já ter sido gravado.
+       * O estado precisa acompanhar o que foi salvo: o painel lê posição,
+       * tamanho e o "fechado" da prop, sem cópia interna. Gravar sem atualizar
+       * aqui deixaria a janela sem reagir ao próprio controle que a comanda.
        */
-      onDockChange: (edge, offset) => {
+      onPrefsChange: (patch) => {
         setPrefs((current) => {
-          const next = { ...current, edge, offset };
+          const next = { ...current, ...patch };
           savePanelPrefs(next);
           return next;
         });

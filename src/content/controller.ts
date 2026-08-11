@@ -62,22 +62,30 @@ export class ContentController {
     },
     onFinish: () => void sendMessage({ type: 'ui/finish' }),
     onRename: (title) => void sendMessage({ type: 'ui/rename', title }),
-    onOpenHistory: () => void sendMessage({ type: 'panel/openRequest' }),
+    onOpenSidePanel: () => void sendMessage({ type: 'panel/openRequest' }),
     onResumeCapture: () => this.redetect(),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
     onEnableCaptions: () => this.attemptEnableCaptions(),
     onDismissLanguageWarning: () =>
       void sendMessage({ type: 'ui/dismissLanguageWarning' }),
-    onToggleNativeCaptions: (hidden) => {
-      this.prefs = { ...this.prefs, hideMeetCaptions: hidden };
-      savePanelPrefs(this.prefs);
-      if (this.lastState) this.applyState(this.lastState);
-    },
-    onDockChange: (edge, offset) => {
-      this.prefs = { ...this.prefs, edge, offset };
-      savePanelPrefs(this.prefs);
-    },
+    onToggleNativeCaptions: (hidden) => this.patchPrefs({ hideMeetCaptions: hidden }),
+    onPrefsChange: (patch) => this.patchPrefs(patch),
   };
+
+  /**
+   * Um caminho só para gravar preferência, e ele SEMPRE re-renderiza.
+   *
+   * O painel recebe `prefs` por prop e não guarda cópia: posição, tamanho e o
+   * estado "fechado" só aparecem na tela pelo próximo render. Antes o
+   * `onDockChange` gravava sem re-renderizar — funcionava por acidente, porque
+   * a posição já tinha sido aplicada localmente pelo arraste. Fechar o painel
+   * por esse mesmo caminho não teria efeito nenhum.
+   */
+  private patchPrefs(patch: Partial<PanelPrefs>): void {
+    this.prefs = { ...this.prefs, ...patch };
+    savePanelPrefs(this.prefs);
+    if (this.lastState) this.applyState(this.lastState);
+  }
 
   constructor(private readonly provider: MeetingProvider) {}
 

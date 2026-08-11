@@ -14,7 +14,11 @@ type IconName =
   | 'arrowDown'
   | 'panel'
   | 'check'
-  | 'plus';
+  | 'plus'
+  | 'close'
+  | 'minimize'
+  | 'expand'
+  | 'compress';
 
 interface IconProps {
   name: IconName;
@@ -65,6 +69,28 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M12 5.5v13" />
       <path d="M5.5 12h13" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M6.5 6.5l11 11" />
+      <path d="M17.5 6.5l-11 11" />
+    </>
+  ),
+  /* Um traço só: "vira uma faixa", que é o que minimizar faz — diferente do
+     `close`, que remove. A distinção entre os dois é o ponto do produto. */
+  minimize: <path d="M6 12h12" />,
+  /* Setas divergindo na vertical: só a ALTURA muda nos degraus de tamanho. */
+  expand: (
+    <>
+      <path d="M8.5 9.5L12 6l3.5 3.5" />
+      <path d="M8.5 14.5L12 18l3.5-3.5" />
+    </>
+  ),
+  compress: (
+    <>
+      <path d="M8.5 6.5L12 10l3.5-3.5" />
+      <path d="M8.5 17.5L12 14l3.5 3.5" />
     </>
   ),
 };
