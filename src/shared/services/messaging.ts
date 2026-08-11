@@ -13,7 +13,7 @@ export async function sendMessage<R = unknown>(
   try {
     return (await chrome.runtime.sendMessage(message)) as R;
   } catch (error) {
-    // Contexto destino pode não existir (ex.: janela principal fechada) — esperado.
+    // Contexto destino pode não existir (ex.: painel lateral fechado) — esperado.
     logger.debug('sendMessage sem destinatário', { type: message.type, error });
     return null;
   }

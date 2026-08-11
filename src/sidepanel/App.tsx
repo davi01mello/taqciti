@@ -1,6 +1,10 @@
 /**
- * Janela principal: roteia telas pela fase da máquina de estados — a UI reflete o
+ * Painel lateral: roteia telas pela fase da máquina de estados — a UI reflete o
  * estado, nunca decide transições.
+ *
+ * A saída larga do TaqCITi, não a principal: quem manda é o painel injetado,
+ * que abre em qualquer aba. Aqui cabe ler uma transcrição inteira sem a página
+ * por baixo.
  */
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
 import { HomeScreen } from './screens/HomeScreen';

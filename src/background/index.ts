@@ -19,15 +19,13 @@ import {
 import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
-import { openMainWindow, registerMainWindowListeners } from './mainWindow';
 import { openPanelInTab } from './injectPanel';
+import { openSidePanel } from './sidePanel';
 
 const ready: Promise<void> = migrateLocalStorage()
   .then(() => hydrate())
   .then(() => recoverInterruptedMeetings())
   .catch((error) => logger.error('falha na inicialização', error));
-
-registerMainWindowListeners();
 
 /*
  * O clique no ícone abre o painel NA PÁGINA em que a pessoa está — é isto que
@@ -37,12 +35,13 @@ registerMainWindowListeners();
  * pede o estado por conta própria assim que monta. Segurar aqui só atrasaria a
  * resposta ao clique.
  *
- * Páginas internas do Chrome não aceitam extensão nenhuma; ali o histórico
- * abre na outra saída, que é onde ele sempre coube.
+ * Páginas internas do Chrome (chrome://, a Web Store) não aceitam extensão
+ * nenhuma. Ali cai no painel lateral — e cai funcionando, porque estamos
+ * dentro do clique no ícone, que é o gesto que `sidePanel.open` exige.
  */
 chrome.action.onClicked.addListener((tab) => {
   void openPanelInTab(tab).then((injected) => {
-    if (!injected) void openMainWindow();
+    if (!injected) void openSidePanel(tab.windowId);
   });
 });
 
@@ -117,12 +116,15 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
-      case 'panel/openRequest':
-        // Abre/foca a janela principal — vem do popup ou do botão "Ver no
-        // histórico" no painel do Meet. Único lugar que chama openMainWindow.
-        await openMainWindow();
-        return { ok: true };
-      // ---- UIs (popup / janela principal / painel no Meet) ----
+      case 'panel/openRequest': {
+        // "Ver no histórico", clicado dentro do painel injetado. O clique
+        // aconteceu na PÁGINA, então o gesto não chega até aqui e o Chrome
+        // pode recusar — ver src/background/sidePanel.ts. O `ok` conta a
+        // verdade em vez de fingir sucesso.
+        const opened = await openSidePanel(sender.tab?.windowId);
+        return { ok: opened };
+      }
+      // ---- UIs (painel lateral / painel injetado) ----
       case 'ui/getState':
         return getState();
       case 'ui/pause':

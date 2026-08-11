@@ -12,12 +12,8 @@ export const STORAGE_KEYS = {
   outbox: 'taq:outbox',
   /** chrome.storage.local — métricas locais de observabilidade. */
   metrics: 'taq:metrics',
-  /** chrome.storage.local — preferências do painel no Meet (borda, posição, legendas). */
+  /** chrome.storage.local — preferências do painel (borda, posição, legendas). */
   prefs: 'taq:prefs',
-  /** chrome.storage.local — tamanho/posição da janela principal, sobrevive a reabrir o navegador. */
-  windowBounds: 'taq:windowBounds',
-  /** chrome.storage.session — id da janela principal aberta agora, só pra achar/focar a mesma janela. */
-  mainWindowId: 'taq:mainWindowId',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

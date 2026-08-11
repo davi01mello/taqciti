@@ -1,5 +1,5 @@
 /**
- * Tela inicial da janela principal: marca, estado de espera e o histórico
+ * Tela inicial do painel lateral: marca, estado de espera e o histórico
  * completo com busca (título, pessoa ou conteúdo da fala).
  *
  * A geometria vem do `AppShell` como em todas as outras — antes esta tela

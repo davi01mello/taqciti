@@ -132,7 +132,7 @@ const contentMessages = z.discriminatedUnion('type', [
 ]);
 
 /**
- * Mensagens das UIs (popup / janela principal / painel no Meet) → background.
+ * Mensagens das UIs (painel injetado / painel lateral) → background.
  *
  * Exportado porque é exatamente a fronteira que a camada de plataforma
  * atravessa: é o conjunto de comandos que uma UI pode emitir, seja ela a
@@ -141,8 +141,9 @@ const contentMessages = z.discriminatedUnion('type', [
  * já valida o que chega por `chrome.runtime` — a ponte não afrouxa nada.
  */
 export const uiMessageSchema = z.discriminatedUnion('type', [
-  /** Abre/foca a janela principal (chrome.windows.create) — botão do popup
-   *  ou "Ver no histórico" no painel do Meet. */
+  /** Abre o painel lateral — "Ver no histórico", dentro do painel injetado.
+   *  Pode não abrir: o gesto do usuário não atravessa a mensageria, e
+   *  `chrome.sidePanel.open` exige um. Ver src/background/sidePanel.ts. */
   z.object({ type: z.literal('panel/openRequest') }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),

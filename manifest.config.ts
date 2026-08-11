@@ -36,6 +36,14 @@ export default defineManifest({
     type: 'module',
   },
 
+  // A saída larga, para ler uma transcrição inteira sem a página por baixo —
+  // secundária ao painel injetado, que é o produto. Declarar `default_path`
+  // também põe o TaqCITi no menu de painel lateral do próprio Chrome, que é o
+  // caminho de abertura que nunca depende de gesto (ver background/sidePanel).
+  side_panel: {
+    default_path: 'src/sidepanel/index.html',
+  },
+
   content_scripts: [
     {
       matches: ['https://meet.google.com/*'],
@@ -44,14 +52,17 @@ export default defineManifest({
     },
   ],
 
-  // storage local; system.display só pra validar se a posição salva da janela
-  // principal ainda cabe na tela atual ao reabrir.
-  //
   // `activeTab` + `scripting` é o par que injeta o painel na aba ativa. A dupla
   // é deliberada e NÃO troca por `host_permissions: ['<all_urls>']`: activeTab
   // concede acesso à aba só no clique do ícone, é o próprio usuário pedindo, e
   // não gera nenhum aviso na tela de instalação.
-  permissions: ['storage', 'system.display', 'scripting', 'activeTab'],
+  //
+  // `system.display` saiu junto com a janela própria: só existia para conferir
+  // se a posição salva dela ainda caía numa tela conectada.
+  //
+  // Nenhuma destas quatro gera aviso de instalação — a tela de permissão
+  // continua limpa, que é a razão de nunca aparecer `<all_urls>` aqui.
+  permissions: ['storage', 'sidePanel', 'scripting', 'activeTab'],
 
   // Conteúdo injetado só alcança arquivo da extensão declarado aqui — e o
   // loader do @crxjs faz `import()` dos chunks do painel, então eles precisam

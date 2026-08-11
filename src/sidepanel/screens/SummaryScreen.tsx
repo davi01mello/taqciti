@@ -1,5 +1,5 @@
 /**
- * Pós-reunião na janela principal: a transcrição já está salva no histórico,
+ * Pós-reunião no painel lateral: a transcrição já está salva no histórico,
  * então nada aqui bloqueia — sair é de graça, e uma reunião nova substitui
  * esta tela.
  *
