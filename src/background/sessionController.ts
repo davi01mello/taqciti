@@ -1,7 +1,7 @@
 /**
  * Dono do estado da reunião no service worker: aplica eventos na máquina de
- * estados, persiste e faz broadcast do estado novo para popup, janela
- * principal e content script.
+ * estados, persiste e faz broadcast do estado novo para o painel lateral e
+ * para todo painel injetado que estiver aberto.
  *
  * Persistência em duas camadas:
  * - chrome.storage.session: estado vivo, sobrevive a restart do service worker.
@@ -23,6 +23,7 @@ import { readSession, writeSession } from '@/shared/services/storage';
 import { logger } from '@/shared/services/log';
 import { finalizeStaleRecordings, upsertRecord } from './history';
 import { bumpMetrics } from './metrics';
+import { forgetPanelTab, panelTabs } from './panelTabs';
 
 let state: MeetingState = IDLE_STATE;
 let lastLiveSaveAt = 0;
@@ -67,17 +68,31 @@ async function saveLiveRecord(force: boolean, now: number): Promise<void> {
 
 function broadcast(): void {
   const message = { type: 'state/updated' as const, state };
-  // Páginas da extensão (popup/janela principal):
+
+  // Páginas da extensão (painel lateral, página de documento):
   chrome.runtime.sendMessage(message).catch(() => {
     /* nenhum contexto aberto — esperado */
   });
-  // Content script da aba da reunião:
-  const tabId = state.session?.tabId;
-  if (tabId !== null && tabId !== undefined) {
-    chrome.tabs.sendMessage(tabId, message).catch(() => {
-      /* aba fechada — esperado */
-    });
-  }
+
+  /*
+   * Content scripts precisam de mensagem ENDEREÇADA — `runtime.sendMessage`
+   * acima não chega neles. São dois grupos, e a aba da reunião pode estar nos
+   * dois: ela é o content script do Meet e também pode ter recebido o painel
+   * por um clique no ícone. Daí o Set.
+   */
+  void panelTabs().then((tabs) => {
+    const targets = new Set(tabs);
+    const meetingTab = state.session?.tabId;
+    if (meetingTab !== null && meetingTab !== undefined) targets.add(meetingTab);
+
+    for (const tabId of targets) {
+      chrome.tabs.sendMessage(tabId, message).catch(() => {
+        // Aba fechada, ou navegada para outra página levando o painel junto.
+        // Esta falha é o único aviso que existe — é aqui que a lista se poda.
+        void forgetPanelTab(tabId);
+      });
+    }
+  });
 }
 
 async function runSideEffects(

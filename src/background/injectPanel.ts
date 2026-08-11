@@ -13,6 +13,7 @@
  * módulo, nem configuração de `entryFileNames` no Vite.
  */
 import { logger } from '@/shared/services/log';
+import { rememberPanelTab } from './panelTabs';
 
 /** Hosts que servem a Chrome Web Store: o Chrome barra injeção neles. */
 const STORE_HOSTS = ['chrome.google.com', 'chromewebstore.google.com'];
@@ -63,6 +64,9 @@ export async function openPanelInTab(tab: chrome.tabs.Tab): Promise<boolean> {
 
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files });
+    // Só depois de injetar de verdade: uma aba anotada sem painel receberia
+    // broadcast a troco de nada até a primeira mensagem falhar e podá-la.
+    await rememberPanelTab(tab.id);
     return true;
   } catch (error) {
     logger.error('falha ao injetar o painel na aba', error);

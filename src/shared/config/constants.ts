@@ -14,6 +14,8 @@ export const STORAGE_KEYS = {
   metrics: 'taq:metrics',
   /** chrome.storage.local — preferências do painel (borda, posição, legendas). */
   prefs: 'taq:prefs',
+  /** chrome.storage.session — abas com o painel injetado, para endereçar o broadcast. */
+  panelTabs: 'taq:panelTabs',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

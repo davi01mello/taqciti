@@ -95,6 +95,30 @@ describe('openPanelInTab', () => {
     });
   });
 
+  it('anota a aba, para o estado ao vivo saber onde entregar', async () => {
+    installMocks();
+    const { openPanelInTab } = await import('./injectPanel');
+    const { panelTabs } = await import('./panelTabs');
+
+    await openPanelInTab(tab('https://github.com'));
+
+    expect(await panelTabs()).toEqual([7]);
+  });
+
+  it('injeção que falhou não deixa a aba anotada', async () => {
+    installMocks({
+      executeScript: vi.fn(async () => {
+        throw new Error('Cannot access contents of the page');
+      }),
+    });
+    const { openPanelInTab } = await import('./injectPanel');
+    const { panelTabs } = await import('./panelTabs');
+
+    await openPanelInTab(tab('https://github.com'));
+
+    expect(await panelTabs()).toEqual([]);
+  });
+
   it('não tenta injetar em página fechada', async () => {
     const { executeScript } = installMocks();
     const { openPanelInTab } = await import('./injectPanel');

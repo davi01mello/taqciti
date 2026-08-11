@@ -21,6 +21,7 @@ import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { openPanelInTab } from './injectPanel';
 import { openSidePanel } from './sidePanel';
+import { forgetPanelTab } from './panelTabs';
 
 const ready: Promise<void> = migrateLocalStorage()
   .then(() => hydrate())
@@ -45,9 +46,13 @@ chrome.action.onClicked.addListener((tab) => {
   });
 });
 
-// A aba da reunião fechou depois do fim: o resumo já está salvo no histórico,
-// então o estado global volta ao idle sozinho — sem tela presa para a próxima.
 chrome.tabs.onRemoved.addListener((tabId) => {
+  // A aba levou o painel injetado junto — não adianta mais endereçar broadcast
+  // pra ela. Fora do `ready` de propósito: podar a lista não depende do estado.
+  void forgetPanelTab(tabId);
+
+  // A aba da reunião fechou depois do fim: o resumo já está salvo no histórico,
+  // então o estado global volta ao idle sozinho — sem tela presa para a próxima.
   void ready.then(() => {
     const current = getState();
     if (current.phase === 'ended' && current.session?.tabId === tabId) {
