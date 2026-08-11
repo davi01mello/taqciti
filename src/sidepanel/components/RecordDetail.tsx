@@ -1,6 +1,9 @@
 /**
  * Detalhe de uma reunião do histórico: título editável, metadados, ações
  * (copiar, baixar, apagar) e a transcrição completa.
+ *
+ * Geometria pelo `AppShell`: moldura de vidro que não rola no topo, uma única
+ * região de rolagem embaixo.
  */
 import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
@@ -9,9 +12,11 @@ import { downloadTranscript, transcriptToText } from '@/features/history/export'
 import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
 import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
 import type { GenerationResult } from '@/document/generateDocument';
+import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
+import { Icon } from '@/shared/ui/Icon';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
 import { formatDate, formatDurationHuman, formatTime, hostName } from '@/shared/ui/format';
 import { StatusBadge } from './StatusBadge';
@@ -35,65 +40,71 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
   };
 
   return (
-    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden animate-fade-in">
-      <header className="glass sticky top-0 z-10 rounded-b-panel px-4 pb-3 pt-3.5">
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <button
-            onClick={onBack}
-            className="rounded-full px-2.5 py-1 text-body font-semibold text-muted transition-colors duration-200 ease-flow hover:bg-white/5 hover:text-foreground"
-          >
-            ← Histórico
-          </button>
-          <StatusBadge status={record.status} />
-        </div>
-        <EditableTitle
-          value={record.title}
-          onRename={(title) =>
-            void sendMessage({ type: 'ui/history/rename', id: record.id, title })
-          }
-          className="-ml-2 text-title font-semibold"
-        />
-        <p className="mt-1 truncate px-0.5 text-caption text-muted/85">
-          {formatDate(record.startedAt)} · {formatTime(record.startedAt)} ·{' '}
-          {formatDurationHuman(record.durationSeconds)}
-          {record.participants.length > 0 &&
-            ` · ${record.participants.map((p) => p.name).join(', ')}`}
-        </p>
-      </header>
+    <AppShell
+      className="animate-fade-in"
+      header={
+        <header className="glass rounded-b-card px-4 pb-3.5 pt-3.5">
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            <Button variant="ghost" size="compact" onClick={onBack} className="-ml-1.5">
+              <Icon name="chevron" size={14} className="rotate-90" />
+              Histórico
+            </Button>
+            <StatusBadge status={record.status} />
+          </div>
 
-      <div className="space-y-2 px-4 py-3">
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            className="flex-1 !px-2 !py-1.5 text-xs"
-            onClick={() => void copy()}
-          >
-            {copied ? 'Copiado ✓' : 'Copiar'}
-          </Button>
-          <Button
-            variant="secondary"
-            className="flex-1 !px-2 !py-1.5 text-xs"
-            onClick={() => downloadTranscript(record)}
-          >
-            Baixar .txt
-          </Button>
-          <Button
-            variant="ghost"
-            className="flex-1 !px-2 !py-1.5 text-xs !text-red-300/80 hover:!text-red-300"
-            onClick={() => setConfirmDelete(true)}
-          >
-            Apagar
-          </Button>
-        </div>
-        <GenerateDocumentMenu source={record} onGenerated={setGenerated} />
-      </div>
+          <EditableTitle
+            value={record.title}
+            onRename={(title) =>
+              void sendMessage({ type: 'ui/history/rename', id: record.id, title })
+            }
+            className="-ml-2 text-title font-semibold"
+          />
+          <p className="mt-1 truncate px-0.5 text-caption text-muted/85">
+            {formatDate(record.startedAt)} · {formatTime(record.startedAt)} ·{' '}
+            {formatDurationHuman(record.durationSeconds)}
+            {record.participants.length > 0 &&
+              ` · ${record.participants.map((p) => p.name).join(', ')}`}
+          </p>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-1">
+          <div className="mt-3 space-y-2">
+            <GenerateDocumentMenu source={record} onGenerated={setGenerated} />
+            <div className="flex gap-1.5">
+              <Button
+                variant="secondary"
+                size="compact"
+                className="flex-1"
+                onClick={() => void copy()}
+              >
+                {copied ? 'Copiado ✓' : 'Copiar'}
+              </Button>
+              <Button
+                variant="secondary"
+                size="compact"
+                className="flex-1"
+                onClick={() => downloadTranscript(record)}
+              >
+                Baixar .txt
+              </Button>
+              <Button
+                variant="ghost"
+                size="compact"
+                className="flex-1 text-danger/80 hover:text-danger"
+                onClick={() => setConfirmDelete(true)}
+              >
+                Apagar
+              </Button>
+            </div>
+          </div>
+        </header>
+      }
+    >
+      {/* `scroll={false}` na transcrição: quem rola é esta região. */}
+      <div className="scroll-region flex-1 px-4 pb-6 pt-3">
         <TranscriptView
           segments={record.segments}
           selfName={hostName(record.participants)}
           emptyMessage="Nenhuma fala foi capturada nesta reunião."
-          className="!flex-none"
+          scroll={false}
         />
 
         {generated && <GeneratedDocumentResult result={generated} />}
@@ -112,6 +123,6 @@ export function RecordDetail({ record, onBack }: RecordDetailProps) {
         }}
         onCancel={() => setConfirmDelete(false)}
       />
-    </div>
+    </AppShell>
   );
 }

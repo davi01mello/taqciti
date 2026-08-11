@@ -41,7 +41,7 @@ export function EditableTitle({ value, onRename, className = '' }: EditableTitle
           if (e.key === 'Escape') setEditing(false);
         }}
         maxLength={200}
-        className={`w-full rounded-control border border-primary/40 bg-white/5 px-2 py-1 outline-none ${className}`}
+        className={`glass-sunken w-full rounded-control px-2 py-1 outline-none shadow-[inset_0_0_0_1px_rgb(var(--c-primary)/0.45)] ${className}`}
       />
     );
   }
@@ -50,7 +50,7 @@ export function EditableTitle({ value, onRename, className = '' }: EditableTitle
     <button
       onClick={() => setEditing(true)}
       title="Clique para renomear"
-      className={`w-full truncate rounded-control px-2 py-1 text-left transition-colors duration-200 ease-flow hover:bg-white/5 ${className}`}
+      className={`w-full truncate rounded-control px-2 py-1 text-left transition-colors duration-200 ease-flow hover:bg-white/[0.06] ${className}`}
     >
       {value}
     </button>

@@ -1,6 +1,20 @@
 /**
- * Barra de controles flutuante na base do painel ao vivo: pausar/retomar,
- * apagar transcrição (com confirmação) e finalizar reunião.
+ * Barra de controles na base do painel ao vivo: pausar/retomar, apagar
+ * transcrição (com confirmação) e finalizar reunião.
+ *
+ * ── Por que ela NÃO é `position: fixed` ────────────────────────────────────
+ *
+ * Era. E como o `AppShell` já reserva uma faixa de rodapé para ela, o
+ * resultado é que a faixa colapsava para altura zero (conteúdo `fixed` sai do
+ * fluxo e não mede nada) e a barra passava a flutuar POR CIMA da região de
+ * rolagem. Os últimos ~76px da transcrição ficavam permanentemente atrás da
+ * barra: a rolagem chegava ao fim, mas o fim estava coberto. Era esse o
+ * "conteúdo cortado / área impossível de alcançar" — e nenhum ajuste de
+ * `overflow` resolveria, porque a rolagem estava correta o tempo todo; o que
+ * estava errado era a barra não ocupar o espaço que ela própria consome.
+ *
+ * No fluxo, o vidro continua flutuando visualmente (sombra e raio fazem esse
+ * trabalho) e a transcrição termina exatamente onde a barra começa.
  */
 import { useState } from 'react';
 import { sendMessage } from '@/shared/services/messaging';
@@ -17,8 +31,8 @@ export function ControlsBar({ paused }: ControlsBarProps) {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 p-4">
-        <div className="glass pointer-events-auto flex items-center gap-2 rounded-card p-2 shadow-soft">
+      <div className="px-3 pb-3 pt-1">
+        <div className="glass flex items-center gap-2 rounded-card p-2 shadow-float">
           <Button
             variant="secondary"
             className="flex-1"

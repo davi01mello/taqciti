@@ -1,6 +1,13 @@
 /**
- * Pós-reunião na janela principal: a transcrição já está salva no histórico, então
- * nada aqui bloqueia — sair é de graça, e uma reunião nova substitui esta tela.
+ * Pós-reunião na janela principal: a transcrição já está salva no histórico,
+ * então nada aqui bloqueia — sair é de graça, e uma reunião nova substitui
+ * esta tela.
+ *
+ * Hierarquia da tela, de cima para baixo: o que aconteceu (moldura), a ação
+ * principal (gerar documento), as ações auxiliares (copiar/baixar/fechar) e
+ * só então o conteúdo bruto. Antes as três ações auxiliares ficavam lado a
+ * lado com o mesmo peso da principal, e não havia como saber qual era a
+ * decisão da tela.
  */
 import { useState } from 'react';
 import type { MeetingSessionState } from '@/shared/types/domain';
@@ -10,6 +17,7 @@ import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
 import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
 import type { GenerationResult } from '@/document/generateDocument';
 import { sendMessage } from '@/shared/services/messaging';
+import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
 import { EditableTitle } from '@/shared/ui/EditableTitle';
 import { StatTile } from '@/shared/ui/StatTile';
@@ -39,82 +47,94 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
   };
 
   return (
-    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden animate-fade-in">
-      <header className="shrink-0 glass rounded-b-panel px-5 pb-4 pt-5 text-center">
-        <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-white/[0.04] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] animate-pop-in">
-          <Wave size={22} tone={empty ? 'dim' : 'green'} />
-        </div>
+    <AppShell
+      className="animate-fade-in"
+      header={
+        <header className="glass rounded-b-card px-5 pb-4 pt-5 text-center">
+          <div className="glass-subtle mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full animate-pop-in">
+            <Wave size={22} tone={empty ? 'dim' : 'green'} />
+          </div>
 
-        <h1 className="mb-1 text-title font-bold">
-          {empty ? 'Nada foi capturado' : 'Transcrição salva'}
-        </h1>
-        <p className="mb-3 text-caption leading-relaxed text-muted">
-          {empty
-            ? 'As legendas do Meet não produziram fala nenhuma nesta reunião.'
-            : 'Já está no histórico, nada se perde.'}
-        </p>
+          <h1 className="mb-1 text-title font-bold">
+            {empty ? 'Nada foi capturado' : 'Transcrição salva'}
+          </h1>
+          <p className="text-caption leading-relaxed text-muted">
+            {empty
+              ? 'As legendas do Meet não produziram fala nenhuma nesta reunião.'
+              : 'Já está no histórico, nada se perde.'}
+          </p>
 
-        {!empty && (
-          <>
-            <EditableTitle
-              value={session.title}
-              onRename={(title) => void sendMessage({ type: 'ui/rename', title })}
-              className="text-center text-sm font-semibold"
-            />
-            <div className="mx-auto mt-3 grid max-w-[280px] grid-cols-3 gap-2">
-              <StatTile
-                value={formatDurationHuman(durationSeconds).replace(' ', '')}
-                label="duração"
-              />
-              <StatTile value={String(session.segments.length)} label="falas" />
-              <StatTile
-                value={formatCount(countWords(session.segments.map((s) => s.text)))}
-                label="palavras"
-              />
-            </div>
-          </>
-        )}
-      </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4">
-        {empty ? (
+          {!empty && (
+            <>
+              <div className="mt-3">
+                <EditableTitle
+                  value={session.title}
+                  onRename={(title) => void sendMessage({ type: 'ui/rename', title })}
+                  className="text-center text-sm font-semibold"
+                />
+              </div>
+              <div className="mx-auto mt-3 grid max-w-[280px] grid-cols-3 gap-2">
+                <StatTile
+                  value={formatDurationHuman(durationSeconds).replace(' ', '')}
+                  label="duração"
+                />
+                <StatTile value={String(session.segments.length)} label="falas" />
+                <StatTile
+                  value={formatCount(countWords(session.segments.map((s) => s.text)))}
+                  label="palavras"
+                />
+              </div>
+            </>
+          )}
+        </header>
+      }
+    >
+      {empty ? (
+        <div className="px-4 pt-4">
           <Button
-            variant="ghost"
+            variant="secondary"
             className="w-full"
             onClick={() => void sendMessage({ type: 'ui/reset' })}
           >
             Fechar
           </Button>
-        ) : (
-          <>
-            <GenerateDocumentMenu source={session} onGenerated={setGenerated} className="mb-3" />
+        </div>
+      ) : (
+        <div className="scroll-region flex-1 px-4 pb-6 pt-4">
+          <GenerateDocumentMenu source={session} onGenerated={setGenerated} className="mb-3" />
 
-            <div className="mb-3 flex items-center justify-center gap-2">
-              <Button variant="secondary" className="!min-h-[38px] text-xs" onClick={() => void copy()}>
-                {copied ? 'Copiado ✓' : 'Copiar'}
-              </Button>
-              <Button
-                variant="secondary"
-                className="!min-h-[38px] text-xs"
-                onClick={() => downloadTranscript(buildMeetingRecord(session, 'ready'))}
-              >
-                Baixar .txt
-              </Button>
-              <Button variant="ghost" className="!min-h-[38px] text-xs" onClick={() => void sendMessage({ type: 'ui/reset' })}>
-                Fechar
-              </Button>
-            </div>
+          {/* Ações auxiliares: peso deliberadamente menor que o do menu acima
+              — corpo reduzido, altura reduzida, nenhuma cor. */}
+          <div className="mb-4 flex items-center justify-center gap-1.5">
+            <Button variant="secondary" size="compact" onClick={() => void copy()}>
+              {copied ? 'Copiado ✓' : 'Copiar'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="compact"
+              onClick={() => downloadTranscript(buildMeetingRecord(session, 'ready'))}
+            >
+              Baixar .txt
+            </Button>
+            <Button
+              variant="ghost"
+              size="compact"
+              onClick={() => void sendMessage({ type: 'ui/reset' })}
+            >
+              Fechar
+            </Button>
+          </div>
 
-            <TranscriptView
-              segments={session.segments}
-              selfName={hostName(session.participants)}
-              className="!flex-none"
-            />
+          {/* `scroll={false}`: quem rola é a página, não a transcrição. */}
+          <TranscriptView
+            segments={session.segments}
+            selfName={hostName(session.participants)}
+            scroll={false}
+          />
 
-            {generated && <GeneratedDocumentResult result={generated} />}
-          </>
-        )}
-      </div>
-    </div>
+          {generated && <GeneratedDocumentResult result={generated} />}
+        </div>
+      )}
+    </AppShell>
   );
 }

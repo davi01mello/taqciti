@@ -20,6 +20,25 @@ interface TranscriptViewProps {
   selfName?: string | null;
   /** Rola sozinho e mostra a pílula de novas falas (transcrição ao vivo). */
   live?: boolean;
+  /**
+   * Quem é o dono da rolagem.
+   *
+   * `true` (padrão) — a transcrição é a região que rola: ela ocupa a altura
+   * disponível e tem a própria caixa de rolagem. É o caso do painel ao vivo.
+   *
+   * `false` — a transcrição é só mais um bloco DENTRO de uma página que já
+   * rola (resumo, detalhe do histórico, página de documento). Aqui ela cresce
+   * com o conteúdo e não abre caixa nenhuma.
+   *
+   * Isto não é preferência de estilo: sem a distinção, as três telas de
+   * histórico tinham uma caixa de rolagem dentro de outra. A de dentro nunca
+   * ganhava altura (o pai é de altura automática), então ela não rolava — mas
+   * continuava capturando a roda do mouse e engolindo `overscroll`, que é o
+   * "scroll travado" no meio da página. Antes o sintoma era abafado com um
+   * `className="!flex-none"` em cada consumidor, o que escondia o encaixe
+   * errado sem desfazer a caixa aninhada.
+   */
+  scroll?: boolean;
   /** Captura pausada: o texto esmaece sem sumir. */
   dimmed?: boolean;
   /** Destaca as ocorrências desta busca. */
@@ -30,11 +49,14 @@ interface TranscriptViewProps {
 
 /** Distância do fim abaixo da qual consideramos "grudado no rodapé". */
 const STICK_THRESHOLD_PX = 56;
+/** Abaixo disto, um `deltaY` negativo é inércia/ruído de trackpad, não intenção. */
+const TRACKPAD_NOISE_PX = 4;
 
 export function TranscriptView({
   segments,
   selfName = null,
   live = false,
+  scroll = true,
   dimmed = false,
   query = '',
   emptyMessage = 'A transcrição aparece aqui conforme as pessoas falam.',
@@ -79,6 +101,7 @@ export function TranscriptView({
    * falas aparecia sem ninguém ter tocado em nada.
    */
   useEffect(() => {
+    if (!scroll) return;
     const el = scrollRef.current;
     if (!el) return;
 
@@ -96,9 +119,17 @@ export function TranscriptView({
       if (live) setShowJump(true);
     };
 
+    /*
+     * O limiar existe por causa do trackpad. Um `deltaY < 0` puro trata
+     * qualquer resquício de inércia — e o eixo Y parasita de um gesto
+     * horizontal ou de um apoio de dedo — como "o usuário quer subir", e o
+     * acompanhamento ao vivo se desligava sozinho no meio de uma fala. Com
+     * roda de mouse a diferença não existe: um clique de roda entrega
+     * dezenas de pixels de uma vez.
+     */
     const onWheel = (event: WheelEvent) => {
-      if (event.deltaY < 0) release();
-      else requestAnimationFrame(settle);
+      if (event.deltaY < -TRACKPAD_NOISE_PX) release();
+      else if (event.deltaY > 0) requestAnimationFrame(settle);
     };
 
     const onTouchMove = () => release();
@@ -132,7 +163,7 @@ export function TranscriptView({
       el.removeEventListener('keydown', onKeyDown);
       el.removeEventListener('scroll', settle);
     };
-  }, [live]);
+  }, [live, scroll]);
 
   /**
    * O Meet faz o ÚLTIMO segmento crescer no lugar: quando o texto reflui para
@@ -140,6 +171,7 @@ export function TranscriptView({
    * lista de segmentos não vê isso; o observer vê.
    */
   useEffect(() => {
+    if (!scroll) return;
     const list = listRef.current;
     if (!list || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => {
@@ -147,13 +179,13 @@ export function TranscriptView({
     });
     observer.observe(list);
     return () => observer.disconnect();
-  }, [hasSegments, pin]);
+  }, [hasSegments, pin, scroll]);
 
   useEffect(() => {
-    if (!live) return;
+    if (!live || !scroll) return;
     if (stickToBottom.current) pin();
     else if (segments.length > 0) setShowJump(true);
-  }, [segments, live, pin]);
+  }, [segments, live, scroll, pin]);
 
   const jumpToLatest = () => {
     stickToBottom.current = true;
@@ -165,23 +197,28 @@ export function TranscriptView({
   const lastIndex = segments.length - 1;
 
   return (
-    <div className={`relative flex min-h-0 flex-1 flex-col ${className}`}>
+    <div
+      className={`relative flex flex-col ${scroll ? 'min-h-0 flex-1' : 'flex-none'} ${className}`}
+    >
       {/*
-       * A caixa de rolagem é ELA PRÓPRIA o item flexível — sem `h-full`.
-       * Altura percentual contra um pai de altura indefinida resolve para
-       * `auto`, e aí a caixa cresce até o tamanho do texto inteiro: nada rola,
-       * o auto-scroll não tem para onde ir e o painel corta o resto. Assim a
-       * altura vem do próprio flex e não depende de nenhum ancestral.
+       * Quando a transcrição É a região de rolagem, a caixa é ELA PRÓPRIA o
+       * item flexível — sem `h-full`. Altura percentual contra um pai de
+       * altura indefinida resolve para `auto`, e aí a caixa cresce até o
+       * tamanho do texto inteiro: nada rola, o auto-scroll não tem para onde
+       * ir e o painel corta o resto. Assim a altura vem do próprio flex e não
+       * depende de nenhum ancestral.
        *
-       * `tabIndex` para a rolagem por teclado funcionar (e o Page Up soltar o
-       * acompanhamento, como qualquer chat).
+       * Quando NÃO é (uma página que já rola), a caixa some por completo: sem
+       * `overflow`, sem `flex-1`, sem `tabIndex`. Um `overflow-y: auto` que
+       * nunca rola ainda captura a roda e ainda é uma parada de tabulação —
+       * ficava no caminho sem fazer nada.
        */}
       <div
         ref={scrollRef}
-        tabIndex={0}
-        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 outline-none transition-opacity duration-300 ease-flow ${
-          dimmed ? 'opacity-45' : 'opacity-100'
-        }`}
+        tabIndex={scroll ? 0 : undefined}
+        className={`px-1 outline-none transition-opacity duration-300 ease-flow ${
+          scroll ? 'scroll-region flex-1' : ''
+        } ${dimmed ? 'opacity-45' : 'opacity-100'}`}
       >
         {segments.length === 0 ? (
           <div className="mt-16 flex flex-col items-center gap-3 px-6 text-center">
@@ -309,7 +346,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, index) =>
         part.hit ? (
-          <mark key={index} className="rounded bg-primary/22 px-0.5 text-glow">
+          <mark key={index} className="rounded-[5px] bg-primary/20 px-0.5 text-glow">
             {part.chunk}
           </mark>
         ) : (

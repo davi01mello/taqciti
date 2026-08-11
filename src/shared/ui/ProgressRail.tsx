@@ -28,7 +28,7 @@ export function ProgressRail({ position, total, onBack }: ProgressRailProps) {
 
       <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#17a94a] to-[#2fd267] transition-[width] duration-300 ease-flow motion-reduce:transition-none"
+          className="h-full rounded-full bg-gradient-to-r from-primary/70 to-glow/85 transition-[width] duration-300 ease-flow motion-reduce:transition-none"
           style={{ width: `${percent}%` }}
         />
       </div>

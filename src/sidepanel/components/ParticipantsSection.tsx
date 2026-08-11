@@ -29,7 +29,7 @@ export function ParticipantsSection({
       : 'presença confirmada pelo Meet';
 
   return (
-    <section className="border-b border-white/5 px-4 py-1.5">
+    <section className="border-t border-borderc px-4 py-1">
       <button
         onClick={() => setExpanded((v) => !v)}
         disabled={attendedCount === 0}
@@ -57,7 +57,17 @@ export function ParticipantsSection({
       </button>
 
       {expanded && attendedCount > 0 && (
-        <ul className="mb-1.5 mt-1 space-y-0.5 px-2 animate-entry">
+        /*
+         * Teto de altura, e não uma lista solta: esta seção vive na faixa
+         * FIXA do AppShell, que não rola. Numa reunião com trinta pessoas a
+         * lista expandida empurrava a transcrição para fora da tela e não
+         * havia como alcançar nem uma nem outra. Com o teto, quem passa do
+         * limite é esta lista — e ela rola sozinha.
+         */
+        <ul
+          tabIndex={0}
+          className="scroll-region mb-1.5 mt-1 max-h-[168px] space-y-0.5 px-2 outline-none animate-entry"
+        >
           {attendedMeeting.map((p) => {
             const here = current.some(
               (entry) =>

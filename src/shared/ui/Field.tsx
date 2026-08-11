@@ -11,10 +11,16 @@ import { Icon } from './Icon';
 
 type FieldProps = InputHTMLAttributes<HTMLInputElement>;
 
+/*
+ * Vidro que AFUNDA (`glass-sunken`) em vez de subir: um campo é um lugar onde
+ * se deposita algo, e a única superfície do sistema que se comporta assim. O
+ * foco não troca a borda por outra cor — acende um fio verde por dentro, que é
+ * o mesmo gesto do fio de luz das outras superfícies.
+ */
 const BASE =
-  'w-full rounded-control border border-white/10 bg-black/25 text-read text-foreground ' +
-  'outline-none transition-colors duration-200 ease-flow placeholder:text-muted/55 ' +
-  'focus:border-primary/50 focus:bg-black/35';
+  'glass-sunken w-full rounded-control text-read text-foreground ' +
+  'outline-none transition-shadow duration-200 ease-flow placeholder:text-muted/55 ' +
+  'focus:shadow-[inset_0_0_0_1px_rgb(var(--c-primary)/0.5)]';
 
 /** Impede que a digitação vire atalho da página hospedeira (o Meet). */
 function guardKeys(event: React.KeyboardEvent<HTMLInputElement>): void {

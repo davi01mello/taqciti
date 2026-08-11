@@ -5,20 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TaqCITi</title>
     <style>
+      /*
+       * A CADEIA DE ALTURA da janela principal — o alicerce da rolagem.
+       *
+       * Os três precisam de altura DEFINIDA, e não só o <body>: uma altura
+       * percentual só resolve contra um pai que também tem altura definida.
+       * Basta um elo da cadeia em `auto` para o `height: 100%` do shell virar
+       * `auto`, a caixa de rolagem crescer até o tamanho do conteúdo inteiro e
+       * nada mais rolar. É a mesma armadilha descrita em AppShell.tsx.
+       *
+       * `overflow: auto` no <html> (e não `hidden` no <body>, como antes) é a
+       * válvula de escape: quando a janela é encolhida abaixo do piso do
+       * shell, o documento rola e a barra de controles continua alcançável. Em
+       * tamanho normal o shell cabe exato e esta barra nunca aparece — não há
+       * rolagem dupla.
+       *
+       * `overscroll-behavior: none` corta o efeito elástico ao chegar ao fim,
+       * que num app (diferente de uma página) só denuncia o navegador.
+       */
       html,
       body,
       #root {
         height: 100%;
       }
+      html {
+        overflow: auto;
+        overscroll-behavior: none;
+      }
       body {
         margin: 0;
-        overflow: hidden;
-        /* Antes side panel do Chrome (largura controlada pelo navegador),
-           agora janela flutuante própria (chrome.windows.create) — sem piso
-           o conteúdo comprime até ficar ilegível se o usuário encolher
-           demais. Mesmo layout de sempre, só um limite embaixo. */
+        /* Sem piso, o conteúdo comprime até ficar ilegível se o usuário
+           encolher demais a janela. O piso VERTICAL mora no AppShell, junto
+           da regra de rolagem que depende dele. */
         min-width: 320px;
-        min-height: 480px;
       }
     </style>
   </head>

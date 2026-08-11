@@ -1,104 +1,120 @@
 @import './tokens.css';
+@import './glass.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  html {
+    /*
+     * Faz o Chrome pintar de escuro tudo o que NÃO é nosso CSS: barra de
+     * rolagem nativa, menu suspenso de <select>, seletor de data, o flash
+     * branco entre a janela abrir e o React montar. No Windows esse flash
+     * branco era um dos sinais mais fortes de "isto é uma página aberta no
+     * navegador" — é a primeira coisa que o usuário vê ao abrir o app.
+     */
+    color-scheme: dark;
+  }
+
   html,
   body {
     @apply text-foreground font-sans antialiased;
   }
 
-  /* Fundo aurora: base quase preta com dois halos de cor bem discretos. */
+  /*
+   * O fundo do app. Base quase preta com dois halos frios e MUITO abertos —
+   * é o que dá ao vidro alguma coisa para filtrar: uma superfície translúcida
+   * sobre preto chapado não tem como parecer vidro, porque não há gradiente
+   * de luz atravessando.
+   *
+   * `background-attachment: fixed` prende o halo à janela, não ao conteúdo:
+   * sem isso a aurora rola junto com a lista e a "luz" da cena se mexe.
+   */
   body {
     background:
-      radial-gradient(900px 480px at 88% -12%, rgba(45, 219, 96, 0.1), transparent 60%),
-      radial-gradient(720px 420px at -18% 112%, rgba(34, 180, 160, 0.07), transparent 60%),
+      radial-gradient(880px 460px at 86% -14%, rgba(92, 203, 133, 0.09), transparent 62%),
+      radial-gradient(700px 420px at -16% 110%, rgba(64, 158, 170, 0.06), transparent 62%),
       var(--color-background);
     background-attachment: fixed;
   }
 
+  /*
+   * Barra de rolagem.
+   *
+   * O padrão do Chrome no Windows é uma calha opaca de 15px com setas — é
+   * dela que vem boa parte da sensação de "página de navegador" (no macOS a
+   * barra é overlay e some sozinha, por isso o problema só aparecia aqui). O
+   * truque do `background-clip: content-box` com borda transparente desenha um
+   * polegar fino com respiro dos dois lados, que é como uma barra overlay se
+   * comporta — sem precisar de scrollbar customizada em JS.
+   */
   ::-webkit-scrollbar {
-    width: 6px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.14);
-    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.13);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: var(--radius-full);
   }
-  ::-webkit-scrollbar-track {
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.24);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
     background: transparent;
   }
 
   ::selection {
-    background: rgba(45, 219, 96, 0.3);
+    background: var(--tint-primary-strong);
   }
 
   /* Foco sempre visível em qualquer elemento interativo, mesmo os sem estilo. */
   :where(a, button, input, textarea, select, [tabindex]):focus-visible {
-    outline: 2px solid rgb(var(--c-primary) / 0.65);
+    outline: 2px solid rgb(var(--c-primary) / 0.7);
     outline-offset: 2px;
+    border-radius: var(--radius-xs);
   }
 
+  /*
+   * Uma chave só para todo o movimento do produto. Antes cada animação
+   * carregava o seu `motion-reduce:animate-none`, e bastava esquecer um para
+   * a preferência do sistema deixar de valer naquela tela.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
   /*
-   * Superfície de vidro em camadas — mesma linguagem do painel injetado no Meet:
-   * blur + saturação, fio de luz de 1px em gradiente (::before) e grão fino
-   * (::after) que tira o aspecto plástico do blur puro.
+   * A ÚNICA região que rola, onde quer que ela esteja.
+   *
+   * Existe como classe, e não como um punhado de utilitários repetidos, por
+   * causa do `scrollbar-gutter: stable`: sem reservar a calha, o conteúdo
+   * desloca lateralmente no instante em que a barra aparece (uma fala nova
+   * ultrapassa a altura da caixa) e volta quando ela some. É exatamente o
+   * "salto durante o scroll" — e nenhuma quantidade de `overflow: auto`
+   * conserta, porque a causa é a largura, não a rolagem.
+   *
+   * `overscroll-behavior: contain` impede que a rolagem, ao chegar ao fim,
+   * seja passada ao documento atrás (rolagem dupla). `overflow-x: hidden`
+   * elimina a rolagem horizontal acidental de um nome longo sem espaço.
    */
-  .glass {
-    position: relative;
-    isolation: isolate;
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(180%) brightness(1.06);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%) brightness(1.06);
-    box-shadow:
-      0 24px 60px -12px rgba(0, 0, 0, 0.5),
-      0 6px 20px -6px rgba(0, 0, 0, 0.32);
-  }
-
-  .glass::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.3),
-      rgba(255, 255, 255, 0.08) 30%,
-      rgba(255, 255, 255, 0.02) 55%,
-      rgba(255, 255, 255, 0.12)
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .glass::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.05;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-  }
-
-  /* Vidro mais leve para itens de lista/controles. */
-  .glass-lite {
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 0 0 1px var(--color-border-soft);
+  .scroll-region {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    min-height: 0;
   }
 }

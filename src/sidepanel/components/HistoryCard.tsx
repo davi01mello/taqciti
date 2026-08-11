@@ -25,7 +25,15 @@ export function HistoryCard({ record, onOpen }: HistoryCardProps) {
     <li className="animate-entry">
       <button
         onClick={onOpen}
-        className="glass w-full rounded-panel p-4 text-left transition-all duration-200 ease-flow hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60"
+        /*
+         * `glass-subtle`, e não o vidro cheio: cada item desta lista teria o
+         * seu `backdrop-filter`, e um blur por item obriga o compositor a
+         * rasterizar de novo o fundo de cada cartão a cada quadro da rolagem.
+         * Numa lista longa é a diferença entre rolar liso e rolar aos
+         * pedaços. A presença do cartão vem da elevação no hover, que custa
+         * uma transformação — não um filtro.
+         */
+        className="glass-subtle w-full rounded-panel p-4 text-left transition-all duration-200 ease-flow hover:-translate-y-0.5 hover:bg-white/[0.075] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60"
       >
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-snug">

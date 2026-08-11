@@ -7,7 +7,7 @@ interface StatTileProps {
 
 export function StatTile({ value, label }: StatTileProps) {
   return (
-    <div className="glass-lite rounded-panel px-3 py-3 text-center">
+    <div className="glass-subtle rounded-panel px-3 py-3 text-center">
       <b className="block text-lg font-bold leading-none tracking-tight tabular-nums text-foreground">
         {value}
       </b>

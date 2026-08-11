@@ -141,7 +141,7 @@ export function GenerateDocumentMenu({
       </Button>
 
       {open && (
-        <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-panel p-1.5 shadow-soft animate-entry">
+        <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-panel p-1.5 shadow-float animate-entry">
           {area === null ? (
             <div
               key="root"
@@ -152,7 +152,7 @@ export function GenerateDocumentMenu({
                   key={a.key}
                   type="button"
                   onClick={() => goToArea(a.key)}
-                  className="flex w-full items-center justify-between rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/8"
+                  className="flex w-full items-center justify-between rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/[0.07]"
                 >
                   {a.label}
                   <Icon name="chevron" size={14} className="-rotate-90 text-muted" />
@@ -198,7 +198,7 @@ export function GenerateDocumentMenu({
                     type="button"
                     aria-disabled={busy}
                     onClick={() => generate(item.documentType)}
-                    className={`flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/8 ${busy ? 'pointer-events-none opacity-50' : ''}`}
+                    className={`flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/[0.07] ${busy ? 'pointer-events-none opacity-50' : ''}`}
                   >
                     {label}
                   </button>
@@ -206,7 +206,7 @@ export function GenerateDocumentMenu({
               })}
 
               {generating.status === 'error' && (
-                <p className="mt-1 px-3 pb-1 text-caption text-red-300">{generating.message}</p>
+                <p className="mt-1 px-3 pb-1 text-caption text-danger">{generating.message}</p>
               )}
             </div>
           )}

@@ -6,9 +6,16 @@ interface WaveProps {
   tone?: 'green' | 'amber' | 'dim';
 }
 
+/*
+ * Os mesmos valores de `--c-primary` / `--c-glow`, em hex: a marca é
+ * desenhada como SVG inline e cada barra recebe a sua cor por style, então
+ * aqui não dá para passar pelo token CSS. Quando o verde mudar em
+ * tokens.css, estes dois mudam junto — é o único lugar do produto onde a cor
+ * da marca aparece duplicada, e é por essa razão.
+ */
 const TONES = {
-  green: ['#2ddb60', '#7af2a5', '#2ddb60'],
-  amber: ['#f2c94c', '#f2c94c', '#f2c94c'],
+  green: ['#5ccb85', '#90dfad', '#5ccb85'],
+  amber: ['#e8c164', '#e8c164', '#e8c164'],
   dim: ['#3a4753', '#4b5a68', '#3a4753'],
 } as const;
 

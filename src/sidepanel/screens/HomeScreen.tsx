@@ -1,10 +1,15 @@
 /**
- * Tela inicial da janela principal: marca, estado de espera e o histórico completo
- * com busca (título, pessoa ou conteúdo da fala) e detalhe de cada reunião.
+ * Tela inicial da janela principal: marca, estado de espera e o histórico
+ * completo com busca (título, pessoa ou conteúdo da fala).
+ *
+ * A geometria vem do `AppShell` como em todas as outras — antes esta tela
+ * remontava `h-[100dvh] flex flex-col overflow-hidden` à mão, que é
+ * exatamente a duplicação que o AppShell existe para impedir.
  */
 import { useMemo, useState } from 'react';
 import { useHistory } from '@/features/history/useHistory';
-import { Icon } from '@/shared/ui/Icon';
+import { AppShell } from '@/shared/ui/AppShell';
+import { SearchField } from '@/shared/ui/Field';
 import { Wave } from '@/shared/ui/Wave';
 import { Wordmark } from '@/shared/ui/Wordmark';
 import { countWords, formatCount } from '@/shared/ui/format';
@@ -38,49 +43,52 @@ export function HomeScreen() {
   }
 
   return (
-    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden animate-fade-in">
-      <header className="px-5 pb-5 pt-6">
-        <h1>
-          <Wordmark height={29} />
-        </h1>
-        <p className="mt-2 max-w-[300px] text-read leading-relaxed text-muted">
-          Entre numa chamada do Google Meet e a transcrição começa sozinha. Sem legendas
-          cobrindo a tela, sem apertar nada.
-        </p>
-        {records.length > 0 && (
-          <p className="mt-3 text-caption font-semibold uppercase tracking-wide text-muted/80">
-            {records.length}{' '}
-            {records.length === 1 ? 'reunião guardada' : 'reuniões guardadas'}
-            {totalWords > 0 && ` · ${formatCount(totalWords)} palavras`}
+    <AppShell
+      className="animate-fade-in"
+      header={
+        /*
+         * A moldura do app: a faixa de vidro que não rola. É ela que dá a
+         * leitura de "aplicativo" em vez de "página" — o conteúdo desliza por
+         * baixo de uma superfície que fica parada.
+         */
+        <header className="glass rounded-b-card px-5 pb-4 pt-6">
+          <h1>
+            <Wordmark height={29} />
+          </h1>
+          <p className="mt-2.5 max-w-[300px] text-read leading-relaxed text-muted">
+            Entre numa chamada do Google Meet e a transcrição começa sozinha. Sem
+            legendas cobrindo a tela, sem apertar nada.
           </p>
-        )}
-      </header>
 
-      <div className="mt-3 px-4">
-        <div className="relative">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted/80">
-            <Icon name="search" size={16} />
-          </span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por título, pessoa ou fala"
-            aria-label="Buscar reuniões"
-            className="glass-lite h-11 w-full rounded-control pl-10 pr-3.5 text-read text-foreground outline-none transition-shadow duration-200 ease-flow placeholder:text-muted/70 focus:shadow-[inset_0_0_0_1px_rgba(45,219,96,0.5)]"
-          />
-        </div>
-      </div>
+          {records.length > 0 && (
+            <p className="mt-3 text-caption font-semibold uppercase tracking-wide text-muted/75">
+              {records.length}{' '}
+              {records.length === 1 ? 'reunião guardada' : 'reuniões guardadas'}
+              {totalWords > 0 && ` · ${formatCount(totalWords)} palavras`}
+            </p>
+          )}
 
-      <section className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-        <h2 className="mb-2.5 mt-4 px-1 text-caption font-semibold uppercase tracking-wide text-muted">
+          <div className="mt-4">
+            <SearchField
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por título, pessoa ou fala"
+              aria-label="Buscar reuniões"
+            />
+          </div>
+        </header>
+      }
+    >
+      <section className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-4">
+        <h2 className="mb-2.5 px-1 text-caption font-semibold uppercase tracking-wide text-muted">
           {query ? `Resultados · ${filtered.length}` : 'Reuniões'}
         </h2>
 
         {filtered.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center gap-4 px-8 text-center">
+          <div className="mt-14 flex flex-col items-center gap-4 px-8 text-center">
             <div className="relative grid h-16 w-16 place-items-center">
-              <span className="absolute inset-0 rounded-full border border-primary/25" />
-              <span className="absolute inset-[7px] rounded-full border border-primary/15" />
+              <span className="absolute inset-0 rounded-full border border-primary/20" />
+              <span className="absolute inset-[7px] rounded-full border border-primary/12" />
               <Wave size={20} tone="dim" />
             </div>
             <p className="max-w-[240px] text-read leading-relaxed text-muted">
@@ -90,7 +98,17 @@ export function HomeScreen() {
             </p>
           </div>
         ) : (
-          <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pb-2">
+          /*
+           * `tabIndex` na região que rola: sem uma parada de tabulação, quem
+           * navega por teclado não tem como dar foco à lista, e PageDown/setas
+           * continuam agindo sobre o documento (que não rola). É a diferença
+           * entre "a rolagem por teclado não funciona" e funcionar.
+           */
+          <ul
+            tabIndex={0}
+            aria-label="Reuniões guardadas"
+            className="scroll-region flex-1 space-y-2.5 pb-2 outline-none"
+          >
             {filtered.map((record) => (
               <HistoryCard
                 key={record.id}
@@ -101,6 +119,6 @@ export function HomeScreen() {
           </ul>
         )}
       </section>
-    </div>
+    </AppShell>
   );
 }

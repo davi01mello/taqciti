@@ -5,10 +5,15 @@
     <title>TaqCITi</title>
     <style>
       /*
-       * O popup dimensiona pela ALTURA DO CONTEÚDO, então `height: 100%` aqui
-       * daria zero. O que ele precisa é de um teto: o max-height abaixo limita a
-       * janela e dá ao flex interno um limite contra o qual `flex-1 min-h-0`
-       * consegue rolar.
+       * O popup do Chrome é a única superfície que NÃO tem altura de janela: o
+       * navegador mede a altura do documento e dimensiona a janelinha a partir
+       * dela. Por isso aqui não existe cadeia de `height: 100%` — ela daria
+       * zero. O que o shell precisa é de um TETO, e o teto é o `max-height`
+       * abaixo: é contra ele que a faixa do meio consegue encolher e rolar.
+       *
+       * `overflow: hidden` é seguro aqui (diferente da janela principal):
+       * nada pode ficar fora do alcance, porque o documento nunca é mais alto
+       * que o teto — quem passa do teto é a região de rolagem interna.
        */
       html {
         margin: 0;

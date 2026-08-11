@@ -1,5 +1,6 @@
 /**
- * Design tokens do sistema "Liquid Glass" da TaqCITi — fonte única de cor e efeito.
+ * Design tokens do sistema "Liquid Glass" da TaqCITi — fonte única de cor,
+ * profundidade, forma, ritmo e movimento.
  *
  * As cores existem em DUAS formas de propósito:
  * 1. `--c-*` = canais RGB crus. É o que o Tailwind consome como
@@ -12,46 +13,140 @@
  *
  * O painel dentro do Meet vive num shadow root, e `:root` não atravessa a
  * fronteira do shadow DOM: lá os tokens precisam estar em `:host`. Antes cada
- * lado mantinha a SUA lista, e elas divergiram em silêncio — o vidro do painel
- * do Meet era `0.86/0.93` contra `0.72/0.86` daqui, e `--color-surface`,
- * `--color-text`, `--motion-flow` e `--motion-pop` nem existiam lá. Era essa a
- * causa estrutural de "cada tela parece outro produto".
+ * lado mantinha a SUA lista, e elas divergiram em silêncio — era essa a causa
+ * estrutural de "cada tela parece outro produto".
  *
  * A lista de seletores resolve sem build extra: no documento `:root` casa e
  * `:host` não casa nada; dentro do shadow root é o contrário. Um arquivo, uma
  * paleta, as três superfícies sempre iguais.
  *
- * NÃO declare token de cor em nenhum outro lugar.
+ * NÃO declare token de cor, raio, blur ou sombra em nenhum outro lugar.
  */
 :root,
 :host {
-  --c-background: 7 9 12;
-  --c-surface: 15 19 25;
-  --c-elevated: 21 26 33;
-  --c-primary: 45 219 96;
-  --c-glow: 122 242 165;
-  --c-text: 246 248 250;
-  --c-muted: 150 165 178;
-
-  --color-background: rgb(7 9 12);
-  --color-surface: rgb(15 19 25);
-  --color-primary: rgb(45 219 96);
-  --color-glow: rgb(122 242 165);
-  --color-text: rgb(246 248 250);
-  --color-text-secondary: rgb(150 165 178);
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-soft: rgba(255, 255, 255, 0.06);
-
-  /*
-   * Um vidro só para as três telas. As duas receitas antigas existiam por um
-   * motivo real — o painel do Meet flutua sobre vídeo em movimento e precisava
-   * de mais corpo para o texto ficar legível — mas manter duas era o que fazia
-   * as telas parecerem produtos diferentes. Este valor fica entre as duas,
-   * puxado para o lado denso: sobre vídeo a transcrição continua confortável,
-   * e sobre o fundo aurora da janela principal a diferença não se nota.
+  /* ── Cor ────────────────────────────────────────────────────────────────
+   *
+   * O verde é a identidade e continua sendo o MESMO verde: matiz 142°, a dois
+   * graus do anterior. O que mudou foi a saturação.
+   *
+   * Antes: rgb(45 219 96) = hsl(138 79% 52%). 79% de saturação num painel que
+   * fica aberto a reunião inteira é o que deixava a tela pesada — o olho não
+   * tem onde descansar porque o acento grita tão alto quanto o conteúdo.
+   *
+   * Agora: hsl(142 52% 58%). A mesma cor, com o croma reduzido a dois terços e
+   * a luminância um pouco acima, que é o que devolve legibilidade sobre fundo
+   * escuro sem precisar de brilho. O resto da suavização NÃO vem da cor: vem
+   * das camadas de vidro — o verde quase nunca aparece chapado, aparece
+   * atravessando vidro translúcido (ver `--tint-*` abaixo e `.glass-*` em
+   * glass.css). É esse o mecanismo pedido: mesma identidade, menos agressão.
    */
-  --glass-bg: linear-gradient(155deg, rgba(24, 29, 37, 0.82), rgba(9, 12, 16, 0.9));
-  --glass-blur: 24px;
+  --c-primary: 92 203 133;
+  /** O verde claro dos destaques e do texto sobre superfície tingida. */
+  --c-glow: 144 223 173;
+  /** Verde profundo — o texto que fica SOBRE o verde. Contraste 4.6:1. */
+  --c-primary-deep: 12 49 32;
+
+  --c-background: 8 11 14;
+  --c-surface: 16 20 26;
+  --c-elevated: 22 27 35;
+  --c-text: 244 247 250;
+  --c-muted: 148 163 177;
+  --c-danger: 248 141 141;
+
+  --color-background: rgb(8 11 14);
+  --color-surface: rgb(16 20 26);
+  --color-primary: rgb(92 203 133);
+  --color-glow: rgb(144 223 173);
+  --color-text: rgb(244 247 250);
+  --color-text-secondary: rgb(148 163 177);
+
+  /* ── Traço ──────────────────────────────────────────────────────────────
+   * Borda nunca é linha: é o fio de luz onde a placa de vidro termina. Três
+   * intensidades, da que separa camadas à que só insinua um limite.
+   */
+  --color-border: rgba(255, 255, 255, 0.11);
+  --color-border-soft: rgba(255, 255, 255, 0.06);
+  --color-border-faint: rgba(255, 255, 255, 0.035);
+
+  /* ── Profundidade ───────────────────────────────────────────────────────
+   *
+   * Quatro níveis, do mais fundo ao mais próximo do usuário. Cada um é uma
+   * placa de vidro: quanto mais alto o nível, menos ele deixa passar e mais
+   * luz recolhe na borda. É a escala inteira de translucidez do produto —
+   * nenhum componente inventa o seu `rgba()`.
+   *
+   *   chrome  moldura do app (cabeçalho, barra de controles) — a mais densa,
+   *           porque é ela que precisa segurar texto sobre conteúdo rolando
+   *   raised  cartão/painel que flutua sobre o fundo
+   *   subtle  item de lista, controle secundário
+   *   sunken  campo, trecho rebaixado — vidro que AFUNDA em vez de subir
+   */
+  --glass-chrome: linear-gradient(
+    158deg,
+    rgba(30, 37, 47, 0.72),
+    rgba(11, 15, 20, 0.82)
+  );
+  --glass-raised: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.075),
+    rgba(255, 255, 255, 0.025)
+  );
+  --glass-subtle: rgba(255, 255, 255, 0.045);
+  --glass-sunken: rgba(0, 0, 0, 0.22);
+
+  /** Verde atravessando vidro — como o acento aparece em quase todo lugar. */
+  --tint-primary: rgba(92, 203, 133, 0.14);
+  --tint-primary-strong: rgba(92, 203, 133, 0.22);
+  --tint-danger: rgba(248, 141, 141, 0.12);
+
+  /* ── Blur ───────────────────────────────────────────────────────────────
+   * Blur custa composição: só as superfícies que de fato têm algo atrás
+   * recebem os valores altos. `--blur-lg` é exclusivo da moldura e dos modais.
+   */
+  --blur-sm: 10px;
+  --blur-md: 20px;
+  --blur-lg: 32px;
+  /** Saturação do que passa pelo vidro: é o que impede o blur de acinzentar. */
+  --glass-saturate: 165%;
+
+  /* ── Forma ──────────────────────────────────────────────────────────────
+   * Escala única de raio. Nada no produto tem canto vivo: o menor degrau já
+   * é 10px, e todo raio é múltiplo aproximado do anterior para que curvas
+   * aninhadas pareçam concêntricas em vez de acidentais.
+   */
+  --radius-xs: 10px;
+  --radius-sm: 14px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-full: 999px;
+
+  /* ── Sombra ─────────────────────────────────────────────────────────────
+   * Duas camadas sempre: uma larga e quase invisível que dá o assentamento,
+   * uma curta e mais fechada que dá o contato. Nenhuma sombra preta dura.
+   */
+  --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.32);
+  --shadow-md:
+    0 12px 32px -10px rgba(0, 0, 0, 0.42), 0 3px 10px -4px rgba(0, 0, 0, 0.26);
+  --shadow-lg:
+    0 28px 68px -16px rgba(0, 0, 0, 0.52), 0 8px 22px -8px rgba(0, 0, 0, 0.3);
+
+  /* ── Ritmo ──────────────────────────────────────────────────────────────
+   * O respiro das molduras, em CSS escrito à mão. No JSX o equivalente é a
+   * escala do Tailwind — estes existem para o que não passa por classe.
+   */
+  --space-2: 6px;
+  --space-3: 10px;
+  --space-4: 14px;
+  --space-5: 18px;
+  --space-6: 24px;
+
+  /* ── Movimento ──────────────────────────────────────────────────────────
+   * `flow` para deslocamento e opacidade (desacelera longo, sem quicar),
+   * `pop` só para o que NASCE na tela.
+   */
   --motion-flow: cubic-bezier(0.32, 0.72, 0, 1);
   --motion-pop: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
 }

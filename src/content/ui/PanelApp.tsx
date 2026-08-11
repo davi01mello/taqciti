@@ -234,7 +234,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
             : { maxHeight: dock.geometry.panel.maxHeight }),
           transformOrigin: dock.geometry.panel.origin,
         }}
-        className={`glass fixed z-[2147483001] grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-panel transition-all duration-300 ease-flow ${
+        className={`glass fixed z-[2147483001] grid grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-card transition-all duration-300 ease-flow ${
           open
             ? 'pointer-events-auto scale-100 opacity-100'
             : 'pointer-events-none scale-90 opacity-0'
@@ -340,7 +340,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
           {phase === 'ended' && (
             <div
               style={{ maxHeight: bodyBudget }}
-              className="min-h-0 overflow-y-auto overscroll-contain pt-1"
+              className="scroll-region pt-1"
             >
               {session.segments.length === 0 ? (
                 <EmptyCaptureScreen
@@ -394,10 +394,10 @@ function EndedSummary({
         </p>
       </div>
       <div className="flex gap-2">
-        <Button variant="secondary" className="flex-1 !py-2 text-xs" onClick={onCopy}>
+        <Button variant="secondary" size="compact" className="flex-1" onClick={onCopy}>
           Copiar
         </Button>
-        <Button variant="secondary" className="flex-1 !py-2 text-xs" onClick={onDownload}>
+        <Button variant="secondary" size="compact" className="flex-1" onClick={onDownload}>
           Baixar .txt
         </Button>
       </div>

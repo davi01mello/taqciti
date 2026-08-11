@@ -16,8 +16,11 @@ export default {
         elevated: 'rgb(var(--c-elevated) / <alpha-value>)',
         primary: 'rgb(var(--c-primary) / <alpha-value>)',
         glow: 'rgb(var(--c-glow) / <alpha-value>)',
+        /** O verde escuro que fica SOBRE o verde — texto do botão primário. */
+        'primary-deep': 'rgb(var(--c-primary-deep) / <alpha-value>)',
         foreground: 'rgb(var(--c-text) / <alpha-value>)',
         muted: 'rgb(var(--c-muted) / <alpha-value>)',
+        danger: 'rgb(var(--c-danger) / <alpha-value>)',
         borderc: 'var(--color-border)',
       },
       /**
@@ -40,10 +43,17 @@ export default {
         read: ['13.5px', { lineHeight: '1.6' }],
         title: ['15px', { lineHeight: '1.35', letterSpacing: '-0.01em' }],
       },
+      /**
+       * Uma escala só de raio, vinda dos tokens — nada no produto tem canto
+       * vivo, e curvas aninhadas ficam concêntricas em vez de acidentais.
+       * Os nomes dizem o PAPEL, para que um card nunca receba por engano o
+       * raio de um chip.
+       */
       borderRadius: {
-        card: '24px',
-        panel: '18px',
-        control: '14px',
+        chip: 'var(--radius-xs)',
+        control: 'var(--radius-sm)',
+        panel: 'var(--radius-md)',
+        card: 'var(--radius-lg)',
       },
       fontFamily: {
         sans: [
@@ -60,8 +70,13 @@ export default {
         pop: 'cubic-bezier(0.34, 1.45, 0.64, 1)',
       },
       boxShadow: {
-        soft: '0 12px 40px rgba(0, 0, 0, 0.4)',
-        glow: '0 0 24px rgba(45, 219, 96, 0.35)',
+        sm: 'var(--shadow-sm)',
+        soft: 'var(--shadow-md)',
+        float: 'var(--shadow-lg)',
+        /* Halo quase inexistente: serve para dizer "isto está ativo", não
+           para iluminar a tela. O valor antigo (0.35 do verde saturado) era
+           metade da sensação de brilho excessivo. */
+        glow: '0 0 20px rgba(92, 203, 133, 0.18)',
       },
       keyframes: {
         'fade-slide-in': {

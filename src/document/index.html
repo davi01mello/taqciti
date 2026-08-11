@@ -5,14 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TaqCITi — Transcrição</title>
     <style>
+      /* Mesma cadeia de altura da janela principal — ver o comentário longo
+         em src/sidepanel/index.html sobre por que os três elos precisam de
+         altura definida e por que a válvula de escape fica no <html>. */
       html,
       body,
       #root {
         height: 100%;
       }
+      html {
+        overflow: auto;
+        overscroll-behavior: none;
+      }
       body {
         margin: 0;
-        overflow: hidden;
+        min-width: 320px;
       }
     </style>
   </head>

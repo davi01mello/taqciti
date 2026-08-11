@@ -39,16 +39,18 @@ export function OptionCard({
       type="button"
       onClick={onClick}
       aria-pressed={role === 'nav' ? undefined : selected}
-      className={`group flex w-full items-center gap-3 rounded-control px-4 py-3.5 text-left transition-all duration-200 ease-flow active:scale-[0.985] motion-reduce:transition-none ${
+      className={`group flex w-full items-center gap-3 rounded-panel px-4 py-3.5 text-left text-foreground transition-all duration-200 ease-flow active:scale-[0.985] ${
         selected
-          ? 'border border-primary/40 bg-primary/12 text-foreground'
-          : 'border border-white/10 bg-white/[0.035] text-foreground hover:border-white/20 hover:bg-white/[0.07]'
+          ? 'bg-primary/12 shadow-[inset_0_0_0_1px_rgb(var(--c-primary)/0.38)]'
+          : 'glass-subtle hover:-translate-y-px hover:bg-white/[0.075]'
       }`}
     >
       {role === 'multi' && (
         <span
-          className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[6px] border transition-colors duration-200 ease-flow ${
-            selected ? 'border-primary bg-primary text-[#032b10]' : 'border-white/25'
+          className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[7px] border transition-colors duration-200 ease-flow ${
+            selected
+              ? 'border-primary/80 bg-primary/85 text-primary-deep'
+              : 'border-white/25'
           }`}
         >
           {selected && <Icon name="check" size={12} />}

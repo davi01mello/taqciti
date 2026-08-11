@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { readLocal } from '@/shared/services/storage';
+import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
 import { Wordmark } from '@/shared/ui/Wordmark';
@@ -59,14 +60,14 @@ function OtherDocumentTypesModal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6 backdrop-blur-[6px] animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Outros tipos de documento"
     >
       <div
-        className="glass w-full max-w-sm rounded-card p-5 shadow-soft animate-entry"
+        className="glass w-full max-w-sm rounded-card p-5 shadow-float animate-entry"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-3 text-sm font-semibold">Outros tipos de documento</h2>
@@ -133,7 +134,7 @@ export function DocumentPage() {
 
   if (state.status === 'loading') {
     return (
-      <main className="grid h-[100dvh] place-items-center">
+      <main className="grid h-full place-items-center">
         <p className="text-body text-muted">Carregando...</p>
       </main>
     );
@@ -141,7 +142,7 @@ export function DocumentPage() {
 
   if (state.status === 'not-found') {
     return (
-      <main className="grid h-[100dvh] place-items-center px-6 text-center">
+      <main className="grid h-full place-items-center px-6 text-center">
         <div>
           <h1 className="mb-1 text-title font-bold">Reunião não encontrada</h1>
           <p className="max-w-sm text-body text-muted">
@@ -178,8 +179,8 @@ export function DocumentPage() {
       : 'Outros';
 
   return (
-    <div className="mx-auto flex h-[100dvh] min-h-0 max-w-[760px] flex-col overflow-hidden">
-      <header className="glass shrink-0 rounded-b-panel px-6 py-5">
+    <AppShell className="mx-auto max-w-[760px]" header={
+      <header className="glass rounded-b-card px-6 py-5">
         <Wordmark height={40} className="mb-4" />
 
         <h1 className="text-title font-bold">{record.title}</h1>
@@ -202,13 +203,14 @@ export function DocumentPage() {
           </Button>
         </div>
       </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-4">
+    }>
+      {/* `scroll={false}` na transcrição: quem rola é esta região, e só ela. */}
+      <div className="scroll-region flex-1 px-6 pb-8 pt-4">
         <TranscriptView
           segments={record.segments}
           selfName={hostName(record.participants)}
           emptyMessage="Nenhuma fala foi capturada nesta reunião."
-          className="!flex-none"
+          scroll={false}
         />
 
         {generation.status === 'success' && <GeneratedDocumentResult result={generation} />}
@@ -218,7 +220,7 @@ export function DocumentPage() {
             <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted">
               Documento gerado — {DOCUMENT_TYPE_LABELS[generation.documentType]}
             </p>
-            <p className="text-body text-red-300">{generation.message}</p>
+            <p className="text-body text-danger">{generation.message}</p>
           </div>
         )}
       </div>
@@ -229,6 +231,6 @@ export function DocumentPage() {
         onClose={() => setOthersOpen(false)}
         onSelect={generate}
       />
-    </div>
+    </AppShell>
   );
 }

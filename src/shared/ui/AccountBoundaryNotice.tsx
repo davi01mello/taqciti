@@ -16,7 +16,7 @@ export function AccountBoundaryNotice({
   return (
     <p
       role="status"
-      className={`${spacing} rounded-control border border-primary/20 bg-primary/8 leading-relaxed text-muted`}
+      className={`${spacing} rounded-control bg-primary/[0.07] leading-relaxed text-muted shadow-[inset_0_0_0_1px_rgb(var(--c-primary)/0.18)]`}
     >
       Conta do Meet: <strong className="font-semibold text-foreground">{boundary.meet.email}</strong>
     </p>

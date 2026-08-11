@@ -28,10 +28,21 @@ export function PanelHeader({ session, phase }: PanelHeaderProps) {
           : { label: 'Reconectando', dot: 'bg-amber-400', pulse: true };
 
   return (
-    <header className="glass sticky top-0 z-10 rounded-b-panel px-4 pb-3.5 pt-4">
+    /*
+     * Sem `glass` e sem `sticky`.
+     *
+     * O vidro agora é da MOLDURA inteira (ver LiveScreen): antes o cabeçalho
+     * tinha o seu, e a seção de participantes logo abaixo não — a placa de
+     * vidro terminava no meio da faixa fixa, com a lista de presentes apoiada
+     * direto no fundo. Duas superfícies onde o olho lê uma só.
+     *
+     * O `sticky` era inerte: esta faixa vive na linha fixa do AppShell, que já
+     * não rola. Só criava um contexto de empilhamento a mais.
+     */
+    <header className="px-4 pb-3 pt-4">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <Wordmark height={23} />
-        <span className="glass-lite inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption font-semibold tabular-nums text-foreground/90">
+        <span className="glass-subtle inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-caption font-semibold tabular-nums text-foreground/90">
           <span
             className={`h-1.5 w-1.5 rounded-full ${status.dot} ${status.pulse ? 'animate-pulse-dot' : ''}`}
           />

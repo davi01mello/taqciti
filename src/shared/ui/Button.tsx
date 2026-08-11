@@ -1,40 +1,85 @@
 /**
- * Botão do design system: primário (verde com glow), secundário (glass),
- * ghost e danger. Sempre arredondado. Componente puro — zero lógica de negócio.
+ * O botão do design system — um objeto de vidro sobre a interface.
+ *
+ * ── O que mudou, e por quê ─────────────────────────────────────────────────
+ *
+ * O primário era um retângulo de verde CHAPADO (`from-#2fd267 to-#17a94a`), e
+ * era ele, sozinho, que carregava a maior parte da sensação de saturação do
+ * produto: um bloco sólido do verde mais forte da paleta, presente na base de
+ * praticamente toda tela, a reunião inteira.
+ *
+ * A correção não foi trocar o verde por outro — a identidade é o verde. Foi
+ * parar de aplicá-lo como tinta e passar a aplicá-lo como VIDRO: o `.glass-tint`
+ * tem alpha abaixo de 1, desfoca o que está atrás e recolhe um brilho na quina
+ * de cima. A cor continua sendo a mesma família, o botão continua sendo a
+ * única coisa colorida da tela — mas ele deixa o fundo atravessar, e é isso
+ * que tira o peso sem tirar a hierarquia.
+ *
+ * ── Estados ────────────────────────────────────────────────────────────────
+ *
+ * hover     sobe 1px e clareia de leve — o vidro "se aproxima da luz"
+ * active    volta ao lugar e afunda 1% — devolve a sensação de toque físico
+ * disabled  dessatura ALÉM de baixar a opacidade: só a opacidade deixava o
+ *           verde da marca ainda parecendo um botão pronto para clicar
+ * focus     anel visível sempre, inclusive por cima do vidro
  */
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'default' | 'compact';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
-  children: ReactNode;
+  /**
+   * `compact` para ações auxiliares — é o que dá hierarquia dentro de uma
+   * fileira de botões. Antes cada chamada resolvia isso com
+   * `className="!min-h-[38px] text-xs"`, e o "auxiliar" tinha meia dúzia de
+   * alturas diferentes pelo produto.
+   */
+  size?: Size;
+  children?: ReactNode;
 }
 
-// Desabilitado precisa PARECER desabilitado: só baixar a opacidade deixava o
-// verde da marca ainda parecendo um botão pronto para clicar. Dessaturar
-// resolve de vez a ambiguidade.
 const BASE =
-  'inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ' +
-  'transition-all duration-200 ease-flow ' +
+  'inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold ' +
+  'transition-[transform,filter,background-color,box-shadow] duration-200 ease-flow ' +
   'disabled:opacity-45 disabled:grayscale disabled:pointer-events-none ' +
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/60';
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary/70';
 
-const VARIANTS: Record<Variant, string> = {
-  // Sem halo colorido: o botão é uma superfície, não uma lâmpada.
-  primary:
-    'bg-gradient-to-b from-[#2fd267] to-[#17a94a] text-[#032b10] ' +
-    'shadow-[0_4px_12px_-4px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.3)] ' +
-    'hover:-translate-y-px hover:brightness-[1.08] ' +
-    'active:translate-y-0 active:brightness-95',
-  secondary: 'glass-lite text-foreground hover:bg-white/10 hover:-translate-y-px',
-  ghost: 'text-muted hover:text-foreground hover:bg-white/5',
-  danger: 'bg-red-500/15 text-red-300 border border-red-400/20 hover:bg-red-500/25',
+const SIZES: Record<Size, string> = {
+  /* 44px é o alvo de toque mínimo; vale para a ação principal de cada tela. */
+  default: 'min-h-[44px] px-4 py-2 text-sm',
+  compact: 'min-h-[34px] px-3 py-1.5 text-xs',
 };
 
-export function Button({ variant = 'secondary', children, ...rest }: ButtonProps) {
+const VARIANTS: Record<Variant, string> = {
+  primary:
+    'glass-tint text-primary-deep ' +
+    'hover:-translate-y-px hover:brightness-[1.06] ' +
+    'active:translate-y-0 active:scale-[0.99] active:brightness-95',
+  secondary:
+    'glass-subtle text-foreground ' +
+    'hover:-translate-y-px hover:bg-white/[0.085] ' +
+    'active:translate-y-0 active:scale-[0.99]',
+  ghost:
+    'text-muted hover:bg-white/[0.06] hover:text-foreground active:scale-[0.99]',
+  danger:
+    'text-danger [background:var(--tint-danger)] ' +
+    'shadow-[inset_0_0_0_1px_rgba(248,141,141,0.18)] ' +
+    'hover:brightness-125 active:scale-[0.99]',
+};
+
+export function Button({
+  variant = 'secondary',
+  size = 'default',
+  children,
+  ...rest
+}: ButtonProps) {
   return (
-    <button {...rest} className={`${BASE} ${VARIANTS[variant]} ${rest.className ?? ''}`}>
+    <button
+      {...rest}
+      className={`${BASE} ${SIZES[size]} ${VARIANTS[variant]} ${rest.className ?? ''}`}
+    >
       {children}
     </button>
   );

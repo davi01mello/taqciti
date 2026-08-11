@@ -1,21 +1,25 @@
 /**
  * Folha de estilo do painel injetado no Meet.
  *
- * É o MESMO Tailwind e os MESMOS tokens da janela principal e do popup: o painel
- * dentro da reunião deixou de ter um CSS próprio (era daí que vinha "página
- * diferente de página"). Vive dentro de um shadow root, então:
+ * É o MESMO Tailwind, os MESMOS tokens e — desde agora — a MESMA folha de
+ * vidro da janela principal e do popup. Este arquivo não tem paleta nem
+ * receita de vidro próprias: quando tinha, as duas cópias divergiram e as
+ * telas passaram a ter vidros de opacidade diferente. Aqui ficou só o que é
+ * de fato específico de viver dentro de um shadow root:
  *
- * - os tokens vêm de tokens.css, que declara em `:root, :host` de uma vez só
- *   (o `:root` da página não atravessa a fronteira do shadow DOM). Este
- *   arquivo NÃO tem paleta própria: quando tinha, ela divergiu da do side
- *   panel e as duas telas passaram a ter vidros de opacidade diferente;
- * - o reset do Tailwind fica confinado aqui e não vaza para o Meet;
- * - nada daqui pode vazar para a página, e nada da página entra.
+ * - o reset do Tailwind, confinado aqui, que não vaza para o Meet;
+ * - o `all: initial` no `:host`, que barra a herança de estilo da página;
+ * - a barra de rolagem, mais fina que a da janela principal porque o painel
+ *   é estreito e flutua sobre vídeo.
+ *
+ * Os tokens vêm de tokens.css, que declara em `:root, :host` de uma vez só
+ * (o `:root` da página não atravessa a fronteira do shadow DOM).
  *
  * Importada como texto (`?inline`) e instalada via adoptedStyleSheets.
  */
 
 @import '../../shared/config/tokens.css';
+@import '../../shared/config/glass.css';
 
 @tailwind base;
 @tailwind components;
@@ -24,6 +28,7 @@
 @layer base {
   :host {
     all: initial;
+    color-scheme: dark;
     font-family:
       -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, 'Segoe UI', sans-serif;
     color: rgb(var(--c-text));
@@ -31,81 +36,52 @@
   }
 
   ::-webkit-scrollbar {
-    width: 5px;
+    width: 8px;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.14);
-    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.15);
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: var(--radius-full);
   }
-  ::-webkit-scrollbar-track {
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.26);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
     background: transparent;
   }
+
   ::selection {
-    background: rgba(45, 219, 96, 0.3);
+    background: var(--tint-primary-strong);
   }
 
   :where(button, input, textarea, select, [tabindex]):focus-visible {
-    outline: 2px solid rgb(var(--c-primary) / 0.65);
+    outline: 2px solid rgb(var(--c-primary) / 0.7);
     outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer components {
-  /*
-   * Vidro em camadas: blur + saturação, fio de luz de 1px em gradiente
-   * (::before) e grão fino (::after) que tira o aspecto plástico do blur puro.
-   * Idêntico ao da janela principal — é literalmente a mesma receita.
-   */
-  .glass {
-    position: relative;
-    isolation: isolate;
-    background: var(--glass-bg);
-    backdrop-filter: blur(var(--glass-blur)) saturate(180%) brightness(1.06);
-    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%) brightness(1.06);
-    box-shadow:
-      0 24px 60px -12px rgba(0, 0, 0, 0.55),
-      0 6px 20px -6px rgba(0, 0, 0, 0.35);
-  }
-
-  .glass::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      160deg,
-      rgba(255, 255, 255, 0.3),
-      rgba(255, 255, 255, 0.08) 30%,
-      rgba(255, 255, 255, 0.02) 55%,
-      rgba(255, 255, 255, 0.12)
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .glass::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.05;
-    mix-blend-mode: overlay;
-    pointer-events: none;
-  }
-
-  .glass-lite {
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 0 0 1px var(--color-border-soft);
+  /* Idêntica à da janela principal — ver o comentário longo em global.css
+     sobre por que o `scrollbar-gutter` é o que resolve o salto lateral. */
+  .scroll-region {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    min-height: 0;
   }
 }
