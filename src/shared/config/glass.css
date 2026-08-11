@@ -155,6 +155,68 @@
 }
 
 /*
+ * REFLEXO — a poça de luz que corre por dentro do vidro sob o cursor.
+ *
+ * A intenção é "uma fonte de luz verde sendo refletida pela superfície", e não
+ * um botão que acende. Três decisões sustentam isso:
+ *
+ *   1. o reflexo é INTERNO. Vive numa camada presa ao box do botão, com o raio
+ *      herdado — não há `box-shadow` colorido escapando para fora, que é o que
+ *      leria como neon;
+ *   2. ele é uma POÇA, não uma lavagem: um gradiente radial de raio fixo em
+ *      pixels, que apaga bem antes da borda. Raio em porcentagem cobriria o
+ *      botão inteiro num botão largo, e aí o efeito deixa de ser "luz num
+ *      ponto" e vira "ficou mais verde";
+ *   3. a opacidade é baixa e some por transição — o vidro continua translúcido
+ *      o tempo todo, a cor da marca não muda, só ganha um realce local.
+ *
+ * A posição vem de `--sheen-x` / `--sheen-y`, que o Button escreve no elemento
+ * a cada movimento do ponteiro (propriedade customizada herda, então a camada
+ * lê de graça). Sem ponteiro — foco por teclado — os valores padrão deixam a
+ * luz no centro.
+ *
+ * `z-index: -1` dentro do `isolate` do botão: pinta ACIMA do fundo do vidro e
+ * ABAIXO do rótulo, que é exatamente onde um reflexo de superfície mora. Sem o
+ * `isolate` esta camada escaparia para trás do ancestral com contexto de
+ * empilhamento (a moldura de vidro da tela) e sumiria.
+ */
+.sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--motion-flow);
+}
+
+/* O caso comum: vidro neutro recebendo luz verde. */
+.sheen-green {
+  background: radial-gradient(
+    72px 72px at var(--sheen-x, 50%) var(--sheen-y, 50%),
+    rgba(92, 203, 133, 0.26),
+    rgba(92, 203, 133, 0.09) 46%,
+    transparent 72%
+  );
+}
+
+/*
+ * O primário JÁ é verde. Uma luz verde sobre superfície verde não lê como
+ * reflexo — lê como "o botão ficou mais verde no hover", que é precisamente o
+ * que se quer evitar. Sobre o vidro tingido, a mesma fonte de luz se comporta
+ * como um realce quase branco com um resto de cor: é assim que uma luz colorida
+ * incide numa superfície da própria cor.
+ */
+.sheen-light {
+  background: radial-gradient(
+    72px 72px at var(--sheen-x, 50%) var(--sheen-y, 50%),
+    rgba(226, 255, 238, 0.3),
+    rgba(180, 240, 205, 0.1) 46%,
+    transparent 72%
+  );
+}
+
+/*
  * Vidro TINGIDO de verde — a peça central da suavização do acento.
  *
  * O botão primário antes era um bloco de verde chapado, e era ele que
