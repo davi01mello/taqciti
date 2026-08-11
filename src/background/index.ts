@@ -7,7 +7,7 @@
  * nenhum backend, sem autenticação de produto, sem diagnóstico técnico — só
  * transcrição.
  */
-import { PROVIDER_GOOGLE_MEET } from '@/shared/config/constants';
+import { PROVIDER_GOOGLE_MEET, STORAGE_KEYS } from '@/shared/config/constants';
 import { onMessage } from '@/shared/services/messaging';
 import { logger } from '@/shared/services/log';
 import {
@@ -19,14 +19,76 @@ import {
 import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
-import { openPanelInTab } from './injectPanel';
+import { openPanelInTab, canInject, panelScriptFiles } from './injectPanel';
 import { openSidePanel } from './sidePanel';
 import { forgetPanelTab } from './panelTabs';
+import {
+  dropPersistentAccess,
+  hasPersistentAccess,
+  requestPersistentAccess,
+  syncPersistentInjection,
+} from './persistentPanel';
 
 const ready: Promise<void> = migrateLocalStorage()
   .then(() => hydrate())
   .then(() => recoverInterruptedMeetings())
   .catch((error) => logger.error('falha na inicialização', error));
+
+/*
+ * O registro da injeção persistente é reconciliado a cada boot do worker, e
+ * não só quando algo muda. O service worker do MV3 morre e renasce o tempo
+ * todo, e a permissão pode ter sido revogada pelo usuário direto na página de
+ * extensões do Chrome, sem evento nenhum chegar aqui enquanto ele dormia.
+ */
+void syncPersistentInjection();
+
+chrome.permissions.onAdded.addListener(() => void syncPersistentInjection());
+chrome.permissions.onRemoved.addListener(() => void syncPersistentInjection());
+
+// Fechar o painel desregistra a injeção; reabrir registra de volta. Storage é
+// o único canal: quem muda a presença é o content script, noutro processo.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && STORAGE_KEYS.prefs in changes) {
+    void syncPersistentInjection();
+  }
+});
+
+/**
+ * Primeira execução depois de instalar (ou atualizar).
+ *
+ * Content script declarado só entra em página que CARREGA depois da
+ * instalação: as abas do Meet já abertas ficariam sem o TaqCITi até alguém
+ * recarregar à mão, o que parece extensão quebrada logo no primeiro contato.
+ * `host_permissions` do Meet — que não custa aviso nenhum, porque o
+ * `content_scripts` já o produz — é o que permite alcançá-las agora.
+ *
+ * O `await ready` não é decoração: é o que garante que migrações e estado
+ * padrão existam ANTES de qualquer painel pedir estado. Sem isso a primeira
+ * execução seria uma corrida entre a inicialização e a primeira mensagem.
+ */
+chrome.runtime.onInstalled.addListener(() => {
+  void (async () => {
+    await ready;
+    await syncPersistentInjection();
+
+    const files = panelScriptFiles();
+    if (files.length === 0) return;
+
+    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+    await Promise.all(
+      tabs.map(async (tab) => {
+        if (tab.id === undefined || !canInject(tab.url)) return;
+        try {
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files });
+        } catch (error) {
+          // Aba descartada, ou num estado que recusa injeção. Recarregar
+          // resolve, e insistir aqui não.
+          logger.error('nao foi possivel alcancar uma aba do Meet ja aberta', error);
+        }
+      }),
+    );
+  })();
+});
 
 /*
  * O clique no ícone abre o painel NA PÁGINA em que a pessoa está — é isto que
@@ -130,6 +192,17 @@ onMessage((message, sender) => {
         return { ok: opened };
       }
       // ---- UIs (painel lateral / painel injetado) ----
+      case 'ui/persistence/status':
+        return { enabled: await hasPersistentAccess() };
+      case 'ui/persistence/set': {
+        if (!message.enabled) {
+          await dropPersistentAccess();
+          return { enabled: false };
+        }
+        // Pode falhar por falta de gesto do usuário: o clique aconteceu na
+        // página e virou mensagem. O painel precisa saber para poder avisar.
+        return { enabled: await requestPersistentAccess() };
+      }
       case 'ui/getState':
         return getState();
       case 'ui/pause':

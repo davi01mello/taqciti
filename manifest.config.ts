@@ -64,6 +64,19 @@ export default defineManifest({
   // continua limpa, que é a razão de nunca aparecer `<all_urls>` aqui.
   permissions: ['storage', 'sidePanel', 'scripting', 'activeTab'],
 
+  // Já coberto pelo aviso que o `content_scripts` acima produz — declarar aqui
+  // não acrescenta NENHUM aviso novo na instalação, e habilita duas coisas que
+  // o content script declarado sozinho não dá: injetar nas abas do Meet que já
+  // estavam abertas quando a extensão foi instalada (senão a primeira execução
+  // exige recarregar a aba à mão), e falar com elas pelo `chrome.tabs`.
+  host_permissions: ['https://meet.google.com/*'],
+
+  // O painel sobreviver à navegação exige acesso permanente ao host, e
+  // `activeTab` é revogado exatamente na navegação. Como OPCIONAL, a tela de
+  // instalação continua limpa e quem quer a persistência autoriza uma vez, de
+  // dentro do painel. Ver src/background/persistentPanel.ts.
+  optional_host_permissions: ['<all_urls>'],
+
   // Conteúdo injetado só alcança arquivo da extensão declarado aqui — e o
   // loader do @crxjs faz `import()` dos chunks do painel, então eles precisam
   // valer na aba onde o painel for parar. Como o painel agora abre em qualquer

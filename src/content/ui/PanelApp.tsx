@@ -50,6 +50,7 @@ import type {
 } from '@/shared/types/domain';
 import { EXPECTED_CAPTION_LANGUAGE } from '@/shared/config/constants';
 import { useHistory } from '@/features/history/useHistory';
+import { usePlatform } from '@/shared/platform/context';
 import { HistoryCard } from '@/sidepanel/components/HistoryCard';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
@@ -103,12 +104,6 @@ interface PanelAppProps {
   ctx: PanelContext;
   prefs: PanelPrefs;
   callbacks: PanelCallbacks;
-  /**
-   * Nasce aberto em vez de recolhido. No Meet o painel aparece sozinho junto
-   * com a página e começar aberto seria invasivo; fora do Meet ele só existe
-   * porque alguém clicou no ícone pedindo por ele.
-   */
-  defaultOpen?: boolean;
 }
 
 type Route = { kind: 'auto' } | { kind: 'history' } | { kind: 'record'; id: string };
@@ -128,15 +123,16 @@ const PANEL_HEIGHTS: Record<PanelSize, number> = {
 };
 const SIZE_ORDER: PanelSize[] = ['compact', 'regular', 'tall'];
 
-export function PanelApp({
-  state,
-  ctx,
-  prefs,
-  callbacks,
-  defaultOpen = false,
-}: PanelAppProps) {
-  const [expanded, setExpanded] = useState(defaultOpen);
-  const [route, setRoute] = useState<Route>({ kind: 'auto' });
+export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
+  /*
+   * Presença e rota vivem nas PREFERÊNCIAS, não aqui. A navegação da página
+   * desmonta este componente inteiro; o que precisa atravessar isso tem que
+   * estar no storage antes de a página descarregar. Ver `PanelPrefs.presence`.
+   */
+  const expanded = prefs.presence === 'open';
+  const route = prefs.route;
+  const setRoute = (next: Route) => callbacks.onPrefsChange({ route: next });
+
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
@@ -177,10 +173,23 @@ export function PanelApp({
    * extensão — passa por aqui, senão um deles esqueceria de limpar `dismissed`
    * e o painel abriria invisível.
    */
-  const open = useCallback(() => {
-    setExpanded(true);
-    if (prefs.dismissed) callbacks.onPrefsChange({ dismissed: false });
-  }, [prefs.dismissed, callbacks]);
+  /*
+   * As três transições de presença, estáveis entre renders porque efeitos
+   * dependem delas. Todas passam pelo mesmo `onPrefsChange`: gravar é o que
+   * faz a mudança sobreviver à navegação da página.
+   */
+  const open = useCallback(
+    () => callbacks.onPrefsChange({ presence: 'open' }),
+    [callbacks],
+  );
+  const minimize = useCallback(
+    () => callbacks.onPrefsChange({ presence: 'minimized' }),
+    [callbacks],
+  );
+  const close = useCallback(
+    () => callbacks.onPrefsChange({ presence: 'closed' }),
+    [callbacks],
+  );
 
   // Relógio: só corre enquanto a reunião está viva.
   const [now, setNow] = useState(() => Date.now());
@@ -211,12 +220,26 @@ export function PanelApp({
      */
     if (phase === 'idle') return;
 
-    setRoute({ kind: 'auto' });
-    if (phase === 'ended') setExpanded(true);
-    if (prefs.dismissed) callbacks.onPrefsChange({ dismissed: false });
-    // `prefs.dismissed` fora das dependências de propósito: o efeito reage à
-    // MUDANÇA DE FASE, e reexecutá-lo quando as preferências chegam do storage
-    // jogaria a rota de volta para `auto` no meio da navegação do usuário.
+    /*
+     * Uma reunião acontecendo é mais urgente do que a tela em que a pessoa
+     * estava, e mais forte do que um "fechado" anterior: `presence` volta pelo
+     * menos para a cápsula, e o fim da reunião abre a janela para a tela
+     * pós-reunião aparecer sozinha, em vez de ficar escondida atrás dela.
+     */
+    callbacks.onPrefsChange({
+      route: { kind: 'auto' },
+      presence:
+        phase === 'ended'
+          ? 'open'
+          : // "No mínimo a cápsula", e não "exatamente a cápsula": uma reunião
+            // começando não pode RECOLHER um painel que já estava aberto.
+            prefs.presence === 'closed'
+            ? 'minimized'
+            : prefs.presence,
+    });
+    // As preferências ficam fora das dependências de propósito: o efeito reage
+    // à MUDANÇA DE FASE, e reexecutá-lo a cada gravação de preferência
+    // desfaria a navegação do usuário no quadro seguinte.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
@@ -224,18 +247,18 @@ export function PanelApp({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && expanded) {
-        setExpanded(false);
+        minimize();
         return;
       }
       if (event.altKey && event.shiftKey && event.code === 'KeyT') {
         event.preventDefault();
-        if (expanded) setExpanded(false);
+        if (expanded) minimize();
         else open();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [expanded, open]);
+  }, [expanded, open, minimize]);
 
   // Clicar no ícone numa aba que já tem o painel montado: ver PANEL_OPEN_EVENT.
   // Também é o caminho que desfaz o "fechado" — daí não bastar `setExpanded`.
@@ -290,7 +313,7 @@ export function PanelApp({
    * resíduo — que é a diferença entre fechar e minimizar. Voltar exige o ícone
    * da extensão ou uma reunião nova.
    */
-  if (prefs.dismissed) return null;
+  if (prefs.presence === 'closed') return null;
 
   const sizeIndex = SIZE_ORDER.indexOf(prefs.size);
   const resize = (delta: number) => {
@@ -394,11 +417,8 @@ export function PanelApp({
           }}
           onGrow={() => resize(1)}
           onShrink={() => resize(-1)}
-          onMinimize={() => setExpanded(false)}
-          onClose={() => {
-            setExpanded(false);
-            callbacks.onPrefsChange({ dismissed: true });
-          }}
+          onMinimize={minimize}
+          onClose={close}
           onRename={(title) => {
             callbacks.onRename(title);
             showToast('Renomeada');
@@ -710,13 +730,14 @@ function HistoryList({
       )}
 
       {/*
-       * O modo legado. Continua existindo, e num lugar estável: o histórico é a
-       * tela de repouso do painel, então este é o ponto que está sempre a um
-       * clique. Some das outras rotas de propósito — durante uma gravação não é
-       * a saída que se procura.
+       * O rodapé da tela de repouso. Duas coisas que precisam estar sempre a um
+       * clique e não pertencem a nenhuma reunião: o modo legado, que continua
+       * existindo, e a persistência entre páginas. Somem das outras rotas de
+       * propósito — durante uma gravação não são o que se procura.
        */}
       {onOpenSidePanel && (
-        <div className="mt-2 shrink-0 border-t border-white/[0.06] pt-2">
+        <div className="mt-2 shrink-0 space-y-0.5 border-t border-white/[0.06] pt-2">
+          <PersistenceToggle />
           <Button
             variant="ghost"
             size="compact"
@@ -729,6 +750,71 @@ function HistoryList({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "Manter em todas as páginas" — o interruptor da permissão que faz o painel
+ * sobreviver à navegação.
+ *
+ * Fica desligado por padrão porque a permissão é opcional de propósito: a
+ * instalação não pede nada, e só quem quer a persistência autoriza. Ver
+ * src/background/persistentPanel.ts para o porquê dessa escolha.
+ *
+ * O aviso de falha não é defensivo à toa. `chrome.permissions.request` exige um
+ * gesto do usuário, e este clique acontece na PÁGINA — vira mensagem até o
+ * background, e o gesto pode não atravessar, exatamente como não atravessa para
+ * `chrome.sidePanel.open`. Quando não atravessa, o Chrome recusa em silêncio, e
+ * sem este texto o interruptor pareceria simplesmente não funcionar.
+ */
+function PersistenceToggle() {
+  const platform = usePlatform();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [refused, setRefused] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void platform
+      .send<{ enabled: boolean }>({ type: 'ui/persistence/status' })
+      .then((result) => {
+        if (live) setEnabled(result?.enabled ?? false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [platform]);
+
+  if (enabled === null) return null;
+
+  const toggle = () => {
+    setRefused(false);
+    void platform
+      .send<{ enabled: boolean }>({ type: 'ui/persistence/set', enabled: !enabled })
+      .then((result) => {
+        const now = result?.enabled ?? false;
+        setEnabled(now);
+        if (!enabled && !now) setRefused(true);
+      });
+  };
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="compact"
+        className="w-full justify-start"
+        onClick={toggle}
+      >
+        <Icon name={enabled ? 'check' : 'plus'} size={14} />
+        {enabled ? 'Mantendo em todas as páginas' : 'Manter em todas as páginas'}
+      </Button>
+      {refused && (
+        <p className="px-3 pb-1 text-micro leading-relaxed text-muted">
+          O Chrome recusou o pedido. Autorize pela página de extensões, em
+          &quot;Acesso ao site&quot;.
+        </p>
+      )}
+    </>
   );
 }
 

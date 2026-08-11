@@ -25,7 +25,7 @@ import { PlatformProvider, usePlatform } from '@/shared/platform/context';
 import { extensionPlatform } from '@/shared/platform/extension';
 import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
 import { getMountPoint } from './ui/mount';
-import { loadPanelPrefs, savePanelPrefs } from './prefs';
+import { loadPanelPrefs, savePanelPrefs } from '@/features/panel/prefs';
 
 /*
  * Tudo aqui é a resposta a "esta aba é o Meet?" — e não é.
@@ -90,8 +90,6 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
       ctx={AWAY_FROM_MEET}
       prefs={prefs}
       callbacks={callbacks}
-      /* Veio de um clique no ícone: a pessoa pediu o painel, não a cápsula. */
-      defaultOpen
     />
   );
 }
@@ -102,8 +100,14 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
  * As preferências são lidas ANTES de montar, ao contrário do que acontece no
  * Meet: lá a cápsula precisa aparecer o quanto antes e uma correção de posição
  * logo depois passa despercebida no meio do carregamento da página. Aqui o
- * painel nasce por um clique, numa página parada — montar na borda padrão e
- * pular para a borda salva no quadro seguinte seria visível.
+ * painel nasce por um clique, numa página parada — montar na posição padrão e
+ * pular para a salva no quadro seguinte seria visível.
+ *
+ * Não há flag de "abriu por clique" aqui, de propósito. Quem sabe o motivo da
+ * injeção é o background: no clique do ícone ele grava `presence: 'open'` ANTES
+ * de injetar, e na reinjeção depois de navegar não grava nada. Os dois casos
+ * chegam aqui como a mesma coisa — ler o que está no storage — e é isso que faz
+ * a janela voltar exatamente como estava depois de trocar de página.
  */
 export function startStandalonePanel(): void {
   void loadPanelPrefs().then((prefs) => {

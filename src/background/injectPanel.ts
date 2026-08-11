@@ -13,6 +13,7 @@
  * módulo, nem configuração de `entryFileNames` no Vite.
  */
 import { logger } from '@/shared/services/log';
+import { patchPanelPrefs } from '@/features/panel/prefs';
 import { rememberPanelTab } from './panelTabs';
 
 /** Hosts que servem a Chrome Web Store: o Chrome barra injeção neles. */
@@ -61,6 +62,17 @@ export async function openPanelInTab(tab: chrome.tabs.Tab): Promise<boolean> {
     logger.error('manifesto sem content script: nada para injetar');
     return false;
   }
+
+  /*
+   * A presença vai para o storage ANTES de injetar, e é isso que diz ao painel
+   * que ele deve nascer aberto. É também o que desfaz um "fechado" anterior.
+   *
+   * Gravar aqui, e não passar uma flag para o script, é o que mantém os dois
+   * motivos de injeção distinguíveis sem o content script precisar saber de
+   * nada: o clique no ícone grava, a reinjeção automática depois de navegar
+   * não grava, e o painel só lê o que encontrar.
+   */
+  await patchPanelPrefs({ presence: 'open' });
 
   try {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files });

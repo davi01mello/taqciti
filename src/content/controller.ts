@@ -25,7 +25,7 @@ import {
 import { onMessage, sendMessage } from '@/shared/services/messaging';
 import { meetingStateSchema } from '@/shared/types/messages';
 import { setNativeCaptionsHidden } from './captionsVisibility';
-import { loadPanelPrefs, savePanelPrefs } from './prefs';
+import { loadPanelPrefs, savePanelPrefs } from '@/features/panel/prefs';
 import { PlatformProvider } from '@/shared/platform/context';
 import { extensionPlatform } from '@/shared/platform/extension';
 import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';

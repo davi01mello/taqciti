@@ -145,6 +145,10 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
    *  Pode não abrir: o gesto do usuário não atravessa a mensageria, e
    *  `chrome.sidePanel.open` exige um. Ver src/background/sidePanel.ts. */
   z.object({ type: z.literal('panel/openRequest') }),
+  /** O painel sobrevive à navegação? (permissão de host opcional concedida) */
+  z.object({ type: z.literal('ui/persistence/status') }),
+  /** Pede ou revoga essa permissão. Ver src/background/persistentPanel.ts. */
+  z.object({ type: z.literal('ui/persistence/set'), enabled: z.boolean() }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),
   z.object({ type: z.literal('ui/resume') }),

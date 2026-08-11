@@ -202,6 +202,23 @@ export interface MeetingRecord {
  */
 export type PanelSize = 'compact' | 'regular' | 'tall';
 
+/**
+ * `closed` e `minimized` são estados DIFERENTES, e a distinção é o produto:
+ * minimizado deixa a cápsula à mão como ponto de reentrada; fechado tira o
+ * TaqCITi da tela por inteiro e exige um gesto explícito para voltar.
+ */
+export type PanelPresence = 'closed' | 'minimized' | 'open';
+
+/**
+ * Que tela o painel mostra. `auto` acompanha a fase da reunião; as outras duas
+ * são navegação deliberada do usuário, e por isso sobrevivem à navegação da
+ * página — ver o comentário de PanelPrefs.
+ */
+export type PanelRoute =
+  | { kind: 'auto' }
+  | { kind: 'history' }
+  | { kind: 'record'; id: string };
+
 export interface PanelPrefs {
   /**
    * Canto superior esquerdo, como fração 0..1 do espaço DISPONÍVEL (viewport
@@ -216,14 +233,23 @@ export interface PanelPrefs {
   /** Altura da janela quando aberta. */
   size: PanelSize;
   /**
-   * O usuário fechou o TaqCITi (não minimizou).
+   * Fechado, minimizado ou aberto.
    *
-   * Persistido de propósito: fechar precisa durar mais que a aba, senão a
-   * primeira navegação traria a interface de volta e "fechar" viraria
-   * "esconder até recarregar". Volta a `false` só por ação explícita — clique
-   * no ícone da extensão — ou quando uma reunião nova começa.
+   * ── Por que isto é preferência e não estado do React ──────────────────────
+   *
+   * Um content script MORRE quando a página navega — o DOM some, o mundo
+   * isolado é desmontado, e com ele qualquer `useState`. Não existe API de
+   * extensão que desenhe UI que sobreviva a isso; o que existe é remontar do
+   * outro lado e RESTAURAR. Então tudo que precisa atravessar a navegação —
+   * posição, tamanho, se estava aberto, que reunião estava sendo lida — mora
+   * aqui, no storage, e não na árvore React que a navegação destrói.
+   *
+   * É também o que faz "fechar" durar mais que a aba. Guardado em memória,
+   * fechar seria só "esconder até a próxima página".
    */
-  dismissed: boolean;
+  presence: PanelPresence;
+  /** A tela em que o painel estava. Ver `presence` para o porquê de persistir. */
+  route: PanelRoute;
   /** Esconder as legendas nativas do Meet enquanto a captura roda. */
   hideMeetCaptions: boolean;
 }
@@ -232,7 +258,10 @@ export const DEFAULT_PANEL_PREFS: PanelPrefs = {
   x: 0.97,
   y: 0.62,
   size: 'regular',
-  dismissed: false,
+  /* Depois de instalar, só a cápsula. O painel inteiro abrindo sozinho numa
+     página qualquer seria invasivo — quem pede é o clique. */
+  presence: 'minimized',
+  route: { kind: 'auto' },
   hideMeetCaptions: true,
 };
 
