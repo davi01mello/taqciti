@@ -26,6 +26,8 @@ import { onMessage, sendMessage } from '@/shared/services/messaging';
 import { meetingStateSchema } from '@/shared/types/messages';
 import { setNativeCaptionsHidden } from './captionsVisibility';
 import { loadPanelPrefs, savePanelPrefs } from './prefs';
+import { PlatformProvider } from '@/shared/platform/context';
+import { extensionPlatform } from '@/shared/platform/extension';
 import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
 import { getMountPoint, unmountHost } from './ui/mount';
 
@@ -152,6 +154,19 @@ export class ContentController {
     void loadPanelPrefs().then((prefs) => {
       this.prefs = prefs;
       if (this.lastState) this.applyState(this.lastState);
+    });
+
+    /*
+     * A cápsula aparece IMEDIATAMENTE, com ou sem reunião.
+     *
+     * Antes o primeiro `render` só acontecia quando um estado chegava — de um
+     * evento do provider ou de um broadcast. Fora de reunião nenhum dos dois
+     * acontece, então em repouso o painel simplesmente nunca era montado. Isso
+     * era coerente enquanto o painel só servia para gravar; agora que ele é o
+     * produto inteiro, a ausência dele em repouso seria a ausência do TaqCITi.
+     */
+    void sendMessage<MeetingState>({ type: 'ui/getState' }).then((state) => {
+      if (this.lastState === null) this.applyState(state);
     });
 
     // Script pode ser injetado com a reunião já em andamento (reload da aba).
@@ -318,14 +333,24 @@ export class ContentController {
     this.render(state, ctx);
   }
 
+  /**
+   * O painel precisa da camada de plataforma porque agora ele lê o HISTÓRICO
+   * (`useHistory`), e não só o estado que o controller já lhe entrega por
+   * props. Dentro de um content script `chrome.storage` e `chrome.runtime`
+   * existem, então é a mesma `extensionPlatform` das outras superfícies —
+   * nenhuma implementação nova.
+   */
   private render(state: MeetingState, ctx: PanelContext): void {
     if (this.root === null) this.root = createRoot(getMountPoint());
     this.root.render(
-      createElement(PanelApp, {
-        state,
-        ctx,
-        prefs: this.prefs,
-        callbacks: this.callbacks,
+      createElement(PlatformProvider, {
+        platform: extensionPlatform,
+        children: createElement(PanelApp, {
+          state,
+          ctx,
+          prefs: this.prefs,
+          callbacks: this.callbacks,
+        }),
       }),
     );
   }

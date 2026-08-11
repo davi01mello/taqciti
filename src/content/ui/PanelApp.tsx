@@ -19,6 +19,8 @@ import type {
   PanelPrefs,
 } from '@/shared/types/domain';
 import { EXPECTED_CAPTION_LANGUAGE } from '@/shared/config/constants';
+import { useHistory } from '@/features/history/useHistory';
+import { HistoryCard } from '@/sidepanel/components/HistoryCard';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
@@ -165,11 +167,19 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
     return () => observer.disconnect();
   }, []);
 
-  // O GUARD FICA DEPOIS DE TODOS OS HOOKS — ver histórico do componente.
-  if (!session || phase === 'idle') return null;
+  /*
+   * NÃO existe mais o guard `if (!session || phase === 'idle') return null`.
+   *
+   * Ele era a razão de o TaqCITi só existir durante uma gravação: fora de
+   * reunião a cápsula sumia, e o produto virava a janela do Chrome, com
+   * moldura de navegador. Agora a cápsula é permanente e o painel tem um
+   * corpo para o estado ocioso — o histórico. É a mesma janelinha sem
+   * moldura o tempo todo, que é o que o produto deveria ter sido desde o
+   * começo.
+   */
 
   const copy = () => {
-    if (session.segments.length === 0) {
+    if (!session || session.segments.length === 0) {
       showToast('Nada capturado ainda');
       return;
     }
@@ -180,11 +190,18 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
   };
 
   const download = () => {
+    if (!session) return;
     downloadTranscript(buildMeetingRecord(session, 'ready'));
     showToast('Baixando .txt');
   };
 
-  const tone = phase === 'paused' || phase === 'captionsRequired' ? 'amber' : 'green';
+  /** Sem reunião não há nada acontecendo: a cápsula fica apagada, não verde. */
+  const idle = !session || phase === 'idle';
+  const tone = idle
+    ? 'dim'
+    : phase === 'paused' || phase === 'captionsRequired'
+      ? 'amber'
+      : 'green';
 
   /** O que sobra do painel para o corpo, depois do cabeçalho. */
   const bodyBudget = Math.max(160, dock.geometry.panel.maxHeight - headerHeight);
@@ -212,14 +229,22 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
           <span>{elapsed}</span>
         ) : (
           <span className="text-muted">
-            {phase === 'captionsRequired' ? 'preparando…' : 'salva'}
+            {idle
+              ? 'TaqCITi'
+              : phase === 'captionsRequired'
+                ? 'preparando…'
+                : 'salva'}
           </span>
         )}
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${
-            tone === 'amber' ? 'bg-[#f2c94c]' : 'bg-primary'
-          } ${phase === 'recording' ? 'animate-pulse-dot' : ''}`}
-        />
+        {/* Sem ponto de status quando ocioso: um ponto colorido comunica "algo
+            está acontecendo", e em repouso nada está. */}
+        {!idle && (
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              tone === 'amber' ? 'bg-[#f2c94c]' : 'bg-primary'
+            } ${phase === 'recording' ? 'animate-pulse-dot' : ''}`}
+          />
+        )}
       </button>
 
       {/* ---------- painel ---------- */}
@@ -242,7 +267,9 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
       >
         <div ref={headerRef} className="min-h-0">
           <PanelHeader
-            title={session.title}
+            /* `null` em repouso: não há reunião para renomear, e um campo de
+               título editável vazio convidaria a editar o nada. */
+            title={idle ? null : (session?.title ?? '')}
             phase={phase}
             elapsed={elapsed}
             searching={searching}
@@ -255,7 +282,9 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
               callbacks.onRename(title);
               showToast('Renomeada');
             }}
-            showSearch={phase === 'recording' || phase === 'paused'}
+            /* Buscar vale ao vivo (uma fala nesta reunião) e em repouso (uma
+               reunião no histórico) — só não vale enquanto prepara. */
+            showSearch={idle || phase === 'recording' || phase === 'paused'}
           />
 
           {searching && (
@@ -263,7 +292,11 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
               <SearchField
                 autoFocus
                 value={query}
-                placeholder="Buscar uma fala nesta reunião…"
+                placeholder={
+                  idle
+                    ? 'Buscar por título, pessoa ou fala…'
+                    : 'Buscar uma fala nesta reunião…'
+                }
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {
@@ -277,6 +310,8 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
         </div>
 
         <div ref={bodyRef} className="flex min-h-0 flex-col px-3.5 pb-3.5">
+          {idle && <HistoryBody query={query} budget={bodyBudget} />}
+
           {phase === 'captionsRequired' && (
             <PreparingScreen
               failed={ctx.captionsAutoFailed}
@@ -284,7 +319,10 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
             />
           )}
 
-          {live && (
+          {/* `session &&` além do `live`: sem o guard de saída antecipada, é
+              esta cadeia que garante — para o TypeScript e em tempo de
+              execução — que não se lê uma sessão inexistente. */}
+          {live && session && (
             <>
               <div className="mb-2 shrink-0">
                 <AccountBoundaryNotice boundary={session.accountBoundary} compact />
@@ -337,7 +375,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
             </>
           )}
 
-          {phase === 'ended' && (
+          {phase === 'ended' && session && (
             <div
               style={{ maxHeight: bodyBudget }}
               className="scroll-region pt-1"
@@ -366,6 +404,93 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
 }
 
 // ---------- pedaços do painel ----------
+
+/**
+ * O corpo do painel em repouso: o histórico local.
+ *
+ * É o que faz a cápsula valer a pena existir fora de uma reunião — sem isto,
+ * abrir o painel sem reunião mostraria uma caixa vazia, e o produto continuaria
+ * dependendo da janela com moldura para qualquer coisa que não fosse gravar.
+ *
+ * Duas telas em uma, com navegação por estado local em vez de rota: a lista, e
+ * a transcrição de um registro. Um roteador aqui seria maquinaria demais para
+ * uma ida e uma volta.
+ */
+function HistoryBody({ query, budget }: { query: string; budget: number }) {
+  const records = useHistory();
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return records;
+    return records.filter(
+      (record) =>
+        record.title.toLowerCase().includes(needle) ||
+        record.participants.some((p) => p.name.toLowerCase().includes(needle)) ||
+        record.segments.some((s) => s.text.toLowerCase().includes(needle)),
+    );
+  }, [records, query]);
+
+  const open = openId === null ? null : (records.find((r) => r.id === openId) ?? null);
+
+  if (open) {
+    return (
+      <div className="flex min-h-0 flex-col" style={{ maxHeight: budget }}>
+        <div className="mb-1.5 flex shrink-0 items-center gap-1.5">
+          <Button variant="ghost" size="compact" onClick={() => setOpenId(null)}>
+            <Icon name="chevron" size={13} className="rotate-90" />
+            Histórico
+          </Button>
+          <span className="min-w-0 truncate text-caption font-semibold text-muted">
+            {open.title}
+          </span>
+        </div>
+        {/* `scroll` ligado: aqui a transcrição É a região que rola. */}
+        <TranscriptView
+          segments={open.segments}
+          selfName={hostName(open.participants)}
+          emptyMessage="Nenhuma fala foi capturada nesta reunião."
+        />
+      </div>
+    );
+  }
+
+  if (records.length === 0) {
+    return (
+      <div className="flex flex-col items-center px-3 py-8 text-center">
+        <div className="glass-subtle mb-3 grid h-12 w-12 place-items-center rounded-full">
+          <Wave size={18} tone="dim" />
+        </div>
+        <p className="max-w-[240px] text-body leading-relaxed text-muted">
+          Nenhuma reunião ainda. Entre num Meet e a captura cuida do resto.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-col" style={{ maxHeight: budget }}>
+      <p className="mb-2 shrink-0 px-1 text-caption font-semibold uppercase tracking-wide text-muted">
+        {query ? `Resultados · ${filtered.length}` : `${records.length} reuniões`}
+      </p>
+      {filtered.length === 0 ? (
+        <p className="px-1 py-6 text-center text-body text-muted">
+          Nada encontrado com essa busca.
+        </p>
+      ) : (
+        <ul tabIndex={0} className="scroll-region flex-1 space-y-2 pb-1 outline-none">
+          {filtered.map((record) => (
+            <HistoryCard
+              key={record.id}
+              record={record}
+              onOpen={() => setOpenId(record.id)}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function EndedSummary({
   session,
@@ -425,7 +550,8 @@ function PanelHeader({
   onCollapse,
   onRename,
 }: {
-  title: string;
+  /** `null` = sem reunião: o painel mostra o histórico e não há o que renomear. */
+  title: string | null;
   phase: MeetingState['phase'];
   elapsed: string;
   searching: boolean;
@@ -434,20 +560,22 @@ function PanelHeader({
   onCollapse: () => void;
   onRename: (title: string) => void;
 }) {
-  const [draft, setDraft] = useState(title);
+  const [draft, setDraft] = useState(title ?? '');
   const [editing, setEditing] = useState(false);
   useEffect(() => {
-    if (!editing) setDraft(title);
+    if (!editing) setDraft(title ?? '');
   }, [title, editing]);
 
   const status =
-    phase === 'recording'
-      ? elapsed
-      : phase === 'paused'
-        ? `Pausado · ${elapsed}`
-        : phase === 'captionsRequired'
-          ? 'Preparando'
-          : `Salva · ${elapsed}`;
+    title === null
+      ? 'Histórico'
+      : phase === 'recording'
+        ? elapsed
+        : phase === 'paused'
+          ? `Pausado · ${elapsed}`
+          : phase === 'captionsRequired'
+            ? 'Preparando'
+            : `Salva · ${elapsed}`;
 
   return (
     <header className="shrink-0 px-3.5 pb-2.5 pt-3.5">
@@ -484,29 +612,31 @@ function PanelHeader({
         </div>
       </div>
 
-      <input
-        value={draft}
-        maxLength={200}
-        spellCheck={false}
-        aria-label="Nome da reunião"
-        onFocus={() => setEditing(true)}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === 'Enter') event.currentTarget.blur();
-          if (event.key === 'Escape') {
-            setDraft(title);
-            event.currentTarget.blur();
-          }
-        }}
-        onBlur={() => {
-          setEditing(false);
-          const next = draft.trim();
-          if (next.length > 0 && next !== title) onRename(next);
-          else setDraft(title);
-        }}
-        className="mt-2.5 w-full rounded-control bg-transparent px-2 py-1.5 text-center text-title font-semibold text-foreground outline-none transition-colors duration-200 ease-flow hover:bg-white/[0.04] focus:bg-white/[0.06]"
-      />
+      {title !== null && (
+        <input
+          value={draft}
+          maxLength={200}
+          spellCheck={false}
+          aria-label="Nome da reunião"
+          onFocus={() => setEditing(true)}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter') event.currentTarget.blur();
+            if (event.key === 'Escape') {
+              setDraft(title);
+              event.currentTarget.blur();
+            }
+          }}
+          onBlur={() => {
+            setEditing(false);
+            const next = draft.trim();
+            if (next.length > 0 && next !== title) onRename(next);
+            else setDraft(title);
+          }}
+          className="mt-2.5 w-full rounded-control bg-transparent px-2 py-1.5 text-center text-title font-semibold text-foreground outline-none transition-colors duration-200 ease-flow hover:bg-white/[0.04] focus:bg-white/[0.06]"
+        />
+      )}
     </header>
   );
 }
