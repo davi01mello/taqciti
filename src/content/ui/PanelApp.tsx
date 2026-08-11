@@ -202,11 +202,18 @@ export function PanelApp({
    * não contraria quem fechou de propósito.
    */
   useEffect(() => {
+    /*
+     * Voltar ao ocioso NÃO rouba a tela. É o que permite "Ver no histórico" na
+     * tela pós-reunião encerrar o estado `ended` e navegar até o registro no
+     * mesmo gesto: o `ui/reset` traz a fase para `idle`, e se este efeito
+     * reagisse a isso ele devolveria a rota para `auto` e a pessoa cairia na
+     * lista em vez da reunião que acabou de gravar.
+     */
+    if (phase === 'idle') return;
+
     setRoute({ kind: 'auto' });
     if (phase === 'ended') setExpanded(true);
-    if (phase === 'ended' || phase === 'captionsRequired' || phase === 'recording') {
-      if (prefs.dismissed) callbacks.onPrefsChange({ dismissed: false });
-    }
+    if (prefs.dismissed) callbacks.onPrefsChange({ dismissed: false });
     // `prefs.dismissed` fora das dependências de propósito: o efeito reage à
     // MUDANÇA DE FASE, e reexecutá-lo quando as preferências chegam do storage
     // jogaria a rota de volta para `auto` no meio da navegação do usuário.
@@ -484,7 +491,6 @@ function PanelBody({
         onDownload={() => onDownload(record)}
         onHistory={() => onRoute({ kind: 'history' })}
         historyLabel="Voltar ao histórico"
-        onClose={() => onRoute({ kind: 'history' })}
       />
     );
   }
@@ -529,11 +535,20 @@ function PanelBody({
         } no histórico local, nada se perde.`}
         onCopy={() => onCopy(record.segments)}
         onDownload={() => onDownload(record)}
-        /* Leva à reunião correspondente, não só à lista: é dela que se acabou
-           de sair, e cair na lista obrigaria a procurá-la de novo. */
-        onHistory={() => onRoute({ kind: 'record', id: record.id })}
+        /*
+         * Leva à reunião correspondente, não só à lista: é dela que se acabou
+         * de sair, e cair na lista obrigaria a procurá-la de novo.
+         *
+         * E encerra o estado pós-reunião no caminho. Sem isso a fase ficaria em
+         * `ended` para sempre — a cápsula presa em "salva", a próxima reunião
+         * chegando por cima de uma tela que ninguém dispensou. Era o que o
+         * botão "Fechar" fazia, e é a única parte dele que valia a pena.
+         */
+        onHistory={() => {
+          callbacks.onCloseEnded();
+          onRoute({ kind: 'record', id: record.id });
+        }}
         historyLabel="Ver no histórico"
-        onClose={callbacks.onCloseEnded}
       />
     );
   }
@@ -578,7 +593,6 @@ function MeetingScreen({
   onDownload,
   onHistory,
   historyLabel,
-  onClose,
 }: {
   record: MeetingRecord;
   heading: string;
@@ -587,7 +601,6 @@ function MeetingScreen({
   onDownload: () => void;
   onHistory: () => void;
   historyLabel: string;
-  onClose: () => void;
 }) {
   const [generated, setGenerated] = useState<
     Extract<GenerationResult, { status: 'success' }> | null
@@ -618,11 +631,14 @@ function MeetingScreen({
       </div>
       {generated && <GeneratedDocumentResult result={generated} />}
 
-      <Button variant="primary" className="w-full shrink-0" onClick={onHistory}>
+      {/*
+       * Um botão de navegação só. Antes havia "Ver no histórico" e "Fechar"
+       * lado a lado, e os dois tiravam a pessoa desta tela — dois caminhos para
+       * o mesmo lugar, um deles com nome que sugeria fechar o TaqCITi inteiro.
+       * Fechar de verdade é o X do cabeçalho, que é global e sempre está lá.
+       */}
+      <Button variant="secondary" className="w-full shrink-0" onClick={onHistory}>
         {historyLabel}
-      </Button>
-      <Button variant="ghost" className="w-full shrink-0" onClick={onClose}>
-        Fechar
       </Button>
     </div>
   );
@@ -1074,7 +1090,9 @@ function LiveControls({
         <Sheen />
         <CopyIcon />
       </button>
-      <Button variant="primary" className="ml-auto !min-h-[40px] !px-5" onClick={onFinish}>
+      {/* Transparente como o resto: o único botão preenchido do produto é
+          "Gerar Documento". A hierarquia aqui vem do rótulo e da posição. */}
+      <Button variant="secondary" className="ml-auto !min-h-[40px] !px-5" onClick={onFinish}>
         <Icon name="stop" size={13} />
         Finalizar
       </Button>
@@ -1157,7 +1175,7 @@ function PreparingScreen({
           : 'Ligando as legendas do Meet automaticamente e escondendo-as da tela. A captura começa sozinha.'}
       </p>
       {failed && (
-        <Button variant="primary" className="mt-4" onClick={onEnable}>
+        <Button variant="secondary" className="mt-4" onClick={onEnable}>
           Ativar legendas
         </Button>
       )}
@@ -1189,7 +1207,7 @@ function EmptyCaptureScreen({
       </p>
       <div className="mt-5 flex w-full flex-col gap-2">
         {inMeeting && (
-          <Button variant="primary" className="w-full" onClick={onResumeCapture}>
+          <Button variant="secondary" className="w-full" onClick={onResumeCapture}>
             Tentar capturar de novo
           </Button>
         )}

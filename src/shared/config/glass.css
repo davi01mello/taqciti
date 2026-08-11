@@ -155,28 +155,34 @@
 }
 
 /*
- * REFLEXO — a poça de luz que corre por dentro do vidro sob o cursor.
+ * REFLEXO — a luz verde difusa que acende por trás do vidro sob o cursor.
  *
- * A intenção é "uma fonte de luz verde sendo refletida pela superfície", e não
- * um botão que acende. Três decisões sustentam isso:
+ * A intenção é "uma fonte de luz verde ATRÁS de um vidro transparente", e não
+ * um botão que muda de cor. Quatro decisões sustentam isso:
  *
- *   1. o reflexo é INTERNO. Vive numa camada presa ao box do botão, com o raio
- *      herdado — não há `box-shadow` colorido escapando para fora, que é o que
- *      leria como neon;
- *   2. ele é uma POÇA, não uma lavagem: um gradiente radial de raio fixo em
- *      pixels, que apaga bem antes da borda. Raio em porcentagem cobriria o
- *      botão inteiro num botão largo, e aí o efeito deixa de ser "luz num
- *      ponto" e vira "ficou mais verde";
- *   3. a opacidade é baixa e some por transição — o vidro continua translúcido
- *      o tempo todo, a cor da marca não muda, só ganha um realce local.
+ *   1. a luz TRANSBORDA o elemento, por `filter: blur` e não por uma caixa
+ *      maior. O desfoque de filtro pinta fora da borda do elemento de graça,
+ *      então o brilho vaza suave para os lados sem uma segunda caixa no DOM e
+ *      sem `box-shadow`, que travaria numa auréola de contorno — a leitura de
+ *      neon duro que se quer evitar;
+ *   2. o raio é PROPORCIONAL ao elemento, via `--sheen-r`. Um raio fixo em
+ *      pixels servia enquanto só botões acendiam: os mesmos 72px que eram uma
+ *      poça num botão largo lavavam um controle de ícone de 28px inteiro, e o
+ *      efeito virava "ficou verde". Agora a fonte de luz cresce com a
+ *      superfície que ela ilumina;
+ *   3. a opacidade continua baixa e some por transição — o vidro segue
+ *      translúcido o tempo todo, a cor da marca não muda, só ganha um realce
+ *      local;
+ *   4. no clique a MESMA luz fica um pouco mais forte, em vez de o elemento
+ *      mudar de fundo. É a diferença entre iluminar mais e preencher.
  *
- * A posição vem de `--sheen-x` / `--sheen-y`, que o Button escreve no elemento
- * a cada movimento do ponteiro (propriedade customizada herda, então a camada
- * lê de graça). Sem ponteiro — foco por teclado — os valores padrão deixam a
- * luz no centro.
+ * Posição e raio vêm de `--sheen-x` / `--sheen-y` / `--sheen-r`, que
+ * `trackSheen` escreve no elemento a cada movimento do ponteiro (propriedade
+ * customizada herda, então a camada lê de graça). Sem ponteiro — foco por
+ * teclado — os padrões deixam a luz no centro, num raio médio.
  *
- * `z-index: -1` dentro do `isolate` do botão: pinta ACIMA do fundo do vidro e
- * ABAIXO do rótulo, que é exatamente onde um reflexo de superfície mora. Sem o
+ * `z-index: -1` dentro do `isolate` do elemento: pinta ACIMA do fundo do vidro
+ * e ABAIXO do rótulo, que é exatamente onde uma luz atrás do vidro mora. Sem o
  * `isolate` esta camada escaparia para trás do ancestral com contexto de
  * empilhamento (a moldura de vidro da tela) e sumiria.
  */
@@ -187,15 +193,18 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
+  /* O que faz a luz ultrapassar os limites do elemento. Proporcional ao raio
+     pela mesma razão que o raio é proporcional ao elemento. */
+  filter: blur(calc(var(--sheen-r, 96px) * 0.16));
   transition: opacity var(--dur-slow) var(--motion-flow);
 }
 
 /* O caso comum: vidro neutro recebendo luz verde. */
 .sheen-green {
   background: radial-gradient(
-    72px 72px at var(--sheen-x, 50%) var(--sheen-y, 50%),
-    rgba(92, 203, 133, 0.26),
-    rgba(92, 203, 133, 0.09) 46%,
+    var(--sheen-r, 96px) var(--sheen-r, 96px) at var(--sheen-x, 50%) var(--sheen-y, 50%),
+    rgba(92, 203, 133, 0.32),
+    rgba(92, 203, 133, 0.12) 46%,
     transparent 72%
   );
 }
@@ -209,11 +218,21 @@
  */
 .sheen-light {
   background: radial-gradient(
-    72px 72px at var(--sheen-x, 50%) var(--sheen-y, 50%),
-    rgba(226, 255, 238, 0.3),
-    rgba(180, 240, 205, 0.1) 46%,
+    var(--sheen-r, 96px) var(--sheen-r, 96px) at var(--sheen-x, 50%) var(--sheen-y, 50%),
+    rgba(226, 255, 238, 0.34),
+    rgba(180, 240, 205, 0.12) 46%,
     transparent 72%
   );
+}
+
+/*
+ * O clique. A luz existente ganha corpo em vez de o elemento ganhar fundo —
+ * escrito aqui, e não como variante do Tailwind, porque depende do mesmo
+ * `--sheen-r` do resto da receita e ficaria ilegível como classe arbitrária.
+ */
+.group\/sheen:active .sheen {
+  opacity: 1;
+  filter: blur(calc(var(--sheen-r, 96px) * 0.14)) brightness(1.35);
 }
 
 /*

@@ -20,23 +20,39 @@ import type { PointerEvent } from 'react';
 export type SheenTone = 'green' | 'light';
 
 /**
- * Devolve o handler de `pointermove` que posiciona a luz.
+ * O quanto a fonte de luz cresce com o elemento que ela ilumina.
  *
- * A posição vai direto para o estilo do nó, NUNCA para o estado do React:
+ * A diagonal, e não a largura: um botão largo e baixo e um cartão quase
+ * quadrado de mesma área precisam de luzes parecidas, e é a diagonal que
+ * captura "o tamanho da coisa" nos dois casos. O piso existe para o controle de
+ * ícone de 28px ainda transbordar de forma visível; o teto para o cartão do
+ * histórico não virar um painel verde inteiro.
+ */
+const SHEEN_MIN = 56;
+const SHEEN_MAX = 320;
+const SHEEN_SCALE = 0.95;
+
+/**
+ * Devolve o handler de `pointermove` que posiciona e dimensiona a luz.
+ *
+ * Tudo vai direto para o estilo do nó, NUNCA para o estado do React:
  * `pointermove` dispara dezenas de vezes por segundo, e um `setState` por
- * evento renderizaria a árvore inteira a cada pixel de movimento. Escrever duas
+ * evento renderizaria a árvore inteira a cada pixel de movimento. Escrever três
  * propriedades customizadas invalida só a pintura da camada de reflexo.
  */
 export function trackSheen<T extends HTMLElement>(event: PointerEvent<T>): void {
-  const box = event.currentTarget.getBoundingClientRect();
-  event.currentTarget.style.setProperty(
-    '--sheen-x',
-    `${((event.clientX - box.left) / box.width) * 100}%`,
+  const node = event.currentTarget;
+  const box = node.getBoundingClientRect();
+  if (box.width === 0 || box.height === 0) return;
+
+  const radius = Math.min(
+    SHEEN_MAX,
+    Math.max(SHEEN_MIN, Math.hypot(box.width, box.height) * SHEEN_SCALE),
   );
-  event.currentTarget.style.setProperty(
-    '--sheen-y',
-    `${((event.clientY - box.top) / box.height) * 100}%`,
-  );
+
+  node.style.setProperty('--sheen-r', `${Math.round(radius)}px`);
+  node.style.setProperty('--sheen-x', `${((event.clientX - box.left) / box.width) * 100}%`);
+  node.style.setProperty('--sheen-y', `${((event.clientY - box.top) / box.height) * 100}%`);
 }
 
 /**
