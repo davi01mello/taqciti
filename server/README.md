@@ -283,6 +283,51 @@ sozinho, as esperas ficariam invisíveis, e `rateLimitWaits` reportaria zero
 enquanto a geração leva minutos. Cada resultado carrega
 `meta.rateLimitWaits`.
 
+## O Analista (Fase 2)
+
+`lib/agents/analista.ts`: transcrição bruta → `CompactedContext`. É o único
+agente que lê a transcrição inteira; os outros trabalham sobre o contexto
+compactado e voltam ao original por `anchor`. É isso que segura o custo.
+
+### O modelo não informa offsets
+
+`CompactedStatement.anchor` tem `start` e `end` numéricos, e **eles nunca são
+pedidos ao modelo**. LLM erra offset de caractere sistematicamente, e âncora
+errada é pior que âncora nenhuma — dá falsa confiança à auditoria. O fluxo é:
+
+1. o modelo devolve `text`, `quote` (literal) e `kind`;
+2. `lib/agents/anchoring.ts` localiza `quote` na transcrição e preenche os offsets;
+3. citação não localizada → `anchor: null`, afirmação **suspeita**.
+
+`isSuspect()` e `trustworthy()` em `lib/compactedContext.ts` são o filtro: uma
+afirmação suspeita não sustenta nada em seção `audit: 'strict'`.
+
+A busca tem duas passadas — literal e depois normalizada (espaços, aspas
+curvas, caixa). **Acento não é normalizado, de propósito**: foi por aí que um
+modelo falhou no bench, devolvendo `"gesto"` onde a transcrição diz `"gestão"`.
+Tolerar isso esconderia o defeito na própria métrica que existe para pegá-lo.
+
+O localizador guarda onde terminou a âncora anterior e busca dali primeiro.
+Sem isso, citações curtas e repetidas (`"Concordo."`) apontariam todas para a
+primeira ocorrência, e o Auditor leria o trecho errado.
+
+### Janelamento
+
+Passada única até 200 mil caracteres, limitado também pelo que cabe na janela
+do modelo configurado (`windowCharsForModel`). Acima disso, janelas com 4 mil
+caracteres de sobreposição.
+
+A busca da `quote` é feita **sempre contra a transcrição completa**, nunca
+contra a janela — por isso os offsets são absolutos e as âncoras continuam
+válidas independentemente de quantas janelas houve.
+
+### Métricas
+
+`CompactionStats` acompanha todo resultado: contagem, razão de compactação,
+e a **taxa de âncoras** dividida em exatas / normalizadas / não localizadas.
+A taxa de âncoras é o principal indicador de saúde — foi a única métrica que
+pegou um modelo devolvendo citação corrompida.
+
 ## Dívida conhecida
 
 `anthropic` e `xai` nunca fizeram uma chamada real — só há chave do Google.

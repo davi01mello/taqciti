@@ -14,6 +14,7 @@
  * para a comparação significar alguma coisa. Quando a Fase 7 mover os
  * prompts para arquivos versionados, este texto vira `analista/v1.md`.
  */
+import { createLocator } from '../agents/anchoring';
 import type { JsonSchema } from './types';
 
 export const BENCH_SYSTEM = [
@@ -88,11 +89,6 @@ export interface BenchOutput {
   entities: { people: string[]; projects: string[]; companies: string[]; technologies: string[] };
 }
 
-/** Normalização leve, para a segunda tentativa de localizar a âncora. */
-function normalize(text: string): string {
-  return text.replace(/\s+/g, ' ').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").trim().toLowerCase();
-}
-
 export interface AnchorReport {
   total: number;
   /** Encontrados por busca literal, sem nenhuma tolerância. */
@@ -112,15 +108,20 @@ export interface AnchorReport {
  * é pior que âncora nenhuma, porque dá falsa confiança à auditoria.
  */
 export function checkAnchors(statements: BenchStatement[], transcript: string): AnchorReport {
-  const normalizedTranscript = normalize(transcript);
+  // Usa o MESMO localizador do Analista, de propósito: se o bench medisse a
+  // âncora por um critério próprio, ele estaria comparando modelos numa
+  // régua que o pipeline não usa, e um modelo poderia parecer bom aqui e
+  // ruim em produção.
+  const locator = createLocator(transcript);
   let exatos = 0;
   let normalizados = 0;
   const perdidos: string[] = [];
 
   for (const statement of statements) {
     const quote = statement.quote ?? '';
-    if (quote && transcript.includes(quote)) exatos += 1;
-    else if (quote && normalizedTranscript.includes(normalize(quote))) normalizados += 1;
+    const anchor = locator.locate(quote);
+    if (anchor?.exact) exatos += 1;
+    else if (anchor) normalizados += 1;
     else perdidos.push(quote.slice(0, 90));
   }
 
