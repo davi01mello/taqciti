@@ -74,13 +74,26 @@ import { detectNextMeeting, type NextMeetingHypothesis } from '@/features/meetin
 import { useFloating } from './useFloating';
 import { PANEL_OPEN_EVENT } from './mount';
 
+/**
+ * Para onde a saída larga deve abrir.
+ *
+ * Existe porque o pedido nasce numa tela concreta: quem clica no rodapé do
+ * histórico quer a LISTA, quem clica dentro de uma reunião quer AQUELA reunião.
+ * Sem dizer isso, a aba abria na tela da fase atual — e, com uma reunião em
+ * curso, o botão prometia o histórico e entregava a transcrição ao vivo.
+ */
+export interface WideViewTarget {
+  /** Abre já nesta reunião do histórico, em vez da lista. */
+  recordId?: string;
+}
+
 export interface PanelCallbacks {
   onPause(): void;
   onResume(): void;
   onFinish(): void;
   onRename(title: string): void;
   /** Abre a saída larga — a tela cheia do histórico, numa aba. */
-  onOpenSidePanel(): void;
+  onOpenSidePanel(target?: WideViewTarget): void;
   onResumeCapture(): void;
   onCloseEnded(): void;
   onEnableCaptions(): void;
@@ -510,6 +523,7 @@ function PanelBody({
         onDownload={() => onDownload(record)}
         onHistory={() => onRoute({ kind: 'history' })}
         historyLabel="Voltar ao histórico"
+        onOpenWide={() => callbacks.onOpenSidePanel({ recordId: record.id })}
       />
     );
   }
@@ -520,7 +534,8 @@ function PanelBody({
         records={records}
         query={query}
         onOpen={onRoute}
-        onOpenSidePanel={callbacks.onOpenSidePanel}
+        // Sem alvo: a saída larga abre no HISTÓRICO, que é o que esta tela é.
+        onOpenSidePanel={() => callbacks.onOpenSidePanel()}
       />
     );
   }
@@ -568,6 +583,7 @@ function PanelBody({
           onRoute({ kind: 'record', id: record.id });
         }}
         historyLabel="Ver no histórico"
+        onOpenWide={() => callbacks.onOpenSidePanel({ recordId: record.id })}
       />
     );
   }
@@ -612,6 +628,7 @@ function MeetingScreen({
   onDownload,
   onHistory,
   historyLabel,
+  onOpenWide,
 }: {
   record: MeetingRecord;
   heading: string;
@@ -620,13 +637,15 @@ function MeetingScreen({
   onDownload: () => void;
   onHistory: () => void;
   historyLabel: string;
+  /** Abre ESTA reunião na saída larga. */
+  onOpenWide: () => void;
 }) {
   const [generated, setGenerated] = useState<
     Extract<GenerationResult, { status: 'success' }> | null
   >(null);
 
   return (
-    <div className="scroll-region flex min-h-0 flex-1 flex-col gap-3 py-1 animate-fade-in motion-reduce:animate-none">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 py-1 animate-fade-in motion-reduce:animate-none">
       <div className="shrink-0 text-center">
         <h2 className="truncate text-title font-semibold">{heading}</h2>
         {subtitle && (
@@ -648,17 +667,52 @@ function MeetingScreen({
       <div className="shrink-0">
         <GenerateDocumentMenu source={record} onGenerated={setGenerated} />
       </div>
-      {generated && <GeneratedDocumentResult result={generated} />}
 
       {/*
-       * Um botão de navegação só. Antes havia "Ver no histórico" e "Fechar"
-       * lado a lado, e os dois tiravam a pessoa desta tela — dois caminhos para
-       * o mesmo lugar, um deles com nome que sugeria fechar o TaqCITi inteiro.
-       * Fechar de verdade é o X do cabeçalho, que é global e sempre está lá.
+       * A TRANSCRIÇÃO — o motivo de abrir uma reunião.
+       *
+       * Faltava por inteiro: abrir uma reunião pelo histórico mostrava título,
+       * três ações e um botão de voltar, e nenhuma palavra do que foi dito. A
+       * tela oferecia copiar e baixar um texto que ela própria não exibia.
+       *
+       * `scroll={false}` e a caixa de rolagem AQUI, e não dentro da
+       * transcrição: assim o documento gerado rola junto com as falas, num
+       * movimento só. Duas caixas empilhadas seriam duas barras disputando a
+       * roda do mouse — ver a nota de `scroll` em TranscriptView.
        */}
-      <Button variant="secondary" className="w-full shrink-0" onClick={onHistory}>
-        {historyLabel}
-      </Button>
+      <div className="scroll-region min-h-0 flex-1">
+        <TranscriptView
+          segments={record.segments}
+          selfName={hostName(record.participants)}
+          emptyMessage="Nenhuma fala foi capturada nesta reunião."
+          scroll={false}
+        />
+        {generated && <GeneratedDocumentResult result={generated} />}
+      </div>
+
+      {/*
+       * Navegação, e só ela. Antes havia "Ver no histórico" e "Fechar" lado a
+       * lado, e os dois tiravam a pessoa desta tela — dois caminhos para o mesmo
+       * lugar, um deles com nome que sugeria fechar o TaqCITi inteiro. Fechar de
+       * verdade é o X do cabeçalho, que é global e sempre está lá.
+       *
+       * A saída larga entra ao lado porque é aqui que ela é mais pedida: a
+       * janela tem 396px, e uma reunião longa se lê melhor numa aba inteira.
+       */}
+      <div className="flex shrink-0 gap-1.5">
+        <Button variant="secondary" className="flex-1" onClick={onHistory}>
+          {historyLabel}
+        </Button>
+        <Button
+          variant="ghost"
+          className="!px-3"
+          title="Abrir esta reunião numa aba"
+          aria-label="Abrir esta reunião numa aba"
+          onClick={onOpenWide}
+        >
+          <Icon name="panel" size={15} />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -737,6 +791,11 @@ function HistoryList({
        * que o Chrome recusava, porque `sidePanel.open` exige um gesto do
        * usuário e este clique acontece na página. Agora abre a mesma tela numa
        * aba, e o rótulo diz o que acontece. Ver src/background/sidePanel.ts.
+       *
+       * A aba também precisou passar a abrir no HISTÓRICO, e não na tela da
+       * fase atual: com uma reunião em curso, este botão abria uma aba com a
+       * transcrição ao vivo e nenhum caminho de volta para a lista. Ver
+       * src/sidepanel/route.ts.
        */}
       {onOpenSidePanel && (
         <div className="mt-2 shrink-0 border-t border-white/[0.06] pt-2">

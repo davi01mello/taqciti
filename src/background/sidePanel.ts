@@ -33,14 +33,45 @@ function isBlank(url: string | undefined): boolean {
 }
 
 /**
+ * O que a aba deve mostrar ao abrir.
+ *
+ * Sem alvo, a saída larga mostra a tela da FASE atual — certo para o clique no
+ * ícone da extensão, errado para o botão dentro do histórico do painel: com uma
+ * reunião em curso ele abria uma aba com a transcrição ao vivo, e de lá não
+ * havia como chegar à lista. O alvo vira query string e é lido em
+ * src/sidepanel/route.ts.
+ */
+export interface WideViewTarget {
+  /** Mostrar o histórico, seja qual for a fase da reunião. */
+  history?: boolean;
+  /** Abrir já nesta reunião do histórico. */
+  recordId?: string | null;
+}
+
+function wideViewUrl(target?: WideViewTarget): string {
+  const base = chrome.runtime.getURL(WIDE_VIEW_PATH);
+  const recordId = target?.recordId ?? null;
+  // Sem alvo, a URL fica limpa: é a mesma que o menu de painel lateral do
+  // Chrome abre pelo manifesto, e as duas entradas não devem divergir.
+  if (!target?.history && recordId === null) return base;
+
+  const params = new URLSearchParams({ view: 'history' });
+  if (recordId !== null) params.set('record', recordId);
+  return `${base}?${params.toString()}`;
+}
+
+/**
  * Abre a saída larga. Devolve se conseguiu.
  *
  * Numa aba nova e vazia, NAVEGA essa aba em vez de criar outra: quem clicou no
  * ícone ali estava numa página em branco à espera de um destino, e abrir uma
  * segunda aba deixaria a primeira para trás, vazia.
  */
-export async function openWideView(tab?: chrome.tabs.Tab): Promise<boolean> {
-  const url = chrome.runtime.getURL(WIDE_VIEW_PATH);
+export async function openWideView(
+  tab?: chrome.tabs.Tab,
+  target?: WideViewTarget,
+): Promise<boolean> {
+  const url = wideViewUrl(target);
   try {
     if (tab?.id !== undefined && isBlank(tab.url)) {
       await chrome.tabs.update(tab.id, { url });

@@ -16,10 +16,21 @@ import { countWords, formatCount } from '@/shared/ui/format';
 import { HistoryCard } from '../components/HistoryCard';
 import { RecordDetail } from '../components/RecordDetail';
 
-export function HomeScreen() {
+interface HomeScreenProps {
+  /**
+   * Reunião em que a tela já nasce aberta — o alvo de quem clicou em "abrir
+   * numa aba" de DENTRO de uma reunião no painel. Ver src/sidepanel/route.ts.
+   *
+   * Só o valor INICIAL: daí em diante quem manda é a navegação da tela, senão
+   * o botão "voltar" seria desfeito no render seguinte.
+   */
+  initialRecordId?: string | null;
+}
+
+export function HomeScreen({ initialRecordId = null }: HomeScreenProps) {
   const records = useHistory();
   const [query, setQuery] = useState('');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialRecordId);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

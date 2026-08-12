@@ -68,7 +68,12 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
       onResume: () => void platform.send({ type: 'ui/resume' }),
       onFinish: () => void platform.send({ type: 'ui/finish' }),
       onRename: (title) => void platform.send({ type: 'ui/rename', title }),
-      onOpenSidePanel: () => void platform.send({ type: 'panel/openRequest' }),
+      onOpenSidePanel: (target) =>
+        void platform.send({
+          type: 'panel/openRequest',
+          view: 'history',
+          ...(target?.recordId !== undefined ? { recordId: target.recordId } : {}),
+        }),
       onCloseEnded: () => void platform.send({ type: 'ui/reset' }),
       onDismissLanguageWarning: () =>
         void platform.send({ type: 'ui/dismissLanguageWarning' }),

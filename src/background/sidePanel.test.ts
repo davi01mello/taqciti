@@ -79,6 +79,47 @@ describe('openWideView', () => {
     expect(create).toHaveBeenCalledWith({ url: WIDE_URL, windowId: undefined });
   });
 
+  /*
+   * O alvo. Sem ele a aba abria na tela da FASE — com uma reunião em curso, o
+   * botão do histórico entregava a transcrição ao vivo e nenhuma volta para a
+   * lista. Ver src/sidepanel/route.ts.
+   */
+  it('leva o pedido de histórico na URL', async () => {
+    const { create } = installMocks();
+    const { openWideView } = await import('./sidePanel');
+
+    await openWideView({ id: 5, url: 'https://meet.google.com/x' } as chrome.tabs.Tab, {
+      history: true,
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      url: `${WIDE_URL}?view=history`,
+      windowId: undefined,
+    });
+  });
+
+  it('leva a reunião alvo na URL, já implicando o histórico', async () => {
+    const { create } = installMocks();
+    const { openWideView } = await import('./sidePanel');
+
+    await openWideView(undefined, { recordId: 'abc-123' });
+
+    expect(create).toHaveBeenCalledWith({
+      url: `${WIDE_URL}?view=history&record=abc-123`,
+      windowId: undefined,
+    });
+  });
+
+  /* O clique no ícone e o menu do Chrome abrem a MESMA URL, sem query. */
+  it('alvo vazio mantém a URL limpa', async () => {
+    const { create } = installMocks();
+    const { openWideView } = await import('./sidePanel');
+
+    await openWideView(undefined, { history: false, recordId: null });
+
+    expect(create).toHaveBeenCalledWith({ url: WIDE_URL, windowId: undefined });
+  });
+
   it('falha do Chrome vira false, não exceção', async () => {
     installChromeStorageMock({
       extra: {

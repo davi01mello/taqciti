@@ -6,13 +6,28 @@
  * que abre em qualquer aba. Aqui cabe ler uma transcrição inteira sem a página
  * por baixo.
  */
+import { useMemo } from 'react';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
+import { readWideViewRequest } from './route';
 import { HomeScreen } from './screens/HomeScreen';
 import { LiveScreen } from './screens/LiveScreen';
 import { SummaryScreen } from './screens/SummaryScreen';
 
 export function App() {
   const state = useMeetingState();
+
+  /*
+   * Lido UMA vez, na montagem. A URL não muda enquanto a aba vive, e reler a
+   * cada render só daria a este componente uma dependência de `window` que ele
+   * não precisa ter.
+   */
+  const request = useMemo(() => readWideViewRequest(window.location.search), []);
+
+  /*
+   * O pedido explícito vence a fase — e é justamente por não vencer que o botão
+   * "Abrir numa aba" do painel parecia não funcionar. Ver src/sidepanel/route.ts.
+   */
+  if (request.history) return <HomeScreen initialRecordId={request.recordId} />;
 
   switch (state.phase) {
     case 'idle':

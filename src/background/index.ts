@@ -167,8 +167,14 @@ onMessage((message, sender) => {
       case 'panel/openRequest':
         // "Abrir numa aba", clicado dentro do painel. Abre a mesma tela do
         // painel lateral numa aba, que é o caminho que não depende de um gesto
-        // do usuário — ver src/background/sidePanel.ts para o porquê.
-        return { ok: await openWideView(sender.tab) };
+        // do usuário — ver src/background/sidePanel.ts para o porquê. O alvo
+        // vem do painel porque só ele sabe de qual tela o clique partiu.
+        return {
+          ok: await openWideView(sender.tab, {
+            history: message.view === 'history',
+            recordId: message.recordId ?? null,
+          }),
+        };
       // ---- UIs (painel lateral / painel injetado) ----
       case 'panel/mounted': {
         // Um painel nasceu nesta aba: a partir de agora o estado ao vivo tem

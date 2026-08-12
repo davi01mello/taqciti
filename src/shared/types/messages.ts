@@ -144,7 +144,20 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
   /** Abre a saída larga — o TaqCITi inteiro numa aba, pedido de dentro do
    *  painel. Não passa por `chrome.sidePanel.open`, que exige um gesto do
    *  usuário que este clique não tem. Ver src/background/sidePanel.ts. */
-  z.object({ type: z.literal('panel/openRequest') }),
+  z.object({
+    type: z.literal('panel/openRequest'),
+    /**
+     * O que a aba deve mostrar. AUSENTE = a tela da fase atual, que é o que o
+     * clique no ícone da extensão quer.
+     *
+     * O painel manda sempre `'history'`: quem clica ali está olhando o
+     * histórico, e sem este campo a aba abria na reunião ao vivo — o botão
+     * prometia uma coisa e entregava outra, sem caminho de volta.
+     */
+    view: z.literal('history').optional(),
+    /** Abre já nesta reunião do histórico, em vez da lista. */
+    recordId: z.string().max(200).optional(),
+  }),
   /**
    * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
    * vivo o encontra.

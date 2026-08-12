@@ -71,7 +71,14 @@ export class ContentController {
     },
     onFinish: () => void sendMessage({ type: 'ui/finish' }),
     onRename: (title) => void sendMessage({ type: 'ui/rename', title }),
-    onOpenSidePanel: () => void sendMessage({ type: 'panel/openRequest' }),
+    // `view: 'history'` sempre: o pedido nasce no histórico do painel, e sem
+    // ele a aba abriria na reunião ao vivo — ver src/sidepanel/route.ts.
+    onOpenSidePanel: (target) =>
+      void sendMessage({
+        type: 'panel/openRequest',
+        view: 'history',
+        ...(target?.recordId !== undefined ? { recordId: target.recordId } : {}),
+      }),
     onResumeCapture: () => this.redetect(),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
     onEnableCaptions: () => this.attemptEnableCaptions(),
