@@ -20,28 +20,38 @@ export interface AgentModelConfig {
 }
 
 /**
- * Defaults de produção. Todos os IDs conferidos na documentação oficial em
- * 2026-08-12 (platform.claude.com/docs/en/about-claude/models/overview).
+ * Configuração ATIVA. Hoje é `gemini-2.5-flash` nos quatro agentes, no free
+ * tier — a única que roda sem cartão enquanto só há chave do Google.
  *
- * Os três agentes de raciocínio ficam em `claude-sonnet-5` — geração atual.
- * Estavam em `claude-sonnet-4-6`, que é geração anterior; comparar isso com
- * `gemini-3.6-flash` mediria diferença de geração, não de fornecedor.
+ * **Isto não é a configuração boa, é a que funciona.** Três coisas erradas
+ * com ela, todas conhecidas e nenhuma acidental:
  *
- * O Auditor fica em `claude-haiku-4-5` de propósito: é o degrau barato, e a
- * chamada dele é a mais frequente e a mais simples do pipeline. Note que
- * Haiku 4.5 NÃO tem raciocínio adaptativo (a doc é explícita) — quem trata
- * a exceção é a lista de modelos em providers/anthropic.ts.
+ * - manda conteúdo para treinamento do provedor, com revisão humana; enquanto
+ *   for a ativa, SÓ TRANSCRIÇÃO SINTÉTICA (ver `activeDataPolicyWarning`);
+ * - é geração anterior, então não serve para comparar fornecedores;
+ * - põe o mesmo modelo no Analista e no Auditor, o que a matriz existe
+ *   justamente para questionar.
+ *
+ * A configuração de produção pretendida está em `COMPARISON_MATRIX` e é
+ * decidida pelo harness da Fase 8, não aqui. Quando houver chave paga,
+ * trocar é editar este bloco ou exportar `DOCCITI_*`.
+ *
+ * Referência das opções (IDs conferidos na documentação oficial em
+ * 2026-08-12): Anthropic `claude-sonnet-5` para Analista/Pensante/Escritor e
+ * `claude-haiku-4-5` para o Auditor; Google `gemini-3.6-flash` e
+ * `gemini-3.5-flash-lite`.
  */
 const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
-  // Lê a transcrição inteira; precisa de janela grande (1M).
-  analista: { provider: 'anthropic', model: 'claude-sonnet-5' },
+  // Lê a transcrição inteira; precisa de janela grande (a 2.5 tem ~1M).
+  analista: { provider: 'google', model: 'gemini-2.5-flash' },
   // Raciocina sobre o contexto compactado.
-  pensante: { provider: 'anthropic', model: 'claude-sonnet-5' },
-  // Julgamento binário sobre excerto curto. Se errar demais na prática,
-  // subir de modelo é trocar esta linha.
-  auditor: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+  pensante: { provider: 'google', model: 'gemini-2.5-flash' },
+  // Julgamento binário sobre excerto curto — a chamada mais frequente do
+  // pipeline. Merece o modelo mais barato do fornecedor; no free tier a
+  // distinção não paga nada, então fica igual aos outros por ora.
+  auditor: { provider: 'google', model: 'gemini-2.5-flash' },
   // Redação final.
-  escritor: { provider: 'anthropic', model: 'claude-sonnet-5' },
+  escritor: { provider: 'google', model: 'gemini-2.5-flash' },
 };
 
 // ---------------------------------------------------------------------------
@@ -277,6 +287,33 @@ export const AGENT_CONFIG: Record<AgentName, AgentModelConfig> = buildAgentConfi
 /** Provedores efetivamente configurados agora — só destes a chave é obrigatória. */
 export function activeProviders(): ProviderId[] {
   return [...new Set(AGENT_NAMES.map((agent) => AGENT_CONFIG[agent].provider))];
+}
+
+/** A entrada da matriz que descreve este par provedor+modelo, se houver. */
+export function matrixEntryForModel(
+  provider: ProviderId,
+  model: string,
+): MatrixEntry | undefined {
+  return COMPARISON_MATRIX.find(
+    (entry) => entry.provider === provider && entry.model === model,
+  );
+}
+
+/**
+ * Aviso quando a configuração ATIVA manda conteúdo para treinamento — hoje
+ * ela manda, porque roda no free tier do Gemini.
+ *
+ * Existe porque a proibição de usar transcrição real é uma regra que só vale
+ * se alguém lembrar dela na hora certa, e a hora certa é toda geração. Quem
+ * chama é `generateDocument`, na Fase 5; até lá, a rota de fumaça já mostra.
+ */
+export function activeDataPolicyWarning(): string | null {
+  for (const agent of AGENT_NAMES) {
+    const { provider, model } = AGENT_CONFIG[agent];
+    const entry = matrixEntryForModel(provider, model);
+    if (entry && usesContentForTraining(entry)) return dataPolicyWarning(entry);
+  }
+  return null;
 }
 
 export { DEFAULT_AGENT_CONFIG };

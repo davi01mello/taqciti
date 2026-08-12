@@ -23,15 +23,19 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
 import {
+  activeDataPolicyWarning,
   AGENT_CONFIG,
+  API_KEY_ENV_VAR,
   capabilityTable,
   cheapestProductionEntry,
   dataPolicyWarning,
   estimateCost,
   getProvider,
+  hasApiKey,
   isProviderId,
   PROVIDER_IDS,
   type CompletionResult,
+  AGENT_NAMES,
   type JsonSchema,
   type ProviderId,
 } from '@/lib/ai';
@@ -91,12 +95,33 @@ function failure(model: string, error: unknown): CallReport {
   return { ok: false, model, failure: (error as Error).message };
 }
 
-async function smokeProvider(id: ProviderId) {
+/**
+ * Quais modelos de um fornecedor vale a pena exercitar, e por quê.
+ *
+ * Não basta o piso de produção. O pipeline pode estar rodando num modelo
+ * DIFERENTE do piso — hoje está: a configuração ativa é `gemini-2.5-flash`
+ * e o piso é `gemini-3.5-flash-lite`. Testar só o piso deixaria sem prova
+ * exatamente o caminho que o pipeline usa, que no caso da família 2.5 é um
+ * caminho de código próprio (`responseSchema` em vez de
+ * `responseJsonSchema`, `thinkingBudget` em vez de `thinkingLevel`).
+ */
+function targetsFor(id: ProviderId): Array<{ model: string; papel: string }> {
+  const piso = cheapestProductionEntry(id).model;
+  const ativos = [...new Set(
+    AGENT_NAMES.map((agent) => AGENT_CONFIG[agent])
+      .filter((config) => config.provider === id)
+      .map((config) => config.model),
+  )];
+
+  const targets = new Map<string, string[]>();
+  for (const model of ativos) targets.set(model, ['configuração ativa do pipeline']);
+  targets.set(piso, [...(targets.get(piso) ?? []), 'piso de produção da matriz']);
+
+  return [...targets].map(([model, papeis]) => ({ model, papel: papeis.join(' + ') }));
+}
+
+async function smokeModel(id: ProviderId, model: string, papel: string) {
   const provider = getProvider(id);
-  // Piso de produção do fornecedor: o modelo certo pra uma chamada cuja
-  // única função é provar que o encanamento liga.
-  const entry = cheapestProductionEntry(id);
-  const model = entry.model;
 
   let text: CallReport;
   try {
@@ -130,11 +155,20 @@ async function smokeProvider(id: ProviderId) {
   return {
     provider: id,
     model,
+    papel,
     contextWindowTokens: provider.maxContextTokens(model),
     ok: text.ok && json.ok,
     text,
     json,
   };
+}
+
+async function smokeProvider(id: ProviderId) {
+  const reports = [];
+  for (const { model, papel } of targetsFor(id)) {
+    reports.push(await smokeModel(id, model, papel));
+  }
+  return reports;
 }
 
 export function OPTIONS(request: NextRequest): NextResponse {
@@ -167,21 +201,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Corpo vazio é o caso normal: testa os três.
   }
 
+  // Fornecedor sem chave é PULADO com motivo, nunca omitido: um relatório
+  // que mostra só o Gemini parece dizer que o Gemini ganhou, quando os
+  // outros dois nem correram.
+  const executados = requested.filter((id) => hasApiKey(id));
+  const pulados = requested
+    .filter((id) => !hasApiKey(id))
+    .map((id) => ({ provider: id, reason: `${API_KEY_ENV_VAR[id]} não está definida — não executado.` }));
+
   const results = [];
-  for (const id of requested) {
-    results.push(await smokeProvider(id));
+  for (const id of executados) {
+    results.push(...(await smokeProvider(id)));
   }
 
-  const avisos = requested
-    .map((id) => dataPolicyWarning(cheapestProductionEntry(id)))
-    .filter((aviso): aviso is string => aviso !== null);
+  const avisos = [
+    activeDataPolicyWarning(),
+    ...executados.map((id) => dataPolicyWarning(cheapestProductionEntry(id))),
+  ].filter((aviso): aviso is string => aviso !== null);
 
   return NextResponse.json(
     {
-      ok: results.every((result) => result.ok),
+      // Pulo não conta como falha, mas também não conta como sucesso: sem
+      // nenhuma execução, não há o que aprovar.
+      ok: results.length > 0 && results.every((result) => result.ok),
       capabilities: capabilityTable(),
       agentConfig: AGENT_CONFIG,
       results,
+      pulados,
       avisos,
       naoVerificado: [
         'Cache de contexto. Uma chamada única não exercita cache: o breakpoint ' +

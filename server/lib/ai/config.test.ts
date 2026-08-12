@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   COMPARISON_MATRIX,
   DEFAULT_AGENT_CONFIG,
+  activeDataPolicyWarning,
   agentConfigFor,
   cheapestProductionEntry,
   dataPolicyWarning,
+  matrixEntryForModel,
   matrixFor,
   parseOverride,
   productionCandidates,
@@ -98,6 +100,21 @@ describe('política de dados', () => {
 
   it('configuração privada não gera aviso', () => {
     expect(dataPolicyWarning(cheapestProductionEntry('anthropic'))).toBeNull();
+  });
+
+  it('a configuração ATIVA avisa, porque hoje ela roda em free tier', () => {
+    // Enquanto o default for gemini-2.5-flash, toda geração precisa lembrar
+    // quem estiver operando de que só cabe transcrição sintética. Quando os
+    // defaults voltarem para uma configuração paga, este teste cai — e a
+    // queda é o lembrete de reavaliar o aviso, não um incômodo.
+    const aviso = activeDataPolicyWarning();
+    expect(aviso).not.toBeNull();
+    expect(aviso).toContain('sintética');
+  });
+
+  it('matrixEntryForModel encontra a entrada do modelo ativo', () => {
+    const { provider, model } = DEFAULT_AGENT_CONFIG.analista;
+    expect(matrixEntryForModel(provider, model)?.id).toBe('google-dev-free');
   });
 
   it('a nota da entrada de free tier registra os três motivos', () => {

@@ -18,10 +18,16 @@ npm install
 npm run dev
 ```
 
-Defaults de produção (todos conferidos na documentação oficial em
-2026-08-12): `claude-sonnet-5` no Analista, Pensante e Escritor;
-`claude-haiku-4-5` no Auditor. Haiku 4.5 **não** tem raciocínio adaptativo —
-a exceção é tratada pela lista de modelos em `lib/ai/providers/anthropic.ts`.
+> ⚠️ **A configuração ativa hoje é `gemini-2.5-flash` nos quatro agentes, no
+> free tier.** Não é a configuração boa, é a que roda sem cartão. Ela manda
+> conteúdo para treinamento do provedor, com revisão humana: **enquanto for a
+> ativa, só transcrição sintética.** O aviso sai por `activeDataPolicyWarning()`
+> e aparece em toda resposta de `/api/ai/smoke`.
+>
+> A configuração pretendida está na matriz e quem decide é o harness da
+> Fase 8. Referência das opções pagas: `claude-sonnet-5` no Analista/Pensante/
+> Escritor e `claude-haiku-4-5` no Auditor (Haiku 4.5 **não** tem raciocínio
+> adaptativo — a exceção é tratada em `lib/ai/providers/anthropic.ts`).
 
 Sobe em `http://localhost:3000`.
 
@@ -59,9 +65,24 @@ O smoke gasta tokens de verdade: faz duas chamadas triviais por provedor
 (uma de texto, uma com `jsonSchema`) usando o piso de produção de cada um.
 Chave ausente derruba só o provedor dela.
 
-Por provedor ele reporta texto, `inputTokens`, `outputTokens`,
+Por modelo ele reporta texto, `inputTokens`, `outputTokens`,
 `cachedInputTokens`, custo pela tabela de preços, `parsedPreenchido`,
 `repaired`, `rateLimitWaits` e latência.
+
+**Por modelo, não por provedor:** exercita a configuração ativa do pipeline
+*e* o piso de produção da matriz, porque eles podem divergir — hoje divergem
+(`gemini-2.5-flash` contra `gemini-3.5-flash-lite`), e as duas famílias usam
+caminhos de código diferentes para saída estruturada e raciocínio. Testar só
+o piso deixaria sem prova exatamente o caminho que o pipeline usa. O campo
+`papel` diz qual é qual.
+
+**Fornecedor sem chave é PULADO com motivo, nunca omitido** — sai em
+`pulados`, e `ok` só é `true` se ao menos uma execução aconteceu. Uma tabela
+comparativa sem a linha da Anthropic parece completa e não é: quem lê conclui
+que o Gemini ganhou, quando os outros nem correram. A mesma lógica, na forma
+que o harness da Fase 8 consome, está em `lib/ai/availability.ts`
+(`planMatrixRun`, `describeSkips`), com a regra extra de que fornecedor cujas
+entradas foram *todas* puladas vira linha própria no relatório.
 
 **Ele falha (`ok: false`) mesmo com HTTP 200** quando `usage.inputTokens` vem
 0, nulo ou ausente — e também em texto vazio, `parsed` faltando com schema
@@ -261,6 +282,14 @@ O cliente da Anthropic roda com `maxRetries: 0` de propósito: o SDK repetiria
 sozinho, as esperas ficariam invisíveis, e `rateLimitWaits` reportaria zero
 enquanto a geração leva minutos. Cada resultado carrega
 `meta.rateLimitWaits`.
+
+## Dívida conhecida
+
+`anthropic` e `xai` nunca fizeram uma chamada real — só há chave do Google.
+As formas de requisição vieram dos `.d.ts` dos SDKs, que pegam nome e tipo de
+campo errados mas não provam que a API aceita o corpo nem que lemos a resposta
+direito. O que especificamente não foi provado, e como cada item falha, está
+em [`docs/divida-verificacao-provedores.md`](docs/divida-verificacao-provedores.md).
 
 ## Testes
 

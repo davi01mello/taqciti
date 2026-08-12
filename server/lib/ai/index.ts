@@ -129,13 +129,22 @@ export function assertConfiguredProvidersHaveKeys(): void {
 }
 
 export {
+  API_KEY_ENV_VAR,
+  describeSkips,
+  hasApiKey,
+  planMatrixRun,
+} from './availability';
+export type { RunPlan, SkippedEntry, SkippedProvider } from './availability';
+export {
   AGENT_CONFIG,
   COMPARISON_MATRIX,
   DEFAULT_AGENT_CONFIG,
+  activeDataPolicyWarning,
   activeProviders,
   agentConfigFor,
   cheapestProductionEntry,
   dataPolicyWarning,
+  matrixEntryForModel,
   matrixFor,
   parseOverride,
   productionCandidates,
