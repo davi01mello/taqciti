@@ -40,16 +40,23 @@ export interface ModelPrice extends Rates {
 }
 
 /**
- * Anthropic — consultado em 2026-06-24.
- * https://platform.claude.com/docs/en/pricing
- * Leitura de cache é ~0.1× a entrada base; escrita é 1.25× (TTL de 5 min).
+ * Anthropic — consultado em 2026-08-12.
+ * https://platform.claude.com/docs/en/about-claude/pricing
+ *
+ * Leitura de cache é 0.1× a entrada base; escrita de 5 min é 1.25×.
+ * Nenhum modelo aqui tem faixa de contexto longo: a partir da geração 4.6 a
+ * janela de 1M é cobrada no preço padrão (uma requisição de 900k tokens sai
+ * pela mesma taxa por token que uma de 9k). Isso NÃO vale para Google e xAI,
+ * que têm faixa alta acima de 200k — ver as tabelas abaixo.
  */
 const ANTHROPIC_PRICING: Record<string, ModelPrice> = {
   'claude-opus-5': { inputPerMTok: 5, outputPerMTok: 25, cachedInputPerMTok: 0.5, cacheWriteMultiplier: 1.25 },
   'claude-opus-4-8': { inputPerMTok: 5, outputPerMTok: 25, cachedInputPerMTok: 0.5, cacheWriteMultiplier: 1.25 },
-  // Sonnet 5 tem preço introdutório de 2/10 até 2026-08-31; a tabela guarda
-  // o preço cheio de propósito, pra comparação não ficar otimista demais.
-  'claude-sonnet-5': { inputPerMTok: 3, outputPerMTok: 15, cachedInputPerMTok: 0.3, cacheWriteMultiplier: 1.25 },
+  // $2/$10 anunciado como preço introdutório até 2026-08-31 VIROU o preço
+  // padrão: a documentação registra que o aumento previsto para 2026-09-01
+  // (que levaria a $3/$15) não vai acontecer. Não é preço promocional a
+  // expirar — não "corrija" isto para $3/$15.
+  'claude-sonnet-5': { inputPerMTok: 2, outputPerMTok: 10, cachedInputPerMTok: 0.2, cacheWriteMultiplier: 1.25 },
   'claude-sonnet-4-6': { inputPerMTok: 3, outputPerMTok: 15, cachedInputPerMTok: 0.3, cacheWriteMultiplier: 1.25 },
   'claude-haiku-4-5': { inputPerMTok: 1, outputPerMTok: 5, cachedInputPerMTok: 0.1, cacheWriteMultiplier: 1.25 },
 };

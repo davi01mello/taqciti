@@ -109,7 +109,17 @@ export function assertConfiguredProvidersHaveKeys(): void {
   }
 }
 
-export { AGENT_CONFIG, COMPARISON_MATRIX, activeProviders } from './config';
+export {
+  AGENT_CONFIG,
+  COMPARISON_MATRIX,
+  DEFAULT_AGENT_CONFIG,
+  activeProviders,
+  agentConfigFor,
+  matrixFor,
+  parseOverride,
+  productionCandidates,
+} from './config';
+export type { AgentModelConfig, MatrixEntry, Tier } from './config';
 export { PRICING, estimateCost, priceFor } from './pricing';
 export type { CostBreakdown } from './pricing';
 export * from './types';

@@ -18,6 +18,11 @@ npm install
 npm run dev
 ```
 
+Defaults de produção (todos conferidos na documentação oficial em
+2026-08-12): `claude-sonnet-5` no Analista, Pensante e Escritor;
+`claude-haiku-4-5` no Auditor. Haiku 4.5 **não** tem raciocínio adaptativo —
+a exceção é tratada pela lista de modelos em `lib/ai/providers/anthropic.ts`.
+
 Sobe em `http://localhost:3000`.
 
 `.env.local` é lido **no boot**. Depois de mexer nele, reinicie o servidor —
@@ -137,9 +142,55 @@ DOCCITI_AUDITOR=xai:grok-4.3
 ```
 
 Cada agente pode usar um provedor diferente — é um resultado provável e
-útil. `COMPARISON_MATRIX` em `config.ts` guarda o mapeamento equivalente nos
-três provedores, para o harness da Fase 8 montar as configurações
-comparáveis sem ninguém redigitar ID de modelo.
+útil.
+
+### A matriz de comparação
+
+`COMPARISON_MATRIX` em `config.ts` é o insumo do harness da Fase 8, e **não**
+é uma configuração por provedor. Ela não tenta emparelhar modelos entre
+fornecedores: emparelhar seria inventar uma equivalência que não existe —
+Sonnet 5 e Gemini Flash não são o mesmo degrau, e chamar os dois de "o
+modelo médio" transformaria a comparação numa opinião sobre tiers em vez de
+uma medição.
+
+A pergunta que a matriz responde é: **por fornecedor, qual é o custo por
+documento no menor modelo que ainda passa as asserções determinísticas?**
+Daí duas configurações por provedor — teto e piso — com o mesmo modelo nos
+quatro agentes.
+
+| id | provedor | tier | modelo |
+|---|---|---|---|
+| `anthropic-caro` | anthropic | caro | `claude-opus-5` |
+| `anthropic-barato` | anthropic | barato | `claude-haiku-4-5` |
+| `google-caro-preview` | google | caro | `gemini-3.1-pro-preview` ⚠️ preview |
+| `google-caro` | google | caro | `gemini-3.6-flash` |
+| `google-barato` | google | barato | `gemini-3.5-flash-lite` |
+| `xai-caro` | xai | caro | `grok-4.5` |
+| `xai-barato` | xai | barato | `grok-4.3` |
+
+`gemini-3.1-pro-preview` entra marcado como preview e fora de
+`productionCandidates()`: não é candidato a produção, mas saber se o Gemini
+mais capaz resolve a armadilha de decisão é informação útil de qualquer
+jeito.
+
+Configuração mista (Analista caro, Auditor barato) é otimização de uma
+segunda rodada, depois de saber onde cada fornecedor quebra.
+
+## Testes
+
+```
+npm test          # vitest run
+npm run test:watch
+```
+
+Cobrem a lógica pura da camada de IA (validador de schema, extração de JSON
+embrulhado, laço de reparo, posicionamento do `cacheablePrefix`), a
+coerência da tabela de preços e da matriz, e os templates. **Não** fazem
+chamada de rede — provedor de verdade se testa com `/api/ai/smoke`.
+
+`lib/templates/templates.test.ts` só passou a rodar de verdade agora: era um
+script que dependia de `node arquivo.ts` resolver import ESM sem extensão, o
+que não acontece.
 
 ## A geração ainda é um stub
 

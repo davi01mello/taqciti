@@ -19,11 +19,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
 import {
   AGENT_CONFIG,
-  COMPARISON_MATRIX,
   capabilityTable,
   estimateCost,
   getProvider,
   isProviderId,
+  matrixFor,
   PROVIDER_IDS,
   type CompletionResult,
   type JsonSchema,
@@ -73,9 +73,11 @@ function failure(model: string, error: unknown): CallReport {
 
 async function smokeProvider(id: ProviderId) {
   const provider = getProvider(id);
-  // O modelo do Auditor é o mais barato de cada provedor — é o certo pra
-  // uma chamada cuja única função é provar que o encanamento liga.
-  const model = COMPARISON_MATRIX[id].auditor;
+  // Configuração "barata" da matriz: é o modelo certo pra uma chamada cuja
+  // única função é provar que o encanamento liga.
+  const entry = matrixFor(id).find((candidate) => candidate.tier === 'barato');
+  if (!entry) throw new Error(`Matriz sem configuração barata para ${id}.`);
+  const model = entry.model;
 
   let text: CallReport;
   try {
