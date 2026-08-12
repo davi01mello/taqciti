@@ -79,7 +79,7 @@ export interface PanelCallbacks {
   onResume(): void;
   onFinish(): void;
   onRename(title: string): void;
-  /** Abre o painel lateral do Chrome — o modo legado, preservado. */
+  /** Abre a saída larga — a tela cheia do histórico, numa aba. */
   onOpenSidePanel(): void;
   onResumeCapture(): void;
   onCloseEnded(): void;
@@ -729,13 +729,14 @@ function HistoryList({
       )}
 
       {/*
-       * O rodapé da tela de repouso: o modo legado, sempre a um clique. Some
+       * O rodapé da tela de repouso: a saída larga, sempre a um clique. Some
        * das outras rotas de propósito — durante uma gravação não é o que se
        * procura.
        *
-       * O interruptor "manter em todas as páginas" morava aqui e foi embora
-       * junto com a permissão opcional que ele pedia: a persistência deixou de
-       * ser opção. Ver o comentário de `content_scripts` em manifest.config.ts.
+       * Dizia "Abrir no painel lateral" e abria o painel lateral do Chrome —
+       * que o Chrome recusava, porque `sidePanel.open` exige um gesto do
+       * usuário e este clique acontece na página. Agora abre a mesma tela numa
+       * aba, e o rótulo diz o que acontece. Ver src/background/sidePanel.ts.
        */}
       {onOpenSidePanel && (
         <div className="mt-2 shrink-0 border-t border-white/[0.06] pt-2">
@@ -746,7 +747,7 @@ function HistoryList({
             onClick={onOpenSidePanel}
           >
             <Icon name="panel" size={14} />
-            Abrir no painel lateral
+            Abrir numa aba
           </Button>
         </div>
       )}

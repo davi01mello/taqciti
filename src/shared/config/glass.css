@@ -203,9 +203,9 @@
 .sheen-green {
   background: radial-gradient(
     var(--sheen-r, 96px) var(--sheen-r, 96px) at var(--sheen-x, 50%) var(--sheen-y, 50%),
-    rgba(92, 203, 133, 0.32),
-    rgba(92, 203, 133, 0.12) 46%,
-    transparent 72%
+    rgba(92, 203, 133, 0.58),
+    rgba(92, 203, 133, 0.24) 46%,
+    transparent 78%
   );
 }
 
@@ -219,9 +219,9 @@
 .sheen-light {
   background: radial-gradient(
     var(--sheen-r, 96px) var(--sheen-r, 96px) at var(--sheen-x, 50%) var(--sheen-y, 50%),
-    rgba(226, 255, 238, 0.34),
-    rgba(180, 240, 205, 0.12) 46%,
-    transparent 72%
+    rgba(226, 255, 238, 0.55),
+    rgba(180, 240, 205, 0.22) 46%,
+    transparent 78%
   );
 }
 
@@ -232,7 +232,7 @@
  */
 .group\/sheen:active .sheen {
   opacity: 1;
-  filter: blur(calc(var(--sheen-r, 96px) * 0.14)) brightness(1.35);
+  filter: blur(calc(var(--sheen-r, 96px) * 0.14)) brightness(1.5);
 }
 
 /*

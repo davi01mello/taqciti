@@ -20,7 +20,7 @@ import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { backfillOpenTabs, canInject, ensurePanelInTab } from './injectPanel';
-import { openSidePanel } from './sidePanel';
+import { openWideView } from './sidePanel';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
 import { ensurePanelPrefs, patchPanelPrefs } from '@/features/panel/prefsStore';
 
@@ -74,15 +74,14 @@ chrome.runtime.onInstalled.addListener(() => {
  * Não há injeção, nem mensagem endereçada, nem "clicar duas vezes porque a
  * primeira não pegou": este é o gesto que desfaz o X.
  *
- * A decisão sobre o painel lateral é tomada ANTES de qualquer `await`. Páginas
- * internas do Chrome (chrome://, a Web Store) não aceitam extensão nenhuma, e
- * ali a saída é o painel lateral — que só abre DENTRO do gesto do usuário.
- * Esperar uma promessa primeiro gastaria o gesto, e `chrome.sidePanel.open`
- * passaria a falhar exatamente onde é a única saída que existe.
+ * Páginas internas do Chrome (chrome://, a Web Store, a aba nova) não aceitam
+ * extensão nenhuma: não há onde desenhar o painel. Ali a saída é o TaqCITi
+ * inteiro numa aba — a mesma tela larga do botão "Abrir numa aba", e não uma
+ * superfície diferente só porque o ponto de partida era diferente.
  */
 chrome.action.onClicked.addListener((tab) => {
   if (!canInject(tab.url)) {
-    void openSidePanel(tab.windowId);
+    void openWideView(tab);
     return;
   }
   // A gravação primeiro: se a rede de segurança abaixo precisar mesmo montar um
@@ -165,14 +164,11 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
-      case 'panel/openRequest': {
-        // "Ver no histórico", clicado dentro do painel injetado. O clique
-        // aconteceu na PÁGINA, então o gesto não chega até aqui e o Chrome
-        // pode recusar — ver src/background/sidePanel.ts. O `ok` conta a
-        // verdade em vez de fingir sucesso.
-        const opened = await openSidePanel(sender.tab?.windowId);
-        return { ok: opened };
-      }
+      case 'panel/openRequest':
+        // "Abrir numa aba", clicado dentro do painel. Abre a mesma tela do
+        // painel lateral numa aba, que é o caminho que não depende de um gesto
+        // do usuário — ver src/background/sidePanel.ts para o porquê.
+        return { ok: await openWideView(sender.tab) };
       // ---- UIs (painel lateral / painel injetado) ----
       case 'panel/mounted': {
         // Um painel nasceu nesta aba: a partir de agora o estado ao vivo tem

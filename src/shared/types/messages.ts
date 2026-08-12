@@ -141,9 +141,9 @@ const contentMessages = z.discriminatedUnion('type', [
  * já valida o que chega por `chrome.runtime` — a ponte não afrouxa nada.
  */
 export const uiMessageSchema = z.discriminatedUnion('type', [
-  /** Abre o painel lateral — "Ver no histórico", dentro do painel injetado.
-   *  Pode não abrir: o gesto do usuário não atravessa a mensageria, e
-   *  `chrome.sidePanel.open` exige um. Ver src/background/sidePanel.ts. */
+  /** Abre a saída larga — o TaqCITi inteiro numa aba, pedido de dentro do
+   *  painel. Não passa por `chrome.sidePanel.open`, que exige um gesto do
+   *  usuário que este clique não tem. Ver src/background/sidePanel.ts. */
   z.object({ type: z.literal('panel/openRequest') }),
   /**
    * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
