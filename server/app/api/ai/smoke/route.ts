@@ -3,12 +3,17 @@
  * execução gasta tokens de verdade — não é coisa pra um prefetch disparar.
  *
  * Faz duas chamadas triviais por provedor: uma de texto puro e uma com
- * `jsonSchema`, que é onde se vê se a saída estruturada nativa está de pé e
- * se o provedor precisou de reparo. Devolve também a tabela de capacidades
- * e a configuração por agente em vigor.
+ * `jsonSchema`. Devolve, por provedor: o texto retornado, `usage` completo,
+ * o custo calculado pela tabela de preços, se `parsed` veio preenchido, se
+ * houve reparo e quantas vezes esperou por 429.
  *
- * Uma chave ausente derruba só o provedor dela: o objetivo é comparar os
- * três sem ser obrigado a assinar os três de uma vez.
+ * A rota FALHA (`ok: false`) quando `usage.inputTokens` vem 0, nulo ou
+ * ausente, mesmo com HTTP 200 do provedor. Motivo: **forma de payload
+ * aceita e usage lido corretamente são duas provas diferentes, e só a
+ * primeira vem de graça no 200.** Um adaptador com normalização de usage
+ * errada responde 200 normalmente e reporta custo zero — o defeito só
+ * apareceria quando o harness dissesse que uma geração completa custou
+ * nada, ou pior, não apareceria.
  *
  *   curl -X POST http://localhost:3000/api/ai/smoke \
  *     -H "x-docciti-key: $DOCCITI_SHARED_KEY" \
@@ -20,15 +25,17 @@ import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
 import {
   AGENT_CONFIG,
   capabilityTable,
+  cheapestProductionEntry,
+  dataPolicyWarning,
   estimateCost,
   getProvider,
   isProviderId,
-  matrixFor,
   PROVIDER_IDS,
   type CompletionResult,
   type JsonSchema,
   type ProviderId,
 } from '@/lib/ai';
+import { assertUsable } from '@/lib/ai/smokeAssertions';
 
 /** Schema mínimo que exercita objeto, string, enum e campo obrigatório. */
 const SMOKE_SCHEMA: JsonSchema = {
@@ -44,39 +51,51 @@ const SMOKE_SCHEMA: JsonSchema = {
 interface CallReport {
   ok: boolean;
   model: string;
-  output?: string;
+  /** Por que falhou, quando `ok` é false. Pode ser erro do provedor OU
+   *  asserção nossa violada com HTTP 200. */
+  failure?: string;
+  text?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+  costUsd?: number;
+  parsedPreenchido?: boolean;
   parsed?: unknown;
   repaired?: boolean;
+  rateLimitWaits?: number;
   latencyMs?: number;
-  usage?: CompletionResult['usage'];
-  costUsd?: number;
-  error?: string;
 }
 
-function report(result: CompletionResult): CallReport {
+function report(result: CompletionResult, expectParsed: boolean): CallReport {
+  const failures = assertUsable(result, expectParsed);
   const cost = estimateCost(result.meta.provider, result.meta.model, result.usage);
+
   return {
-    ok: true,
+    ok: failures.length === 0,
     model: result.meta.model,
-    output: result.text.slice(0, 400),
+    ...(failures.length > 0 ? { failure: failures.join(' ') } : {}),
+    text: result.text.slice(0, 400),
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    cachedInputTokens: result.usage.cachedInputTokens ?? 0,
+    ...(cost ? { costUsd: Number(cost.totalUsd.toFixed(8)) } : {}),
+    parsedPreenchido: result.parsed !== undefined,
     ...(result.parsed !== undefined ? { parsed: result.parsed } : {}),
     repaired: result.meta.repaired,
+    rateLimitWaits: result.meta.rateLimitWaits,
     latencyMs: result.meta.latencyMs,
-    usage: result.usage,
-    ...(cost ? { costUsd: Number(cost.totalUsd.toFixed(6)) } : {}),
   };
 }
 
 function failure(model: string, error: unknown): CallReport {
-  return { ok: false, model, error: (error as Error).message };
+  return { ok: false, model, failure: (error as Error).message };
 }
 
 async function smokeProvider(id: ProviderId) {
   const provider = getProvider(id);
-  // Configuração "barata" da matriz: é o modelo certo pra uma chamada cuja
+  // Piso de produção do fornecedor: o modelo certo pra uma chamada cuja
   // única função é provar que o encanamento liga.
-  const entry = matrixFor(id).find((candidate) => candidate.tier === 'barato');
-  if (!entry) throw new Error(`Matriz sem configuração barata para ${id}.`);
+  const entry = cheapestProductionEntry(id);
   const model = entry.model;
 
   let text: CallReport;
@@ -87,6 +106,7 @@ async function smokeProvider(id: ProviderId) {
         messages: [{ role: 'user', content: 'Responda apenas com a palavra: ok' }],
         maxTokens: 4096,
       }),
+      false,
     );
   } catch (error) {
     text = failure(model, error);
@@ -101,6 +121,7 @@ async function smokeProvider(id: ProviderId) {
         maxTokens: 4096,
         jsonSchema: SMOKE_SCHEMA,
       }),
+      true,
     );
   } catch (error) {
     json = failure(model, error);
@@ -108,7 +129,9 @@ async function smokeProvider(id: ProviderId) {
 
   return {
     provider: id,
+    model,
     contextWindowTokens: provider.maxContextTokens(model),
+    ok: text.ok && json.ok,
     text,
     json,
   };
@@ -149,8 +172,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     results.push(await smokeProvider(id));
   }
 
+  const avisos = requested
+    .map((id) => dataPolicyWarning(cheapestProductionEntry(id)))
+    .filter((aviso): aviso is string => aviso !== null);
+
   return NextResponse.json(
-    { capabilities: capabilityTable(), agentConfig: AGENT_CONFIG, results },
+    {
+      ok: results.every((result) => result.ok),
+      capabilities: capabilityTable(),
+      agentConfig: AGENT_CONFIG,
+      results,
+      avisos,
+      naoVerificado: [
+        'Cache de contexto. Uma chamada única não exercita cache: o breakpoint ' +
+          'de `cache_control` (Anthropic) e o cache implícito (Google, xAI) só ' +
+          'rendem no SEGUNDO request com o mesmo prefixo, e o prefixo aqui é ' +
+          'curto demais para atingir o mínimo cacheável de qualquer um deles. ' +
+          'Portanto `cachedInputTokens: 0` abaixo é o esperado e NÃO prova nada ' +
+          'sobre o cache funcionar. O ganho de cache entra direto na conta de ' +
+          'custo por documento, então isso fica em aberto até a Fase 2 fazer ' +
+          'chamadas repetidas com o mesmo contexto compactado.',
+        'Espera por 429. O laço tem teste unitário, mas nenhuma chamada real ' +
+          'tomou 429 ainda — `rateLimitWaits: 0` aqui não prova que a espera ' +
+          'funciona contra a API de verdade.',
+      ],
+    },
     { status: 200, headers },
   );
 }

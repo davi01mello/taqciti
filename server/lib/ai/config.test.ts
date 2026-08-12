@@ -3,28 +3,51 @@ import {
   COMPARISON_MATRIX,
   DEFAULT_AGENT_CONFIG,
   agentConfigFor,
+  cheapestProductionEntry,
+  dataPolicyWarning,
   matrixFor,
   parseOverride,
   productionCandidates,
+  usesContentForTraining,
 } from './config';
+import { costForEntry } from './index';
 import { priceFor } from './pricing';
 import { AGENT_NAMES, PROVIDER_IDS } from './types';
 
 describe('matriz de comparação', () => {
-  it('cada provedor tem exatamente uma configuração barata', () => {
-    // A rota de smoke escolhe o modelo por este critério; duas entradas
-    // "barato" tornariam a escolha dependente da ordem do array.
+  it('cada provedor tem exatamente um piso de produção', () => {
+    // A rota de smoke escolhe o modelo por este critério; dois pisos
+    // tornariam a escolha dependente da ordem do array. A regra vale entre
+    // CANDIDATOS A PRODUÇÃO: entradas experimentais podem repetir tier,
+    // porque respondem perguntas laterais em vez de disputar a decisão.
     for (const provider of PROVIDER_IDS) {
-      const baratos = matrixFor(provider).filter((entry) => entry.tier === 'barato');
+      const baratos = productionCandidates().filter(
+        (entry) => entry.provider === provider && entry.tier === 'barato',
+      );
       expect(baratos, `provedor ${provider}`).toHaveLength(1);
+      expect(cheapestProductionEntry(provider)).toBe(baratos[0]);
     }
   });
 
-  it('cada provedor tem pelo menos uma configuração cara', () => {
+  it('cada provedor tem pelo menos um teto de produção', () => {
     for (const provider of PROVIDER_IDS) {
-      const caros = matrixFor(provider).filter((entry) => entry.tier === 'caro');
+      const caros = productionCandidates().filter(
+        (entry) => entry.provider === provider && entry.tier === 'caro',
+      );
       expect(caros.length, `provedor ${provider}`).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it('o piso de produção nunca envia conteúdo para treinamento', () => {
+    // Se um dia o piso de um fornecedor virar free tier sem querer, o
+    // pipeline passaria a mandar transcrição para treinamento em silêncio.
+    for (const provider of PROVIDER_IDS) {
+      expect(usesContentForTraining(cheapestProductionEntry(provider)), provider).toBe(false);
+    }
+  });
+
+  it('matrixFor devolve também as entradas experimentais', () => {
+    expect(matrixFor('google').map((entry) => entry.id)).toContain('google-dev-free');
   });
 
   it('os ids das entradas são únicos', () => {
@@ -40,12 +63,63 @@ describe('matriz de comparação', () => {
     }
   });
 
-  it('modelo em preview fica de fora dos candidatos a produção', () => {
-    const previews = COMPARISON_MATRIX.filter((entry) => entry.preview);
-    expect(previews.length).toBeGreaterThan(0);
-    for (const entry of previews) {
+  it('entrada experimental fica de fora dos candidatos a produção', () => {
+    const experimentais = COMPARISON_MATRIX.filter((entry) => entry.experimental);
+    expect(experimentais.length).toBeGreaterThan(0);
+    for (const entry of experimentais) {
       expect(productionCandidates().map((c) => c.id)).not.toContain(entry.id);
     }
+  });
+
+  it('toda entrada que manda conteúdo para treinamento é experimental', () => {
+    // A recíproca não vale (preview pode ser privado), mas esta direção
+    // sim: dado que vai para treinamento nunca pode ser candidato a produção.
+    for (const entry of COMPARISON_MATRIX.filter(usesContentForTraining)) {
+      expect(entry.experimental, entry.id).toBe(true);
+    }
+  });
+});
+
+describe('política de dados', () => {
+  it('gemini-2.5-flash em free tier está marcado como treinamento', () => {
+    const entry = COMPARISON_MATRIX.find((candidate) => candidate.id === 'google-dev-free')!;
+    expect(entry.model).toBe('gemini-2.5-flash');
+    expect(entry.dataPolicy).toBe('training');
+    expect(entry.billing).toBe('free-tier');
+    expect(usesContentForTraining(entry)).toBe(true);
+  });
+
+  it('o aviso nomeia a configuração e proíbe transcrição real', () => {
+    const entry = COMPARISON_MATRIX.find((candidate) => candidate.id === 'google-dev-free')!;
+    const aviso = dataPolicyWarning(entry)!;
+    expect(aviso).toContain('google-dev-free');
+    expect(aviso).toContain('sintética');
+  });
+
+  it('configuração privada não gera aviso', () => {
+    expect(dataPolicyWarning(cheapestProductionEntry('anthropic'))).toBeNull();
+  });
+
+  it('a nota da entrada de free tier registra os três motivos', () => {
+    const nota = COMPARISON_MATRIX.find((c) => c.id === 'google-dev-free')!.note!;
+    expect(nota).toMatch(/revisão humana/i);
+    expect(nota).toMatch(/geração anterior/i);
+    expect(nota).toMatch(/limites de requisição/i);
+  });
+});
+
+describe('custo por entrada da matriz', () => {
+  it('free tier custa zero mesmo com o modelo tendo preço pago', () => {
+    const entry = COMPARISON_MATRIX.find((candidate) => candidate.id === 'google-dev-free')!;
+    // O modelo TEM preço na tabela — é o preço pago dele, e continua certo.
+    expect(priceFor(entry.provider, entry.model)).toBeDefined();
+    expect(costForEntry(entry, { inputTokens: 1_000_000, outputTokens: 500_000 })!.totalUsd).toBe(0);
+  });
+
+  it('configuração paga usa a tabela normalmente', () => {
+    const entry = cheapestProductionEntry('anthropic');
+    const cost = costForEntry(entry, { inputTokens: 1_000_000, outputTokens: 0 })!;
+    expect(cost.totalUsd).toBeGreaterThan(0);
   });
 
   it('agentConfigFor expande a entrada para os quatro agentes', () => {

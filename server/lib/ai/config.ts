@@ -50,15 +50,53 @@ const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
 
 export type Tier = 'caro' | 'barato';
 
+/**
+ * O que o provedor faz com o conteúdo enviado.
+ *
+ * `private`   — não é usado para treinar nem passa por revisão humana.
+ * `training`  — o conteúdo PODE ser usado para melhorar produtos, com
+ *               revisão humana. É o caso do free tier do Gemini.
+ *
+ * Isto não é metadado decorativo: transcrição de reunião é exatamente o
+ * tipo de dado que os termos desaconselham mandar para `training`.
+ */
+export type DataPolicy = 'private' | 'training';
+
+export type Billing = 'paid' | 'free-tier';
+
 export interface MatrixEntry {
   id: string;
   provider: ProviderId;
   tier: Tier;
   /** Modelo usado em TODOS os agentes desta configuração. */
   model: string;
-  /** true = modelo em preview. Roda na matriz, mas não é candidato a produção. */
-  preview?: boolean;
+  /** true = preview ou free tier. Roda na matriz, não é candidato a produção. */
+  experimental?: boolean;
+  /** Ausente = `private`. */
+  dataPolicy?: DataPolicy;
+  /** Ausente = `paid`. `free-tier` faz o custo desta configuração ser zero
+   *  no relatório, mesmo com o modelo tendo preço na tabela. */
+  billing?: Billing;
   note?: string;
+}
+
+/**
+ * true quando a configuração manda conteúdo para treinamento. Enquanto a
+ * ativa for uma dessas, **só transcrição sintética** — nenhuma gravação
+ * real de reunião.
+ */
+export function usesContentForTraining(entry: MatrixEntry): boolean {
+  return entry.dataPolicy === 'training';
+}
+
+/** Aviso pronto para log, ou `null` quando não há o que avisar. */
+export function dataPolicyWarning(entry: MatrixEntry): string | null {
+  if (!usesContentForTraining(entry)) return null;
+  return (
+    `ATENÇÃO: a configuração "${entry.id}" (${entry.provider}/${entry.model}) envia o ` +
+    'conteúdo para treinamento do provedor, com possível revisão humana. ' +
+    'Use SOMENTE transcrição sintética — nenhuma gravação real de reunião.'
+  );
 }
 
 /**
@@ -100,11 +138,30 @@ export const COMPARISON_MATRIX: MatrixEntry[] = [
     provider: 'google',
     tier: 'caro',
     model: 'gemini-3.1-pro-preview',
-    preview: true,
+    experimental: true,
     note:
       'PREVIEW — não é candidato a produção. Está aqui porque saber se o ' +
       'Gemini mais capaz resolve a armadilha de decisão é informação útil ' +
       'de qualquer jeito. $2–4/$12–18 por MTok (faixa alta acima de 200k tokens).',
+  },
+  {
+    id: 'google-dev-free',
+    provider: 'google',
+    tier: 'barato',
+    model: 'gemini-2.5-flash',
+    experimental: true,
+    dataPolicy: 'training',
+    billing: 'free-tier',
+    note:
+      'CONFIGURAÇÃO DE DESENVOLVIMENTO, não candidata a produção, por três ' +
+      'motivos independentes. (1) O free tier usa o conteúdo enviado para ' +
+      'melhorar produtos, com revisão humana — os termos desaconselham dado ' +
+      'sensível, e transcrição de reunião é exatamente isso; enquanto esta ' +
+      'for a configuração ativa, só transcrição sintética. (2) É geração ' +
+      'anterior: comparar com a família 3.x mede geração, não fornecedor. ' +
+      '(3) Limites de requisição baixos — uma geração completa faz de 20 a ' +
+      '30 chamadas e estoura o limite por minuto com facilidade (ver a ' +
+      'espera por 429 em providers/shared.ts).',
   },
   {
     id: 'google-caro',
@@ -152,9 +209,24 @@ export function matrixFor(provider: ProviderId): MatrixEntry[] {
   return COMPARISON_MATRIX.filter((entry) => entry.provider === provider);
 }
 
-/** Só o que é candidato a produção — exclui preview. */
+/**
+ * Só o que é candidato a produção — exclui preview e free tier. É sobre
+ * este conjunto que vale a regra de um teto e um piso por fornecedor: as
+ * entradas experimentais existem para responder perguntas laterais, não
+ * para disputar a decisão.
+ */
 export function productionCandidates(): MatrixEntry[] {
-  return COMPARISON_MATRIX.filter((entry) => !entry.preview);
+  return COMPARISON_MATRIX.filter((entry) => !entry.experimental);
+}
+
+/** O piso de produção de um fornecedor — o modelo que o harness precisa
+ *  derrubar ou aprovar. É por ele que a rota de fumaça escolhe o modelo. */
+export function cheapestProductionEntry(provider: ProviderId): MatrixEntry {
+  const entry = productionCandidates().find(
+    (candidate) => candidate.provider === provider && candidate.tier === 'barato',
+  );
+  if (!entry) throw new Error(`Matriz sem configuração barata de produção para ${provider}.`);
+  return entry;
 }
 
 // ---------------------------------------------------------------------------

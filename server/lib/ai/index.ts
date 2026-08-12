@@ -5,7 +5,7 @@
  * Trocar o provedor de um agente é editar `config.ts` ou exportar uma
  * variável de ambiente — nenhum outro arquivo muda.
  */
-import { AGENT_CONFIG, activeProviders } from './config';
+import { AGENT_CONFIG, activeProviders, type MatrixEntry } from './config';
 import { estimateCost, type CostBreakdown } from './pricing';
 import { anthropicProvider } from './providers/anthropic';
 import { googleProvider } from './providers/google';
@@ -58,6 +58,25 @@ export function supportsFor(agent: AgentName, capability: Capability): boolean {
 /** Custo estimado de um resultado, a partir de `meta` + `usage`. */
 export function costOf(result: CompletionResult): CostBreakdown | undefined {
   return estimateCost(result.meta.provider, result.meta.model, result.usage);
+}
+
+/**
+ * Custo de uma execução da matriz. Difere de `estimateCost` num ponto: uma
+ * configuração marcada `billing: 'free-tier'` custa zero mesmo que o modelo
+ * tenha preço pago na tabela — que é o caso do `gemini-2.5-flash`, usado em
+ * desenvolvimento no free tier e cobrado normalmente numa chave paga.
+ *
+ * O harness da Fase 8 deve somar por aqui, não por `estimateCost` direto,
+ * senão reporta um custo que ninguém pagou.
+ */
+export function costForEntry(
+  entry: MatrixEntry,
+  usage: { inputTokens: number; outputTokens: number; cachedInputTokens?: number },
+): CostBreakdown | undefined {
+  if (entry.billing === 'free-tier') {
+    return { inputUsd: 0, cachedInputUsd: 0, outputUsd: 0, totalUsd: 0, longContextTier: false };
+  }
+  return estimateCost(entry.provider, entry.model, usage);
 }
 
 export interface CapabilityRow {
@@ -115,11 +134,14 @@ export {
   DEFAULT_AGENT_CONFIG,
   activeProviders,
   agentConfigFor,
+  cheapestProductionEntry,
+  dataPolicyWarning,
   matrixFor,
   parseOverride,
   productionCandidates,
+  usesContentForTraining,
 } from './config';
-export type { AgentModelConfig, MatrixEntry, Tier } from './config';
+export type { AgentModelConfig, Billing, DataPolicy, MatrixEntry, Tier } from './config';
 export { PRICING, estimateCost, priceFor } from './pricing';
 export type { CostBreakdown } from './pricing';
 export * from './types';

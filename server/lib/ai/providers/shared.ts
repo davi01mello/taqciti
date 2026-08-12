@@ -11,6 +11,7 @@
 import { parseAndValidate, repairInstruction, schemaInstruction } from '../jsonSchema';
 import {
   ProviderError,
+  RateLimitError,
   type CompletionMessage,
   type CompletionRequest,
   type CompletionResult,
@@ -18,6 +19,77 @@ import {
   type JsonSchema,
   type ProviderId,
 } from '../types';
+
+// ---------------------------------------------------------------------------
+// Espera por 429
+// ---------------------------------------------------------------------------
+
+/**
+ * Uma geração completa faz de 20 a 30 chamadas (1 Analista + 9 Pensante +
+ * N Auditor + 9 Escritor). Em free tier isso estoura limite por minuto com
+ * facilidade, e sem espera a primeira geração morre no meio — parecendo bug
+ * de lógica, que é o diagnóstico errado e caro.
+ */
+const DEFAULT_MAX_RATE_LIMIT_RETRIES = 5;
+const BASE_BACKOFF_MS = 1_000;
+/** Teto por espera. Sem ele, o expoente leva a esperas de dezenas de minutos. */
+const MAX_BACKOFF_MS = 60_000;
+
+export function maxRateLimitRetries(): number {
+  const raw = process.env.DOCCITI_RATE_LIMIT_RETRIES;
+  if (!raw?.trim()) return DEFAULT_MAX_RATE_LIMIT_RETRIES;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`DOCCITI_RATE_LIMIT_RETRIES="${raw}" precisa ser um inteiro >= 0.`);
+  }
+  return parsed;
+}
+
+/** Exponencial com jitter. O jitter evita que 9 chamadas do Pensante que
+ *  tomaram 429 juntas voltem todas no mesmo milissegundo. */
+export function backoffDelayMs(attempt: number, retryAfterMs?: number): number {
+  if (retryAfterMs !== undefined && retryAfterMs > 0) {
+    return Math.min(retryAfterMs, MAX_BACKOFF_MS);
+  }
+  const exponential = Math.min(BASE_BACKOFF_MS * 2 ** attempt, MAX_BACKOFF_MS);
+  return Math.round(exponential * (0.5 + Math.random() * 0.5));
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Repete só em 429, contando as esperas. Erro que não é 429 sobe na hora:
+ * repetir um 401 ou um schema inválido dá o mesmo erro cinco vezes mais
+ * devagar.
+ */
+export async function withRateLimitRetry<T>(
+  call: () => Promise<T>,
+  options: { maxRetries?: number; onWait?: (ms: number) => Promise<void> | void } = {},
+): Promise<{ value: T; waits: number }> {
+  const maxRetries = options.maxRetries ?? maxRateLimitRetries();
+  const wait = options.onWait ?? sleep;
+
+  let waits = 0;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return { value: await call(), waits };
+    } catch (error) {
+      if (!(error instanceof RateLimitError) || attempt >= maxRetries) throw error;
+      await wait(backoffDelayMs(attempt, error.retryAfterMs));
+      waits += 1;
+    }
+  }
+}
+
+/** Lê `retry-after` (segundos, ou data HTTP) em milissegundos. */
+export function parseRetryAfter(header: string | null | undefined): number | undefined {
+  if (!header) return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const date = Date.parse(header);
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  return undefined;
+}
 
 export interface RawInvocation {
   system: string;
@@ -81,10 +153,23 @@ export async function runCompletion(
   provider: ProviderId,
   model: string,
   req: CompletionRequest,
-  options: { nativeStructuredOutput: boolean },
+  options: { nativeStructuredOutput: boolean; maxRateLimitRetries?: number },
   invoke: RawInvoke,
 ): Promise<CompletionResult> {
   const startedAt = Date.now();
+  let rateLimitWaits = 0;
+
+  // Cada chamada ao provedor (a primeira e a de reparo) tem seu próprio laço
+  // de espera; as esperas somam no mesmo contador.
+  const invokeWithRetry = async (invocation: RawInvocation) => {
+    const { value, waits } = await withRateLimitRetry(() => invoke(invocation), {
+      ...(options.maxRateLimitRetries !== undefined
+        ? { maxRetries: options.maxRateLimitRetries }
+        : {}),
+    });
+    rateLimitWaits += waits;
+    return value;
+  };
 
   const needsPromptedSchema = req.jsonSchema !== undefined && !options.nativeStructuredOutput;
   const system = needsPromptedSchema
@@ -101,14 +186,14 @@ export async function runCompletion(
     ...(prefixLength !== undefined ? { cacheablePrefixLength: prefixLength } : {}),
   };
 
-  const first = await invoke(base);
+  const first = await invokeWithRetry(base);
   let usage = addUsage(EMPTY_USAGE, first.usage);
 
   if (!req.jsonSchema) {
     return {
       text: first.text,
       usage,
-      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false },
+      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false, rateLimitWaits },
     };
   }
 
@@ -118,13 +203,13 @@ export async function runCompletion(
       text: first.text,
       parsed: firstCheck.value,
       usage,
-      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false },
+      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false, rateLimitWaits },
     };
   }
 
   // Uma tentativa, não um laço. Provedor que não acerta a forma em duas
   // passadas é informação sobre o provedor, não problema pra insistir.
-  const repair = await invoke({
+  const repair = await invokeWithRetry({
     ...base,
     messages: [
       ...messages,
@@ -147,7 +232,7 @@ export async function runCompletion(
     text: repair.text,
     parsed: secondCheck.value,
     usage,
-    meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: true },
+    meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: true, rateLimitWaits },
   };
 }
 

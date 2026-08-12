@@ -56,8 +56,33 @@ x-docciti-key: <segredo compartilhado>
 ```
 
 O smoke gasta tokens de verdade: faz duas chamadas triviais por provedor
-(uma de texto, uma com `jsonSchema`) usando o modelo mais barato de cada um.
+(uma de texto, uma com `jsonSchema`) usando o piso de produção de cada um.
 Chave ausente derruba só o provedor dela.
+
+Por provedor ele reporta texto, `inputTokens`, `outputTokens`,
+`cachedInputTokens`, custo pela tabela de preços, `parsedPreenchido`,
+`repaired`, `rateLimitWaits` e latência.
+
+**Ele falha (`ok: false`) mesmo com HTTP 200** quando `usage.inputTokens` vem
+0, nulo ou ausente — e também em texto vazio, `parsed` faltando com schema
+pedido, ou modelo fora da tabela de preços. Motivo: forma de payload aceita e
+`usage` lido corretamente são duas provas diferentes, e só a primeira vem de
+graça no 200. Um adaptador com normalização de `usage` errada responde 200
+normalmente e reporta custo zero; o defeito só apareceria quando o harness
+dissesse que uma geração completa custou nada — ou pior, não apareceria. As
+asserções vivem em `lib/ai/smokeAssertions.ts`, fora do route handler, para
+serem testadas.
+
+A resposta traz um campo `naoVerificado` com o que o smoke **não** prova:
+
+- **Cache.** Uma chamada única não exercita cache. O breakpoint de
+  `cache_control` e o cache implícito só rendem no segundo request com o mesmo
+  prefixo, e o prefixo aqui é curto demais para atingir o mínimo cacheável de
+  qualquer provedor. `cachedInputTokens: 0` é o esperado e não prova nada. Como
+  o ganho de cache entra direto na conta de custo por documento, isso fica em
+  aberto até a Fase 2 fazer chamadas repetidas com o mesmo contexto compactado.
+- **Espera por 429.** Tem teste unitário, mas nenhuma chamada real tomou 429
+  ainda.
 
 ## A tranca do endpoint
 
@@ -158,23 +183,84 @@ documento no menor modelo que ainda passa as asserções determinísticas?**
 Daí duas configurações por provedor — teto e piso — com o mesmo modelo nos
 quatro agentes.
 
-| id | provedor | tier | modelo |
-|---|---|---|---|
-| `anthropic-caro` | anthropic | caro | `claude-opus-5` |
-| `anthropic-barato` | anthropic | barato | `claude-haiku-4-5` |
-| `google-caro-preview` | google | caro | `gemini-3.1-pro-preview` ⚠️ preview |
-| `google-caro` | google | caro | `gemini-3.6-flash` |
-| `google-barato` | google | barato | `gemini-3.5-flash-lite` |
-| `xai-caro` | xai | caro | `grok-4.5` |
-| `xai-barato` | xai | barato | `grok-4.3` |
+| id | provedor | tier | modelo | |
+|---|---|---|---|---|
+| `anthropic-caro` | anthropic | caro | `claude-opus-5` | |
+| `anthropic-barato` | anthropic | barato | `claude-haiku-4-5` | |
+| `google-caro` | google | caro | `gemini-3.6-flash` | |
+| `google-barato` | google | barato | `gemini-3.5-flash-lite` | |
+| `google-caro-preview` | google | caro | `gemini-3.1-pro-preview` | ⚠️ preview |
+| `google-dev-free` | google | barato | `gemini-2.5-flash` | ⚠️ free tier |
+| `xai-caro` | xai | caro | `grok-4.5` | |
+| `xai-barato` | xai | barato | `grok-4.3` | |
 
-`gemini-3.1-pro-preview` entra marcado como preview e fora de
-`productionCandidates()`: não é candidato a produção, mas saber se o Gemini
-mais capaz resolve a armadilha de decisão é informação útil de qualquer
-jeito.
+As duas entradas ⚠️ são `experimental: true` e ficam **fora** de
+`productionCandidates()`. A regra de "um teto e um piso por fornecedor" vale
+sobre os candidatos a produção — as experimentais respondem perguntas
+laterais em vez de disputar a decisão, e por isso podem repetir tier.
 
 Configuração mista (Analista caro, Auditor barato) é otimização de uma
 segunda rodada, depois de saber onde cada fornecedor quebra.
+
+### `gemini-2.5-flash` — configuração de desenvolvimento
+
+Existe para desenvolver contra o free tier enquanto o pipeline não está
+pronto. **Não é candidata a produção** por três motivos independentes, todos
+registrados na `note` da entrada:
+
+1. O free tier usa o conteúdo enviado para melhorar produtos, **com revisão
+   humana**. Transcrição de reunião é exatamente o tipo de dado que os termos
+   desaconselham.
+2. É geração anterior — comparar com a família 3.x mede geração, não fornecedor.
+3. Limites de requisição baixos.
+
+> ⚠️ **Enquanto a configuração ativa for esta, só transcrição sintética.**
+> Nenhuma gravação real de reunião.
+
+Isso é imposto em código, não só em comentário: a entrada carrega
+`dataPolicy: 'training'`, `usesContentForTraining()` responde por ela, e
+`dataPolicyWarning()` devolve o aviso pronto para log. Um teste garante que
+o piso de produção de nenhum fornecedor seja uma configuração de treinamento.
+
+O preço fica registrado como o preço **pago** do modelo ($0,30/$2,50). O zero
+mora em `billing: 'free-tier'` na entrada da matriz, e quem aplica é
+`costForEntry()` — o harness deve somar por ela, não por `estimateCost()`
+direto. Registrar 0 na tabela de preços poria um número falso justamente no
+lugar onde alguém vai olhar para decidir migrar para pago.
+
+### Compatibilidade por família de modelo
+
+A 2.5 é anterior à geração adaptada primeiro, e **duas** coisas mudaram de
+forma. Verificado nos `.d.ts` do `@google/genai` v2.16.0 instalado, não na
+documentação pública:
+
+| | família 3.x | família 2.5 |
+|---|---|---|
+| saída estruturada | `responseJsonSchema` (JSON Schema) | `responseSchema` (subconjunto OpenAPI) |
+| raciocínio | `thinkingConfig.thinkingLevel` (enum) | `thinkingConfig.thinkingBudget` (tokens) |
+
+`lib/ai/providers/geminiSchema.ts` faz a conversão. O que se perde: `type`
+vira enum maiúsculo, `enum` vira `string[]`, e **`additionalProperties` não
+existe** na forma OpenAPI. A restrição continua valendo — quem passa a
+garanti-la é o validador local, o que pode custar uma chamada de reparo onde
+a 3.x não custaria. É isso que `repaired` vai mostrar.
+
+### Espera por 429
+
+Uma geração completa faz de 20 a 30 chamadas (1 Analista + 9 Pensante +
+N Auditor + 9 Escritor). Em free tier isso estoura o limite por minuto com
+facilidade, e sem espera a primeira geração morre no meio — parecendo bug de
+lógica, que é o diagnóstico errado e caro.
+
+O laço vive em `providers/shared.ts` e é o mesmo para os três: exponencial
+com jitter, teto de 60s por espera, honrando `retry-after` quando o provedor
+manda. Só repete 429 — repetir um 401 daria o mesmo erro cinco vezes mais
+devagar. `DOCCITI_RATE_LIMIT_RETRIES` ajusta o teto de tentativas (padrão 5).
+
+O cliente da Anthropic roda com `maxRetries: 0` de propósito: o SDK repetiria
+sozinho, as esperas ficariam invisíveis, e `rateLimitWaits` reportaria zero
+enquanto a geração leva minutos. Cada resultado carrega
+`meta.rateLimitWaits`.
 
 ## Testes
 

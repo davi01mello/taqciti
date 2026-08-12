@@ -14,8 +14,14 @@
  * se posiciona), e o raciocínio é escolhido pelo ID do modelo — a linha tem
  * variantes `-reasoning` e `-non-reasoning` em vez de um parâmetro.
  */
-import { ProviderError, type Capability, type CompletionRequest, type Provider } from '../types';
-import { requireApiKey, runCompletion } from './shared';
+import {
+  ProviderError,
+  RateLimitError,
+  type Capability,
+  type CompletionRequest,
+  type Provider,
+} from '../types';
+import { parseRetryAfter, requireApiKey, runCompletion } from './shared';
 
 const ENDPOINT = 'https://api.x.ai/v1/chat/completions';
 
@@ -112,6 +118,15 @@ export const xaiProvider: Provider = {
         payload = JSON.parse(raw) as ChatCompletionResponse;
       } catch {
         throw new ProviderError('xai', model, `HTTP ${response.status}, corpo não-JSON: ${raw.slice(0, 300)}`);
+      }
+
+      if (response.status === 429) {
+        throw new RateLimitError(
+          'xai',
+          model,
+          `cota estourada (429): ${payload.error?.message ?? raw.slice(0, 200)}`,
+          parseRetryAfter(response.headers.get('retry-after')),
+        );
       }
 
       if (!response.ok) {

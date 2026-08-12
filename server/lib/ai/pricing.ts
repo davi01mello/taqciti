@@ -84,6 +84,12 @@ const GOOGLE_PRICING: Record<string, ModelPrice> = {
     cachedInputPerMTok: 0.125,
     longContext: { thresholdTokens: 200_000, inputPerMTok: 2.5, outputPerMTok: 15, cachedInputPerMTok: 0.25 },
   },
+  // Preço PAGO. A entrada `google-dev-free` da matriz usa este mesmo modelo
+  // no free tier, onde não se paga nada — mas o zero mora lá, em
+  // `billing: 'free-tier'`, e não aqui. Registrar 0 nesta tabela poria um
+  // número falso no lugar onde alguém vai olhar pra decidir migrar para
+  // pago; o custo de rodar em free tier é uma propriedade da configuração,
+  // não do modelo.
   'gemini-2.5-flash': { inputPerMTok: 0.3, outputPerMTok: 2.5, cachedInputPerMTok: 0.03 },
   'gemini-2.5-flash-lite': { inputPerMTok: 0.1, outputPerMTok: 0.4, cachedInputPerMTok: 0.01 },
 };

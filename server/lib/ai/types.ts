@@ -77,6 +77,14 @@ export interface CompletionMeta {
    * detalhe interno: provedor que repara sempre é provedor menos confiável.
    */
   repaired: boolean;
+  /**
+   * Quantas vezes esta chamada esperou por 429 antes de passar. Entra no
+   * relatório porque é a diferença entre "o provedor é lento" e "o provedor
+   * está estrangulando a sua cota" — e porque uma geração completa faz 20 a
+   * 30 chamadas, então esperar sempre vira minutos de latência que nenhuma
+   * outra métrica explica.
+   */
+  rateLimitWaits: number;
 }
 
 export interface CompletionResult {
@@ -126,5 +134,28 @@ export class ProviderError extends Error {
     this.provider = provider;
     this.model = model;
     this.detail = detail;
+  }
+}
+
+/**
+ * 429 — cota estourada. Subclasse própria porque é o único erro que vale a
+ * pena repetir: os demais (401, 400, schema inválido) só se repetiriam
+ * iguais. Cada adaptador traduz o 429 do seu provedor para isto, e o laço
+ * de espera em providers/shared.ts é um só para os três.
+ */
+export class RateLimitError extends ProviderError {
+  /** Do header `retry-after`, quando o provedor manda. Sem isso, backoff cego. */
+  readonly retryAfterMs?: number;
+
+  constructor(
+    provider: ProviderId,
+    model: string,
+    message: string,
+    retryAfterMs?: number,
+    detail?: unknown,
+  ) {
+    super(provider, model, message, detail);
+    this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfterMs;
   }
 }

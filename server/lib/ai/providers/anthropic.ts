@@ -12,8 +12,14 @@
  * explícita abaixo em vez de ligar para todos.
  */
 import Anthropic from '@anthropic-ai/sdk';
-import { ProviderError, type Capability, type CompletionRequest, type Provider } from '../types';
-import { requireApiKey, runCompletion, type RawInvocation } from './shared';
+import {
+  ProviderError,
+  RateLimitError,
+  type Capability,
+  type CompletionRequest,
+  type Provider,
+} from '../types';
+import { parseRetryAfter, requireApiKey, runCompletion, type RawInvocation } from './shared';
 
 /** Modelos que aceitam `thinking: { type: 'adaptive' }` e `output_config.effort`. */
 const ADAPTIVE_THINKING_MODELS = new Set([
@@ -47,9 +53,34 @@ let cached: Anthropic | undefined;
 
 function client(): Anthropic {
   if (!cached) {
-    cached = new Anthropic({ apiKey: requireApiKey('anthropic', 'ANTHROPIC_API_KEY') });
+    cached = new Anthropic({
+      apiKey: requireApiKey('anthropic', 'ANTHROPIC_API_KEY'),
+      // O SDK repete 429 e 5xx sozinho (padrão 2). Desligado de propósito:
+      // com ele, as esperas aconteceriam dentro do SDK, invisíveis, e
+      // `rateLimitWaits` reportaria zero enquanto a geração leva minutos.
+      // A espera vira responsabilidade de providers/shared.ts, que é a
+      // mesma para os três provedores — logo, comparável.
+      maxRetries: 0,
+    });
   }
   return cached;
+}
+
+/** Reconhece 429 no formato que o SDK da Anthropic levanta. */
+function asRateLimit(model: string, error: unknown): RateLimitError | undefined {
+  if (!(error instanceof Anthropic.RateLimitError)) return undefined;
+  const headers = (error as { headers?: unknown }).headers;
+  const retryAfter =
+    headers instanceof Headers
+      ? headers.get('retry-after')
+      : (headers as Record<string, string> | undefined)?.['retry-after'];
+  return new RateLimitError(
+    'anthropic',
+    model,
+    `cota estourada (429): ${error.message.slice(0, 200)}`,
+    parseRetryAfter(retryAfter),
+    error,
+  );
 }
 
 function buildMessages(invocation: RawInvocation): Anthropic.MessageParam[] {
@@ -144,6 +175,8 @@ export const anthropicProvider: Provider = {
         };
       } catch (error) {
         if (error instanceof ProviderError) throw error;
+        const rateLimited = asRateLimit(model, error);
+        if (rateLimited) throw rateLimited;
         throw new ProviderError('anthropic', model, (error as Error).message, error);
       }
     });
