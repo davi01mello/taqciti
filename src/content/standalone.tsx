@@ -17,7 +17,7 @@
  * background — que é o dono do estado, e a razão de isso funcionar sem o
  * provider por perto.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { PanelPrefs } from '@/shared/types/domain';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
@@ -25,7 +25,11 @@ import { PlatformProvider, usePlatform } from '@/shared/platform/context';
 import { extensionPlatform } from '@/shared/platform/extension';
 import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
 import { getMountPoint } from './ui/mount';
-import { loadPanelPrefs, savePanelPrefs } from '@/features/panel/prefs';
+import {
+  loadPanelPrefs,
+  patchPanelPrefs,
+  subscribePanelPrefs,
+} from '@/features/panel/prefsStore';
 
 /*
  * Tudo aqui é a resposta a "esta aba é o Meet?" — e não é.
@@ -46,7 +50,17 @@ const AWAY_FROM_MEET: PanelContext = {
 function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
   const platform = usePlatform();
   const state = useMeetingState();
+
+  /*
+   * O storage manda; este estado é só o espelho dele.
+   *
+   * A assinatura cobre três origens com um mecanismo só: o próprio painel, o
+   * painel de outra aba, e o background gravando `presence: 'open'` quando o
+   * ícone da extensão é clicado. É por isso que o clique no ícone abre o painel
+   * sem reinjetar nada nem endereçar mensagem a aba nenhuma.
+   */
   const [prefs, setPrefs] = useState<PanelPrefs>(initialPrefs);
+  useEffect(() => subscribePanelPrefs(setPrefs), []);
 
   const callbacks: PanelCallbacks = useMemo(
     () => ({
@@ -69,17 +83,11 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
       onEnableCaptions: () => {},
 
       /*
-       * O estado precisa acompanhar o que foi salvo: o painel lê posição,
-       * tamanho e o "fechado" da prop, sem cópia interna. Gravar sem atualizar
-       * aqui deixaria a janela sem reagir ao próprio controle que a comanda.
+       * Gravar é tudo o que acontece aqui. O valor novo volta pela assinatura
+       * acima, que é o mesmo caminho das mudanças vindas de fora — um caminho
+       * só, sem cópia local capaz de divergir do que está salvo.
        */
-      onPrefsChange: (patch) => {
-        setPrefs((current) => {
-          const next = { ...current, ...patch };
-          savePanelPrefs(next);
-          return next;
-        });
-      },
+      onPrefsChange: (patch) => void patchPanelPrefs(patch),
     }),
     [platform],
   );
@@ -95,19 +103,16 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
 }
 
 /**
- * Monta o painel nesta aba.
+ * Monta o painel nesta página.
  *
- * As preferências são lidas ANTES de montar, ao contrário do que acontece no
- * Meet: lá a cápsula precisa aparecer o quanto antes e uma correção de posição
- * logo depois passa despercebida no meio do carregamento da página. Aqui o
- * painel nasce por um clique, numa página parada — montar na posição padrão e
- * pular para a salva no quadro seguinte seria visível.
+ * As preferências são lidas ANTES de montar. Este script roda em toda página
+ * que carrega, e montar no padrão para corrigir no quadro seguinte significaria
+ * a cápsula piscando em cada navegação de quem fechou o TaqCITi — a forma
+ * visível de "o estado não atravessou".
  *
- * Não há flag de "abriu por clique" aqui, de propósito. Quem sabe o motivo da
- * injeção é o background: no clique do ícone ele grava `presence: 'open'` ANTES
- * de injetar, e na reinjeção depois de navegar não grava nada. Os dois casos
- * chegam aqui como a mesma coisa — ler o que está no storage — e é isso que faz
- * a janela voltar exatamente como estava depois de trocar de página.
+ * Não existe flag de "por que estou montando". Reabrir, navegar e recarregar
+ * chegam aqui como a mesma coisa: ler o que está no storage. É isso que faz a
+ * janela voltar exatamente como estava, sem ninguém precisar coordenar nada.
  */
 export function startStandalonePanel(): void {
   void loadPanelPrefs().then((prefs) => {

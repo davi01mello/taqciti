@@ -1,16 +1,11 @@
 /**
- * Preferências do painel flutuante — posição, tamanho, presença, rota,
- * visibilidade das legendas nativas. Persistidas em chrome.storage.local. São
- * preferências de apresentação: não passam pela máquina de estados.
+ * A FORMA das preferências do painel — posição, tamanho, presença, rota,
+ * visibilidade das legendas nativas. Só normalização, sem I/O.
  *
- * ── Por que isto saiu do content script ────────────────────────────────────
- *
- * Enquanto só o painel lia e escrevia estas chaves, elas moravam ao lado dele.
- * Agora o background também precisa delas, por dois motivos que a persistência
- * entre páginas criou: ele grava `presence: 'open'` antes de injetar no clique
- * do ícone, e observa `presence` para decidir se mantém a injeção automática
- * registrada. Duas leituras do mesmo formato em camadas diferentes é
- * exatamente onde a normalização divergiria.
+ * A leitura e a escrita moram em `prefsStore.ts`, e a separação é deliberada:
+ * a normalização é pura e testável sem `chrome.*`, e é chamada dos dois lados
+ * (ao ler do storage e ao aplicar um patch), garantindo que nenhum caminho
+ * consiga gravar um estado impossível.
  */
 import type {
   PanelPresence,
@@ -19,8 +14,6 @@ import type {
   PanelSize,
 } from '@/shared/types/domain';
 import { DEFAULT_PANEL_PREFS } from '@/shared/types/domain';
-import { STORAGE_KEYS } from '@/shared/config/constants';
-import { readLocal, writeLocal } from '@/shared/services/storage';
 
 const SIZES: PanelSize[] = ['compact', 'regular', 'tall'];
 const PRESENCES: PanelPresence[] = ['closed', 'minimized', 'open'];
@@ -59,7 +52,7 @@ function clamp01(value: unknown): number | null {
  * navegador simplesmente ignora, deixando a cápsula empilhada no canto sem
  * nenhum erro no console.
  */
-function normalize(saved: Partial<PanelPrefs> | null): PanelPrefs {
+export function normalizePanelPrefs(saved: Partial<PanelPrefs> | null): PanelPrefs {
   if (!saved) return { ...DEFAULT_PANEL_PREFS };
   return {
     x: clamp01(saved.x) ?? DEFAULT_PANEL_PREFS.x,
@@ -73,26 +66,4 @@ function normalize(saved: Partial<PanelPrefs> | null): PanelPrefs {
     route: normalizeRoute(saved.route),
     hideMeetCaptions: saved.hideMeetCaptions !== false,
   };
-}
-
-export async function loadPanelPrefs(): Promise<PanelPrefs> {
-  return normalize(await readLocal<Partial<PanelPrefs>>(STORAGE_KEYS.prefs));
-}
-
-export function savePanelPrefs(prefs: PanelPrefs): void {
-  void writeLocal(STORAGE_KEYS.prefs, prefs);
-}
-
-/**
- * Lê, aplica o patch e grava — para quem não tem as preferências em mãos.
- *
- * É o caminho do background, que só quer mexer num campo (`presence`) sem
- * carregar o resto. O painel NÃO usa isto: ele já tem as preferências em
- * memória, e um read-modify-write assíncrono por clique perderia a gravação
- * mais recente sempre que duas mudanças caíssem na mesma volta.
- */
-export async function patchPanelPrefs(patch: Partial<PanelPrefs>): Promise<PanelPrefs> {
-  const next = { ...(await loadPanelPrefs()), ...patch };
-  await writeLocal(STORAGE_KEYS.prefs, next);
-  return next;
 }

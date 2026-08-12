@@ -108,10 +108,22 @@ export default {
           '0%, 100%': { transform: 'scaleY(0.55)' },
           '50%': { transform: 'scaleY(1.25)' },
         },
-        // O painel dentro do Meet: a cápsula chega, o painel abre a partir dela.
+        /*
+         * A chegada da cápsula: ela sobe e assenta.
+         *
+         * Só transform, NUNCA opacidade. Uma animação de entrada que começa em
+         * `opacity: 0` faz a visibilidade do elemento depender de a animação
+         * rodar até o fim — e enquanto ela não roda (aba aberta em segundo
+         * plano, quadro perdido no meio de uma navegação) a cápsula existe no
+         * DOM e não aparece na tela. É o sintoma mais difícil de diagnosticar
+         * que este painel já teve: "o TaqCITi está lá, mas não dá para ver".
+         *
+         * A opacidade continua sendo controlada por classe, que é estado, não
+         * animação — quem manda nela é a presença do painel.
+         */
         'dock-in': {
-          from: { opacity: '0', transform: 'translateY(10px) scale(0.9)' },
-          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+          from: { transform: 'translateY(10px) scale(0.9)' },
+          to: { transform: 'translateY(0) scale(1)' },
         },
         ripple: {
           '0%': { opacity: '0.5', transform: 'scale(0.6)' },

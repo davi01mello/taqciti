@@ -54,3 +54,22 @@ passo 5 apontando para a pasta nova.
 perigoso. É normal?**
 Sim. Esse aviso aparece para qualquer extensão carregada dessa forma (fora da
 Chrome Web Store) e não indica nenhum problema com a TaqCITi.
+
+**O Chrome avisa que a extensão pode "ler e alterar todos os seus dados nos
+sites que você visita". Por quê?**
+Porque o TaqCITi é uma janela flutuante que precisa continuar disponível
+enquanto você navega — o botão fica à mão em qualquer página, não só dentro do
+Google Meet. Para desenhar essa janela por cima de uma página, o Chrome exige
+acesso a essa página, e não existe permissão mais estreita que signifique
+"desenhar por cima, sem ler nada".
+
+Na prática, o que a extensão faz com esse acesso é: desenhar o próprio painel e,
+**apenas em `meet.google.com`**, ler as legendas da reunião. Nenhuma outra página
+é lida, e nada sai do seu computador — o histórico fica todo em armazenamento
+local, sem backend nenhum.
+
+Se preferir não conceder isso, é possível restringir o acesso pela própria
+página `chrome://extensions` → TaqCITi → **Detalhes** → **Acesso ao site**,
+escolhendo "Em sites específicos" e deixando só `meet.google.com`. O TaqCITi
+continua gravando reuniões normalmente; o que se perde é o botão nas outras
+páginas.

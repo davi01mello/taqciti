@@ -74,5 +74,17 @@ export function Sheen({ tone = 'green' }: { tone?: SheenTone }) {
   );
 }
 
+/**
+ * Para hospedeiros que JÁ têm posicionamento próprio (`fixed`, `absolute`).
+ *
+ * A cápsula flutuante é `fixed`, e `fixed` já cria o bloco de contenção de que
+ * a camada de luz precisa. Herdar o `relative` do `SHEEN_HOST` a colocava em
+ * conflito: as duas classes disputam `position`, e o Tailwind emite `.relative`
+ * depois de `.fixed` — a cápsula virava `position: relative` e passava a ser
+ * posicionada em relação ao fluxo do shadow root em vez do viewport. Funcionava
+ * por acidente, porque ela era o primeiro nó da árvore.
+ */
+export const SHEEN_HOST_POSITIONED = 'group/sheen isolate';
+
 /** As classes que o elemento hospedeiro precisa ter para o reflexo funcionar. */
-export const SHEEN_HOST = 'group/sheen relative isolate';
+export const SHEEN_HOST = `${SHEEN_HOST_POSITIONED} relative`;

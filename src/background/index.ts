@@ -7,7 +7,7 @@
  * nenhum backend, sem autenticação de produto, sem diagnóstico técnico — só
  * transcrição.
  */
-import { PROVIDER_GOOGLE_MEET, STORAGE_KEYS } from '@/shared/config/constants';
+import { PROVIDER_GOOGLE_MEET } from '@/shared/config/constants';
 import { onMessage } from '@/shared/services/messaging';
 import { logger } from '@/shared/services/log';
 import {
@@ -19,93 +19,75 @@ import {
 import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
-import { openPanelInTab, canInject, panelScriptFiles } from './injectPanel';
+import { backfillOpenTabs, canInject, ensurePanelInTab } from './injectPanel';
 import { openSidePanel } from './sidePanel';
-import { forgetPanelTab } from './panelTabs';
-import {
-  dropPersistentAccess,
-  hasPersistentAccess,
-  requestPersistentAccess,
-  syncPersistentInjection,
-} from './persistentPanel';
+import { forgetPanelTab, rememberPanelTab } from './panelTabs';
+import { ensurePanelPrefs, patchPanelPrefs } from '@/features/panel/prefsStore';
 
+/**
+ * A inicialização, e o que ela garante ANTES de a primeira mensagem chegar.
+ *
+ * `ensurePanelPrefs` está aqui, e não só no `onInstalled`, de propósito: o
+ * service worker do MV3 morre e renasce o tempo todo, e o `onInstalled` dispara
+ * uma única vez na vida da instalação. Garantir o estado inicial a cada boot faz
+ * "a chave existe" deixar de depender de um evento que já passou.
+ *
+ * A rejeição é capturada porque `ready` é aguardado por TODO handler de
+ * mensagem: deixá-la propagar transformaria uma falha de migração em painéis
+ * que nunca respondem. O erro fica visível no log, e o estado padrão — que
+ * `ensurePanelPrefs` e `getState` garantem — continua de pé.
+ */
 const ready: Promise<void> = migrateLocalStorage()
   .then(() => hydrate())
   .then(() => recoverInterruptedMeetings())
+  .then(() => ensurePanelPrefs())
+  .then(() => undefined)
   .catch((error) => logger.error('falha na inicialização', error));
-
-/*
- * O registro da injeção persistente é reconciliado a cada boot do worker, e
- * não só quando algo muda. O service worker do MV3 morre e renasce o tempo
- * todo, e a permissão pode ter sido revogada pelo usuário direto na página de
- * extensões do Chrome, sem evento nenhum chegar aqui enquanto ele dormia.
- */
-void syncPersistentInjection();
-
-chrome.permissions.onAdded.addListener(() => void syncPersistentInjection());
-chrome.permissions.onRemoved.addListener(() => void syncPersistentInjection());
-
-// Fechar o painel desregistra a injeção; reabrir registra de volta. Storage é
-// o único canal: quem muda a presença é o content script, noutro processo.
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && STORAGE_KEYS.prefs in changes) {
-    void syncPersistentInjection();
-  }
-});
 
 /**
  * Primeira execução depois de instalar (ou atualizar).
  *
- * Content script declarado só entra em página que CARREGA depois da
- * instalação: as abas do Meet já abertas ficariam sem o TaqCITi até alguém
- * recarregar à mão, o que parece extensão quebrada logo no primeiro contato.
- * `host_permissions` do Meet — que não custa aviso nenhum, porque o
- * `content_scripts` já o produz — é o que permite alcançá-las agora.
+ * A única coisa que o background faz pela presença do painel. Dali em diante
+ * quem o põe em toda página é o Chrome, pelo `content_scripts` do manifesto —
+ * o que sobra aqui é alcançar as abas que já estavam abertas no instante da
+ * instalação, porque content script declarado só entra em documento que nasce
+ * depois dele.
  *
- * O `await ready` não é decoração: é o que garante que migrações e estado
- * padrão existam ANTES de qualquer painel pedir estado. Sem isso a primeira
- * execução seria uma corrida entre a inicialização e a primeira mensagem.
+ * O `await ready` não é decoração: garante que migrações e estado padrão
+ * existam ANTES de qualquer painel pedir estado. Sem isso a primeira execução
+ * seria uma corrida entre a inicialização e a primeira mensagem.
  */
 chrome.runtime.onInstalled.addListener(() => {
   void (async () => {
     await ready;
-    await syncPersistentInjection();
-
-    const files = panelScriptFiles();
-    if (files.length === 0) return;
-
-    const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
-    await Promise.all(
-      tabs.map(async (tab) => {
-        if (tab.id === undefined || !canInject(tab.url)) return;
-        try {
-          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files });
-        } catch (error) {
-          // Aba descartada, ou num estado que recusa injeção. Recarregar
-          // resolve, e insistir aqui não.
-          logger.error('nao foi possivel alcancar uma aba do Meet ja aberta', error);
-        }
-      }),
-    );
+    const reached = await backfillOpenTabs();
+    logger.info('primeira execução: abas alcançadas', { attempts: reached });
   })();
 });
 
 /*
- * O clique no ícone abre o painel NA PÁGINA em que a pessoa está — é isto que
- * o `default_popup` ausente no manifesto libera.
+ * O clique no ícone: o TaqCITi VOLTA.
  *
- * Não espera o `ready`: injetar não depende do estado hidratado, e o painel
- * pede o estado por conta própria assim que monta. Segurar aqui só atrasaria a
- * resposta ao clique.
+ * É uma gravação no storage, e nada mais. O painel já está montado em toda
+ * página aberta, assinando essa chave — então `presence: 'open'` chega até ele
+ * pelo mesmo caminho por onde chegam as mudanças feitas em qualquer outra aba.
+ * Não há injeção, nem mensagem endereçada, nem "clicar duas vezes porque a
+ * primeira não pegou": este é o gesto que desfaz o X.
  *
- * Páginas internas do Chrome (chrome://, a Web Store) não aceitam extensão
- * nenhuma. Ali cai no painel lateral — e cai funcionando, porque estamos
- * dentro do clique no ícone, que é o gesto que `sidePanel.open` exige.
+ * A decisão sobre o painel lateral é tomada ANTES de qualquer `await`. Páginas
+ * internas do Chrome (chrome://, a Web Store) não aceitam extensão nenhuma, e
+ * ali a saída é o painel lateral — que só abre DENTRO do gesto do usuário.
+ * Esperar uma promessa primeiro gastaria o gesto, e `chrome.sidePanel.open`
+ * passaria a falhar exatamente onde é a única saída que existe.
  */
 chrome.action.onClicked.addListener((tab) => {
-  void openPanelInTab(tab).then((injected) => {
-    if (!injected) void openSidePanel(tab.windowId);
-  });
+  if (!canInject(tab.url)) {
+    void openSidePanel(tab.windowId);
+    return;
+  }
+  // A gravação primeiro: se a rede de segurança abaixo precisar mesmo montar um
+  // painel, ele já nasce lendo `open` em vez de aparecer recolhido.
+  void patchPanelPrefs({ presence: 'open' }).then(() => ensurePanelInTab(tab));
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -192,16 +174,11 @@ onMessage((message, sender) => {
         return { ok: opened };
       }
       // ---- UIs (painel lateral / painel injetado) ----
-      case 'ui/persistence/status':
-        return { enabled: await hasPersistentAccess() };
-      case 'ui/persistence/set': {
-        if (!message.enabled) {
-          await dropPersistentAccess();
-          return { enabled: false };
-        }
-        // Pode falhar por falta de gesto do usuário: o clique aconteceu na
-        // página e virou mensagem. O painel precisa saber para poder avisar.
-        return { enabled: await requestPersistentAccess() };
+      case 'panel/mounted': {
+        // Um painel nasceu nesta aba: a partir de agora o estado ao vivo tem
+        // para onde ir. Ver a nota de `panel/mounted` em types/messages.ts.
+        if (sender.tab?.id !== undefined) await rememberPanelTab(sender.tab.id);
+        return getState();
       }
       case 'ui/getState':
         return getState();

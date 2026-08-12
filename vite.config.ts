@@ -5,7 +5,7 @@ import { fileURLToPath, URL } from 'node:url';
 import manifest from './manifest.config';
 
 /**
- * Deixa os chunks do painel legíveis em qualquer aba.
+ * Trava: os chunks do painel precisam ser legíveis em QUALQUER página.
  *
  * ── A armadilha ────────────────────────────────────────────────────────────
  *
@@ -14,20 +14,23 @@ import manifest from './manifest.config';
  * quando a origem da página não casa com o `matches` da entrada de
  * `web_accessible_resources` que lista o chunk.
  *
- * E essa entrada o @crxjs monta sozinho, no build, copiando o `matches` do
- * content script declarado — `https://meet.google.com/*`. Está certo para a
- * injeção declarativa e errado para a sob demanda: o painel aberto pelo ícone
- * numa aba qualquer morreria no import, com o build passando e o `dist/`
- * parecendo correto. Só apareceria carregando no Chrome.
+ * Essa entrada o @crxjs monta sozinho, no build, copiando o `matches` do
+ * content script declarado. Hoje isso já é `<all_urls>` e este plugin não muda
+ * nada — ele existe como TRAVA, não como correção. Estreitar o `matches` do
+ * content script um dia (voltar a restringi-lo ao Meet, por exemplo) levaria
+ * junto a permissão de leitura dos chunks, e o sintoma seria o painel morrendo
+ * no import em toda página fora daquele domínio, com o build passando e o
+ * `dist/` parecendo correto. Só apareceria carregando no Chrome.
  *
- * Não dá para corrigir em `manifest.config.ts`: a entrada não existe lá: nasce
- * depois, com os nomes de chunk já hasheados. Daí o retoque ser aqui.
+ * Não dá para escrever isto em `manifest.config.ts`: a entrada não existe lá,
+ * nasce depois, com os nomes de chunk já hasheados. Daí o retoque ser aqui.
  *
  * ── E não, isto não amplia permissão ───────────────────────────────────────
  *
  * `web_accessible_resources` responde "quem pode LER estes arquivos meus",
- * nunca "onde eu posso agir". Não gera aviso de instalação, e sem o clique no
- * ícone (activeTab) não há injeção nenhuma para ler coisa alguma.
+ * nunca "onde eu posso agir". Quem responde a segunda pergunta é
+ * `host_permissions`, no manifesto, e é lá que a decisão está tomada e
+ * explicada.
  */
 function panelResourcesEverywhere(): Plugin {
   return {

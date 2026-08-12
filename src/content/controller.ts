@@ -25,7 +25,7 @@ import {
 import { onMessage, sendMessage } from '@/shared/services/messaging';
 import { meetingStateSchema } from '@/shared/types/messages';
 import { setNativeCaptionsHidden } from './captionsVisibility';
-import { loadPanelPrefs, savePanelPrefs } from '@/features/panel/prefs';
+import { patchPanelPrefs, subscribePanelPrefs } from '@/features/panel/prefsStore';
 import { PlatformProvider } from '@/shared/platform/context';
 import { extensionPlatform } from '@/shared/platform/extension';
 import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
@@ -42,6 +42,15 @@ export class ContentController {
 
   private root: Root | null = null;
   private prefs: PanelPrefs = { ...DEFAULT_PANEL_PREFS };
+  /**
+   * O primeiro quadro só é pintado depois de as preferências chegarem.
+   *
+   * Sem isto, o estado global e as preferências corriam soltos: quando o estado
+   * chegava primeiro, o painel nascia com os PADRÕES e se corrigia no quadro
+   * seguinte. Para quem tinha fechado o TaqCITi, isso é a cápsula piscando em
+   * toda página visitada — a versão visível de "o estado não atravessou".
+   */
+  private prefsLoaded = false;
 
   private captionAttempts = 0;
   private captionRetryTimer: ReturnType<typeof setInterval> | null = null;
@@ -73,18 +82,16 @@ export class ContentController {
   };
 
   /**
-   * Um caminho só para gravar preferência, e ele SEMPRE re-renderiza.
+   * Pedir uma mudança de preferência é GRAVAR, e só isso.
    *
-   * O painel recebe `prefs` por prop e não guarda cópia: posição, tamanho e o
-   * estado "fechado" só aparecem na tela pelo próximo render. Antes o
-   * `onDockChange` gravava sem re-renderizar — funcionava por acidente, porque
-   * a posição já tinha sido aplicada localmente pelo arraste. Fechar o painel
-   * por esse mesmo caminho não teria efeito nenhum.
+   * Nada é aplicado localmente aqui, de propósito. O novo valor volta pela
+   * assinatura do storage (ver `start`), que é o mesmo caminho por onde chegam
+   * as mudanças feitas noutra aba ou no background. Um caminho só significa que
+   * não existe versão local divergindo da salva — que era exatamente como o
+   * painel de uma aba ficava aberto enquanto o da outra estava minimizado.
    */
   private patchPrefs(patch: Partial<PanelPrefs>): void {
-    this.prefs = { ...this.prefs, ...patch };
-    savePanelPrefs(this.prefs);
-    if (this.lastState) this.applyState(this.lastState);
+    void patchPanelPrefs(patch);
   }
 
   constructor(private readonly provider: MeetingProvider) {}
@@ -159,10 +166,21 @@ export class ContentController {
       PARTICIPANTS_POLL_MS,
     );
 
-    void loadPanelPrefs().then((prefs) => {
-      this.prefs = prefs;
-      if (this.lastState) this.applyState(this.lastState);
-    });
+    /*
+     * As preferências chegam por assinatura, não por leitura única.
+     *
+     * É o que faz o clique no ícone da extensão abrir ESTE painel: o background
+     * grava `presence: 'open'` no storage e o evento chega aqui, sem precisar
+     * alcançar a aba com uma mensagem nem reinjetar nada. Vale igual para
+     * mudanças feitas noutra aba.
+     */
+    this.subscriptions.push(
+      subscribePanelPrefs((prefs) => {
+        this.prefs = prefs;
+        this.prefsLoaded = true;
+        if (this.lastState) this.applyState(this.lastState);
+      }),
+    );
 
     /*
      * A cápsula aparece IMEDIATAMENTE, com ou sem reunião.
@@ -328,6 +346,10 @@ export class ContentController {
       state.phase === 'recording' ||
       state.phase === 'paused';
     setNativeCaptionsHidden(sessionActive && this.prefs.hideMeetCaptions);
+
+    // Nada na tela antes de saber COMO ele deve estar. O estado fica guardado e
+    // a assinatura das preferências pinta o primeiro quadro já correto.
+    if (!this.prefsLoaded) return;
 
     const ctx: PanelContext = {
       inMeeting,

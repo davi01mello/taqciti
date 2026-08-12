@@ -9,14 +9,14 @@ beforeEach(() => {
 
 async function load(saved: unknown) {
   installChromeStorageMock({ local: { [STORAGE_KEYS.prefs]: saved } });
-  const { loadPanelPrefs } = await import('./prefs');
+  const { loadPanelPrefs } = await import('./prefsStore');
   return loadPanelPrefs();
 }
 
 describe('loadPanelPrefs', () => {
   it('sem nada salvo, devolve o padrão', async () => {
     installChromeStorageMock();
-    const { loadPanelPrefs } = await import('./prefs');
+    const { loadPanelPrefs } = await import('./prefsStore');
     expect(await loadPanelPrefs()).toEqual(DEFAULT_PANEL_PREFS);
   });
 

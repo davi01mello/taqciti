@@ -50,7 +50,6 @@ import type {
 } from '@/shared/types/domain';
 import { EXPECTED_CAPTION_LANGUAGE } from '@/shared/config/constants';
 import { useHistory } from '@/features/history/useHistory';
-import { usePlatform } from '@/shared/platform/context';
 import { HistoryCard } from '@/sidepanel/components/HistoryCard';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
@@ -59,7 +58,7 @@ import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
 import type { GenerationResult } from '@/document/generateDocument';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
-import { Sheen, SHEEN_HOST, trackSheen } from '@/shared/ui/Sheen';
+import { Sheen, SHEEN_HOST, SHEEN_HOST_POSITIONED, trackSheen } from '@/shared/ui/Sheen';
 import { TranscriptView } from '@/shared/ui/TranscriptView';
 import { Wave } from '@/shared/ui/Wave';
 import { Wordmark } from '@/shared/ui/Wordmark';
@@ -342,7 +341,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
           if (floating.wasClick()) open();
         }}
         style={{ left: floating.geometry.capsule.left, top: floating.geometry.capsule.top }}
-        className={`glass ${SHEEN_HOST} fixed z-[2147483000] flex items-center gap-2.5 rounded-full py-2.5 pl-3.5 pr-4 text-body font-semibold tabular-nums text-foreground transition-[opacity,transform] duration-300 ease-flow animate-dock-in ${
+        className={`glass ${SHEEN_HOST_POSITIONED} fixed z-[2147483000] flex items-center gap-2.5 rounded-full py-2.5 pl-3.5 pr-4 text-body font-semibold tabular-nums text-foreground transition-[opacity,transform] duration-300 ease-flow animate-dock-in ${
           floating.dragging ? 'cursor-grabbing' : 'cursor-grab'
         } ${expanded ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'}`}
       >
@@ -730,14 +729,16 @@ function HistoryList({
       )}
 
       {/*
-       * O rodapé da tela de repouso. Duas coisas que precisam estar sempre a um
-       * clique e não pertencem a nenhuma reunião: o modo legado, que continua
-       * existindo, e a persistência entre páginas. Somem das outras rotas de
-       * propósito — durante uma gravação não são o que se procura.
+       * O rodapé da tela de repouso: o modo legado, sempre a um clique. Some
+       * das outras rotas de propósito — durante uma gravação não é o que se
+       * procura.
+       *
+       * O interruptor "manter em todas as páginas" morava aqui e foi embora
+       * junto com a permissão opcional que ele pedia: a persistência deixou de
+       * ser opção. Ver o comentário de `content_scripts` em manifest.config.ts.
        */}
       {onOpenSidePanel && (
-        <div className="mt-2 shrink-0 space-y-0.5 border-t border-white/[0.06] pt-2">
-          <PersistenceToggle />
+        <div className="mt-2 shrink-0 border-t border-white/[0.06] pt-2">
           <Button
             variant="ghost"
             size="compact"
@@ -750,71 +751,6 @@ function HistoryList({
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * "Manter em todas as páginas" — o interruptor da permissão que faz o painel
- * sobreviver à navegação.
- *
- * Fica desligado por padrão porque a permissão é opcional de propósito: a
- * instalação não pede nada, e só quem quer a persistência autoriza. Ver
- * src/background/persistentPanel.ts para o porquê dessa escolha.
- *
- * O aviso de falha não é defensivo à toa. `chrome.permissions.request` exige um
- * gesto do usuário, e este clique acontece na PÁGINA — vira mensagem até o
- * background, e o gesto pode não atravessar, exatamente como não atravessa para
- * `chrome.sidePanel.open`. Quando não atravessa, o Chrome recusa em silêncio, e
- * sem este texto o interruptor pareceria simplesmente não funcionar.
- */
-function PersistenceToggle() {
-  const platform = usePlatform();
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [refused, setRefused] = useState(false);
-
-  useEffect(() => {
-    let live = true;
-    void platform
-      .send<{ enabled: boolean }>({ type: 'ui/persistence/status' })
-      .then((result) => {
-        if (live) setEnabled(result?.enabled ?? false);
-      });
-    return () => {
-      live = false;
-    };
-  }, [platform]);
-
-  if (enabled === null) return null;
-
-  const toggle = () => {
-    setRefused(false);
-    void platform
-      .send<{ enabled: boolean }>({ type: 'ui/persistence/set', enabled: !enabled })
-      .then((result) => {
-        const now = result?.enabled ?? false;
-        setEnabled(now);
-        if (!enabled && !now) setRefused(true);
-      });
-  };
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="compact"
-        className="w-full justify-start"
-        onClick={toggle}
-      >
-        <Icon name={enabled ? 'check' : 'plus'} size={14} />
-        {enabled ? 'Mantendo em todas as páginas' : 'Manter em todas as páginas'}
-      </Button>
-      {refused && (
-        <p className="px-3 pb-1 text-micro leading-relaxed text-muted">
-          O Chrome recusou o pedido. Autorize pela página de extensões, em
-          &quot;Acesso ao site&quot;.
-        </p>
-      )}
-    </>
   );
 }
 

@@ -7,9 +7,11 @@ function installMocks(
   options: {
     contentScripts?: Array<{ js?: string[] }>;
     executeScript?: ReturnType<typeof vi.fn>;
+    tabs?: chrome.tabs.Tab[];
   } = {},
 ) {
   const executeScript = options.executeScript ?? vi.fn(async () => []);
+  const query = vi.fn(async () => options.tabs ?? []);
   installChromeStorageMock({
     extra: {
       runtime: {
@@ -18,15 +20,15 @@ function installMocks(
         }),
       },
       scripting: { executeScript },
+      tabs: { query },
     },
   });
-  return { executeScript };
+  return { executeScript, query };
 }
 
-/** `id` omitido de propósito no caso da aba sem id — passar `undefined` a um
- *  parâmetro com valor padrão devolveria o padrão, e o teste não testaria nada. */
-function tab(url: string | undefined, id: number | null = 7): chrome.tabs.Tab {
-  return { ...(id === null ? {} : { id }), url } as chrome.tabs.Tab;
+/** Uma aba alcançável por padrão; cada teste estraga só o campo que lhe importa. */
+function tab(url: string | undefined, over: Partial<chrome.tabs.Tab> = {}) {
+  return { id: 7, url, status: 'complete', discarded: false, ...over } as chrome.tabs.Tab;
 }
 
 beforeEach(() => {
@@ -83,78 +85,126 @@ describe('panelScriptFiles — o caminho vem do manifesto, nunca escrito à mão
   });
 });
 
-describe('openPanelInTab', () => {
-  it('injeta o loader do manifesto na aba pedida', async () => {
-    const { executeScript } = installMocks();
-    const { openPanelInTab } = await import('./injectPanel');
-
-    await expect(openPanelInTab(tab('https://github.com'))).resolves.toBe(true);
-    expect(executeScript).toHaveBeenCalledWith({
-      target: { tabId: 7 },
-      files: [LOADER],
+/*
+ * A primeira execução. É o único momento em que o background injeta: depois
+ * dela, o content script declarado entra em toda página sozinho.
+ */
+describe('backfillOpenTabs — alcançar as abas já abertas na instalação', () => {
+  it('injeta o loader do manifesto em cada aba alcançável', async () => {
+    const { executeScript } = installMocks({
+      tabs: [tab('https://github.com', { id: 7 }), tab('https://meet.google.com/x', { id: 9 })],
     });
+    const { backfillOpenTabs } = await import('./injectPanel');
+
+    await expect(backfillOpenTabs()).resolves.toBe(2);
+    expect(executeScript).toHaveBeenCalledWith({ target: { tabId: 7 }, files: [LOADER] });
+    expect(executeScript).toHaveBeenCalledWith({ target: { tabId: 9 }, files: [LOADER] });
   });
 
-  it('anota a aba, para o estado ao vivo saber onde entregar', async () => {
-    installMocks();
-    const { openPanelInTab } = await import('./injectPanel');
+  it('anota as abas, para o estado ao vivo saber onde entregar', async () => {
+    installMocks({ tabs: [tab('https://github.com', { id: 7 })] });
+    const { backfillOpenTabs } = await import('./injectPanel');
     const { panelTabs } = await import('./panelTabs');
 
-    await openPanelInTab(tab('https://github.com'));
+    await backfillOpenTabs();
 
     expect(await panelTabs()).toEqual([7]);
   });
 
   it('injeção que falhou não deixa a aba anotada', async () => {
     installMocks({
+      tabs: [tab('https://github.com')],
       executeScript: vi.fn(async () => {
         throw new Error('Cannot access contents of the page');
       }),
     });
-    const { openPanelInTab } = await import('./injectPanel');
+    const { backfillOpenTabs } = await import('./injectPanel');
     const { panelTabs } = await import('./panelTabs');
 
-    await openPanelInTab(tab('https://github.com'));
-
+    await expect(backfillOpenTabs()).resolves.toBe(0);
     expect(await panelTabs()).toEqual([]);
   });
 
-  it('não tenta injetar em página fechada', async () => {
-    const { executeScript } = installMocks();
-    const { openPanelInTab } = await import('./injectPanel');
+  it('pula página fechada à injeção em vez de tentar e falhar', async () => {
+    const { executeScript } = installMocks({
+      tabs: [tab('chrome://extensions'), tab('https://chromewebstore.google.com/x', { id: 8 })],
+    });
+    const { backfillOpenTabs } = await import('./injectPanel');
 
-    await expect(openPanelInTab(tab('chrome://extensions'))).resolves.toBe(false);
-    expect(executeScript).not.toHaveBeenCalled();
-  });
-
-  it('aba sem id (devtools destacado, aba fantasma) não injeta', async () => {
-    const { executeScript } = installMocks();
-    const { openPanelInTab } = await import('./injectPanel');
-
-    await expect(openPanelInTab(tab('https://github.com', null))).resolves.toBe(false);
-    expect(executeScript).not.toHaveBeenCalled();
-  });
-
-  it('manifesto sem content script não injeta — nome de arquivo não se adivinha', async () => {
-    const { executeScript } = installMocks({ contentScripts: [] });
-    const { openPanelInTab } = await import('./injectPanel');
-
-    await expect(openPanelInTab(tab('https://github.com'))).resolves.toBe(false);
+    await expect(backfillOpenTabs()).resolves.toBe(0);
     expect(executeScript).not.toHaveBeenCalled();
   });
 
   /*
-   * O caso que decide o plano B: `activeTab` só vale para a aba do clique, e o
-   * Chrome recusa injeção em páginas que ele reserva. Devolver `false` em vez
-   * de estourar é o que permite ao background abrir a outra saída.
+   * A triagem que impede a primeira execução de virar erro vermelho. Aba
+   * descartada pela gestão de memória, ou ainda carregando, recusa
+   * `executeScript` — e não é defeito nenhum: quando ela voltar, o content
+   * script declarado entra sozinho.
    */
-  it('injeção rejeitada pelo Chrome vira false, não exceção', async () => {
-    const executeScript = vi.fn(async () => {
-      throw new Error('Cannot access contents of the page');
-    });
-    installMocks({ executeScript });
-    const { openPanelInTab } = await import('./injectPanel');
+  it.each([
+    ['descartada pela gestão de memória', { discarded: true }],
+    ['ainda carregando', { status: 'loading' }],
+    ['sem id', { id: undefined }],
+  ])('pula aba %s, sem tentar injetar', async (_label, broken) => {
+    const { executeScript } = installMocks({ tabs: [tab('https://github.com', broken)] });
+    const { backfillOpenTabs } = await import('./injectPanel');
 
-    await expect(openPanelInTab(tab('https://github.com'))).resolves.toBe(false);
+    await expect(backfillOpenTabs()).resolves.toBe(0);
+    expect(executeScript).not.toHaveBeenCalled();
+  });
+
+  it('manifesto sem content script não injeta — nome de arquivo não se adivinha', async () => {
+    const { executeScript } = installMocks({
+      contentScripts: [],
+      tabs: [tab('https://github.com')],
+    });
+    const { backfillOpenTabs } = await import('./injectPanel');
+
+    await expect(backfillOpenTabs()).resolves.toBe(0);
+    expect(executeScript).not.toHaveBeenCalled();
+  });
+
+  it('a aba anotada não é reinjetada pelo clique no ícone', async () => {
+    const { executeScript } = installMocks({ tabs: [tab('https://github.com', { id: 7 })] });
+    const { backfillOpenTabs, ensurePanelInTab } = await import('./injectPanel');
+
+    await backfillOpenTabs();
+    executeScript.mockClear();
+
+    await ensurePanelInTab(tab('https://github.com', { id: 7 }));
+    expect(executeScript).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A brecha estreita que o clique no ícone precisa fechar: uma aba que estava
+   * CARREGANDO na instalação escapa do backfill (documento a meio) e do content
+   * script declarado (que só vale para documento que começa depois). Sem esta
+   * rede, o único jeito de trazer o TaqCITi para essa aba seria recarregá-la.
+   */
+  it('a aba que escapou da instalação recebe o painel no clique no ícone', async () => {
+    const { executeScript } = installMocks({
+      tabs: [tab('https://github.com', { id: 7, status: 'loading' })],
+    });
+    const { backfillOpenTabs, ensurePanelInTab } = await import('./injectPanel');
+
+    await backfillOpenTabs();
+    expect(executeScript).not.toHaveBeenCalled();
+
+    await ensurePanelInTab(tab('https://github.com', { id: 7 }));
+    expect(executeScript).toHaveBeenCalledWith({ target: { tabId: 7 }, files: [LOADER] });
+  });
+
+  it('uma aba impossível não impede as outras', async () => {
+    const executeScript = vi.fn(async ({ target }: { target: { tabId: number } }) => {
+      if (target.tabId === 7) throw new Error('Cannot access contents of the page');
+      return [];
+    });
+    installMocks({
+      tabs: [tab('https://a.com', { id: 7 }), tab('https://b.com', { id: 8 })],
+      executeScript: executeScript as unknown as ReturnType<typeof vi.fn>,
+    });
+    const { backfillOpenTabs } = await import('./injectPanel');
+
+    await expect(backfillOpenTabs()).resolves.toBe(1);
   });
 });

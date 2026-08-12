@@ -1,7 +1,9 @@
 /**
  * Manifesto MV3 da extensão — fonte única de verdade consumida pelo @crxjs/vite-plugin.
- * Permissões seguem o princípio do mínimo: nada além de storage, system.display
- * (restaurar a janela principal na tela certa) e o Meet.
+ *
+ * Ver `content_scripts` e `host_permissions` abaixo para o porquê de o TaqCITi
+ * viver em toda página: é o que dá à UI um ciclo de vida previsível dentro do
+ * Chrome, em vez de existir numa aba e desaparecer na navegação seguinte.
  */
 import { defineManifest } from '@crxjs/vite-plugin';
 
@@ -44,38 +46,71 @@ export default defineManifest({
     default_path: 'src/sidepanel/index.html',
   },
 
+  /*
+   * O content script é DECLARADO, para todo site, e é isto que dá ao TaqCITi um
+   * ciclo de vida previsível.
+   *
+   * Um content script morre quando o documento morre — não existe API de
+   * extensão que desenhe UI persistente por cima de páginas web. O que existe é
+   * ser reinstalado pelo próprio Chrome, no mesmo instante do ciclo de vida, em
+   * TODO documento que nasce. É o único mecanismo que atravessa navegação sem
+   * depender do service worker estar acordado no momento certo.
+   *
+   * As alternativas foram tentadas e falham, cada uma por um motivo diferente:
+   *
+   *   - `activeTab` + `executeScript` no clique do ícone: a permissão é
+   *     revogada EXATAMENTE na navegação, então o painel existe numa página e
+   *     desaparece na seguinte;
+   *   - `chrome.scripting.registerContentScripts` sob permissão opcional: o
+   *     registro é certo, mas conceder a permissão exige um gesto do usuário no
+   *     contexto da EXTENSÃO, e um clique dentro do painel acontece na PÁGINA e
+   *     vira mensagem — o gesto não atravessa, o Chrome recusa, e a persistência
+   *     ficava inalcançável;
+   *   - `tabs.onUpdated` + injeção manual: o worker do MV3 pode estar dormindo
+   *     no instante do evento, e injetar depois do carregamento faz o painel
+   *     piscar por cima de uma página já pintada.
+   *
+   * `document_end` e não `document_idle`: idle espera imagens e sub-recursos, e
+   * numa página pesada isso é a cápsula chegando segundos atrasada. `end` é
+   * assim que o DOM está pronto, que é tudo de que o painel precisa.
+   */
   content_scripts: [
     {
-      matches: ['https://meet.google.com/*'],
+      matches: ['<all_urls>'],
       js: ['src/content/index.ts'],
-      run_at: 'document_idle',
+      run_at: 'document_end',
+      // Só o quadro de topo: o painel é uma janela da aba, e um iframe de
+      // anúncio não deve ganhar a sua própria cópia.
+      all_frames: false,
     },
   ],
 
-  // `activeTab` + `scripting` é o par que injeta o painel na aba ativa. A dupla
-  // é deliberada e NÃO troca por `host_permissions: ['<all_urls>']`: activeTab
-  // concede acesso à aba só no clique do ícone, é o próprio usuário pedindo, e
-  // não gera nenhum aviso na tela de instalação.
+  // `scripting` só para a primeira execução: alcançar as abas que já estavam
+  // abertas no instante da instalação. Content script declarado entra apenas em
+  // documento que NASCE depois dele, e sem esse alcance o primeiro contato com a
+  // extensão exigiria recarregar cada aba à mão.
   //
-  // `system.display` saiu junto com a janela própria: só existia para conferir
-  // se a posição salva dela ainda caía numa tela conectada.
-  //
-  // Nenhuma destas quatro gera aviso de instalação — a tela de permissão
-  // continua limpa, que é a razão de nunca aparecer `<all_urls>` aqui.
-  permissions: ['storage', 'sidePanel', 'scripting', 'activeTab'],
+  // `activeTab` saiu: era o par do `executeScript` sob demanda, e a injeção sob
+  // demanda deixou de ser o caminho da UI.
+  permissions: ['storage', 'sidePanel', 'scripting'],
 
-  // Já coberto pelo aviso que o `content_scripts` acima produz — declarar aqui
-  // não acrescenta NENHUM aviso novo na instalação, e habilita duas coisas que
-  // o content script declarado sozinho não dá: injetar nas abas do Meet que já
-  // estavam abertas quando a extensão foi instalada (senão a primeira execução
-  // exige recarregar a aba à mão), e falar com elas pelo `chrome.tabs`.
-  host_permissions: ['https://meet.google.com/*'],
-
-  // O painel sobreviver à navegação exige acesso permanente ao host, e
-  // `activeTab` é revogado exatamente na navegação. Como OPCIONAL, a tela de
-  // instalação continua limpa e quem quer a persistência autoriza uma vez, de
-  // dentro do painel. Ver src/background/persistentPanel.ts.
-  optional_host_permissions: ['<all_urls>'],
+  /*
+   * O preço honesto da persistência.
+   *
+   * `<all_urls>` põe "ler e alterar todos os seus dados nos sites que você
+   * visita" na tela de instalação. Isso é real e não há como evitar: uma UI que
+   * precisa existir em TODA página precisa de acesso a toda página, e o
+   * `content_scripts` acima já produziria o mesmo aviso sozinho — declarar
+   * `host_permissions` junto não acrescenta aviso NENHUM e habilita o que o
+   * content script sozinho não dá: `chrome.tabs.sendMessage` para o painel de
+   * qualquer aba (o estado ao vivo chegar até ele) e o `executeScript` da
+   * primeira execução.
+   *
+   * A versão anterior evitava esse aviso e, em troca, não entregava a
+   * persistência — o painel morria na primeira navegação. Entre o aviso e o
+   * produto funcionando, o produto.
+   */
+  host_permissions: ['<all_urls>'],
 
   // Conteúdo injetado só alcança arquivo da extensão declarado aqui — e o
   // loader do @crxjs faz `import()` dos chunks do painel, então eles precisam

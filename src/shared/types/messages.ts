@@ -145,10 +145,23 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
    *  Pode não abrir: o gesto do usuário não atravessa a mensageria, e
    *  `chrome.sidePanel.open` exige um. Ver src/background/sidePanel.ts. */
   z.object({ type: z.literal('panel/openRequest') }),
-  /** O painel sobrevive à navegação? (permissão de host opcional concedida) */
-  z.object({ type: z.literal('ui/persistence/status') }),
-  /** Pede ou revoga essa permissão. Ver src/background/persistentPanel.ts. */
-  z.object({ type: z.literal('ui/persistence/set'), enabled: z.boolean() }),
+  /**
+   * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
+   * vivo o encontra.
+   *
+   * `chrome.runtime.sendMessage` do background alcança páginas da extensão e
+   * NÃO alcança content script: para esse, a mensagem precisa ser endereçada
+   * com `chrome.tabs.sendMessage(tabId, …)`, e a pergunta "quais abas?" precisa
+   * de resposta. Quem sabe respondê-la é o próprio painel, que acabou de nascer
+   * e conhece a sua aba.
+   *
+   * Anunciar-se a cada montagem — e não uma vez, quando alguém injeta — é o que
+   * faz isso sobreviver à navegação: cada documento novo tem um painel novo, que
+   * se registra de novo. Sem este recado, o painel de uma aba comum receberia o
+   * estado uma única vez, ao montar, e congelaria: o relógio parado, a pausa sem
+   * efeito visível, a transcrição travada na primeira fala.
+   */
+  z.object({ type: z.literal('panel/mounted') }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),
   z.object({ type: z.literal('ui/resume') }),
