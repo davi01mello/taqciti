@@ -4,7 +4,11 @@
  * sendo um stub no servidor por enquanto (ver server/README).
  */
 import type { LiveSegment } from '@/shared/types/domain';
-import { SERVER_BASE_URL } from '@/shared/config/serverConfig';
+import {
+  SERVER_BASE_URL,
+  SERVER_SHARED_KEY,
+  SERVER_SHARED_KEY_HEADER,
+} from '@/shared/config/serverConfig';
 import { transcriptToText } from '@/features/history/export';
 
 /** Espelha DOCUMENT_TYPES em server/lib/generateDocument.ts. */
@@ -35,7 +39,10 @@ export async function requestGeneration(
   try {
     const response = await fetch(`${SERVER_BASE_URL}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        [SERVER_SHARED_KEY_HEADER]: SERVER_SHARED_KEY,
+      },
       body: JSON.stringify({
         transcript: transcriptToText(source.segments),
         title: source.title,
@@ -45,11 +52,16 @@ export async function requestGeneration(
     });
 
     if (!response.ok) {
-      return {
-        status: 'error',
-        documentType,
-        message: `O servidor respondeu com erro (${response.status}).`,
-      };
+      // 401 e 413 são os dois modos de falha que a tranca do servidor
+      // introduziu; dizer só "erro 401" manda a pessoa procurar no lugar
+      // errado.
+      const message =
+        response.status === 401
+          ? 'O servidor recusou a chave da extensão. Confira DOCCITI_SHARED_KEY no servidor.'
+          : response.status === 413
+            ? 'A transcrição é longa demais para o servidor gerar o documento.'
+            : `O servidor respondeu com erro (${response.status}).`;
+      return { status: 'error', documentType, message };
     }
 
     const data = (await response.json()) as { title: string; content: string };

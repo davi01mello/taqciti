@@ -1,28 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { DOCUMENT_TYPES, generateDocument, isDocumentType } from '@/lib/generateDocument';
+import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
 
 /**
- * CORS permissivo por design NESTA FASE: a extensão chama esta rota a partir
- * de `chrome-extension://<id>`, e esse id muda entre modo dev (unpacked) e
+ * CORS permissivo por design: a extensão chama esta rota a partir de
+ * `chrome-extension://<id>`, e esse id muda entre modo dev (unpacked) e
  * produção (Chrome Web Store) — não dá pra fixar um valor só. Por isso
- * refletimos de volta qualquer Origin que comece com "chrome-extension://",
- * em vez de checar contra um id específico.
+ * refletimos de volta qualquer Origin que comece com "chrome-extension://".
  *
- * RISCO CONHECIDO, não corrigido de propósito nesta fase (ver README.md):
- * isto aceita QUALQUER extensão Chrome, não só o TaqCITi — não há
- * autenticação nenhuma ainda. Fica para quando a chave de API real entrar.
+ * O que segura o abuso agora não é o CORS e sim o segredo compartilhado no
+ * header `x-docciti-key`, validado abaixo. Motivação e limites da tranca:
+ * `lib/apiGuard.ts`.
  */
-function corsHeaders(origin: string | null): HeadersInit {
-  const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    Vary: 'Origin',
-  };
-  if (origin && origin.startsWith('chrome-extension://')) {
-    headers['Access-Control-Allow-Origin'] = origin;
-  }
-  return headers;
-}
 
 export function OPTIONS(request: NextRequest): NextResponse {
   return new NextResponse(null, {
@@ -32,8 +21,10 @@ export function OPTIONS(request: NextRequest): NextResponse {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const origin = request.headers.get('origin');
-  const headers = corsHeaders(origin);
+  const headers = corsHeaders(request.headers.get('origin'));
+
+  const unauthorized = rejectIfUnauthorized(request, headers);
+  if (unauthorized) return unauthorized;
 
   let body: unknown;
   try {
@@ -60,6 +51,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 400, headers },
     );
   }
+
+  // Recusar antes de mandar pro modelo: uma transcrição gigante não é um
+  // caso de uso, é uma conta cara e uma espera longa.
+  const limit = maxTranscriptChars();
+  if (transcript.length > limit) {
+    return NextResponse.json(
+      {
+        error:
+          `"transcript" tem ${transcript.length} caracteres e o limite é ${limit}. ` +
+          'Gere o documento a partir de um recorte menor da reunião.',
+      },
+      { status: 413, headers },
+    );
+  }
+
   if (title !== undefined && typeof title !== 'string') {
     return NextResponse.json(
       { error: '"title", quando enviado, precisa ser uma string.' },

@@ -1,4 +1,7 @@
 node_modules
 .next
-.env*.local
+# `.env.example` é o único que entra no repo; qualquer outro carrega chave.
+.env
+.env.*
+!.env.example
 *.tsbuildinfo
