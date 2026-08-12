@@ -18,16 +18,25 @@ npm install
 npm run dev
 ```
 
-> ⚠️ **A configuração ativa hoje é `gemini-2.5-flash` nos quatro agentes, no
-> free tier.** Não é a configuração boa, é a que roda sem cartão. Ela manda
-> conteúdo para treinamento do provedor, com revisão humana: **enquanto for a
-> ativa, só transcrição sintética.** O aviso sai por `activeDataPolicyWarning()`
-> e aparece em toda resposta de `/api/ai/smoke`.
->
-> A configuração pretendida está na matriz e quem decide é o harness da
-> Fase 8. Referência das opções pagas: `claude-sonnet-5` no Analista/Pensante/
-> Escritor e `claude-haiku-4-5` no Auditor (Haiku 4.5 **não** tem raciocínio
-> adaptativo — a exceção é tratada em `lib/ai/providers/anthropic.ts`).
+Configuração ativa, dividida por natureza da tarefa:
+
+| agente | modelo | por quê |
+|---|---|---|
+| `analista` | `gemini-3.5-flash-lite` | extração: achar afirmação e copiar citação literal |
+| `pensante` | `gemini-3.5-flash` | raciocínio, com `thinkingLevel: HIGH` |
+| `auditor` | `gemini-3.5-flash-lite` | verificação binária, a chamada mais frequente |
+| `escritor` | `gemini-3.5-flash` | geração de prosa |
+
+O nível de raciocínio é por modelo (`THINKING_LEVEL` em
+`lib/ai/providers/google.ts`), não uniforme: raciocínio custa token de saída e
+latência, e extrair afirmação é trabalho mecânico enquanto decidir o que entra
+numa seção é julgamento.
+
+> ⚠️ **Política de dados é do PLANO DA CHAVE, não do modelo.** Uma chave de
+> free tier do Gemini manda o conteúdo para treinamento em qualquer modelo —
+> trocar de modelo não protege nada. Defina `DOCCITI_DATA_POLICY=training`
+> quando a chave for de free tier: as rotas passam a exigir `"sintetica": true`
+> e todo relatório carrega o aviso.
 
 Sobe em `http://localhost:3000`.
 

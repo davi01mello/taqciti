@@ -42,16 +42,26 @@ export interface AgentModelConfig {
  * `gemini-3.5-flash-lite`.
  */
 const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
-  // Lê a transcrição inteira; precisa de janela grande (a 2.5 tem ~1M).
-  analista: { provider: 'google', model: 'gemini-2.5-flash' },
-  // Raciocina sobre o contexto compactado.
-  pensante: { provider: 'google', model: 'gemini-2.5-flash' },
-  // Julgamento binário sobre excerto curto — a chamada mais frequente do
-  // pipeline. Merece o modelo mais barato do fornecedor; no free tier a
-  // distinção não paga nada, então fica igual aos outros por ora.
-  auditor: { provider: 'google', model: 'gemini-2.5-flash' },
-  // Redação final.
-  escritor: { provider: 'google', model: 'gemini-2.5-flash' },
+  // EXTRAÇÃO — trabalho mecânico: achar afirmação e copiar citação literal.
+  // `flash-lite` fez 100% de âncoras nas duas execuções do bench e é o mais
+  // barato e rápido. Ressalva medida: foi instável ao classificar `kind`
+  // (9 decisões numa execução, 1 na seguinte). Aqui isso pesa menos, porque
+  // `kind` do Analista é pista, não veredito — quem decide o que entra como
+  // decisão é o Pensante, e o Auditor confere contra o original.
+  analista: { provider: 'google', model: 'gemini-3.5-flash-lite' },
+
+  // RACIOCÍNIO — julgamento sobre o contexto compactado, com raciocínio
+  // ligado em HIGH (ver THINKING_LEVEL em providers/google.ts).
+  pensante: { provider: 'google', model: 'gemini-3.5-flash' },
+
+  // EXTRAÇÃO — julgamento binário sobre excerto curto, e a chamada mais
+  // frequente do pipeline. É verificação, não deliberação.
+  auditor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
+
+  // Redação final. Fica no modelo de raciocínio: é geração de prosa, não
+  // extração. Se o custo incomodar, é a primeira linha a descer para lite —
+  // a especificação observa que a redação é a parte mais fácil.
+  escritor: { provider: 'google', model: 'gemini-3.5-flash' },
 };
 
 // ---------------------------------------------------------------------------
@@ -300,14 +310,28 @@ export function matrixEntryForModel(
 }
 
 /**
- * Aviso quando a configuração ATIVA manda conteúdo para treinamento — hoje
- * ela manda, porque roda no free tier do Gemini.
+ * Aviso quando a configuração ATIVA manda conteúdo para treinamento.
  *
  * Existe porque a proibição de usar transcrição real é uma regra que só vale
- * se alguém lembrar dela na hora certa, e a hora certa é toda geração. Quem
- * chama é `generateDocument`, na Fase 5; até lá, a rota de fumaça já mostra.
+ * se alguém lembrar dela na hora certa, e a hora certa é toda geração.
+ *
+ * ATENÇÃO ao que determina a política: ela é do PLANO DA CHAVE, não do
+ * modelo. Uma chave de free tier do Gemini manda para treinamento tudo que
+ * passa por ela, em qualquer modelo — trocar `gemini-2.5-flash` por
+ * `gemini-3.5-flash` não muda nada nisso. A detecção por entrada da matriz
+ * abaixo só acerta quando a configuração casa com uma entrada conhecida, e
+ * por isso NÃO basta: `DOCCITI_DATA_POLICY=training` força o aviso
+ * independentemente de modelo, e é o que uma chave de free tier deve usar.
  */
 export function activeDataPolicyWarning(): string | null {
+  if (process.env.DOCCITI_DATA_POLICY?.trim() === 'training') {
+    return (
+      'ATENÇÃO: DOCCITI_DATA_POLICY=training — a chave em uso envia o conteúdo ' +
+      'para treinamento do provedor, com possível revisão humana, em qualquer ' +
+      'modelo. Use SOMENTE transcrição sintética — nenhuma gravação real de reunião.'
+    );
+  }
+
   for (const agent of AGENT_NAMES) {
     const { provider, model } = AGENT_CONFIG[agent];
     const entry = matrixEntryForModel(provider, model);

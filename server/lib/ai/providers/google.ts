@@ -82,10 +82,35 @@ function structuredOutputConfig(model: string, schema: JsonSchema): Partial<Gene
   return { responseMimeType: 'application/json', responseSchema: converted };
 }
 
+/**
+ * Nível de raciocínio por modelo, para a família 3.x.
+ *
+ * Não é uniforme de propósito. Raciocínio custa token de saída e latência, e
+ * as tarefas do pipeline não pedem a mesma coisa: extrair afirmação e copiar
+ * citação é trabalho mecânico, enquanto decidir o que entra numa seção da
+ * Ata é julgamento. Ligar alto em tudo pagaria caro pelo que não precisa.
+ *
+ * Medido no bench: `gemini-2.5-flash` com raciocínio automático gastou 6.606
+ * tokens de saída para 27 afirmações e expandiu o texto em vez de compactar.
+ * O nível é a alavanca contra isso.
+ */
+const THINKING_LEVEL: Record<string, ThinkingLevel> = {
+  // Raciocínio: julgamento sobre o contexto compactado e redação final.
+  'gemini-3.5-flash': ThinkingLevel.HIGH,
+  'gemini-3.6-flash': ThinkingLevel.HIGH,
+  // Extração: mecânico e de alto volume. LOW é o que o bench mediu, com
+  // 100% de âncoras nas duas execuções — não mexer no que está provado.
+  'gemini-3.5-flash-lite': ThinkingLevel.LOW,
+};
+
+const DEFAULT_THINKING_LEVEL = ThinkingLevel.LOW;
+
 /** Monta a parte de raciocínio conforme a família do modelo. */
 function thinkingConfigFor(model: string): Partial<GenerateContentConfig> {
   if (familyOf(model) === '3.x') {
-    return { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } };
+    return {
+      thinkingConfig: { thinkingLevel: THINKING_LEVEL[model] ?? DEFAULT_THINKING_LEVEL },
+    };
   }
   // -1 é "automático": deixa o modelo decidir quanto pensar, que é o
   // equivalente mais próximo do adaptativo dos outros provedores. 0
