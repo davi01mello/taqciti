@@ -1,9 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+﻿import { describe, expect, it, vi } from 'vitest';
 import { backoffDelayMs, parseRetryAfter, runCompletion, withRateLimitRetry } from './shared';
-import { ProviderError, RateLimitError } from '../types';
+import { OverloadedError, ProviderError, RateLimitError } from '../types';
 
 const rateLimited = (retryAfterMs?: number) =>
   new RateLimitError('google', 'modelo-falso', 'cota estourada (429)', retryAfterMs);
+
+const overloaded = () =>
+  new OverloadedError('google', 'modelo-falso', 'provedor sobrecarregado (503)');
 
 /** Espera falsa: registra quanto teria dormido, sem dormir. */
 function fakeWaiter() {
@@ -21,7 +24,7 @@ describe('withRateLimitRetry', () => {
     const waiter = fakeWaiter();
     const call = vi.fn().mockResolvedValue('pronto');
 
-    const { value, waits } = await withRateLimitRetry(call, { onWait: waiter.onWait });
+    const { value, rateLimitWaits: waits } = await withRateLimitRetry(call, { onWait: waiter.onWait });
 
     expect(value).toBe('pronto');
     expect(waits).toBe(0);
@@ -36,7 +39,7 @@ describe('withRateLimitRetry', () => {
       .mockRejectedValueOnce(rateLimited())
       .mockResolvedValue('pronto');
 
-    const { value, waits } = await withRateLimitRetry(call, { maxRetries: 5, onWait: waiter.onWait });
+    const { value, rateLimitWaits: waits } = await withRateLimitRetry(call, { maxRetries: 5, onWait: waiter.onWait });
 
     expect(value).toBe('pronto');
     expect(waits).toBe(2);
@@ -74,6 +77,33 @@ describe('withRateLimitRetry', () => {
     const call = vi.fn().mockRejectedValue(rateLimited());
     await expect(withRateLimitRetry(call, { maxRetries: 0 })).rejects.toBeInstanceOf(RateLimitError);
     expect(call).toHaveBeenCalledTimes(1);
+  });
+
+  it('repete 503 e conta em contador SEPARADO de 429', async () => {
+    // Os dois se resolvem esperando, mas o diagnóstico é oposto: 429 é "você
+    // está indo rápido demais" e se resolve do nosso lado; 503 é "o provedor
+    // está sofrendo" e não se resolve daqui. Somar os dois faria a métrica
+    // virar ruído justamente quando fosse útil.
+    const waiter = fakeWaiter();
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(overloaded())
+      .mockRejectedValueOnce(rateLimited())
+      .mockResolvedValue('pronto');
+
+    const result = await withRateLimitRetry(call, { maxRetries: 5, onWait: waiter.onWait });
+
+    expect(result.value).toBe('pronto');
+    expect(result.overloadWaits).toBe(1);
+    expect(result.rateLimitWaits).toBe(1);
+  });
+
+  it('desiste do 503 depois do teto, sem laçar para sempre', async () => {
+    const call = vi.fn().mockRejectedValue(overloaded());
+    await expect(withRateLimitRetry(call, { maxRetries: 2, onWait: () => {} })).rejects.toBeInstanceOf(
+      OverloadedError,
+    );
+    expect(call).toHaveBeenCalledTimes(3);
   });
 
   it('respeita o retry-after do provedor em vez do backoff cego', async () => {

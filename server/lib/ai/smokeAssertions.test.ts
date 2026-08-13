@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { assertUsable } from './smokeAssertions';
 import type { CompletionResult } from './types';
 
@@ -12,6 +12,7 @@ function result(overrides: Partial<CompletionResult> = {}): CompletionResult {
       latencyMs: 100,
       repaired: false,
       rateLimitWaits: 0,
+      overloadWaits: 0,
     },
     ...overrides,
   };
@@ -66,6 +67,7 @@ describe('assertUsable', () => {
           latencyMs: 1,
           repaired: false,
           rateLimitWaits: 0,
+          overloadWaits: 0,
         },
       }),
       false,

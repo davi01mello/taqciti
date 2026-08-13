@@ -85,6 +85,8 @@ export interface CompletionMeta {
    * outra métrica explica.
    */
   rateLimitWaits: number;
+  /** Quantas vezes esperou por 503/sobrecarga do provedor. Ver OverloadedError. */
+  overloadWaits: number;
 }
 
 export interface CompletionResult {
@@ -156,6 +158,31 @@ export class RateLimitError extends ProviderError {
   ) {
     super(provider, model, message, detail);
     this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/**
+ * 503 / UNAVAILABLE / overloaded — o provedor está sobrecarregado.
+ *
+ * Contado SEPARADAMENTE de 429 de propósito. Os dois se resolvem esperando,
+ * mas o diagnóstico é oposto: 429 é "você está indo rápido demais" e se
+ * resolve do nosso lado, 503 é "o provedor está sofrendo" e não se resolve
+ * de jeito nenhum daqui. Somar os dois num contador só transformaria a
+ * métrica em ruído justamente quando ela fosse útil.
+ */
+export class OverloadedError extends ProviderError {
+  readonly retryAfterMs?: number;
+
+  constructor(
+    provider: ProviderId,
+    model: string,
+    message: string,
+    retryAfterMs?: number,
+    detail?: unknown,
+  ) {
+    super(provider, model, message, detail);
+    this.name = 'OverloadedError';
     this.retryAfterMs = retryAfterMs;
   }
 }

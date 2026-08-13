@@ -1,4 +1,4 @@
-/**
+﻿/**
  * O que os três adaptadores fazem igual: montar as mensagens (incluindo a
  * posição do `cacheablePrefix`), validar contra o `jsonSchema` e, quando
  * preciso, gastar UMA tentativa de reparo marcando `repaired: true`.
@@ -10,6 +10,7 @@
  */
 import { parseAndValidate, repairInstruction, schemaInstruction } from '../jsonSchema';
 import {
+  OverloadedError,
   ProviderError,
   RateLimitError,
   type CompletionMessage,
@@ -58,25 +59,32 @@ export function backoffDelayMs(attempt: number, retryAfterMs?: number): number {
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Repete só em 429, contando as esperas. Erro que não é 429 sobe na hora:
- * repetir um 401 ou um schema inválido dá o mesmo erro cinco vezes mais
- * devagar.
+ * Repete só o que se resolve esperando — 429 (cota) e 503 (sobrecarga do
+ * provedor) — contando os dois SEPARADAMENTE, porque o diagnóstico é oposto:
+ * 429 se resolve do nosso lado indo mais devagar, 503 não se resolve daqui.
+ *
+ * Erro que não é nenhum dos dois sobe na hora: repetir um 401 ou um schema
+ * inválido dá o mesmo erro cinco vezes mais devagar.
  */
 export async function withRateLimitRetry<T>(
   call: () => Promise<T>,
   options: { maxRetries?: number; onWait?: (ms: number) => Promise<void> | void } = {},
-): Promise<{ value: T; waits: number }> {
+): Promise<{ value: T; rateLimitWaits: number; overloadWaits: number }> {
   const maxRetries = options.maxRetries ?? maxRateLimitRetries();
   const wait = options.onWait ?? sleep;
 
-  let waits = 0;
+  let rateLimitWaits = 0;
+  let overloadWaits = 0;
+
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return { value: await call(), waits };
+      return { value: await call(), rateLimitWaits, overloadWaits };
     } catch (error) {
-      if (!(error instanceof RateLimitError) || attempt >= maxRetries) throw error;
+      const retryable = error instanceof RateLimitError || error instanceof OverloadedError;
+      if (!retryable || attempt >= maxRetries) throw error;
       await wait(backoffDelayMs(attempt, error.retryAfterMs));
-      waits += 1;
+      if (error instanceof RateLimitError) rateLimitWaits += 1;
+      else overloadWaits += 1;
     }
   }
 }
@@ -158,17 +166,19 @@ export async function runCompletion(
 ): Promise<CompletionResult> {
   const startedAt = Date.now();
   let rateLimitWaits = 0;
+  let overloadWaits = 0;
 
   // Cada chamada ao provedor (a primeira e a de reparo) tem seu próprio laço
-  // de espera; as esperas somam no mesmo contador.
+  // de espera; as esperas somam nos mesmos contadores.
   const invokeWithRetry = async (invocation: RawInvocation) => {
-    const { value, waits } = await withRateLimitRetry(() => invoke(invocation), {
+    const result = await withRateLimitRetry(() => invoke(invocation), {
       ...(options.maxRateLimitRetries !== undefined
         ? { maxRetries: options.maxRateLimitRetries }
         : {}),
     });
-    rateLimitWaits += waits;
-    return value;
+    rateLimitWaits += result.rateLimitWaits;
+    overloadWaits += result.overloadWaits;
+    return result.value;
   };
 
   const needsPromptedSchema = req.jsonSchema !== undefined && !options.nativeStructuredOutput;
@@ -193,7 +203,7 @@ export async function runCompletion(
     return {
       text: first.text,
       usage,
-      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false, rateLimitWaits },
+      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false, rateLimitWaits, overloadWaits },
     };
   }
 
@@ -203,7 +213,7 @@ export async function runCompletion(
       text: first.text,
       parsed: firstCheck.value,
       usage,
-      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false, rateLimitWaits },
+      meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: false, rateLimitWaits, overloadWaits },
     };
   }
 
@@ -232,7 +242,7 @@ export async function runCompletion(
     text: repair.text,
     parsed: secondCheck.value,
     usage,
-    meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: true, rateLimitWaits },
+    meta: { provider, model, latencyMs: Date.now() - startedAt, repaired: true, rateLimitWaits, overloadWaits },
   };
 }
 

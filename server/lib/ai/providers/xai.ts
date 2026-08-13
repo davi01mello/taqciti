@@ -15,6 +15,7 @@
  * variantes `-reasoning` e `-non-reasoning` em vez de um parâmetro.
  */
 import {
+  OverloadedError,
   ProviderError,
   RateLimitError,
   type Capability,
@@ -125,6 +126,15 @@ export const xaiProvider: Provider = {
           'xai',
           model,
           `cota estourada (429): ${payload.error?.message ?? raw.slice(0, 200)}`,
+          parseRetryAfter(response.headers.get('retry-after')),
+        );
+      }
+
+      if (response.status === 503 || response.status === 529) {
+        throw new OverloadedError(
+          'xai',
+          model,
+          `provedor sobrecarregado (${response.status}): ${payload.error?.message ?? raw.slice(0, 200)}`,
           parseRetryAfter(response.headers.get('retry-after')),
         );
       }

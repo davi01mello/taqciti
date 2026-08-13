@@ -27,6 +27,7 @@
  */
 import { GoogleGenAI, ThinkingLevel, type GenerateContentConfig, type Content } from '@google/genai';
 import {
+  OverloadedError,
   ProviderError,
   RateLimitError,
   type Capability,
@@ -118,6 +119,24 @@ function thinkingConfigFor(model: string): Partial<GenerateContentConfig> {
   return { thinkingConfig: { thinkingBudget: -1 } };
 }
 
+/** Reconhece 503/UNAVAILABLE — sobrecarga do provedor, transitória. */
+function asOverloaded(model: string, error: unknown): OverloadedError | undefined {
+  const status = (error as { status?: unknown })?.status;
+  const message = (error as Error)?.message ?? '';
+  const overloaded =
+    status === 503 ||
+    status === 'UNAVAILABLE' ||
+    /\b503\b|UNAVAILABLE|overloaded|high demand/i.test(message);
+  if (!overloaded) return undefined;
+  return new OverloadedError(
+    'google',
+    model,
+    `provedor sobrecarregado (503): ${message.slice(0, 200)}`,
+    undefined,
+    error,
+  );
+}
+
 /** Reconhece 429 no formato que o SDK do Google levanta. */
 function asRateLimit(model: string, error: unknown): RateLimitError | undefined {
   const status = (error as { status?: unknown })?.status;
@@ -183,6 +202,8 @@ export const googleProvider: Provider = {
         if (error instanceof ProviderError) throw error;
         const rateLimited = asRateLimit(model, error);
         if (rateLimited) throw rateLimited;
+        const overloaded = asOverloaded(model, error);
+        if (overloaded) throw overloaded;
         throw new ProviderError('google', model, (error as Error).message, error);
       }
 

@@ -13,6 +13,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import {
+  OverloadedError,
   ProviderError,
   RateLimitError,
   type Capability,
@@ -64,6 +65,23 @@ function client(): Anthropic {
     });
   }
   return cached;
+}
+
+/** Reconhece sobrecarga — `overloaded_error` (529) e 5xx transitório. */
+function asOverloaded(model: string, error: unknown): OverloadedError | undefined {
+  const status = (error as { status?: unknown })?.status;
+  const isOverloaded =
+    error instanceof Anthropic.InternalServerError ||
+    (typeof status === 'number' && status >= 500) ||
+    (error as { type?: string })?.type === 'overloaded_error';
+  if (!isOverloaded) return undefined;
+  return new OverloadedError(
+    'anthropic',
+    model,
+    `provedor sobrecarregado: ${(error as Error).message?.slice(0, 200) ?? ''}`,
+    undefined,
+    error,
+  );
 }
 
 /** Reconhece 429 no formato que o SDK da Anthropic levanta. */
@@ -177,6 +195,8 @@ export const anthropicProvider: Provider = {
         if (error instanceof ProviderError) throw error;
         const rateLimited = asRateLimit(model, error);
         if (rateLimited) throw rateLimited;
+        const overloaded = asOverloaded(model, error);
+        if (overloaded) throw overloaded;
         throw new ProviderError('anthropic', model, (error as Error).message, error);
       }
     });

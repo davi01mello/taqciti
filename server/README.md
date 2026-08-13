@@ -337,6 +337,45 @@ e a **taxa de âncoras** dividida em exatas / normalizadas / não localizadas.
 A taxa de âncoras é o principal indicador de saúde — foi a única métrica que
 pegou um modelo devolvendo citação corrompida.
 
+## Pensante e Auditor (Fases 3 e 4)
+
+`lib/agents/pensante.ts` recebe o contexto compactado, um `SectionSpec` e as
+respostas já dadas, e devolve **dados estruturados** (`lib/documentData.ts`) —
+não prosa. Ele recebe **apenas o contexto compactado**, nunca a transcrição
+bruta: é o que segura o custo.
+
+As regras de cada seção vêm do `guidance` do `SectionSpec`, **interpoladas** no
+prompt. Não são reescritas — regra que mora em dois lugares diverge.
+
+`lib/agents/auditor.ts` roda só em seção `audit: 'strict'`. Ele lê o trecho
+ORIGINAL, recortado pela âncora com folga, e não a compactação: validar contra
+o resumo seria auditar uma interpretação, e nunca detectaria erro introduzido na
+própria compactação.
+
+O laço vive em `lib/agents/sectionPipeline.ts`, com **teto de duas passadas**:
+Pensante propõe → Auditor rejeita → Pensante refaz com a justificativa → se
+rejeitar de novo, a afirmação é descartada e vira lacuna. Nunca entra no
+documento.
+
+### ⚠️ Limitação medida: a folga do Auditor vaza evidência
+
+`EXCERPT_PADDING_CHARS` é 400. A folga existe porque a citação sozinha costuma
+ser curta demais para julgar — `"Concordo."` não diz com o quê. Mas numa reunião
+onde quase toda fala é seguida de concordância, 400 caracteres quase sempre
+alcançam **alguma** concordância, inclusive de outro assunto.
+
+Efeito observado na transcrição de teste: o Pensante propôs "Avaliar
+desnormalizações específicas após testes de desempenho" como decisão, e o
+Auditor **aprovou**, justificando com "Ana sugerindo e Carlos concordando". A
+transcrição não tem essa concordância — depois do "Podemos avaliar" da Ana,
+Carlos muda de assunto. A concordância que o Auditor viu era de um tópico
+vizinho, dentro da folga.
+
+Isto é a armadilha de decisão passando pela peça que existe para barrá-la.
+Ainda **não corrigido**: a escolha entre reduzir a folga, marcar dentro do
+trecho qual parte é a âncora, ou exigir que a evidência de concordância também
+esteja ancorada é decisão de projeto, não ajuste mecânico.
+
 ## Dívida conhecida
 
 `anthropic` e `xai` nunca fizeram uma chamada real — só há chave do Google.
