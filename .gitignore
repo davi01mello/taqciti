@@ -7,3 +7,9 @@ release/
 *.timestamp-*.mjs
 *.log
 .DS_Store
+
+# Chave privada da extensão. A PÚBLICA vive no `key` do manifesto e fixa o ID;
+# a privada só serve para empacotar um .crx assinado à mão, e nunca deve ser
+# versionada — quem a tiver consegue publicar uma extensão com a MESMA
+# identidade, e portanto herdar o cliente OAuth registrado contra esse ID.
+*.pem

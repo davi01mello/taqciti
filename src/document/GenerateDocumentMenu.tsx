@@ -9,7 +9,7 @@ import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import {
   DOCUMENT_TYPE_LABELS,
-  requestGeneration,
+  requestGenerationAndUpload,
   type DocumentType,
   type GenerationResult,
   type GenerationSource,
@@ -44,8 +44,25 @@ const AREA_ITEMS: Record<Area, MenuItem[]> = {
 
 type Generating =
   | { status: 'idle' }
-  | { status: 'loading'; documentType: DocumentType }
+  // Duas etapas visíveis: a segunda leva segundos e, sem rótulo próprio, o
+  // botão parece travado justamente quando já deu tudo certo no servidor.
+  | { status: 'loading'; documentType: DocumentType; etapa: 'gerando' | 'enviando' }
   | { status: 'error'; documentType: DocumentType; message: string };
+
+/**
+ * Abre a ata recém-criada.
+ *
+ * `chrome.tabs.create` quando existe (janela da extensão, painel lateral) e
+ * `window.open` no content script, onde a API de abas não está disponível. É
+ * o mesmo par de contextos em que este menu já vive.
+ */
+function abrirDocumento(url: string): void {
+  if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+    void chrome.tabs.create({ url });
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
 
 interface GenerateDocumentMenuProps {
   source: GenerationSource;
@@ -117,14 +134,38 @@ export function GenerateDocumentMenu({
 
   const generate = (documentType: DocumentType) => {
     if (busy) return;
-    setGenerating({ status: 'loading', documentType });
-    void requestGeneration(source, documentType).then((result) => {
-      if (result.status === 'success') {
-        onGenerated(result);
-        reset();
-      } else {
-        setGenerating({ status: 'error', documentType, message: result.message });
+    setGenerating({ status: 'loading', documentType, etapa: 'gerando' });
+
+    const emEtapa = (etapa: 'gerando' | 'enviando') =>
+      setGenerating({ status: 'loading', documentType, etapa });
+
+    void requestGenerationAndUpload(source, documentType, emEtapa).then(({ generation, upload }) => {
+      if (generation.status !== 'success') {
+        setGenerating({ status: 'error', documentType, message: generation.message });
+        return;
       }
+
+      // O documento existe. Ele aparece na tela mesmo que o envio ao Drive
+      // tenha falhado — o servidor já o produziu, e já custou.
+      onGenerated(generation);
+
+      if (upload?.status === 'success') {
+        abrirDocumento(upload.url);
+        reset();
+        return;
+      }
+
+      if (upload?.status === 'error') {
+        // Erro do Drive, não da geração: o texto está na tela atrás do menu.
+        setGenerating({
+          status: 'error',
+          documentType,
+          message: `Documento gerado, mas não foi para o Google Docs. ${upload.message}`,
+        });
+        return;
+      }
+
+      reset();
     });
   };
 
@@ -187,10 +228,13 @@ export function GenerateDocumentMenu({
                   );
                 }
 
-                const label =
-                  generating.status === 'loading' && generating.documentType === item.documentType
-                    ? `Gerando ${item.label}...`
-                    : item.label;
+                const emAndamento =
+                  generating.status === 'loading' && generating.documentType === item.documentType;
+                const label = !emAndamento
+                  ? item.label
+                  : generating.etapa === 'enviando'
+                    ? 'Enviando para o Google Docs...'
+                    : `Gerando ${item.label}...`;
 
                 return (
                   <button

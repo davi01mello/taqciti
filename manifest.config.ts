@@ -7,6 +7,20 @@
  */
 import { defineManifest } from '@crxjs/vite-plugin';
 
+/**
+ * Cliente OAuth do Google, registrado no Google Cloud Console como
+ * "Extensão do Chrome" e amarrado ao ID abaixo.
+ *
+ * Definível por `VITE_GOOGLE_OAUTH_CLIENT_ID` no ambiente da build. O
+ * placeholder mantém o manifesto VÁLIDO quando ninguém registrou nada — a
+ * extensão carrega, e só o envio para o Google Docs falha, com mensagem
+ * dizendo o que fazer. Um `client_id` ausente faria o Chrome recusar a
+ * extensão inteira, o que é um modo de falhar muito pior por um recurso
+ * opcional. Ver `docs/google-docs-setup.md`.
+ */
+const OAUTH_CLIENT_ID =
+  process.env.VITE_GOOGLE_OAUTH_CLIENT_ID ?? 'CLIENT_ID_NAO_CONFIGURADO.apps.googleusercontent.com';
+
 export default defineManifest({
   manifest_version: 3,
   name: 'TaqCITi Standalone',
@@ -14,6 +28,43 @@ export default defineManifest({
     'Transcrição automática de reuniões do Google Meet — captura invisível e histórico 100% local, sem integração com nenhum backend.',
   version: '1.5.1',
   minimum_chrome_version: '116',
+
+  /*
+   * ID ESTÁVEL — `jalebpaefejnbacgncgkailhemkdpnhm`.
+   *
+   * Sem esta chave, o Chrome deriva o ID do caminho da pasta em carga
+   * unpacked, e ele MUDA entre máquinas e entre clones do repo. O
+   * `chrome.identity.getAuthToken` não tolera isso: o cliente OAuth do Google
+   * é registrado CONTRA um ID específico, e um ID diferente faz a
+   * autenticação falhar com "bad client id" — erro que não diz nada sobre a
+   * causa real.
+   *
+   * Esta é a chave PÚBLICA. A privada correspondente só é necessária para
+   * empacotar um .crx assinado à mão, e não vive no repo.
+   *
+   * ⚠️ Ao publicar na Web Store: a loja atribui a própria chave. Depois da
+   * primeira publicação, troque o valor abaixo pelo que a loja mostrar, ou o
+   * ID de desenvolvimento e o de produção divergem — e o cliente OAuth vale
+   * só para um dos dois.
+   */
+  key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnK6hLSrLUsXOj3pPWAwMyzBPBOh3A9nI4PnbL/k6B3/G68Rk+MyjMj/86I4b2Dxi65UFD44YfygrpULYVBCayZ26qcjShnJse0U9rvF8OMp/U7EUBGS1VLdx6JKur/3OBzAMSb4c0V6EgL3rj4OEPgHbjEXjHDHt7azDyaOUOB+HJV6nCXzCiAogGXAHXB+9C1NG/GCpyh3F7cLu8gUnyND2xpkFPHU1+1Tdda7cOdZPK2SvbeXe5dCwdVzA3nSnsTNc2in+HMUvjtDZLdQRHV8nQIRQiApDUTa3LPfY6YLvPMvnfq3bEPCceHgdxmezRPbSUNYESp5Zj8n4YxFz8QIDAQAB',
+
+  /*
+   * Só `drive.file`, e só ele.
+   *
+   * `drive.file` dá acesso EXCLUSIVAMENTE aos arquivos que esta extensão
+   * criou. Ela não enxerga, não lê e não altera nada mais do Drive de quem
+   * usa — o que é exatamente o alcance de "crie a ata e abra". Os escopos
+   * largos (`drive`, `drive.readonly`) dariam a biblioteca inteira, exigiriam
+   * verificação da Google e pediriam ao usuário uma permissão que o produto
+   * não precisa.
+   *
+   * Se algum dia parecer que precisa de mais, PARE e pergunte ao autor.
+   */
+  oauth2: {
+    client_id: OAUTH_CLIENT_ID,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  },
 
   icons: {
     '16': 'icons/icon-16.png',
@@ -92,7 +143,12 @@ export default defineManifest({
   //
   // `activeTab` saiu: era o par do `executeScript` sob demanda, e a injeção sob
   // demanda deixou de ser o caminho da UI.
-  permissions: ['storage', 'sidePanel', 'scripting'],
+  //
+  // `identity` é o que permite `chrome.identity.getAuthToken`: o token OAuth
+  // do usuário é obtido DENTRO do Chrome e usado para criar a ata no Drive
+  // dele. O servidor nunca vê esse token — é a razão de a extensão criar o
+  // documento em vez de o servidor criar.
+  permissions: ['storage', 'sidePanel', 'scripting', 'identity'],
 
   /*
    * O preço honesto da persistência.
