@@ -13,7 +13,7 @@ esta medição.
 | `execucao-1-ata.md` | a Ata em markdown da primeira execução |
 | `execucao-1-secao.json` | resposta de `/api/ai/secao` em quatro seções: métricas de citação, custo, descartes |
 | `execucao-2-ata.md` | a Ata em markdown da segunda execução |
-| `execucao-2-ata.html` | o **HTML**, renderizado do `DocumentData` |
+| `execucao-2-ata.html` | o **HTML**, renderizado do `DocumentData` — regerado em 15/08 com o estilo do modelo institucional, a partir do mesmo `documentData` |
 | `execucao-2-documentData.json` | o JSON intermediário — a camada canônica de onde HTML e PDF saem |
 
 Só a execução 2 tem HTML e `documentData` porque só ela rodou depois de eles

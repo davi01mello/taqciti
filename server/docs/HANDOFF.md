@@ -45,7 +45,8 @@ transcrição bruta
 | Escritor: dados da seção → prosa; guarda contra vazamento do PDF | `lib/agents/escritor.ts` |
 | Montagem das nove seções, lacunas e perguntas | `lib/generateStep.ts` |
 | JSON intermediário (`document_data`) | `lib/documentData.ts` |
-| Renderização `DocumentData` → HTML (alvo: import do Google Docs) | `lib/render/html.ts` |
+| Renderização `DocumentData` → HTML, no estilo do modelo institucional | `lib/render/html.ts` |
+| Marca CITi embutida como `data:` URI | `lib/render/brand.ts` |
 | Prompts como artefatos versionados | `lib/prompts/` |
 
 `POST /api/generate` devolve `{ title, content, documentData, html, questions }`.
@@ -196,11 +197,38 @@ tem concordância ancorada, e reparsear texto é onde a informação some sem
 ninguém notar. Pelo mesmo motivo o PDF, quando entrar, sai do `DocumentData` e
 **não** deste HTML: são irmãos, não um derivado do outro.
 
-O HTML fica no subconjunto que o import do Google Docs aceita — cabeçalhos,
-parágrafos, listas, `strong`. Nada de CSS, classe ou tabela: o que não
-sobrevive ao import vira ruído no documento do cliente. Documento completo com
-`<meta charset>`, e não fragmento, porque vai como ARQUIVO — sem o charset,
-"gestão" chega ao Docs como "gestÃ£o".
+### O estilo vem do modelo, e as medidas foram EXTRAÍDAS dele
+
+O modelo é `public/assets-docs/ata-de-reuniao/example.pdf` (na raiz do repo,
+não em `server/`). A marca é `image.png`, ao lado dele.
+
+Nada ali foi estimado — os valores saíram do próprio arquivo: **A4
+(596×842pt)**, **Arial**, texto `#000000`, rodapé `#888888`, escala
+tipográfica **44 / 26,7 / 17,3 / 14,7 / 10,7pt**, marca desenhada com
+**160,5pt** de largura. Se precisar reconferir, o caminho foi `pdftotext
+-layout` para a estrutura e leitura dos streams do PDF (fontes, operadores
+`rg`/`RG` de cor, `Tf` de tamanho, `cm`+`Do` de imagem) — não há dependência
+nova envolvida.
+
+**A capa não sobrevive ao Docs.** O modelo tem uma página inteira só de marca
+e título, sobre um fundo sangrado. Nem página dedicada nem fundo atravessam o
+import, e uma capa em branco no meio de um documento importado é pior que não
+ter capa — por isso ela vira um bloco de abertura na MESMA página do conteúdo.
+Foi a decisão do autor ("a marca na mesma página").
+
+**Cabeçalho de seção só onde o modelo tem.** Identificação, Tópico geral,
+Participantes e Assinatura entram como linhas rotuladas (`DATA:`, `TÓPICO:`,
+`PARTICIPANTES – CARGO:`) e como fecho de carta. É a única divergência
+deliberada entre o HTML e o markdown do Escritor, que mantém todos os
+cabeçalhos por ser rascunho de tela.
+
+**Estilo INLINE, não folha.** O conversor do Drive descarta quase toda regra
+de `<style>` e preserva atributo `style` no elemento. A folha carrega só o
+`@page`, que não tem equivalente inline. Há teste garantindo que nada depende
+de classe.
+
+Documento completo com `<meta charset>`, e não fragmento, porque vai como
+ARQUIVO — sem o charset, "gestão" chega ao Docs como "gestÃ£o".
 
 Duas regras que os testes prendem: **HTML e markdown mostram a mesma frase de
 lacuna** (`textoDeLacuna` em `documentData.ts` é a fonte única) e **usam a
