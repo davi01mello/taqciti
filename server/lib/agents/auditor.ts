@@ -3,24 +3,37 @@
  *
  * Roda somente em seções `audit: 'strict'` — hoje Participantes e Decisões.
  *
- * O Auditor lê o trecho original, NÃO a compactação. Se validasse contra o
- * contexto compactado estaria auditando uma interpretação, e nunca detectaria
- * erro introduzido na própria compactação. É a razão de a âncora existir.
+ * O Auditor lê o trecho original, e só ele. Se validasse contra uma paráfrase
+ * estaria auditando uma interpretação, e nunca detectaria erro introduzido na
+ * própria interpretação. É a razão de a âncora existir.
  *
  * Ele é genérico: não conhece "participante" nem "decisão". Recebe um texto e
- * os ids que o sustentam, recupera os `CompactedStatement`, usa a âncora para
- * recortar a transcrição bruta com folga, e pergunta.
+ * as âncoras que o sustentam, recorta a transcrição bruta com folga, marca
+ * dentro do recorte exatamente o que foi citado, e pergunta.
  */
-import type { CompactedStatement } from '../compactedContext';
 import { complete, type CompletionResult, type JsonSchema } from '../ai';
 import { renderPrompt } from '../prompts';
-import { excerptFor } from './anchoring';
+import type { LocatedAnchor } from './anchoring';
 import type { AuditableClaim } from '../documentData';
 
-/** Folga em volta da âncora. A citação sozinha costuma ser curta demais para
- *  julgar: "Concordo." não diz com o quê, e é justamente a concordância que
- *  transforma proposta em decisão. */
+/**
+ * Folga em volta da âncora. A citação sozinha costuma ser curta demais para
+ * julgar: "Concordo." não diz com o quê.
+ *
+ * A folga NÃO é mais o que carrega a evidência de concordância — quem carrega
+ * é `Decision.agreement`, uma citação própria e ancorada. Aqui ela serve só
+ * para dar vizinhança legível, e o que foi realmente citado vem marcado entre
+ * `⟦ ⟧` para o Auditor julgar centrado nisso. Foi por essa distinção não
+ * existir que uma proposta passou como decisão: com 400 caracteres de folga,
+ * quase sempre há ALGUMA concordância por perto, inclusive de outro assunto.
+ */
 export const EXCERPT_PADDING_CHARS = 400;
+
+/** Delimitadores do que foi citado, dentro do trecho. Escolhidos por não
+ *  aparecerem em transcrição de reunião — marcador que colide com o texto
+ *  transformaria fala do participante em instrução. */
+export const QUOTE_OPEN = '⟦';
+export const QUOTE_CLOSE = '⟧';
 
 const VERDICT_SCHEMA: JsonSchema = {
   type: 'object',
@@ -44,7 +57,6 @@ export interface AuditVerdict {
 
 export interface AuditarInput {
   claims: AuditableClaim[];
-  statements: CompactedStatement[];
   transcript: string;
   promptVersion?: `v${number}`;
   padding?: number;
@@ -57,63 +69,88 @@ export interface AuditarResult {
   calls: CompletionResult['meta'][];
 }
 
+interface Range {
+  start: number;
+  end: number;
+}
+
 /**
- * Monta o trecho a julgar a partir das âncoras das afirmações vinculadas.
+ * Monta o trecho a julgar a partir das âncoras da afirmação.
  *
- * Afirmação suspeita (`anchor: null`) é ignorada aqui — ela nem deveria ter
- * chegado ao Pensante. Quando NENHUMA âncora sobra, não há trecho e a
- * afirmação é rejeitada sem gastar chamada: sem evidência não há o que
+ * Devolve `null` quando não há âncora nenhuma: sem evidência não há o que
  * auditar, e aprovar por omissão é o oposto do propósito.
  */
 export function buildExcerpt(
-  claim: AuditableClaim,
-  byId: Map<string, CompactedStatement>,
+  anchors: LocatedAnchor[],
   transcript: string,
   padding: number,
 ): string | null {
-  const anchors = claim.statementIds
-    .map((id) => byId.get(id)?.anchor)
-    .filter((anchor): anchor is NonNullable<typeof anchor> => Boolean(anchor));
-
   if (anchors.length === 0) return null;
 
   // Trechos em ordem, sem repetir sobreposição: duas âncoras vizinhas
   // renderiam o mesmo parágrafo duas vezes e só gastariam token.
-  const ranges = anchors
+  const ranges: Range[] = anchors
     .map((a) => ({
       start: Math.max(0, a.start - padding),
       end: Math.min(transcript.length, a.end + padding),
     }))
     .sort((a, b) => a.start - b.start);
 
-  const merged: typeof ranges = [];
+  const merged: Range[] = [];
   for (const range of ranges) {
     const last = merged[merged.length - 1];
     if (last && range.start <= last.end) last.end = Math.max(last.end, range.end);
     else merged.push({ ...range });
   }
 
-  return merged.map((r) => excerptFor(transcript, r)).join('\n\n[...]\n\n');
+  const ordered = [...anchors].sort((a, b) => a.start - b.start);
+
+  return merged.map((range) => renderRange(transcript, range, ordered)).join('\n\n[...]\n\n');
+}
+
+/** Recorta o intervalo marcando, dentro dele, o que foi de fato citado. */
+function renderRange(transcript: string, range: Range, anchors: LocatedAnchor[]): string {
+  let out = '';
+  let cursor = range.start;
+
+  for (const anchor of anchors) {
+    // Âncora fora deste intervalo, ou já engolida por uma anterior que se
+    // sobrepunha a ela — marcar de novo abriria delimitador dentro de
+    // delimitador.
+    if (anchor.start < cursor || anchor.end > range.end) continue;
+    out += transcript.slice(cursor, anchor.start);
+    out += `${QUOTE_OPEN}${transcript.slice(anchor.start, anchor.end)}${QUOTE_CLOSE}`;
+    cursor = anchor.end;
+  }
+
+  return out + transcript.slice(cursor, range.end);
 }
 
 export async function auditar(input: AuditarInput): Promise<AuditarResult> {
-  const byId = new Map(input.statements.map((s) => [s.id, s]));
   const padding = input.padding ?? EXCERPT_PADDING_CHARS;
-  const system = renderPrompt('auditor', input.promptVersion ?? 'v1');
+  const system = renderPrompt('auditor', input.promptVersion ?? 'v2');
 
   const verdicts: AuditVerdict[] = [];
   const usage = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
   const calls: CompletionResult['meta'][] = [];
 
   for (const claim of input.claims) {
-    const excerpt = buildExcerpt(claim, byId, input.transcript, padding);
+    // Rejeição decidida em CÓDIGO. Hoje: decisão cuja concordância não existe
+    // na transcrição. Não é opinião do modelo, é ausência de evidência — e
+    // gastar chamada para confirmar o que já se sabe seria só custo.
+    if (claim.blocker) {
+      verdicts.push({ path: claim.path, supported: false, reason: claim.blocker, excerpt: '' });
+      continue;
+    }
+
+    const excerpt = buildExcerpt(claim.anchors, input.transcript, padding);
 
     if (excerpt === null) {
       verdicts.push({
         path: claim.path,
         supported: false,
         reason:
-          'Nenhuma âncora localizável sustenta esta afirmação — não há trecho da ' +
+          'Nenhuma citação localizável sustenta esta afirmação — não há trecho da ' +
           'transcrição para conferir.',
         excerpt: '',
       });

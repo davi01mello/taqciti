@@ -26,14 +26,9 @@ export function isProviderId(value: unknown): value is ProviderId {
 
 export type Capability = 'structuredOutput' | 'contextCache' | 'extendedThinking';
 
-export type AgentName = 'analista' | 'pensante' | 'auditor' | 'escritor';
+export type AgentName = 'pensante' | 'auditor' | 'escritor';
 
-export const AGENT_NAMES: readonly AgentName[] = [
-  'analista',
-  'pensante',
-  'auditor',
-  'escritor',
-];
+export const AGENT_NAMES: readonly AgentName[] = ['pensante', 'auditor', 'escritor'];
 
 export interface CompletionMessage {
   role: 'user' | 'assistant';

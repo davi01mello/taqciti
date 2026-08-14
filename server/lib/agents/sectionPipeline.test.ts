@@ -1,4 +1,4 @@
-﻿import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * O laço Pensante ↔ Auditor com o modelo mockado. O que se testa aqui é o
@@ -13,22 +13,12 @@ vi.mock('../ai', async (importOriginal) => ({
 
 const { runSection, MAX_PASSES } = await import('./sectionPipeline');
 const { TEMPLATES } = await import('../templates');
-import type { CompactedContext } from '../compactedContext';
 
-const transcript = 'Carlos: acho que deveriamos adiar a entrega. Ana: vamos pensar.';
+const transcript =
+  'Carlos: acho que deveriamos adiar a entrega. Ana: vamos pensar. Ana: entao fechado, sexta.';
 
-const context: CompactedContext = {
-  statements: [
-    {
-      id: 'st-001',
-      text: 'Carlos considerou adiar a entrega.',
-      quote: 'acho que deveriamos adiar a entrega',
-      anchor: { start: transcript.indexOf('acho'), end: transcript.indexOf('acho') + 35, exact: true },
-      kind: 'argument',
-    },
-  ],
-  entities: { people: ['Carlos'], projects: [], companies: [], technologies: [] },
-};
+const PROPOSTA = 'acho que deveriamos adiar a entrega';
+const CONCORDANCIA = 'entao fechado, sexta';
 
 const decisoes = TEMPLATES.ata.sections.find((s) => s.id === 'decisoes')!;
 const conclusao = TEMPLATES.ata.sections.find((s) => s.id === 'conclusao')!;
@@ -42,12 +32,16 @@ const reply = (parsed: unknown) => ({
 
 const umaDecisao = {
   decisions: [
-    { text: 'Adiar a entrega', evidence: 'Carlos propôs', confidence: 'high', statementIds: ['st-001'] },
+    {
+      text: 'Adiar a entrega',
+      agreementQuote: CONCORDANCIA,
+      confidence: 'high',
+      quotes: [PROPOSTA],
+    },
   ],
 };
 
-const run = () =>
-  runSection({ context, section: decisoes, transcript, known: {}, answers: [] });
+const run = () => runSection({ section: decisoes, transcript, known: {}, answers: [] });
 
 afterEach(() => complete.mockReset());
 
@@ -55,13 +49,7 @@ describe('seção não-strict', () => {
   it('não chama o Auditor', async () => {
     complete.mockResolvedValueOnce(reply({ text: 'Parágrafo executivo.' }));
 
-    const result = await runSection({
-      context,
-      section: conclusao,
-      transcript,
-      known: {},
-      answers: [],
-    });
+    const result = await runSection({ section: conclusao, transcript, known: {}, answers: [] });
 
     expect(result.audited).toBe(false);
     expect(result.passes).toBe(1);
@@ -155,7 +143,7 @@ describe('seção strict', () => {
     expect(pedido).toContain('REJEITADAS');
   });
 
-  it('afirmação sem âncora é rejeitada sem gastar chamada de modelo', async () => {
+  it('afirmação sem citação localizável é rejeitada sem gastar chamada de modelo', async () => {
     // Sem trecho não há o que auditar. Aprovar por omissão seria o oposto
     // do propósito do Auditor.
     complete.mockImplementation(async (agent: string) =>
@@ -163,7 +151,12 @@ describe('seção strict', () => {
         ? reply({ supported: true, reason: 'nunca deveria ser chamado' })
         : reply({
             decisions: [
-              { text: 'D', evidence: 'E', confidence: 'low', statementIds: ['id-inexistente'] },
+              {
+                text: 'D',
+                agreementQuote: 'frase que a transcrição nunca teve',
+                confidence: 'low',
+                quotes: ['outra frase inventada'],
+              },
             ],
           }),
     );
@@ -175,6 +168,56 @@ describe('seção strict', () => {
     expect(complete).toHaveBeenCalledTimes(2);
   });
 
+  it('decisão com concordância inexistente cai sem chamar o Auditor', async () => {
+    // A proposta ancora, a concordância não. É decidido em CÓDIGO: sem
+    // aceitação verificável é proposta, e proposta não vira decisão.
+    complete.mockImplementation(async (agent: string) =>
+      agent === 'auditor'
+        ? reply({ supported: true, reason: 'nunca deveria ser chamado' })
+        : reply({
+            decisions: [
+              {
+                text: 'Adiar a entrega',
+                agreementQuote: 'Todos aprovaram por unanimidade.',
+                confidence: 'high',
+                quotes: [PROPOSTA],
+              },
+            ],
+          }),
+    );
+
+    const result = await run();
+
+    expect(result.data.decisions).toEqual([]);
+    expect(result.discarded[0]!.reason).toMatch(/não existe na transcrição/);
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('reporta as citações que a transcrição não tem', async () => {
+    // Nunca omitir em silêncio: citação inventada precisa aparecer no
+    // relatório com o texto que o modelo alegou.
+    complete
+      .mockResolvedValueOnce(
+        reply({
+          decisions: [
+            {
+              text: 'Adiar a entrega',
+              agreementQuote: CONCORDANCIA,
+              confidence: 'high',
+              quotes: ['CITACAO QUE NAO EXISTE'],
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(reply({ supported: true, reason: 'ok' }));
+
+    const result = await run();
+
+    expect(result.unlocatable).toEqual(['CITACAO QUE NAO EXISTE']);
+    expect(result.quotes.missing).toBe(1);
+    expect(result.quotes.anchorRate).toBeCloseTo(0.5);
+  });
+
   it('soma o usage das quatro chamadas', async () => {
     complete.mockImplementation(async (agent: string) =>
       agent === 'auditor' ? reply({ supported: false, reason: 'não' }) : reply(umaDecisao),
@@ -184,5 +227,18 @@ describe('seção strict', () => {
 
     expect(result.usage.inputTokens).toBe(40);
     expect(result.usage.outputTokens).toBe(20);
+  });
+
+  it('a transcrição bruta vai como prefixo cacheável em toda chamada do Pensante', async () => {
+    // É a economia que sustenta o corte da compactação: o prefixo idêntico
+    // nas nove seções. Se ele deixar de ser passado, o custo por documento
+    // multiplica sem nada quebrar visivelmente.
+    complete
+      .mockResolvedValueOnce(reply(umaDecisao))
+      .mockResolvedValueOnce(reply({ supported: true, reason: 'ok' }));
+
+    await run();
+
+    expect(complete.mock.calls[0]![1].cacheablePrefix).toBe(transcript);
   });
 });

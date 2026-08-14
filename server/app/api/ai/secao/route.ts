@@ -1,5 +1,5 @@
 /**
- * Roda o pipeline de UMA seção ponta a ponta: Analista → Pensante → Auditor.
+ * Roda o pipeline de UMA seção ponta a ponta: Pensante → Auditor.
  *
  * Existe para exercitar as Fases 3 e 4 antes de a Fase 5 montar o documento
  * inteiro. Recebe a transcrição e o id da seção; devolve os dados
@@ -13,7 +13,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
 import { activeDataPolicyWarning, AGENT_CONFIG, estimateCost } from '@/lib/ai';
-import { analisar } from '@/lib/agents/analista';
 import { runSection } from '@/lib/agents/sectionPipeline';
 import { TEMPLATES } from '@/lib/templates';
 import { isDocumentType } from '@/lib/documentTypes';
@@ -93,20 +92,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const analise = await analisar(transcript);
-
-    const usage = { ...analise.usage };
+    const usage = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
     let known: DocumentData = {};
     const resultados = [];
 
     for (const section of sections) {
-      const run = await runSection({
-        context: analise.context,
-        section,
-        transcript,
-        known,
-        answers: [],
-      });
+      const run = await runSection({ section, transcript, known, answers: [] });
 
       // As seções seguintes veem o que as anteriores determinaram — é o
       // "não perguntar o que já foi determinado" da especificação.
@@ -130,6 +121,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         })),
         discarded: run.discarded,
         gaps: run.gaps,
+        // A taxa de âncoras é o principal indicador de saúde do Pensante
+        // desde que é ele quem produz `quote`. Citação inexistente aparece
+        // aqui inteira — nada some em silêncio.
+        citacoes: run.quotes,
+        naoLocalizadas: run.unlocatable,
       });
     }
 
@@ -137,12 +133,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return RespostaOk({
       modelos: AGENT_CONFIG,
-      analista: {
-        statements: analise.stats.statementCount,
-        anchorRate: analise.stats.anchorRate,
-        suspeitas: analise.stats.anchorsMissing,
-        compactionRatio: analise.stats.compactionRatio,
-      },
+      transcriptChars: transcript.length,
       usage,
       custoAproximadoUsd: custo ? Number(custo.totalUsd.toFixed(6)) : null,
       secoes: resultados,

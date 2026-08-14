@@ -22,15 +22,14 @@ Configuração ativa, dividida por natureza da tarefa:
 
 | agente | modelo | por quê |
 |---|---|---|
-| `analista` | `gemini-3.5-flash-lite` | extração: achar afirmação e copiar citação literal |
-| `pensante` | `gemini-3.5-flash` | raciocínio, com `thinkingLevel: HIGH` |
+| `pensante` | `gemini-3.5-flash` | raciocínio sobre a transcrição, com `thinkingLevel: HIGH` |
 | `auditor` | `gemini-3.5-flash-lite` | verificação binária, a chamada mais frequente |
 | `escritor` | `gemini-3.5-flash` | geração de prosa |
 
 O nível de raciocínio é por modelo (`THINKING_LEVEL` em
 `lib/ai/providers/google.ts`), não uniforme: raciocínio custa token de saída e
-latência, e extrair afirmação é trabalho mecânico enquanto decidir o que entra
-numa seção é julgamento.
+latência, e conferir um trecho curto é trabalho mecânico enquanto decidir o que
+entra numa seção é julgamento.
 
 > ⚠️ **Política de dados é do PLANO DA CHAVE, não do modelo.** Uma chave de
 > free tier do Gemini manda o conteúdo para treinamento em qualquer modelo —
@@ -109,8 +108,9 @@ A resposta traz um campo `naoVerificado` com o que o smoke **não** prova:
   `cache_control` e o cache implícito só rendem no segundo request com o mesmo
   prefixo, e o prefixo aqui é curto demais para atingir o mínimo cacheável de
   qualquer provedor. `cachedInputTokens: 0` é o esperado e não prova nada. Como
-  o ganho de cache entra direto na conta de custo por documento, isso fica em
-  aberto até a Fase 2 fazer chamadas repetidas com o mesmo contexto compactado.
+  o ganho de cache entra direto na conta de custo por documento, isso só se
+  resolve medindo as nove chamadas do Pensante, que repetem a transcrição
+  inteira como prefixo.
 - **Espera por 429.** Tem teste unitário, mas nenhuma chamada real tomou 429
   ainda.
 
@@ -149,12 +149,12 @@ em código quando o provedor não tem a nativa — ver [`lib/ai/types.ts`](lib/a
 ```ts
 import { complete } from '@/lib/ai';
 
-const result = await complete('analista', {
+const result = await complete('pensante', {
   system: '...',
-  messages: [{ role: 'user', content: transcript }],
-  maxTokens: 16000,
-  jsonSchema: SCHEMA,          // sempre funciona nos três
-  cacheablePrefix: contexto,   // otimização opcional
+  messages: [{ role: 'user', content: pedidoDaSecao }],
+  maxTokens: 8000,
+  jsonSchema: SCHEMA,            // sempre funciona nos três
+  cacheablePrefix: transcript,   // otimização opcional
 });
 ```
 
@@ -229,7 +229,7 @@ As duas entradas ⚠️ são `experimental: true` e ficam **fora** de
 sobre os candidatos a produção — as experimentais respondem perguntas
 laterais em vez de disputar a decisão, e por isso podem repetir tier.
 
-Configuração mista (Analista caro, Auditor barato) é otimização de uma
+Configuração mista (Pensante caro, Auditor barato) é otimização de uma
 segunda rodada, depois de saber onde cada fornecedor quebra.
 
 ### `gemini-2.5-flash` — configuração de desenvolvimento
@@ -277,8 +277,8 @@ a 3.x não custaria. É isso que `repaired` vai mostrar.
 
 ### Espera por 429
 
-Uma geração completa faz de 20 a 30 chamadas (1 Analista + 9 Pensante +
-N Auditor + 9 Escritor). Em free tier isso estoura o limite por minuto com
+Uma geração completa faz de 20 a 30 chamadas (9 Pensante + N Auditor +
+9 Escritor). Em free tier isso estoura o limite por minuto com
 facilidade, e sem espera a primeira geração morre no meio — parecendo bug de
 lógica, que é o diagnóstico errado e caro.
 
@@ -292,24 +292,48 @@ sozinho, as esperas ficariam invisíveis, e `rateLimitWaits` reportaria zero
 enquanto a geração leva minutos. Cada resultado carrega
 `meta.rateLimitWaits`.
 
-## O Analista (Fase 2)
+## Por que não existe uma etapa de compactação
 
-`lib/agents/analista.ts`: transcrição bruta → `CompactedContext`. É o único
-agente que lê a transcrição inteira; os outros trabalham sobre o contexto
-compactado e voltam ao original por `anchor`. É isso que segura o custo.
+Existiu — um "Analista" que lia a transcrição e devolvia um contexto compactado
+com âncoras, sobre o qual os outros agentes trabalhavam. Foi **cortado**, e a
+razão principal foi medida, não estimada:
+
+- **a compactação impedia o cache que a tornaria desnecessária.** O contexto
+  compactado tinha ~1.000 tokens, abaixo do piso de cache implícito do provedor
+  (2.048 na família 2.5 do Gemini, mais nas 3.x), e `cachedInputTokens` voltava
+  zero nas nove chamadas. A transcrição bruta passa folgado desse piso e vai
+  como `cacheablePrefix` idêntico nas nove seções;
+- **o Pensante raciocinava sobre a paráfrase de outro modelo**, e o Auditor
+  gastava folga tentando reconstruir a vizinhança que a compactação jogou fora;
+- **a evidência de concordância não tinha como ser ancorada.** Com a
+  transcrição em mãos, o Pensante aponta a citação da concordância, e é isso
+  que separa decisão de proposta (ver abaixo).
+
+Com o Analista foram embora o janelamento e a deduplicação entre janelas — o
+teto de 400 mil caracteres do endpoint continua valendo, e uma transcrição
+acima da janela do modelo agora falha alto em vez de ser fatiada.
+
+## Pensante e Auditor (Fases 3 e 4)
+
+`lib/agents/pensante.ts` recebe a **transcrição bruta**, um `SectionSpec` e as
+respostas já dadas, e devolve **dados estruturados** (`lib/documentData.ts`) —
+não prosa.
+
+As regras de cada seção vêm do `guidance` do `SectionSpec`, repassadas
+íntegras. Não são reescritas — regra que mora em dois lugares diverge. Elas vão
+na mensagem de usuário, **depois** da transcrição: o prompt de sistema precisa
+ser byte-idêntico nas nove seções, ou o prefixo comum acaba antes da
+transcrição e o cache não pega.
 
 ### O modelo não informa offsets
 
-`CompactedStatement.anchor` tem `start` e `end` numéricos, e **eles nunca são
+`AnchoredQuote.anchor` tem `start` e `end` numéricos, e **eles nunca são
 pedidos ao modelo**. LLM erra offset de caractere sistematicamente, e âncora
 errada é pior que âncora nenhuma — dá falsa confiança à auditoria. O fluxo é:
 
-1. o modelo devolve `text`, `quote` (literal) e `kind`;
-2. `lib/agents/anchoring.ts` localiza `quote` na transcrição e preenche os offsets;
-3. citação não localizada → `anchor: null`, afirmação **suspeita**.
-
-`isSuspect()` e `trustworthy()` em `lib/compactedContext.ts` são o filtro: uma
-afirmação suspeita não sustenta nada em seção `audit: 'strict'`.
+1. o modelo devolve `quotes` (literais) junto de cada afirmação;
+2. `lib/agents/anchoring.ts` localiza cada citação e preenche os offsets;
+3. citação não localizada → `anchor: null`, e ela não sustenta nada.
 
 A busca tem duas passadas — literal e depois normalizada (espaços, aspas
 curvas, caixa). **Acento não é normalizado, de propósito**: foi por aí que um
@@ -320,61 +344,45 @@ O localizador guarda onde terminou a âncora anterior e busca dali primeiro.
 Sem isso, citações curtas e repetidas (`"Concordo."`) apontariam todas para a
 primeira ocorrência, e o Auditor leria o trecho errado.
 
-### Janelamento
+`QuoteStats` acompanha cada seção: total, exatas, normalizadas, não
+localizadas, e a **taxa de âncoras**. É o principal indicador de saúde do
+Pensante — foi a única métrica que pegou um modelo devolvendo citação
+corrompida. As citações não localizadas voltam inteiras em `unlocatable`;
+nenhuma some em silêncio.
 
-Passada única até 200 mil caracteres, limitado também pelo que cabe na janela
-do modelo configurado (`windowCharsForModel`). Acima disso, janelas com 4 mil
-caracteres de sobreposição.
-
-A busca da `quote` é feita **sempre contra a transcrição completa**, nunca
-contra a janela — por isso os offsets são absolutos e as âncoras continuam
-válidas independentemente de quantas janelas houve.
-
-### Métricas
-
-`CompactionStats` acompanha todo resultado: contagem, razão de compactação,
-e a **taxa de âncoras** dividida em exatas / normalizadas / não localizadas.
-A taxa de âncoras é o principal indicador de saúde — foi a única métrica que
-pegou um modelo devolvendo citação corrompida.
-
-## Pensante e Auditor (Fases 3 e 4)
-
-`lib/agents/pensante.ts` recebe o contexto compactado, um `SectionSpec` e as
-respostas já dadas, e devolve **dados estruturados** (`lib/documentData.ts`) —
-não prosa. Ele recebe **apenas o contexto compactado**, nunca a transcrição
-bruta: é o que segura o custo.
-
-As regras de cada seção vêm do `guidance` do `SectionSpec`, **interpoladas** no
-prompt. Não são reescritas — regra que mora em dois lugares diverge.
+### A auditoria
 
 `lib/agents/auditor.ts` roda só em seção `audit: 'strict'`. Ele lê o trecho
-ORIGINAL, recortado pela âncora com folga, e não a compactação: validar contra
-o resumo seria auditar uma interpretação, e nunca detectaria erro introduzido na
-própria compactação.
+ORIGINAL, recortado pelas âncoras com folga, e **dentro do recorte o que foi
+citado vem marcado entre `⟦ ⟧`** — a folga dá vizinhança legível, a marcação
+diz o que é evidência.
 
 O laço vive em `lib/agents/sectionPipeline.ts`, com **teto de duas passadas**:
 Pensante propõe → Auditor rejeita → Pensante refaz com a justificativa → se
 rejeitar de novo, a afirmação é descartada e vira lacuna. Nunca entra no
 documento.
 
-### ⚠️ Limitação medida: a folga do Auditor vaza evidência
+### A armadilha de decisão
 
-`EXCERPT_PADDING_CHARS` é 400. A folga existe porque a citação sozinha costuma
-ser curta demais para julgar — `"Concordo."` não diz com o quê. Mas numa reunião
-onde quase toda fala é seguida de concordância, 400 caracteres quase sempre
-alcançam **alguma** concordância, inclusive de outro assunto.
+`EXCERPT_PADDING_CHARS` é 400, e a folga sozinha não distingue proposta de
+decisão. Numa reunião onde quase toda fala é seguida de concordância, 400
+caracteres quase sempre alcançam **alguma** concordância, inclusive de outro
+assunto. Foi observado: o Pensante propôs "Avaliar desnormalizações específicas
+após testes de desempenho" como decisão, e o Auditor aprovou justificando com
+"Ana sugerindo e Carlos concordando" — concordância que a transcrição não tem,
+porque depois do "Podemos avaliar" da Ana o Carlos muda de assunto.
 
-Efeito observado na transcrição de teste: o Pensante propôs "Avaliar
-desnormalizações específicas após testes de desempenho" como decisão, e o
-Auditor **aprovou**, justificando com "Ana sugerindo e Carlos concordando". A
-transcrição não tem essa concordância — depois do "Podemos avaliar" da Ana,
-Carlos muda de assunto. A concordância que o Auditor viu era de um tópico
-vizinho, dentro da folga.
+A correção é estrutural, não de tamanho de folga. `Decision.agreement` é uma
+**citação própria e ancorada** da fala que aceita aquela proposta:
 
-Isto é a armadilha de decisão passando pela peça que existe para barrá-la.
-Ainda **não corrigido**: a escolha entre reduzir a folga, marcar dentro do
-trecho qual parte é a âncora, ou exigir que a evidência de concordância também
-esteja ancorada é decisão de projeto, não ajuste mecânico.
+- concordância que não se localiza na transcrição derruba a decisão em
+  **código**, sem gastar chamada (`AuditableClaim.blocker`);
+- concordância que se localiza chega ao Auditor **marcada**, junto com a
+  proposta, e a pergunta deixa de ser "existe alguma concordância por perto?"
+  para voltar a ser "esta fala aceita esta proposta?".
+
+O caso da concordância vizinha está em `auditor.canonical.test.ts` e roda
+contra a API em `npm run test:live`.
 
 ## Dívida conhecida
 
@@ -403,9 +411,9 @@ que não acontece.
 ## A geração ainda é um stub
 
 `generateDocument` em `lib/generateDocument.ts` ainda devolve seções stub —
-a camada de IA está de pé, mas os agentes (Analista, Pensante, Auditor,
-Escritor) ainda não existem. `lib/generateStep.ts` continua sendo o ponto
-único de troca.
+Pensante e Auditor estão de pé e exercitáveis por `/api/ai/secao`, mas o
+Escritor ainda não existe. `lib/generateStep.ts` continua sendo o ponto único
+de troca.
 
 ## DocCiti (mockup do hero animado) — descontinuado
 

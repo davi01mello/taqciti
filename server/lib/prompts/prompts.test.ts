@@ -15,8 +15,8 @@ describe('interpolate', () => {
   });
 
   it('aceita valor vazio — é diferente de valor ausente', () => {
-    // O `windowNote` do Analista é vazio em passada única. Isso é legítimo;
-    // o que não pode é o marcador ficar sem valor nenhum.
+    // Marcador opcional pode legitimamente render vazio; o que não pode é
+    // ficar sem valor nenhum.
     expect(interpolate('texto{{nota}}', { nota: '' })).toBe('texto');
   });
 
@@ -38,54 +38,79 @@ describe('interpolate', () => {
   });
 });
 
-describe('prompt do Analista', () => {
+const MARCAS = ['claude', 'anthropic', 'gemini', 'google', 'grok', 'gpt', 'openai'];
+
+describe('prompt do Pensante', () => {
   it('carrega do arquivo versionado', () => {
     clearPromptCache();
-    expect(loadPromptTemplate('analista', 'v1')).toContain('Compactação semântica');
+    expect(loadPromptTemplate('pensante', 'v2')).toContain('Citações');
   });
 
   it('erro claro quando a versão não existe', () => {
-    expect(() => loadPromptTemplate('analista', 'v99')).toThrow(/não encontrado/);
+    expect(() => loadPromptTemplate('pensante', 'v99')).toThrow(/não encontrado/);
   });
 
   it('é neutro quanto ao provedor', () => {
     // Prompt que cita um fornecedor faz a comparação da Fase 8 medir
     // adequação ao prompt em vez de capacidade do modelo.
-    const texto = renderPrompt('analista', 'v1', { windowNote: '' }).toLowerCase();
-    for (const marca of ['claude', 'anthropic', 'gemini', 'google', 'grok', 'gpt', 'openai']) {
-      expect(texto).not.toContain(marca);
-    }
+    const texto = renderPrompt('pensante', 'v2').toLowerCase();
+    for (const marca of MARCAS) expect(texto).not.toContain(marca);
   });
 
   it('exige citação literal com acentuação preservada', () => {
-    // É a instrução que sustenta a taxa de âncoras.
-    const texto = renderPrompt('analista', 'v1', { windowNote: '' });
+    // É a instrução que sustenta a taxa de âncoras — e desde o corte da
+    // compactação é o Pensante que produz `quote`.
+    const texto = renderPrompt('pensante', 'v2');
     expect(texto).toMatch(/literal/i);
     expect(texto).toMatch(/acentua/i);
   });
 
   it('ensina a distinção entre proposta e decisão', () => {
-    const texto = renderPrompt('analista', 'v1', { windowNote: '' });
+    const texto = renderPrompt('pensante', 'v2');
     // `\s+` e não espaço literal: o texto é markdown com quebra de linha, e
     // um teste que depende de onde a linha quebra quebra junto.
-    expect(texto).toMatch(/não\s+são decisão/i);
-    expect(texto).toMatch(/concord/i);
+    expect(texto).toMatch(/proposta\s+não\s+é\s+decisão/i);
+    expect(texto).toMatch(/aceit/i);
   });
 
-  it('traz o exemplo de compactação da especificação', () => {
-    const texto = renderPrompt('analista', 'v1', { windowNote: '' });
-    expect(texto).toContain('pessoal do banco');
-    expect(texto).toContain('alteração na arquitetura');
+  it('avisa que concordância de outro assunto não fecha a proposta', () => {
+    // É a armadilha de decisão. Sem esta instrução, o Pensante aponta a
+    // primeira concordância que encontra depois da proposta.
+    expect(renderPrompt('pensante', 'v2')).toMatch(/assunto seguinte|outra coisa/i);
+  });
+
+  it('NÃO tem marcador — o prompt de sistema precisa ser idêntico nas nove seções', () => {
+    // Todo cache de prefixo casa desde o começo do prompt. Um sistema que
+    // variasse por seção encerraria o prefixo comum antes da transcrição, e
+    // o cache nunca daria hit — que é justamente o custo que o corte da
+    // compactação foi feito para resolver.
+    expect(() => renderPrompt('pensante', 'v2', {})).not.toThrow();
+    expect(loadPromptTemplate('pensante', 'v2')).not.toMatch(/\{\{/);
   });
 
   it('não descreve o formato JSON em prosa — isso é papel do schema', () => {
     // Regra 4 do carregador: o prompt descreve a tarefa, o jsonSchema
     // descreve a forma. Descrever nos dois lugares faz os dois divergirem.
-    const texto = renderPrompt('analista', 'v1', { windowNote: '' });
-    expect(texto).not.toMatch(/responda (apenas |somente )?(com |em )?json/i);
+    expect(renderPrompt('pensante', 'v2')).not.toMatch(/responda (apenas |somente )?(com |em )?json/i);
+  });
+});
+
+describe('prompt do Auditor', () => {
+  it('é neutro quanto ao provedor', () => {
+    const texto = renderPrompt('auditor', 'v2').toLowerCase();
+    for (const marca of MARCAS) expect(texto).not.toContain(marca);
   });
 
-  it('render exige o marcador de janela', () => {
-    expect(() => renderPrompt('analista', 'v1', {})).toThrow(/windowNote/);
+  it('explica os delimitadores da citação', () => {
+    // Sem isto o modelo vê ⟦ ⟧ como ruído e julga o trecho inteiro, que é
+    // exatamente o comportamento que a marcação existe para corrigir.
+    const texto = renderPrompt('auditor', 'v2');
+    expect(texto).toContain('⟦');
+    expect(texto).toContain('⟧');
+    expect(texto).toMatch(/vizinhança/i);
+  });
+
+  it('traz o caso da concordância de outro assunto', () => {
+    expect(renderPrompt('auditor', 'v2')).toMatch(/outro assunto/i);
   });
 });

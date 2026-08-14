@@ -1,18 +1,24 @@
 /**
- * Tarefa de referência para comparar modelos: a compactação do Analista.
+ * Tarefa de referência para comparar modelos: extração com citação literal
+ * sobre a transcrição inteira.
  *
  * É a escolha certa para uma medição curta por três razões. É a chamada mais
  * cara do pipeline (lê a transcrição inteira), então o custo dela extrapola
  * melhor que o de qualquer outra. É a que produz `quote`, e a taxa de âncoras
- * localizadas literalmente é o principal indicador de saúde da compactação —
- * dá para medir em código, sem julgamento. E o campo `kind` obriga o modelo a
+ * localizadas literalmente é o principal indicador de saúde da extração — dá
+ * para medir em código, sem julgamento. E o campo `kind` obriga o modelo a
  * separar proposta de decisão, que é o discriminador que mais importa entre
  * modelos.
  *
+ * O bench MEDE a tarefa, não roda o pipeline: ele mantém prompt e schema
+ * próprios, deliberadamente estáveis, para que o resultado de duas execuções
+ * continue comparável mesmo quando o prompt do Pensante mudar de versão. É a
+ * mesma tarefa que o Pensante faz hoje — desde o corte da compactação, é ele
+ * quem lê a transcrição e produz `quote`.
+ *
  * O prompt é NEUTRO quanto ao provedor de propósito: nada de "você é o
  * Claude", nenhuma convenção de formatação de um fornecedor. É a condição
- * para a comparação significar alguma coisa. Quando a Fase 7 mover os
- * prompts para arquivos versionados, este texto vira `analista/v1.md`.
+ * para a comparação significar alguma coisa.
  */
 import { createLocator } from '../agents/anchoring';
 import type { JsonSchema } from './types';
@@ -108,7 +114,7 @@ export interface AnchorReport {
  * é pior que âncora nenhuma, porque dá falsa confiança à auditoria.
  */
 export function checkAnchors(statements: BenchStatement[], transcript: string): AnchorReport {
-  // Usa o MESMO localizador do Analista, de propósito: se o bench medisse a
+  // Usa o MESMO localizador do pipeline, de propósito: se o bench medisse a
   // âncora por um critério próprio, ele estaria comparando modelos numa
   // régua que o pipeline não usa, e um modelo poderia parecer bom aqui e
   // ruim em produção.

@@ -13,17 +13,15 @@
  * O Auditor só roda em seção `audit: 'strict'` — hoje Participantes e
  * Decisões. Nas demais o Pensante manda sozinho.
  */
-import type { CompactedContext } from '../compactedContext';
 import type { SectionSpec } from '../templates/types';
 import { specForSection, type DocumentData, type Gap } from '../documentData';
 import type { Answer } from '../generateStep';
 import { auditar, type AuditVerdict } from './auditor';
-import { pensar } from './pensante';
+import { pensar, type QuoteStats } from './pensante';
 
 export const MAX_PASSES = 2;
 
 export interface SectionRunInput {
-  context: CompactedContext;
   section: SectionSpec;
   transcript: string;
   known: DocumentData;
@@ -45,6 +43,10 @@ export interface SectionRunResult {
   verdicts: AuditVerdict[];
   /** Rejeitadas duas vezes — fora do documento, viraram lacuna. */
   discarded: DiscardedClaim[];
+  /** Citações da passada que valeu. */
+  quotes: QuoteStats;
+  /** Citações inexistentes na transcrição, da passada que valeu. */
+  unlocatable: string[];
   usage: { inputTokens: number; outputTokens: number; cachedInputTokens: number };
 }
 
@@ -65,7 +67,7 @@ export async function runSection(input: SectionRunInput): Promise<SectionRunResu
 
   // Passada 1.
   let attempt = await pensar({
-    context: input.context,
+    transcript: input.transcript,
     section: input.section,
     known: input.known,
     answers: input.answers,
@@ -80,16 +82,14 @@ export async function runSection(input: SectionRunInput): Promise<SectionRunResu
       audited: false,
       verdicts: [],
       discarded: [],
+      quotes: attempt.quotes,
+      unlocatable: attempt.unlocatable,
       usage,
     };
   }
 
   let claims = spec.claims(attempt.data, input.section.id);
-  let audit = await auditar({
-    claims,
-    statements: input.context.statements,
-    transcript: input.transcript,
-  });
+  let audit = await auditar({ claims, transcript: input.transcript });
   addUsage(usage, audit.usage);
 
   if (audit.rejected.length === 0) {
@@ -100,6 +100,8 @@ export async function runSection(input: SectionRunInput): Promise<SectionRunResu
       audited: true,
       verdicts: audit.verdicts,
       discarded: [],
+      quotes: attempt.quotes,
+      unlocatable: attempt.unlocatable,
       usage,
     };
   }
@@ -111,7 +113,7 @@ export async function runSection(input: SectionRunInput): Promise<SectionRunResu
   });
 
   attempt = await pensar({
-    context: input.context,
+    transcript: input.transcript,
     section: input.section,
     known: input.known,
     answers: input.answers,
@@ -120,11 +122,7 @@ export async function runSection(input: SectionRunInput): Promise<SectionRunResu
   addUsage(usage, attempt.usage);
 
   claims = spec.claims(attempt.data, input.section.id);
-  audit = await auditar({
-    claims,
-    statements: input.context.statements,
-    transcript: input.transcript,
-  });
+  audit = await auditar({ claims, transcript: input.transcript });
   addUsage(usage, audit.usage);
 
   // Fim do teto: o que ainda está rejeitado sai do documento.
@@ -144,6 +142,8 @@ export async function runSection(input: SectionRunInput): Promise<SectionRunResu
     audited: true,
     verdicts: audit.verdicts,
     discarded,
+    quotes: attempt.quotes,
+    unlocatable: attempt.unlocatable,
     usage,
   };
 }

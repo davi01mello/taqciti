@@ -1,5 +1,5 @@
 /**
- * Os dois casos canônicos da especificação, contra a API DE VERDADE.
+ * Os casos canônicos da especificação, contra a API DE VERDADE.
  *
  *   "Acho que deveríamos adiar a entrega."      → não é decisão. Rejeitar.
  *   "Então fechamos o adiamento para sexta."    → decisão confirmada. Aceitar.
@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
+import type { LocatedAnchor } from './anchoring';
 
 /** Vitest não lê `.env.local` (isso é do Next). Carrega à mão. */
 function loadEnvLocal(): void {
@@ -66,41 +67,34 @@ const transcript = [
   'Carlos: Fechado.',
 ].join('\n');
 
+const PROPOSTA = 'Acho que deveríamos adiar a entrega.';
+const DECISAO = 'Então fechamos o adiamento para sexta-feira.';
+/** Concordância de OUTRO assunto — a armadilha. */
+const CONCORDANCIA_VIZINHA = 'Faz sentido. Vou levantar quem está disponível.';
+
 describe.skipIf(!LIVE)('Auditor — casos canônicos (rede)', () => {
   let auditar: typeof import('./auditor').auditar;
-  let statements: import('../compactedContext').CompactedStatement[];
+  let ancora: (quote: string) => LocatedAnchor;
 
   beforeAll(async () => {
     ({ auditar } = await import('./auditor'));
     const { createLocator } = await import('./anchoring');
-    const locator = createLocator(transcript);
 
-    const make = (id: string, quote: string, text: string) => ({
-      id,
-      text,
-      quote,
-      anchor: createLocator(transcript).locate(quote),
-      kind: 'argument' as const,
-    });
-    void locator;
+    // Um localizador por citação: o cursor compartilhado avançaria entre
+    // chamadas e o fixture ficaria dependente da ordem em que os testes
+    // pedem as âncoras.
+    ancora = (quote: string) => {
+      const anchor = createLocator(transcript).locate(quote);
+      // Se a âncora não localizar, o teste mediria outra coisa.
+      expect(anchor, quote).not.toBeNull();
+      return anchor!;
+    };
 
-    statements = [
-      make('st-proposta', 'Acho que deveríamos adiar a entrega.', 'Ana propôs adiar a entrega.'),
-      make(
-        'st-decisao',
-        'Então fechamos o adiamento para sexta-feira.',
-        'A equipe fechou o adiamento da entrega para sexta-feira.',
-      ),
-    ];
-
-    // Se a âncora não localizar, o teste mediria outra coisa.
-    for (const s of statements) expect(s.anchor, s.id).not.toBeNull();
-
-    // E a distância entre proposta e decisão precisa ser maior que a folga,
+    // A distância entre proposta e decisão precisa ser maior que a folga,
     // senão o trecho da proposta alcança a decisão e o caso deixa de
     // discriminar. Esta asserção é o que impede o fixture de apodrecer.
     const { EXCERPT_PADDING_CHARS } = await import('./auditor');
-    const distancia = statements[1]!.anchor!.start - statements[0]!.anchor!.end;
+    const distancia = ancora(DECISAO).start - ancora(PROPOSTA).end;
     expect(distancia).toBeGreaterThan(EXCERPT_PADDING_CHARS);
   });
 
@@ -110,10 +104,9 @@ describe.skipIf(!LIVE)('Auditor — casos canônicos (rede)', () => {
         {
           path: 'decisions[0]',
           text: 'Foi DECIDIDO na reunião: Adiar a entrega.',
-          statementIds: ['st-proposta'],
+          anchors: [ancora(PROPOSTA)],
         },
       ],
-      statements,
       transcript,
     });
 
@@ -126,14 +119,35 @@ describe.skipIf(!LIVE)('Auditor — casos canônicos (rede)', () => {
         {
           path: 'decisions[0]',
           text: 'Foi DECIDIDO na reunião: Adiar a entrega para sexta-feira.',
-          statementIds: ['st-decisao'],
+          anchors: [ancora(DECISAO)],
         },
       ],
-      statements,
       transcript,
     });
 
     expect(verdicts[0]!.supported, `justificativa: ${verdicts[0]!.reason}`).toBe(true);
+  }, 120_000);
+
+  it('REJEITA proposta cuja concordância apontada é de outro assunto', async () => {
+    // A armadilha de decisão, agora reproduzível: as duas citações estão
+    // marcadas no trecho, e o "Faz sentido" responde à sugestão de tratar as
+    // frentes em paralelo, não ao adiamento da entrega.
+    //
+    // Este caso é o que o corte da compactação tornou possível medir. Antes,
+    // a concordância chegava ao Auditor por acaso, dentro da folga, e ele não
+    // tinha como saber que ela tinha sido APONTADA como evidência.
+    const { verdicts } = await auditar({
+      claims: [
+        {
+          path: 'decisions[0]',
+          text: 'Foi DECIDIDO na reunião: Adiar a entrega.',
+          anchors: [ancora(PROPOSTA), ancora(CONCORDANCIA_VIZINHA)],
+        },
+      ],
+      transcript,
+    });
+
+    expect(verdicts[0]!.supported, `justificativa: ${verdicts[0]!.reason}`).toBe(false);
   }, 120_000);
 
   it('REJEITA cargo que o trecho não mostra', async () => {
@@ -144,10 +158,9 @@ describe.skipIf(!LIVE)('Auditor — casos canônicos (rede)', () => {
         {
           path: 'participants[0]',
           text: 'Carlos participou da reunião e tem o cargo/papel de Gerente de Projetos.',
-          statementIds: ['st-proposta'],
+          anchors: [ancora(PROPOSTA)],
         },
       ],
-      statements,
       transcript,
     });
 

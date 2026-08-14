@@ -9,19 +9,57 @@
  *
  * Duas propriedades sustentam a auditoria:
  *
- * - toda afirmação que entra em seção `audit: 'strict'` carrega os `id` dos
- *   `CompactedStatement` que a sustentam. Sem esse vínculo o Auditor não tem
- *   o que conferir;
+ * - toda afirmação que entra em seção `audit: 'strict'` carrega as CITAÇÕES
+ *   LITERAIS que a sustentam, já localizadas na transcrição bruta. Sem esse
+ *   vínculo o Auditor não tem o que conferir;
  * - campo sem evidência fica AUSENTE e vira `Gap`. Nunca preenchido por
  *   inferência — ata com decisão inventada é pior que ata incompleta.
+ *
+ * A citação é do modelo; o offset é do código (ver `agents/anchoring.ts`).
+ * Nunca se pede offset ao modelo: LLM erra offset sistematicamente, e âncora
+ * errada é pior que âncora nenhuma porque dá falsa confiança à auditoria.
  */
 import type { SectionSpec } from './templates/types';
 import type { JsonSchema } from './ai';
+import type { LocatedAnchor } from './agents/anchoring';
 
 /** De onde veio o cargo de um participante. Vem do guidance da Ata. */
 export type RoleSource = 'meeting' | 'user' | 'unknown';
 
 export type DecisionConfidence = 'high' | 'medium' | 'low';
+
+/**
+ * Uma citação que o modelo ALEGA ter copiado da transcrição, mais onde o
+ * código a encontrou.
+ *
+ * `anchor: null` significa que a citação não existe na transcrição nem sob
+ * normalização leve. A afirmação é SUSPEITA: ou o modelo alucinou, ou
+ * parafraseou onde devia copiar. De um jeito ou de outro ela não sustenta
+ * nada — mas a citação é preservada como veio, porque é a evidência do que
+ * ele afirmou ter lido.
+ */
+export interface AnchoredQuote {
+  quote: string;
+  anchor: LocatedAnchor | null;
+}
+
+/** Localizador de citação. Vem de `createLocator(transcript)`. */
+export type Locate = (quote: string) => LocatedAnchor | null;
+
+/** Citação bruta do modelo → citação ancorada. Descarta string vazia. */
+export function anchorQuotes(raw: unknown, locate: Locate): AnchoredQuote[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((quote): quote is string => typeof quote === 'string' && quote.trim().length > 0)
+    .map((quote) => ({ quote, anchor: locate(quote) }));
+}
+
+/** As âncoras que realmente se localizaram. É o que o Auditor pode recortar. */
+export function located(quotes: AnchoredQuote[] | undefined): LocatedAnchor[] {
+  return (quotes ?? [])
+    .map((q) => q.anchor)
+    .filter((anchor): anchor is LocatedAnchor => anchor !== null);
+}
 
 export interface Metadata {
   /** DD/MM/AAAA. Ausente quando não determinável — nunca inventada. */
@@ -41,36 +79,47 @@ export interface Participant {
   /** Ausente quando não há evidência. Ausência é lacuna, não "desconhecido". */
   role?: string;
   roleSource: RoleSource;
-  statementIds: string[];
+  quotes: AnchoredQuote[];
 }
 
 export interface DiscussedTopic {
   title: string;
   summary: string;
-  statementIds: string[];
+  quotes: AnchoredQuote[];
 }
 
 export interface Decision {
   text: string;
   /**
-   * O que, na reunião, torna isto uma DECISÃO e não uma proposta — tipicamente
-   * a concordância explícita. Não é a citação (essa se obtém pelo
-   * `statementIds`): é a razão pela qual o martelo foi batido, que é
-   * exatamente o que o Auditor precisa julgar.
+   * A citação literal da CONCORDÂNCIA — o que, na reunião, transforma esta
+   * proposta em decisão.
+   *
+   * É um campo próprio, ancorado e obrigatório, e não uma explicação em
+   * prosa, por uma razão medida: com a evidência de concordância em prosa, o
+   * Auditor recebia só a citação da proposta e tinha de procurar a
+   * concordância na folga em volta — numa reunião onde quase toda fala é
+   * seguida de "concordo", a folga quase sempre alcança ALGUMA concordância,
+   * inclusive de outro assunto. Foi exatamente assim que uma proposta
+   * ("avaliar desnormalizações") passou como decisão.
+   *
+   * Exigindo a concordância ancorada, a pergunta deixa de ser "existe alguma
+   * concordância por perto?" e volta a ser "esta fala concorda com esta
+   * proposta?". Concordância que não se localiza na transcrição derruba a
+   * decisão em CÓDIGO, sem gastar chamada.
    */
-  evidence: string;
+  agreement: AnchoredQuote;
   confidence: DecisionConfidence;
-  statementIds: string[];
+  quotes: AnchoredQuote[];
 }
 
 export interface Outcome {
   text: string;
-  statementIds: string[];
+  quotes: AnchoredQuote[];
 }
 
 export interface Output {
   text: string;
-  statementIds: string[];
+  quotes: AnchoredQuote[];
 }
 
 export interface Conclusion {
@@ -85,7 +134,7 @@ export interface Signature {
 /** Fallback dos templates placeholder (x1, daily, planning, review). */
 export interface GenericItem {
   text: string;
-  statementIds: string[];
+  quotes: AnchoredQuote[];
 }
 
 export interface DocumentData {
@@ -120,7 +169,7 @@ export interface Gap {
  * Uma afirmação que o Auditor pode julgar.
  *
  * O Auditor é GENÉRICO de propósito: ele não conhece "participante" nem
- * "decisão", só recebe um texto e os ids que o sustentam. Cada seção sabe
+ * "decisão", só recebe um texto e as âncoras que o sustentam. Cada seção sabe
  * extrair suas afirmações e sabe removê-las quando rejeitadas — assim
  * acrescentar uma seção nova não obriga a mexer no Auditor.
  */
@@ -129,14 +178,24 @@ export interface AuditableClaim {
   path: string;
   /** A afirmação em linguagem natural, como o Auditor vai lê-la. */
   text: string;
-  statementIds: string[];
+  /** Âncoras já localizadas. Vazio = nada a conferir, e a afirmação cai. */
+  anchors: LocatedAnchor[];
+  /**
+   * Motivo para rejeitar SEM gastar chamada ao modelo. Presente quando o
+   * código já sabe que a afirmação não se sustenta — hoje, decisão cuja
+   * concordância não foi localizada na transcrição.
+   */
+  blocker?: string;
 }
 
 export interface SectionDataSpec {
   /** Schema que o Pensante deve satisfazer para esta seção. */
   schema: JsonSchema;
-  /** Enxerta a resposta do modelo no DocumentData acumulado. */
-  merge(data: DocumentData, payload: unknown, sectionId: string): void;
+  /**
+   * Enxerta a resposta do modelo no DocumentData acumulado, ancorando as
+   * citações no caminho. `locate` vem da transcrição bruta desta geração.
+   */
+  merge(data: DocumentData, payload: unknown, sectionId: string, locate: Locate): void;
   /**
    * Afirmações que PODEM ser auditadas nesta seção — capacidade, não política.
    * Quem decide se a auditoria roda é o `audit` do `SectionSpec`, lido por
@@ -148,10 +207,13 @@ export interface SectionDataSpec {
   drop(data: DocumentData, paths: Set<string>, sectionId: string): void;
 }
 
-const STATEMENT_IDS: JsonSchema = {
+const QUOTES: JsonSchema = {
   type: 'array',
   items: { type: 'string' },
-  description: 'ids dos statements do contexto compactado que sustentam esta afirmação',
+  description:
+    'Citações LITERAIS da transcrição que sustentam esta afirmação, copiadas ' +
+    'caractere por caractere. Não parafraseie e não corrija: a citação é ' +
+    'procurada na transcrição, e a que não for encontrada invalida a afirmação.',
 };
 
 function listSpec(
@@ -168,22 +230,24 @@ function listSpec(
             type: 'object',
             properties: {
               text: { type: 'string', description: itemDescription },
-              statementIds: STATEMENT_IDS,
+              quotes: QUOTES,
             },
-            required: ['text', 'statementIds'],
+            required: ['text', 'quotes'],
           },
         },
       },
       required: ['items'],
     },
-    merge(data, payload) {
-      data[key] = ((payload as { items?: Outcome[] })?.items ?? []).filter((i) => i?.text);
+    merge(data, payload, _sectionId, locate) {
+      data[key] = ((payload as { items?: { text?: string; quotes?: unknown }[] })?.items ?? [])
+        .filter((i) => i?.text)
+        .map((i) => ({ text: i.text!, quotes: anchorQuotes(i.quotes, locate) }));
     },
     claims(data) {
       return (data[key] ?? []).map((item, index) => ({
         path: `${key}[${index}]`,
         text: item.text,
-        statementIds: item.statementIds ?? [],
+        anchors: located(item.quotes),
       }));
     },
     drop(data, paths) {
@@ -203,25 +267,27 @@ const GENERIC_SPEC: SectionDataSpec = {
           type: 'object',
           properties: {
             text: { type: 'string' },
-            statementIds: STATEMENT_IDS,
+            quotes: QUOTES,
           },
-          required: ['text', 'statementIds'],
+          required: ['text', 'quotes'],
         },
       },
     },
     required: ['items'],
   },
-  merge(data, payload, sectionId) {
+  merge(data, payload, sectionId, locate) {
     data.generic ??= {};
-    data.generic[sectionId] = ((payload as { items?: GenericItem[] })?.items ?? []).filter(
-      (i) => i?.text,
-    );
+    data.generic[sectionId] = (
+      (payload as { items?: { text?: string; quotes?: unknown }[] })?.items ?? []
+    )
+      .filter((i) => i?.text)
+      .map((i) => ({ text: i.text!, quotes: anchorQuotes(i.quotes, locate) }));
   },
   claims(data, sectionId) {
     return (data.generic?.[sectionId] ?? []).map((item, index) => ({
       path: `generic.${sectionId}[${index}]`,
       text: item.text,
-      statementIds: item.statementIds ?? [],
+      anchors: located(item.quotes),
     }));
   },
   drop(data, paths, sectionId) {
@@ -293,22 +359,25 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
                   'OMITA quando não houver evidência na reunião. Não escreva "desconhecido".',
               },
               roleSource: { type: 'string', enum: ['meeting', 'user', 'unknown'] },
-              statementIds: STATEMENT_IDS,
+              quotes: QUOTES,
             },
-            required: ['name', 'roleSource', 'statementIds'],
+            required: ['name', 'roleSource', 'quotes'],
           },
         },
       },
       required: ['participants'],
     },
-    merge(data, payload) {
-      data.participants = ((payload as { participants?: Participant[] })?.participants ?? [])
+    merge(data, payload, _sectionId, locate) {
+      data.participants = (
+        (payload as { participants?: (Omit<Participant, 'quotes'> & { quotes?: unknown })[] })
+          ?.participants ?? []
+      )
         .filter((p) => p?.name)
         .map((p) => ({
           name: p.name,
           ...(p.role ? { role: p.role } : {}),
           roleSource: p.role ? (p.roleSource ?? 'meeting') : 'unknown',
-          statementIds: p.statementIds ?? [],
+          quotes: anchorQuotes(p.quotes, locate),
         }));
     },
     claims(data) {
@@ -320,7 +389,7 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         text: p.role
           ? `${p.name} participou da reunião e tem o cargo/papel de ${p.role}.`
           : `${p.name} participou da reunião.`,
-        statementIds: p.statementIds ?? [],
+        anchors: located(p.quotes),
       }));
     },
     drop(data, paths) {
@@ -341,18 +410,25 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
             properties: {
               title: { type: 'string' },
               summary: { type: 'string' },
-              statementIds: STATEMENT_IDS,
+              quotes: QUOTES,
             },
-            required: ['title', 'summary', 'statementIds'],
+            required: ['title', 'summary', 'quotes'],
           },
         },
       },
       required: ['topics'],
     },
-    merge(data, payload) {
-      data.topicsDiscussed = ((payload as { topics?: DiscussedTopic[] })?.topics ?? []).filter(
-        (t) => t?.title && t?.summary,
-      );
+    merge(data, payload, _sectionId, locate) {
+      data.topicsDiscussed = (
+        (payload as { topics?: { title?: string; summary?: string; quotes?: unknown }[] })?.topics ??
+        []
+      )
+        .filter((t) => t?.title && t?.summary)
+        .map((t) => ({
+          title: t.title!,
+          summary: t.summary!,
+          quotes: anchorQuotes(t.quotes, locate),
+        }));
     },
     claims: () => [],
     drop: () => {},
@@ -371,30 +447,63 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
                 type: 'string',
                 description: 'Verbo no infinitivo ou imperativo: Manter, Iniciar, Cancelar, Adiar.',
               },
-              evidence: {
+              agreementQuote: {
                 type: 'string',
                 description:
-                  'O que na reunião torna isto uma decisão e não uma proposta — tipicamente a concordância explícita.',
+                  'A citação LITERAL da fala que ACEITA esta proposta específica — o ' +
+                  'martelo batido. Copie da transcrição, caractere por caractere. Se ' +
+                  'ninguém aceitou explicitamente ESTA proposta, isto não é uma decisão: ' +
+                  'não a inclua na lista. Não use uma concordância genérica nem uma fala ' +
+                  'que aceita outro assunto.',
               },
               confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-              statementIds: STATEMENT_IDS,
+              quotes: QUOTES,
             },
-            required: ['text', 'evidence', 'confidence', 'statementIds'],
+            required: ['text', 'agreementQuote', 'confidence', 'quotes'],
           },
         },
       },
       required: ['decisions'],
     },
-    merge(data, payload) {
-      data.decisions = ((payload as { decisions?: Decision[] })?.decisions ?? []).filter(
-        (d) => d?.text,
-      );
+    merge(data, payload, _sectionId, locate) {
+      data.decisions = (
+        (payload as {
+          decisions?: {
+            text?: string;
+            agreementQuote?: string;
+            confidence?: DecisionConfidence;
+            quotes?: unknown;
+          }[];
+        })?.decisions ?? []
+      )
+        .filter((d) => d?.text)
+        .map((d) => {
+          const agreementQuote = typeof d.agreementQuote === 'string' ? d.agreementQuote : '';
+          return {
+            text: d.text!,
+            agreement: {
+              quote: agreementQuote,
+              anchor: agreementQuote.trim() ? locate(agreementQuote) : null,
+            },
+            confidence: d.confidence ?? 'low',
+            quotes: anchorQuotes(d.quotes, locate),
+          };
+        });
     },
     claims(data) {
       return (data.decisions ?? []).map((d, index) => ({
         path: `decisions[${index}]`,
-        text: `Foi DECIDIDO na reunião: ${d.text}${d.evidence ? ` (evidência alegada: ${d.evidence})` : ''}`,
-        statementIds: d.statementIds ?? [],
+        text: `Foi DECIDIDO na reunião: ${d.text}`,
+        // A âncora da concordância entra junto com as da proposta: é ela que
+        // o Auditor precisa ler para separar decisão de proposta.
+        anchors: located([...(d.quotes ?? []), d.agreement]),
+        ...(d.agreement?.anchor
+          ? {}
+          : {
+              blocker: d.agreement?.quote
+                ? `A concordância alegada ("${d.agreement.quote}") não existe na transcrição.`
+                : 'Nenhuma concordância foi apontada — sem aceitação explícita é proposta, não decisão.',
+            }),
       }));
     },
     drop(data, paths) {

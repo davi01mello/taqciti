@@ -128,8 +128,8 @@ describe('política de dados', () => {
     }
   });
 
-  it('matrixEntryForModel encontra a entrada do modelo ativo do Analista', () => {
-    const { provider, model } = DEFAULT_AGENT_CONFIG.analista;
+  it('matrixEntryForModel encontra a entrada do modelo ativo do Auditor', () => {
+    const { provider, model } = DEFAULT_AGENT_CONFIG.auditor;
     expect(matrixEntryForModel(provider, model)?.id).toBe('google-barato');
   });
 
@@ -155,7 +155,7 @@ describe('custo por entrada da matriz', () => {
     expect(cost.totalUsd).toBeGreaterThan(0);
   });
 
-  it('agentConfigFor expande a entrada para os quatro agentes', () => {
+  it('agentConfigFor expande a entrada para todos os agentes', () => {
     const entry = COMPARISON_MATRIX[0]!;
     const config = agentConfigFor(entry);
     expect(Object.keys(config).sort()).toEqual([...AGENT_NAMES].sort());
@@ -187,12 +187,12 @@ describe('defaults de produção', () => {
       DEFAULT_AGENT_CONFIG.auditor.provider,
       DEFAULT_AGENT_CONFIG.auditor.model,
     )!;
-    const analista = priceFor(
-      DEFAULT_AGENT_CONFIG.analista.provider,
-      DEFAULT_AGENT_CONFIG.analista.model,
+    const pensante = priceFor(
+      DEFAULT_AGENT_CONFIG.pensante.provider,
+      DEFAULT_AGENT_CONFIG.pensante.model,
     )!;
-    expect(auditor.inputPerMTok).toBeLessThanOrEqual(analista.inputPerMTok);
-    expect(auditor.outputPerMTok).toBeLessThanOrEqual(analista.outputPerMTok);
+    expect(auditor.inputPerMTok).toBeLessThanOrEqual(pensante.inputPerMTok);
+    expect(auditor.outputPerMTok).toBeLessThanOrEqual(pensante.outputPerMTok);
   });
 });
 

@@ -4,12 +4,12 @@
  *
  * Cada agente pode usar um provedor diferente, e isso é resultado provável e
  * útil: o Auditor faz julgamento binário sobre trecho curto e talvez rode
- * bem no modelo mais barato de qualquer fornecedor, enquanto o Analista
+ * bem no modelo mais barato de qualquer fornecedor, enquanto o Pensante
  * precisa do melhor. Por isso a configuração é por agente, não global.
  *
  * Sobrescrevível por variável de ambiente, pra trocar provedor sem
  * recompilar:
- *   DOCCITI_ANALISTA=google:gemini-3.6-flash
+ *   DOCCITI_PENSANTE=google:gemini-3.6-flash
  *   DOCCITI_AUDITOR=xai:grok-4.3
  */
 import { AGENT_NAMES, isProviderId, type AgentName, type ProviderId } from './types';
@@ -29,7 +29,7 @@ export interface AgentModelConfig {
  * - manda conteúdo para treinamento do provedor, com revisão humana; enquanto
  *   for a ativa, SÓ TRANSCRIÇÃO SINTÉTICA (ver `activeDataPolicyWarning`);
  * - é geração anterior, então não serve para comparar fornecedores;
- * - põe o mesmo modelo no Analista e no Auditor, o que a matriz existe
+ * - põe o mesmo modelo no Pensante e no Auditor, o que a matriz existe
  *   justamente para questionar.
  *
  * A configuração de produção pretendida está em `COMPARISON_MATRIX` e é
@@ -37,21 +37,20 @@ export interface AgentModelConfig {
  * trocar é editar este bloco ou exportar `DOCCITI_*`.
  *
  * Referência das opções (IDs conferidos na documentação oficial em
- * 2026-08-12): Anthropic `claude-sonnet-5` para Analista/Pensante/Escritor e
+ * 2026-08-12): Anthropic `claude-sonnet-5` para Pensante/Escritor e
  * `claude-haiku-4-5` para o Auditor; Google `gemini-3.6-flash` e
  * `gemini-3.5-flash-lite`.
  */
 const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
-  // EXTRAÇÃO — trabalho mecânico: achar afirmação e copiar citação literal.
-  // `flash-lite` fez 100% de âncoras nas duas execuções do bench e é o mais
-  // barato e rápido. Ressalva medida: foi instável ao classificar `kind`
-  // (9 decisões numa execução, 1 na seguinte). Aqui isso pesa menos, porque
-  // `kind` do Analista é pista, não veredito — quem decide o que entra como
-  // decisão é o Pensante, e o Auditor confere contra o original.
-  analista: { provider: 'google', model: 'gemini-3.5-flash-lite' },
-
-  // RACIOCÍNIO — julgamento sobre o contexto compactado, com raciocínio
-  // ligado em HIGH (ver THINKING_LEVEL em providers/google.ts).
+  // RACIOCÍNIO — lê a transcrição bruta e decide o que entra na seção, com
+  // raciocínio ligado em HIGH (ver THINKING_LEVEL em providers/google.ts).
+  //
+  // ATENÇÃO ao trocar este modelo: desde o corte da compactação é ELE que
+  // produz `quote`, e portanto é a taxa de âncoras dele que sustenta a
+  // auditoria inteira. `gemini-3.5-flash` já foi visto devolvendo "gesto"
+  // onde a transcrição diz "gestão" numa execução do bench, derrubando a
+  // taxa de 100% para 29% — intermitente, amostra de duas execuções. É a
+  // dívida #5 do handoff, e agora ela pesa aqui.
   pensante: { provider: 'google', model: 'gemini-3.5-flash' },
 
   // EXTRAÇÃO — julgamento binário sobre excerto curto, e a chamada mais
@@ -129,8 +128,8 @@ export function dataPolicyWarning(entry: MatrixEntry): string | null {
  * O que a matriz pergunta é outra coisa: **por fornecedor, qual é o custo
  * por documento no menor modelo que ainda passa as asserções
  * determinísticas?** É esse número que decide. Daí duas configurações por
- * provedor — o teto e o piso — com o mesmo modelo em todos os quatro
- * agentes. Configuração mista (Analista caro, Auditor barato) é otimização
+ * provedor — o teto e o piso — com o mesmo modelo em todos os três
+ * agentes. Configuração mista (Pensante caro, Auditor barato) é otimização
  * de uma segunda rodada, depois que se souber onde cada fornecedor quebra.
  *
  * IDs e preços conferidos na documentação oficial de cada provedor em
@@ -151,7 +150,8 @@ export const COMPARISON_MATRIX: MatrixEntry[] = [
     model: 'claude-haiku-4-5',
     note:
       'Piso da Anthropic. $1/$5, mas 200k de contexto (não 1M) e sem ' +
-      'raciocínio adaptativo — os dois limites que podem derrubá-lo no Analista.',
+      'raciocínio adaptativo — os dois limites que podem derrubá-lo no Pensante, ' +
+      'que agora lê a transcrição inteira.',
   },
   {
     id: 'google-caro-preview',
@@ -254,7 +254,6 @@ export function cheapestProductionEntry(provider: ProviderId): MatrixEntry {
 // ---------------------------------------------------------------------------
 
 const ENV_VAR_BY_AGENT: Record<AgentName, string> = {
-  analista: 'DOCCITI_ANALISTA',
   pensante: 'DOCCITI_PENSANTE',
   auditor: 'DOCCITI_AUDITOR',
   escritor: 'DOCCITI_ESCRITOR',
@@ -266,7 +265,7 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   if (separator === -1) {
     throw new Error(
       `${envVar}="${raw}" está mal formado. Use "provedor:modelo", ` +
-        'ex. DOCCITI_ANALISTA=google:gemini-3.6-flash.',
+        'ex. DOCCITI_PENSANTE=google:gemini-3.6-flash.',
     );
   }
   const provider = raw.slice(0, separator).trim();
