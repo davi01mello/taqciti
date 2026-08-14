@@ -9,7 +9,7 @@ import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import {
   DOCUMENT_TYPE_LABELS,
-  requestGenerationAndUpload,
+  gerarEEntregar,
   type DocumentType,
   type GenerationResult,
   type GenerationSource,
@@ -46,8 +46,11 @@ type Generating =
   | { status: 'idle' }
   // Duas etapas visíveis: a segunda leva segundos e, sem rótulo próprio, o
   // botão parece travado justamente quando já deu tudo certo no servidor.
-  | { status: 'loading'; documentType: DocumentType; etapa: 'gerando' | 'enviando' }
-  | { status: 'error'; documentType: DocumentType; message: string };
+  | { status: 'loading'; documentType: DocumentType; etapa: 'gerando' | 'entregando' }
+  | { status: 'error'; documentType: DocumentType; message: string }
+  // O download não abre aba nenhuma. Sem um aviso, o clique parece não ter
+  // feito nada — o arquivo caiu na pasta de downloads em silêncio.
+  | { status: 'baixado'; arquivo: string };
 
 /**
  * Abre a ata recém-criada.
@@ -136,31 +139,40 @@ export function GenerateDocumentMenu({
     if (busy) return;
     setGenerating({ status: 'loading', documentType, etapa: 'gerando' });
 
-    const emEtapa = (etapa: 'gerando' | 'enviando') =>
+    const emEtapa = (etapa: 'gerando' | 'entregando') =>
       setGenerating({ status: 'loading', documentType, etapa });
 
-    void requestGenerationAndUpload(source, documentType, emEtapa).then(({ generation, upload }) => {
+    void gerarEEntregar(source, documentType, emEtapa).then(({ generation, entrega }) => {
       if (generation.status !== 'success') {
         setGenerating({ status: 'error', documentType, message: generation.message });
         return;
       }
 
-      // O documento existe. Ele aparece na tela mesmo que o envio ao Drive
-      // tenha falhado — o servidor já o produziu, e já custou.
+      // O documento existe. Ele aparece na tela mesmo que a entrega tenha
+      // falhado — o servidor já o produziu, e já custou.
       onGenerated(generation);
 
-      if (upload?.status === 'success') {
-        abrirDocumento(upload.url);
+      if (entrega?.via === 'docs') {
+        abrirDocumento(entrega.url);
         reset();
         return;
       }
 
-      if (upload?.status === 'error') {
-        // Erro do Drive, não da geração: o texto está na tela atrás do menu.
+      if (entrega?.via === 'download') {
+        // Fecha o menu mas mantém o aviso: o download não abre aba, e sem
+        // isso o clique parece não ter feito nada.
+        setOpen(false);
+        setArea(null);
+        setGenerating({ status: 'baixado', arquivo: entrega.arquivo });
+        return;
+      }
+
+      if (entrega?.via === 'falhou') {
+        // Falha da entrega, não da geração: o texto está na tela atrás do menu.
         setGenerating({
           status: 'error',
           documentType,
-          message: `Documento gerado, mas não foi para o Google Docs. ${upload.message}`,
+          message: `Documento gerado, mas a entrega falhou. ${entrega.message}`,
         });
         return;
       }
@@ -180,6 +192,26 @@ export function GenerateDocumentMenu({
       >
         Gerar Documento
       </Button>
+
+      {generating.status === 'baixado' && (
+        // Instrução, e não só confirmação: o arquivo sozinho não vira Google
+        // Doc, e quem baixou precisa saber que o próximo passo existe.
+        <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 rounded-panel p-3 shadow-float animate-entry">
+          <p className="text-body font-semibold text-foreground">Documento baixado</p>
+          <p className="mt-1 text-caption text-muted">{generating.arquivo}</p>
+          <p className="mt-2 text-caption text-muted">
+            Arraste o arquivo para o Google Drive e abra com Documentos Google — ele
+            vira uma ata formatada.
+          </p>
+          <button
+            type="button"
+            onClick={() => setGenerating({ status: 'idle' })}
+            className="mt-3 rounded-control px-3 py-1.5 text-caption font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/[0.07]"
+          >
+            Entendi
+          </button>
+        </div>
+      )}
 
       {open && (
         <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-panel p-1.5 shadow-float animate-entry">
@@ -232,8 +264,8 @@ export function GenerateDocumentMenu({
                   generating.status === 'loading' && generating.documentType === item.documentType;
                 const label = !emAndamento
                   ? item.label
-                  : generating.etapa === 'enviando'
-                    ? 'Enviando para o Google Docs...'
+                  : generating.etapa === 'entregando'
+                    ? 'Preparando o documento...'
                     : `Gerando ${item.label}...`;
 
                 return (

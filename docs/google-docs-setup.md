@@ -1,131 +1,130 @@
-# Ligar o envio para o Google Docs
+# Como o documento chega até a pessoa
 
-O código está pronto. Falta uma coisa que **só pode ser feita no Google Cloud
-Console**, por quem é dono do projeto: registrar um cliente OAuth para esta
-extensão. Sem isso, `chrome.identity.getAuthToken` falha com "bad client id" —
-mensagem que não diz nada sobre a causa, e por isso o código a traduz.
+Existem dois caminhos, e **a extensão escolhe sozinha** lendo o próprio
+manifesto. Não há configuração no código para trocar.
 
-São três passos, uma vez só.
+| | quando acontece | o que a pessoa faz |
+|---|---|---|
+| **Download** | sempre que não há cliente OAuth registrado | baixa o `.html`, arrasta para o Drive, abre com Documentos Google |
+| **Direto no Docs** | quando há cliente OAuth registrado | nada — a aba abre com a ata pronta |
 
----
+O download **funciona hoje, sem nenhuma configuração**. O resto deste
+documento é sobre ligar o caminho direto, que é opcional.
 
-## O que já está feito
-
-| | onde |
-|---|---|
-| ID estável da extensão (`key` no manifesto) | `manifest.config.ts` |
-| Permissão `identity` e bloco `oauth2` com escopo `drive.file` | `manifest.config.ts` |
-| Criação do documento no Drive (`files.create`, multipart) | `src/document/googleDocs.ts` |
-| Botão: gerar → enviar → abrir a aba | `src/document/GenerateDocumentMenu.tsx` |
-
-**ID da extensão:** `jalebpaefejnbacgncgkailhemkdpnhm`
-
-Ele vem da chave pública no manifesto e **não muda** entre máquinas, clones do
-repo ou reinstalações. É esse valor que o console vai pedir.
+Os dois produzem o **mesmo documento**: o `files.create` do Drive e a
+conversão de um HTML enviado à mão usam o mesmo conversor da Google.
 
 ---
 
-## Passo 1 — ative a Drive API
+## Vale a pena ligar o caminho direto?
 
-No [Google Cloud Console](https://console.cloud.google.com/), com o projeto da
-chave do Gemini selecionado:
+A conta muda com o número de pessoas:
 
-**APIs e serviços → Biblioteca → "Google Drive API" → Ativar.**
+- **download** — ~5 cliques por documento, por pessoa, para sempre;
+- **direto** — ~5 minutos de configuração, uma vez, por quem administra; depois
+  disso um clique, e uma tela de consentimento na primeira vez de cada pessoa.
 
-Sem isso, a criação do arquivo volta 403 — e o código já diz exatamente isso na
-mensagem de erro.
-
-## Passo 2 — configure a tela de consentimento
-
-**APIs e serviços → Tela de permissão OAuth.**
-
-- Tipo: **Interno** se todo mundo que vai usar está no mesmo Google Workspace;
-  **Externo** caso contrário.
-- Escopo a adicionar: `.../auth/drive.file` — **e só ele**.
-
-`drive.file` dá acesso apenas aos arquivos que a própria extensão criou. Ela
-não enxerga, não lê e não altera mais nada do Drive de quem usa. É por isso que
-esse escopo **não exige verificação da Google**: com `drive` ou
-`drive.readonly` você entraria numa fila de revisão de semanas, e pediria ao
-usuário uma permissão que o produto não precisa.
-
-> Em **Externo** e modo "Teste", só os e-mails que você listar como usuários de
-> teste conseguem autorizar. Adicione quem vai testar.
-
-## Passo 3 — crie o cliente OAuth
-
-**APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth.**
-
-- Tipo de aplicativo: **Extensão do Chrome**
-- ID do aplicativo: `jalebpaefejnbacgncgkailhemkdpnhm`
-
-Copie o **Client ID** gerado (termina em `.apps.googleusercontent.com`).
+Com pouca gente ou uso esporádico, o download resolve. Com o time inteiro
+gerando ata toda semana, o custo do download é o que cresce.
 
 ---
 
-## Ligar na build
+## Ligar o caminho direto (opcional)
+
+**Todo mundo no mesmo Google Workspace?** Então a tela de consentimento é
+**Interna**, e isso remove a maior parte da burocracia: sem verificação da
+Google, sem lista de usuários de teste, sem fila de revisão. Sobram dois
+passos de verdade.
+
+**ID desta extensão:** `jalebpaefejnbacgncgkailhemkdpnhm`
+
+Ele vem da chave pública em `manifest.config.ts` e **não muda** entre
+máquinas, clones do repo ou reinstalações. É esse valor que o console pede.
+
+### 1. Ativar a Drive API
+
+[console.cloud.google.com/apis/library/drive.googleapis.com](https://console.cloud.google.com/apis/library/drive.googleapis.com)
+
+Confira o projeto no seletor do topo, depois **Ativar**.
+
+*Se pular:* a criação volta **403**, e a extensão diz exatamente isso.
+
+### 2. Tela de consentimento
+
+[console.cloud.google.com/apis/credentials/consent](https://console.cloud.google.com/apis/credentials/consent)
+
+Tipo **Interno**. Escopo: **`.../auth/drive.file`**, e só ele.
+
+`drive.file` dá acesso apenas aos arquivos que a própria extensão criou — ela
+não enxerga, não lê e não altera mais nada do Drive de quem usa. É por isso
+que esse escopo dispensa verificação. `drive` ou `drive.readonly` entrariam
+numa fila de revisão e pediriam uma permissão que o produto não precisa.
+
+### 3. Criar o cliente
+
+[console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+
+**+ Criar credenciais → ID do cliente OAuth → Extensão do Chrome**, com o ID
+acima. Copie o Client ID gerado.
+
+### 4. Build
 
 ```powershell
-$env:VITE_GOOGLE_OAUTH_CLIENT_ID = '<o client id>.apps.googleusercontent.com'
+$env:VITE_GOOGLE_OAUTH_CLIENT_ID = '<client id>.apps.googleusercontent.com'
 npm run build
-```
-
-Ou, se preferir fixar, troque o valor de `OAUTH_CLIENT_ID` em
-`manifest.config.ts`.
-
-Confira que pegou:
-
-```powershell
 (Get-Content dist\manifest.json | ConvertFrom-Json).oauth2.client_id
 ```
 
-Se aparecer `CLIENT_ID_NAO_CONFIGURADO`, a variável não chegou à build.
+Se sair `CLIENT_ID_NAO_CONFIGURADO`, a variável não chegou — rode os comandos
+na **mesma** janela do PowerShell. Com o placeholder ali, a extensão continua
+funcionando pelo download; ela nem tenta autenticar.
 
----
+### 5. Carregar
 
-## Carregar e testar
+`chrome://extensions` → Modo do desenvolvedor → **Carregar sem compactação** →
+`dist/`.
 
-1. `chrome://extensions` → **Modo do desenvolvedor** ligado → **Carregar sem
-   compactação** → aponte para `dist/`.
-2. Confirme que o ID mostrado é `jalebpaefejnbacgncgkailhemkdpnhm`. Se for
-   outro, a `key` não entrou no manifesto.
-3. Suba o servidor (`cd server; npm run dev`).
-4. Gere um documento pelo botão. Na primeira vez o Chrome abre a tela de
-   consentimento; depois ele usa o token do cache sem interromper.
+**Confira o ID que o Chrome mostra.** Tem que ser
+`jalebpaefejnbacgncgkailhemkdpnhm`. Se for outro, a `key` não entrou no
+manifesto e o OAuth vai falhar com "bad client id".
 
 ---
 
 ## O servidor precisa de chave PAGA
 
-Isto é independente do OAuth, e hoje **impede o fluxo com reunião real**.
+Isto é independente do caminho de entrega, e **hoje impede o botão de
+funcionar com reunião real** — nos dois caminhos.
 
 Enquanto `DOCCITI_DATA_POLICY=training` estiver em `server/.env.local`, o
-`/api/generate` recusa qualquer transcrição que não se declare sintética — e a
-extensão captura reunião de verdade, então ela não pode se declarar sintética.
-O botão vai falhar com a mensagem do servidor, e isso é a trava funcionando: o
-free tier do Gemini manda todo o conteúdo enviado para treinamento do provedor,
-com revisão humana.
+`/api/generate` recusa transcrição que não se declare sintética. A extensão
+captura reunião de verdade, então não pode se declarar sintética. A trava
+existe porque o free tier do Gemini manda todo o conteúdo enviado para
+treinamento do provedor, com revisão humana.
 
-Some a isso a cota: o free tier dá **20 requisições por dia, por projeto, por
-modelo**, e uma Ata consome 18 no `gemini-3.5-flash`. Uma chave nova **não
-resolve** — a cota é do projeto, não da chave.
+### Conferir em que tier a chave está
 
-Para o botão funcionar de ponta a ponta com reunião real:
+**Medido em 14/08/2026:** o erro devolvido pela API foi
+`generate_content_free_tier_requests`, com
+`quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier` e limite **20 por
+dia** no `gemini-3.5-flash`. Uma Ata consome 18 chamadas nesse modelo.
 
-1. ative faturamento no projeto do Google Cloud (a chave sai do free tier);
-2. **remova `DOCCITI_DATA_POLICY=training`** de `server/.env.local`;
-3. reinicie o servidor — `.env.local` é lido no boot.
+Faturamento ativo no projeto do Google Cloud **não basta** — a chave do Gemini
+precisa estar num projeto com faturamento ligado *para a API do Gemini*. Uma
+chave nova também não resolve: a cota é **por projeto**, não por chave.
+
+Confira em [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey):
+cada chave mostra o projeto e o plano.
+
+### Quando estiver paga
+
+1. remova `DOCCITI_DATA_POLICY=training` de `server/.env.local`;
+2. reinicie o servidor — `.env.local` é lido no boot.
 
 ---
 
 ## Ao publicar na Web Store
 
-A loja atribui a **própria** chave à extensão, e o ID muda. Depois da primeira
-publicação:
-
-1. copie a chave que a loja mostra;
-2. troque o valor de `key` em `manifest.config.ts` por ela;
-3. crie um segundo cliente OAuth com o novo ID, ou atualize o existente.
-
-Sem isso, o ID de desenvolvimento e o de produção divergem, e o cliente OAuth
-vale só para um dos dois.
+A loja atribui a **própria** chave, e o ID muda. Depois da primeira publicação:
+copie a chave que a loja mostra, troque o valor de `key` em
+`manifest.config.ts`, e atualize o cliente OAuth para o novo ID. Sem isso, o ID
+de desenvolvimento e o de produção divergem e o cliente vale só para um.

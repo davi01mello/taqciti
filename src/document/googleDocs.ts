@@ -23,6 +23,30 @@ import type { DocumentType } from './generateDocument';
 /** Só o que a extensão criou. Ver a justificativa no manifesto. */
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
+/** O valor que `manifest.config.ts` usa quando ninguém registrou um cliente. */
+const CLIENT_ID_PLACEHOLDER = 'CLIENT_ID_NAO_CONFIGURADO';
+
+/**
+ * Existe cliente OAuth registrado para esta extensão?
+ *
+ * Lido do PRÓPRIO manifesto, e não de uma constante compilada à parte, porque
+ * é o manifesto que o Chrome usa de verdade — uma segunda fonte poderia dizer
+ * "configurado" enquanto o Chrome vê o placeholder.
+ *
+ * Serve para a extensão nem TENTAR o Google Docs quando não há como
+ * autenticar. Sem esta checagem, todo clique gastaria uma ida ao
+ * `getAuthToken` para receber "bad client id" — erro na cara do usuário por
+ * uma configuração que não é problema dele.
+ */
+export function oauthConfigurado(): boolean {
+  try {
+    const clientId = chrome.runtime.getManifest().oauth2?.client_id ?? '';
+    return clientId.length > 0 && !clientId.startsWith(CLIENT_ID_PLACEHOLDER);
+  } catch {
+    return false;
+  }
+}
+
 const UPLOAD_URL =
   'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink';
 

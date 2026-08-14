@@ -15,7 +15,8 @@ import {
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
 import { transcriptToText } from '@/features/history/export';
-import { criarGoogleDoc, nomeDoArquivo, type GoogleDocResult } from './googleDocs';
+import { criarGoogleDoc, nomeDoArquivo, oauthConfigurado, type GoogleDocResult } from './googleDocs';
+import { baixarComoHtml } from './baixarDocumento';
 
 export type { GoogleDocResult };
 
@@ -55,49 +56,72 @@ export type GenerationResult =
   | { status: 'error'; documentType: DocumentType; message: string };
 
 /**
- * Gera o documento e, em seguida, cria a ata no Google Docs de quem está
- * usando — que é o fluxo que o botão entrega.
+ * Como o documento chega até a pessoa.
  *
- * O envio ao Drive NÃO derruba a geração: se ele falhar (cliente OAuth não
- * registrado, autorização recusada, Drive fora do ar), o documento gerado
- * continua sendo devolvido e aparece na tela. Perder um documento que o
- * servidor já produziu — e pagou para produzir — por causa do passo seguinte
- * seria trocar uma falha parcial por uma total.
+ * `docs`     — criado direto no Google Docs dela e aberto numa aba.
+ * `download` — baixado como HTML, para ela subir no próprio Drive.
  */
-export async function requestGenerationAndUpload(
+export type Entrega =
+  | { via: 'docs'; url: string }
+  | { via: 'download'; arquivo: string }
+  | { via: 'falhou'; message: string };
+
+/**
+ * Gera o documento e o entrega — que é o fluxo que o botão executa.
+ *
+ * **Qual caminho depende do manifesto, não de configuração no código.** Com
+ * cliente OAuth registrado, o documento vai direto para o Google Docs e a aba
+ * abre. Sem ele, baixa. A extensão nem TENTA o caminho direto quando não há
+ * como autenticar: uma tentativa fadada ao "bad client id" só poria na cara do
+ * usuário um erro de configuração que não é problema dele.
+ *
+ * A entrega NÃO derruba a geração. Se ela falhar, o documento gerado continua
+ * sendo devolvido e aparece na tela — perder um documento que o servidor já
+ * produziu, e já custou, por causa do passo seguinte seria trocar uma falha
+ * parcial por uma total.
+ */
+export async function gerarEEntregar(
   source: GenerationSource,
   documentType: DocumentType,
-  /** Avisa quando a geração termina e o envio começa. A segunda etapa leva
+  /** Avisa quando a geração termina e a entrega começa. A segunda etapa leva
    *  segundos, e sem rótulo próprio o botão parece travado. */
-  onEtapa?: (etapa: 'gerando' | 'enviando') => void,
-): Promise<{ generation: GenerationResult; upload?: GoogleDocResult }> {
+  onEtapa?: (etapa: 'gerando' | 'entregando') => void,
+): Promise<{ generation: GenerationResult; entrega?: Entrega }> {
   onEtapa?.('gerando');
   const generation = await requestGeneration(source, documentType);
   if (generation.status !== 'success') return { generation };
-  onEtapa?.('enviando');
+  onEtapa?.('entregando');
 
   if (!generation.html) {
     return {
       generation,
-      upload: {
-        status: 'error',
-        message: 'O servidor não devolveu o HTML do documento — nada foi enviado ao Google Docs.',
+      entrega: {
+        via: 'falhou',
+        message: 'O servidor não devolveu o HTML do documento.',
       },
     };
   }
 
-  const upload = await criarGoogleDoc({
-    html: generation.html,
-    documentType,
-    nome: nomeDoArquivo(
-      DOCUMENT_TYPE_LABELS[documentType],
-      generation.metadata.projectName,
-      source.title,
-      new Date(source.startedAt),
-    ),
-  });
+  const nome = nomeDoArquivo(
+    DOCUMENT_TYPE_LABELS[documentType],
+    generation.metadata.projectName,
+    source.title,
+    new Date(source.startedAt),
+  );
 
-  return { generation, upload };
+  if (!oauthConfigurado()) {
+    baixarComoHtml(generation.html, nome);
+    return { generation, entrega: { via: 'download', arquivo: `${nome}.html` } };
+  }
+
+  const upload = await criarGoogleDoc({ html: generation.html, documentType, nome });
+  return {
+    generation,
+    entrega:
+      upload.status === 'success'
+        ? { via: 'docs', url: upload.url }
+        : { via: 'falhou', message: upload.message },
+  };
 }
 
 export async function requestGeneration(
