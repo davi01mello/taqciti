@@ -149,12 +149,22 @@ function asRateLimit(model: string, error: unknown): RateLimitError | undefined 
 
   // O Gemini devolve `retryDelay` (ex.: "37s") dentro dos detalhes do erro.
   const seconds = /"?retryDelay"?\s*[:=]\s*"?(\d+(?:\.\d+)?)s/i.exec(message)?.[1];
+
+  // E devolve QUAL cota estourou, em `quotaId`. `...PerDay...` é a cota
+  // diária, que não reabre esperando — e o Gemini manda um `retryDelay` de
+  // dezenas de segundos mesmo nela, o que faz o laço de espera perseguir um
+  // limite que só reseta amanhã. É por isto que a distinção é lida daqui.
+  const perDay = /"?quotaId"?\s*[:=]\s*"[^"]*PerDay/i.test(message);
+
   return new RateLimitError(
     'google',
     model,
-    `cota estourada (429): ${message.slice(0, 200)}`,
+    perDay
+      ? `cota DIÁRIA estourada (429), não adianta esperar: ${message.slice(0, 200)}`
+      : `cota estourada (429): ${message.slice(0, 200)}`,
     seconds ? Number(seconds) * 1000 : undefined,
     error,
+    perDay,
   );
 }
 

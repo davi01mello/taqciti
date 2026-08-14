@@ -19,6 +19,47 @@ function fakeWaiter() {
   };
 }
 
+describe('cota diária', () => {
+  const perDay = () =>
+    new RateLimitError(
+      'google',
+      'modelo-falso',
+      'cota DIÁRIA estourada (429)',
+      44_000,
+      undefined,
+      true,
+    );
+
+  it('sobe na hora, sem esperar', async () => {
+    // Medido: uma geração completa levou 16 minutos para falhar repetindo uma
+    // espera de 44 segundos contra um limite de 20 requisições POR DIA. O
+    // provedor manda `retryDelay` mesmo na cota diária, então seguir o número
+    // é perseguir um limite que só reabre amanhã.
+    const waiter = fakeWaiter();
+    const call = vi.fn().mockRejectedValue(perDay());
+
+    await expect(
+      withRateLimitRetry(call, { maxRetries: 5, onWait: waiter.onWait }),
+    ).rejects.toThrow(/DIÁRIA/);
+
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(waiter.delays).toEqual([]);
+  });
+
+  it('cota por minuto continua sendo repetida', async () => {
+    // A distinção precisa ir nos dois sentidos: tratar tudo como diária
+    // mataria a geração no primeiro 429 por minuto, que é justamente o que a
+    // espera existe para resolver.
+    const waiter = fakeWaiter();
+    const call = vi.fn().mockRejectedValueOnce(rateLimited(1_000)).mockResolvedValue('pronto');
+
+    const { value } = await withRateLimitRetry(call, { maxRetries: 5, onWait: waiter.onWait });
+
+    expect(value).toBe('pronto');
+    expect(waiter.delays).toHaveLength(1);
+  });
+});
+
 describe('withRateLimitRetry', () => {
   it('não espera quando a primeira tentativa passa', async () => {
     const waiter = fakeWaiter();

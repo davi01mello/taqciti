@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { DOCUMENT_TYPES, generateDocument, isDocumentType } from '@/lib/generateDocument';
 import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { activeDataPolicyWarning } from '@/lib/ai';
 
 /**
  * CORS permissivo por design: a extensão chama esta rota a partir de
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { transcript, title, date, documentType } = body as Record<string, unknown>;
+  const { transcript, title, date, documentType, sintetica } = body as Record<string, unknown>;
 
   if (typeof transcript !== 'string' || transcript.trim().length === 0) {
     return NextResponse.json(
@@ -81,6 +82,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isDocumentType(documentType)) {
     return NextResponse.json(
       { error: `"documentType" é obrigatório e precisa ser um de: ${DOCUMENT_TYPES.join(', ')}.` },
+      { status: 400, headers },
+    );
+  }
+
+  /**
+   * Trava de política de dados.
+   *
+   * Enquanto esta rota devolvia stub, ela não mandava nada para provedor
+   * nenhum e a trava não fazia falta. Agora ela roda a rede de agentes, e uma
+   * chave de free tier manda TUDO que passa por ela para treinamento do
+   * provedor, com revisão humana.
+   *
+   * O contrato de `/api/generate` fica intacto onde importa: com chave paga
+   * (`DOCCITI_DATA_POLICY` não definida) nada muda, e a extensão não precisa
+   * saber que este campo existe. A recusa só acontece na configuração de
+   * desenvolvimento, que é exatamente onde uma gravação real de reunião não
+   * pode entrar.
+   */
+  const aviso = activeDataPolicyWarning();
+  if (aviso && sintetica !== true) {
+    return NextResponse.json(
+      {
+        error:
+          'A configuração ativa envia o conteúdo para treinamento do provedor, com ' +
+          'possível revisão humana. Só transcrição sintética é aceita — declare ' +
+          '"sintetica": true no corpo. Com chave paga esta trava não existe.',
+        aviso,
+      },
       { status: 400, headers },
     );
   }

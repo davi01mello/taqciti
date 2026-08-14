@@ -13,134 +13,168 @@ Branch de trabalho: **`dev/1.5.1`** (monobranch — commite e faça push
 direto nela, sem perguntar). `release/1.5` e `release/1.0` são produtos
 congelados, nunca commite lá.
 
-Último commit: `b364794`.
-
 ---
 
 ## Onde o projeto está
 
 O servidor (`server/`, Next.js 16 App Router, independente do resto do repo)
-tem a rede de agentes montada até o Auditor. **Mas `/api/generate` ainda
-devolve stub**: `lib/generateStep.ts` continua chamando `renderSectionStub`, e
-nada no caminho da extensão chama os agentes. Quem gerar um documento hoje
-recebe nove seções dizendo "Transcrição recebida com N caracteres".
+gera o documento inteiro. **`/api/generate` não é mais stub**: `generateStep`
+roda Pensante → Auditor → Escritor nas nove seções e devolve a Ata em markdown.
 
-### Pronto e verificado contra a API real
+Uma Ata completa foi gerada contra a API real a partir de uma transcrição
+sintética — ver "O que foi medido" abaixo.
+
+### O pipeline hoje
+
+```
+transcrição bruta
+  └─> Pensante   lê a transcrição (cacheablePrefix), devolve dados + quotes literais
+  └─> código     anchoring.ts localiza cada quote -> {start, end}
+  └─> Auditor    (só em audit:'strict') recorta o original, com a citação marcada
+  └─> Escritor   dados conferidos -> prosa. NUNCA vê a transcrição.
+```
 
 | | onde |
 |---|---|
 | Tranca do endpoint (`x-docciti-key`, falha fechada, teto de 400 mil chars) | `lib/apiGuard.ts` |
 | Camada multi-provedor (Anthropic, Google, xAI) + pricing + matriz | `lib/ai/` |
-| Analista: compactação com âncora localizada por código | `lib/agents/analista.ts`, `lib/agents/anchoring.ts`, `lib/agents/windowing.ts` |
-| Pensante: contexto compactado + `SectionSpec` → dados estruturados | `lib/agents/pensante.ts` |
-| Auditor: confere contra o trecho ORIGINAL | `lib/agents/auditor.ts` |
+| Pensante: transcrição bruta + `SectionSpec` → dados + citações ancoradas | `lib/agents/pensante.ts` |
+| Localização de citação (o modelo nunca informa offset) | `lib/agents/anchoring.ts` |
+| Auditor: confere contra o trecho ORIGINAL, com a citação marcada `⟦ ⟧` | `lib/agents/auditor.ts` |
 | Laço Pensante ↔ Auditor, teto de 2 passadas | `lib/agents/sectionPipeline.ts` |
+| Escritor: dados da seção → prosa; guarda contra vazamento do PDF | `lib/agents/escritor.ts` |
+| Montagem das nove seções, lacunas e perguntas | `lib/generateStep.ts` |
 | JSON intermediário (`document_data`) | `lib/documentData.ts` |
-| Prompts como artefatos versionados (esqueleto da Fase 7) | `lib/prompts/` |
+| Prompts como artefatos versionados | `lib/prompts/` |
 
-**210 testes passando + 3 de rede** (`npm test` / `npm run test:live`),
+**242 testes passando + 4 de rede** (`npm test` / `npm run test:live`),
 `npx tsc --noEmit` e `npm run build` limpos.
 
 Rotas de exercício, todas exigindo o header `x-docciti-key`:
-`/api/ai/smoke`, `/api/ai/bench`, `/api/ai/analista`, `/api/ai/secao`.
+`/api/ai/smoke`, `/api/ai/bench`, `/api/ai/secao`.
 
-`/api/ai/secao` roda o pipeline inteiro (Analista → Pensante → Auditor) nas
-nove seções e é o melhor ponto de partida para entender o que já funciona.
+`/api/ai/secao` roda Pensante + Auditor nas seções que você pedir e devolve as
+métricas de citação — é o melhor lugar para medir sem gerar o documento todo.
 
 ### Falta
 
-- **Fase 5 — Escritor e montagem.** É aqui que `renderSectionStub` morre.
 - **Fase 6 — saída em Google Docs** (a especificação original foi substituída
   pelo Adendo 2; ver "Fase 6" abaixo).
 - **Fase 8 — harness** em `server/eval/`.
 
 ---
 
-## ⚠️ DECISÃO ABERTA — resolva com o autor antes da Fase 5
+## A compactação foi CORTADA
 
-**O Auditor está deixando passar a armadilha de decisão.**
+Existia um Analista que lia a transcrição e devolvia um contexto compactado com
+âncoras. Foi removido por decisão do autor, e a razão principal é medida:
 
-`EXCERPT_PADDING_CHARS = 400` em `lib/agents/auditor.ts`. A folga existe
-porque a citação sozinha costuma ser curta demais para julgar (`"Concordo."`
-não diz com o quê). Mas numa reunião onde quase toda fala é seguida de
-concordância, 400 caracteres quase sempre alcançam **alguma** concordância,
-inclusive de outro assunto.
+- **a compactação impedia o cache que a tornaria desnecessária.** O contexto
+  compactado tinha ~1.000 tokens, abaixo do piso de cache implícito do
+  provedor, e `cachedInputTokens` voltava zero nas nove chamadas. Gastava-se
+  uma chamada de modelo para produzir um contexto barato e incacheável;
+- **o Pensante raciocinava sobre a paráfrase de outro modelo**, e o Auditor
+  gastava folga tentando reconstruir a vizinhança que a compactação jogou fora;
+- **a evidência de concordância não tinha como ser ancorada** — ver abaixo.
 
-Medido na transcrição de teste: o Pensante propôs *"Avaliar desnormalizações
-específicas após testes de desempenho"* como decisão e o Auditor **aprovou**,
-justificando com "Ana sugerindo e Carlos concordando". A transcrição não tem
-essa concordância — depois do "Podemos avaliar" da Ana, Carlos muda de
-assunto. A concordância veio de um tópico vizinho, dentro da folga.
+Foram embora junto: `analista.ts`, `windowing.ts`, `compactedContext.ts`,
+`/api/ai/analista`, `lib/prompts/analista/`, o agente `analista` de
+`lib/ai/config.ts`, e a dívida de quase-duplicatas entre janelas.
 
-É a armadilha de decisão passando pela peça que existe para barrá-la.
-
-Três saídas possíveis, e a escolha é do autor:
-
-1. **reduzir a folga** — barato, mas volta o problema do trecho curto demais;
-2. **marcar dentro do trecho qual parte é a âncora**, instruindo o Auditor a
-   julgar centrado nela;
-3. **exigir que a evidência de concordância também venha ancorada** — o
-   Pensante teria de apontar o `statementId` da concordância, não só o da
-   proposta. É a mais fiel ao desenho e a mais cara.
-
-**Pergunte antes de escolher.** Se o autor mandar seguir sem resolver, siga —
-mas registre no relatório que a Ata gerada pode conter proposta rotulada como
-decisão.
+**Consequência a não esquecer:** não há mais janelamento. O teto de 400 mil
+caracteres do endpoint continua valendo, mas uma transcrição maior que a janela
+do modelo agora falha, em vez de ser fatiada.
 
 ---
 
-## FASE 5 — Escritor e montagem
+## A armadilha de decisão — RESOLVIDA estruturalmente
 
-`server/lib/agents/escritor.ts`: dados estruturados da seção → prosa final.
+Era a decisão aberta do handoff anterior: com folga de 400 caracteres, o
+Auditor aprovava proposta como decisão porque quase sempre alcançava *alguma*
+concordância por perto, inclusive de outro assunto.
 
-Troque `renderSectionStub` pela chamada real dentro de `generateStep`,
-mantendo o laço de chunking que já existe. `completed` passa a ser usado de
-verdade: cada seção recebe as anteriores para não repetir nem se contradizer.
+A correção não foi mexer no tamanho da folga. `Decision.agreement` é uma
+**citação própria e ancorada** da fala que aceita aquela proposta:
 
-O Escritor recebe **os dados da seção**, não o contexto compactado nem a
-transcrição. Tom institucional, sério e limpo; não é peça publicitária. Não
-repete os blocos de instrução do PDF.
+- concordância que não se localiza na transcrição derruba a decisão em
+  **código**, sem gastar chamada (`AuditableClaim.blocker`);
+- concordância que se localiza chega ao Auditor **marcada entre `⟦ ⟧`**, junto
+  com a proposta. A pergunta deixou de ser "existe alguma concordância por
+  perto?" e voltou a ser "esta fala aceita esta proposta?";
+- a folga continua em 400, agora só para dar vizinhança legível.
 
-O prompt vai em `lib/prompts/escritor/v1.md`, seguindo as mesmas quatro regras
-do carregador (`lib/prompts/index.ts`): neutro quanto ao provedor, versionado,
-sem duplicar regra que já está no `guidance`, formato declarado por schema e
-não por prosa. Há teste garantindo a neutralidade — siga o padrão dos outros.
-
-`confidence` por seção: `ok` quando completa, `partial` quando faltou algo não
-crítico, `missing` quando uma lacuna impediu.
-
-### Lacunas sem UI de perguntas
-
-A tela de perguntas não existe e **não deve bloquear nada**:
-
-- campo com lacuna vira `**[A preencher: qual é o cargo de João?]**`, visível
-  no documento. Os `Gap` já vêm prontos de `pensante.ts` e de
-  `sectionPipeline.ts` (afirmação descartada pelo Auditor também vira lacuna);
-- as `questions` voltam populadas na resposta da API, prontas para quando a UI
-  existir;
-- `omitWhenEmpty: true` continua valendo — Outcomes e Outputs somem se vazios,
-  em vez de virarem placeholder.
-
-### Guarda contra vazamento
-
-Depois de montado o documento, **em código, não confiando no modelo**,
-verifique que nenhuma destas expressões aparece na saída:
-
-`O que escrever aqui` · `Narrativa Resumida` · `O Veredito` · `Ação Concreta` ·
-`Alinhamentos Abstratos` · `Diferença para Decisões` · `Produtos Gerados` ·
-`Resumo Executivo` · `[Nome do Tópico]` · `[Decisão A]` · `[Nome] – [Cargo]`
-
-São instruções de autoria do PDF original. Se vazarem, chegam num cliente.
-Se alguma aparecer, **falhe alto** — não entregue calado.
-
-**PARE e reporte.** O autor quer ver uma Ata completa, em markdown, com as
-nove seções, gerada de uma transcrição real.
+O caso da concordância vizinha virou teste canônico de rede
+(`auditor.canonical.test.ts`, `npm run test:live`).
 
 ---
 
-## FASE 6 — saída em Google Docs (substitui a Fase 6 original)
+## O que foi medido (2026-08-14)
 
-Só depois da 5, e o autor decide a ordem. Resumo do que foi combinado:
+Transcrição sintética de 3.358 caracteres, com duas armadilhas plantadas: uma
+proposta de desnormalizar tabela que foi explicitamente descartada na conversa,
+e um pedido de ambiente de homologação que foi adiado.
+
+**A Ata saiu completa, com as nove seções.** Nenhuma das duas armadilhas entrou
+em "Decisões tomadas"; as três decisões reais entraram. Cargo sem evidência
+virou `**[A preencher: ...]**` visível no documento. Nenhuma instrução do PDF
+vazou.
+
+Três números que você precisa conhecer antes de continuar:
+
+### 1. O cache CONTINUA sem dar hit
+
+`cachedInputTokens: 0` nas quatro seções medidas, com a transcrição de 3.358
+caracteres (~1.000 tokens). **O mesmo número da dívida anterior**, e pela mesma
+causa: a transcrição de teste é pequena demais para o piso de cache implícito
+do provedor.
+
+Ou seja: o argumento de cache que motivou o corte da compactação **ainda não
+foi provado**. Ele é plausível numa reunião real (dezenas de milhares de
+caracteres passam folgado do piso), mas plausível não é medido. **Confirme com
+número antes de afirmar que o cache funciona** — de preferência com uma
+transcrição sintética longa, de 30 mil caracteres para cima.
+
+### 2. Cota diária do free tier: 20 requisições por dia no `gemini-3.5-flash`
+
+A primeira tentativa de gerar a Ata **falhou depois de 16 minutos**. O erro era
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, limite **20 por dia**. Uma
+Ata completa faz 9 chamadas do Pensante + 9 do Escritor = 18 nesse modelo, e a
+cota do dia acaba numa geração.
+
+Pior: o provedor manda `retryDelay: 44s` mesmo na cota diária, e o laço de
+espera perseguiu esse número até esgotar as tentativas. Isso foi corrigido —
+`RateLimitError.perDay` distingue cota diária de cota por minuto, e a diária
+sobe na hora (`providers/shared.ts`, `providers/google.ts`).
+
+**A Ata medida rodou em `gemini-3.5-flash-lite` no Pensante e no Escritor**,
+via `DOCCITI_PENSANTE` e `DOCCITI_ESCRITOR`, porque a cota do `flash` já tinha
+acabado. Não é a configuração ativa. Levou 99 segundos.
+
+### 3. Participante sem citação some da Ata — instabilidade real
+
+Numa das execuções, o Pensante devolveu Ana e Carlos **sem nenhuma citação**, e
+o Auditor corretamente os descartou: "Nenhuma citação localizável sustenta esta
+afirmação". Duas pessoas que obviamente participaram sumiram da seção.
+
+Noutra execução, com a mesma transcrição e o mesmo modelo, os dois apareceram
+normalmente. É intermitente, e o comportamento do Auditor está certo — o
+problema é o Pensante não citar.
+
+Taxa de âncoras nas execuções medidas: **100%** (1/1, 11/11, 8/8, 0/0). Quando
+ele cita, a citação existe. O problema é ele às vezes não citar.
+
+Não foi corrigido, de propósito: mexer no prompt depois de medir e sem medir de
+novo seria reportar o que se espera, não o que se mediu. Caminhos plausíveis,
+em ordem de custo: (a) uma linha no prompt do Pensante exigindo citação por
+participante; (b) `blocker` para participante sem citação, com mensagem que
+diga ao modelo o que fazer na segunda passada; (c) medir antes no modelo
+configurado (`gemini-3.5-flash`), já que a medição saiu no `lite`.
+
+---
+
+## FASE 6 — saída em Google Docs
+
+O autor decide a ordem. Resumo do que foi combinado:
 
 - **A extensão cria o documento, não o servidor.** O servidor devolve o
   `DocumentData` e o HTML; a extensão pega o token via
@@ -171,15 +205,18 @@ Boa parte do insumo já existe e **deve ser reaproveitada, não reescrita**:
 
 - `lib/ai/availability.ts` — `planMatrixRun()` e `describeSkips()` já pulam
   entrada sem chave e reportam o pulo. Entrada pulada nunca some em silêncio;
-  fornecedor com todas as entradas puladas vira linha própria;
 - `lib/ai/config.ts` — `COMPARISON_MATRIX` com teto e piso por fornecedor;
 - `lib/ai/pricing.ts` + `costForEntry()` — custo, com free tier valendo zero;
-- `lib/agents/anchoring.ts` — a taxa de âncoras é a asserção mais importante;
-- `lib/ai/bench.ts` — a tarefa de referência e `checkAnchors`.
+- `lib/agents/anchoring.ts` — a taxa de âncoras é a asserção mais importante, e
+  agora ela mede o Pensante;
+- `lib/ai/bench.ts` — a tarefa de referência e `checkAnchors`. Ela mantém
+  prompt e schema próprios de propósito, para o resultado de duas execuções
+  continuar comparável quando o prompt do Pensante mudar de versão.
 
 Fixtures precisam ser sintéticas. Há uma pronta, inventada pelo autor (reunião
-sobre modelagem de banco de dados, ~2.900 chars, com a armadilha de decisão do
-"Podemos avaliar desnormalizações"). Ela está fora do repo; peça ao autor.
+sobre modelagem de banco de dados, ~2.900 chars). Ela está fora do repo; peça
+ao autor. **O harness precisa de uma fixture LONGA também** — sem ela o cache
+não é mensurável (ver medição 1).
 
 Precisa de test runner? Já tem: **vitest**, em `server/`.
 
@@ -192,26 +229,18 @@ Precisa de test runner? Já tem: **vitest**, em `server/`.
    que vão quebrar primeiro, e como cada um falha, estão em
    [`docs/divida-verificacao-provedores.md`](divida-verificacao-provedores.md).
    **Leia antes de ligar qualquer chave nova.**
-2. **Cache nunca deu hit.** `cachedInputTokens: 0` nas nove chamadas do
-   Pensante, apesar do contexto compactado ir como `cacheablePrefix` idêntico.
-   Causa provável: o mínimo do Gemini para cache implícito (2.048 tokens na
-   família 2.5, mais nas 3.x) contra um contexto compactado de ~1.000 tokens na
-   transcrição de teste. Numa reunião real deve passar. **Confirme com número
-   antes de afirmar que o cache funciona.**
-3. **Espera por 429/503 tem teste unitário, mas nunca foi exercitada de
-   verdade** contra a API (um 503 chegou a derrubar uma execução, o que motivou
-   o tratamento — mas a espera em si não foi observada acertando).
-4. **Janelamento gera quase-duplicatas.** A deduplicação compara `text` +
-   `quote` exatos; com 3 janelas, 3 citações foram usadas por 2 afirmações cada
-   (mesma citação, redação diferente). Com o padrão de 200 mil chars uma reunião
-   normal cabe numa janela e o problema não aparece. Deduplicar semanticamente
-   tem risco real de fundir afirmações distintas — **não faça sem decisão do
-   autor**.
-5. **`gemini-3.5-flash` corrompeu caracteres** numa execução do bench:
+2. **Cache nunca deu hit** — ver medição 1 acima. Continua aberta, e agora com
+   uma causa concreta: falta transcrição de teste grande o bastante.
+3. **Espera por 429/503 tem teste unitário, e a de cota DIÁRIA foi exercitada
+   de verdade** (foi ela que motivou `perDay`). A espera por cota por minuto
+   ainda não foi observada acertando.
+4. **`gemini-3.5-flash` corrompeu caracteres** numa execução do bench:
    devolveu `"gesto"` onde a transcrição diz `"gestão"`, derrubando a taxa de
-   âncoras de 100% para 29%. Intermitente, amostra de duas execuções. Hoje ele
-   está no Pensante e no Escritor, onde não produz citação — risco menor. **Não
-   o mova para o Analista sem medir mais.**
+   âncoras de 100% para 29%. **Esta dívida PIOROU com o corte da compactação**:
+   antes ele estava no Pensante, que não produzia citação; agora produz, e a
+   taxa de âncoras dele sustenta a auditoria inteira. Está anotado em
+   `lib/ai/config.ts`, no comentário do agente `pensante`.
+5. **Participante sem citação some da Ata** — ver medição 3 acima.
 
 ---
 
@@ -221,8 +250,8 @@ Precisa de test runner? Já tem: **vitest**, em `server/`.
 cd server
 npm install
 npm run dev          # http://localhost:3000 — .env.local é lido NO BOOT
-npm test             # 210 testes, offline, rápido
-npm run test:live    # + 3 casos canônicos do Auditor contra a API
+npm test             # 242 testes, offline, rápido
+npm run test:live    # + 4 casos canônicos do Auditor contra a API
 npx tsc --noEmit
 npm run build
 ```
@@ -238,13 +267,15 @@ Configuração ativa (`lib/ai/config.ts`):
 
 | agente | modelo |
 |---|---|
-| analista, auditor | `gemini-3.5-flash-lite` (extração/verificação) |
 | pensante, escritor | `gemini-3.5-flash` com `thinkingLevel: HIGH` |
+| auditor | `gemini-3.5-flash-lite` |
 
 > ⚠️ **`DOCCITI_DATA_POLICY=training` está ligado**, porque a chave é de free
 > tier e free tier manda o conteúdo para treinamento do provedor em qualquer
 > modelo. **Use SOMENTE transcrição sintética. Nenhuma gravação real de
-> reunião.** As rotas exigem `"sintetica": true` no corpo enquanto isso valer.
+> reunião.** Todas as rotas exigem `"sintetica": true` no corpo enquanto isso
+> valer — **incluindo `/api/generate`**, que ganhou a trava quando deixou de
+> ser stub. Com chave paga a trava não existe e o contrato fica como sempre foi.
 
 ---
 
@@ -252,12 +283,13 @@ Configuração ativa (`lib/ai/config.ts`):
 
 Do autor, e valendo desde o começo:
 
-- **Não altere o contrato de `/api/generate`** além do header de chave.
+- **Não altere o contrato de `/api/generate`** além do header de chave e da
+  trava de política de dados (que só age em free tier).
 - **Não mexa em `server/Legado/`.**
 - **Não preencha os templates de `x1`, `daily`, `planning`, `review`** — não há
   modelo para eles. Eles geram seção única e genérica, e isso é esperado. O que
   não pode é quebrar.
-- **Não construa a UI de perguntas.**
+- **Não construa a UI de perguntas.** As `questions` já voltam populadas.
 - **Não invente regra de negócio** que não esteja no `guidance` do template ou
   na especificação. Sinalize em vez de inventar.
 - **Não instale dependência sem perguntar.**
@@ -269,11 +301,20 @@ E as que se firmaram durante o trabalho:
 
 - **Nunca peça offset de caractere ao modelo.** Ele entrega `quote`; o código
   localiza. Âncora errada é pior que âncora nenhuma.
-- **Nunca omita em silêncio.** Entrada pulada, afirmação descartada, capacidade
-  não verificada — tudo aparece no relatório, com motivo.
+- **O prompt de sistema do Pensante precisa ser byte-idêntico nas nove
+  seções.** Todo cache de prefixo casa desde o começo do prompt; sistema que
+  varia por seção encerra o prefixo comum antes da transcrição. É por isso que
+  o `guidance` vai na mensagem de usuário, e há teste garantindo que o prompt
+  não tem marcador.
+- **O Escritor não vê a transcrição.** Ele redige a partir de dados já
+  conferidos; dar-lhe a transcrição abriria uma segunda porta para informação
+  não auditada entrar na ata. Há teste garantindo.
+- **Nunca omita em silêncio.** Entrada pulada, afirmação descartada, citação
+  não localizada, lacuna que o modelo esqueceu de marcar — tudo aparece, com
+  motivo.
 - **Custo `undefined` é melhor que custo zero.** Zero silencioso vira relatório
   de custo mentiroso.
-- **Na dúvida, o Auditor rejeita.** Afirmação descartada vira lacuna; aprovada
+- **Na dúvida, o Auditor rejeita.** Afirmação descartada vira lacuna, aprovada
   por engano vira fato inventado num documento tratado como registro.
 - **Reporte o que mediu, não o que espera.** Se o número saiu na direção
   errada, diga o número.
@@ -284,7 +325,7 @@ E as que se firmaram durante o trabalho:
 
 1. Rode `npm test` e `npm run build` para confirmar que o estado bate com o
    descrito aqui.
-2. Suba o servidor e rode `/api/ai/secao` com a fixture sintética, para ver o
-   pipeline funcionando antes de mexer nele.
-3. **Pergunte ao autor sobre a decisão aberta do Auditor** (folga de 400
-   caracteres) antes de começar a Fase 5.
+2. Peça ao autor uma transcrição sintética **longa** (30 mil caracteres para
+   cima) e meça o cache com ela em `/api/ai/secao`. É a única dívida que o
+   corte da compactação prometeu resolver e ainda não resolveu na medição.
+3. Só então decida entre Fase 6 e Fase 8 com o autor.

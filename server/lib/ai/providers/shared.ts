@@ -80,6 +80,11 @@ export async function withRateLimitRetry<T>(
     try {
       return { value: await call(), rateLimitWaits, overloadWaits };
     } catch (error) {
+      // Cota DIÁRIA sobe na hora. Ela não reabre esperando, e o provedor
+      // ainda manda um `retryDelay` de dezenas de segundos — perseguir esse
+      // número custou 16 minutos até o mesmo erro numa geração medida.
+      if (error instanceof RateLimitError && error.perDay) throw error;
+
       const retryable = error instanceof RateLimitError || error instanceof OverloadedError;
       if (!retryable || attempt >= maxRetries) throw error;
       await wait(backoffDelayMs(attempt, error.retryAfterMs));

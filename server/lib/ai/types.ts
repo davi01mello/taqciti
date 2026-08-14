@@ -144,16 +144,32 @@ export class RateLimitError extends ProviderError {
   /** Do header `retry-after`, quando o provedor manda. Sem isso, backoff cego. */
   readonly retryAfterMs?: number;
 
+  /**
+   * true = a cota que estourou é DIÁRIA, não por minuto.
+   *
+   * A distinção existe porque a resposta certa é oposta. Cota por minuto se
+   * resolve esperando os segundos que o provedor pediu; cota por dia não se
+   * resolve esperando — ela reabre amanhã, e cada tentativa a mais só gasta
+   * tempo antes do mesmo erro.
+   *
+   * Foi medido: uma geração completa levou 16 minutos para falhar repetindo
+   * uma espera de 44 segundos contra um limite de 20 requisições POR DIA.
+   * Esperar ali não era prudência, era o diagnóstico errado.
+   */
+  readonly perDay: boolean;
+
   constructor(
     provider: ProviderId,
     model: string,
     message: string,
     retryAfterMs?: number,
     detail?: unknown,
+    perDay = false,
   ) {
     super(provider, model, message, detail);
     this.name = 'RateLimitError';
     this.retryAfterMs = retryAfterMs;
+    this.perDay = perDay;
   }
 }
 

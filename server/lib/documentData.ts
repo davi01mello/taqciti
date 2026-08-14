@@ -205,6 +205,25 @@ export interface SectionDataSpec {
   claims(data: DocumentData, sectionId: string): AuditableClaim[];
   /** Remove as afirmações rejeitadas pelo Auditor. */
   drop(data: DocumentData, paths: Set<string>, sectionId: string): void;
+  /**
+   * Os dados DESTA seção em texto, para o Escritor — ou `null` quando não há
+   * nada.
+   *
+   * `null` é o que decide `omitWhenEmpty`: seção vazia com a marca some do
+   * documento em vez de aparecer com um título e nada embaixo. Vive aqui, e
+   * não no Escritor, porque saber o que é "vazio" nesta seção é conhecimento
+   * da seção — e o Escritor é genérico de propósito.
+   *
+   * As citações NÃO entram: elas são evidência para a auditoria, não texto
+   * para a ata. O Escritor redige a partir dos dados, e não da transcrição.
+   */
+  serialize(data: DocumentData, sectionId: string): string | null;
+}
+
+/** Lista para o Escritor, ou `null` quando não sobrou item. */
+function bullets(items: string[]): string | null {
+  const linhas = items.filter((linha) => linha.trim());
+  return linhas.length > 0 ? linhas.map((linha) => `- ${linha}`).join('\n') : null;
 }
 
 const QUOTES: JsonSchema = {
@@ -253,6 +272,9 @@ function listSpec(
     drop(data, paths) {
       data[key] = (data[key] ?? []).filter((_, index) => !paths.has(`${key}[${index}]`));
     },
+    serialize(data) {
+      return bullets((data[key] ?? []).map((item) => item.text));
+    },
   };
 }
 
@@ -297,6 +319,9 @@ const GENERIC_SPEC: SectionDataSpec = {
       (_, index) => !paths.has(`generic.${sectionId}[${index}]`),
     );
   },
+  serialize(data, sectionId) {
+    return bullets((data.generic?.[sectionId] ?? []).map((item) => item.text));
+  },
 };
 
 /**
@@ -324,6 +349,12 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     // `audit: 'light'` — não entra no laço do Auditor.
     claims: () => [],
     drop: () => {},
+    serialize(data) {
+      return bullets([
+        data.metadata?.date ? `Data da reunião: ${data.metadata.date}` : '',
+        data.metadata?.projectName ? `Projeto: ${data.metadata.projectName}` : '',
+      ]);
+    },
   },
 
   topico_geral: {
@@ -341,6 +372,13 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     },
     claims: () => [],
     drop: () => {},
+    serialize(data) {
+      if (!data.generalTopic) return null;
+      return bullets([
+        `Tema central: ${data.generalTopic.topic}`,
+        `Andamento: ${data.generalTopic.progress}`,
+      ]);
+    },
   },
 
   participantes: {
@@ -397,6 +435,13 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         (_, index) => !paths.has(`participants[${index}]`),
       );
     },
+    serialize(data) {
+      return bullets(
+        (data.participants ?? []).map(
+          (p) => `${p.name} — ${p.role ?? 'cargo não determinado'} (origem: ${p.roleSource})`,
+        ),
+      );
+    },
   },
 
   topicos_discutidos: {
@@ -432,6 +477,9 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     },
     claims: () => [],
     drop: () => {},
+    serialize(data) {
+      return bullets((data.topicsDiscussed ?? []).map((t) => `${t.title}: ${t.summary}`));
+    },
   },
 
   decisoes: {
@@ -511,6 +559,19 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         (_, index) => !paths.has(`decisions[${index}]`),
       );
     },
+    serialize(data) {
+      // A concordância entra porque o guidance da Ata pede para preservar a
+      // concordância explícita do cliente quando houver. É o único lugar em
+      // que uma citação chega ao Escritor, e chega como conteúdo pedido pela
+      // especificação, não como evidência de auditoria.
+      return bullets(
+        (data.decisions ?? []).map(
+          (d) =>
+            `${d.text} (confiança: ${d.confidence}` +
+            `${d.agreement?.quote ? `; concordância: "${d.agreement.quote}"` : ''})`,
+        ),
+      );
+    },
   },
 
   outcomes: listSpec('outcomes', 'Alinhamento ou entendimento produzido pela conversa.'),
@@ -528,6 +589,9 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     },
     claims: () => [],
     drop: () => {},
+    serialize(data) {
+      return data.conclusion?.text ?? null;
+    },
   },
 
   assinatura: {
@@ -548,6 +612,14 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     },
     claims: () => [],
     drop: () => {},
+    serialize(data) {
+      // Nunca `null`: a assinatura é o fechamento da ata e existe mesmo sem
+      // nome — nesse caso ela sai com lacuna, e não sumindo.
+      return bullets([
+        `Nome de quem assina: ${data.signature?.name ?? '(não determinado)'}`,
+        `Cargo de quem assina: ${data.signature?.role ?? '(não determinado)'}`,
+      ]);
+    },
   },
 };
 
