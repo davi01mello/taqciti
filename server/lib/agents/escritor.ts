@@ -21,7 +21,7 @@
 import { complete, type CompletionResult, type JsonSchema } from '../ai';
 import { renderPrompt } from '../prompts';
 import type { SectionSpec } from '../templates/types';
-import { specForSection, type DocumentData, type Gap } from '../documentData';
+import { specForSection, textoDeLacuna, type DocumentData, type Gap } from '../documentData';
 import type { RenderedSection, SectionConfidence } from '../generateStep';
 
 const CONTENT_SCHEMA: JsonSchema = {
@@ -77,9 +77,10 @@ export function assertSemVazamento(texto: string, onde: string): void {
   if (encontradas.length > 0) throw new VazamentoDeInstrucaoError(encontradas, onde);
 }
 
-/** O marcador de lacuna, visível no documento final. */
+/** O marcador de lacuna em markdown. O texto vem de `documentData.ts`, para
+ *  o HTML da Fase 6 mostrar exatamente a mesma frase. */
 export function marcadorDeLacuna(gap: Gap): string {
-  return `**[A preencher: ${gap.question}]**`;
+  return `**${textoDeLacuna(gap.question)}**`;
 }
 
 export interface EscreverInput {

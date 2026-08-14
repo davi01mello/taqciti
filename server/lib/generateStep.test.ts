@@ -202,6 +202,43 @@ describe('montagem da Ata', () => {
     }
   });
 
+  it('devolve o documentData acumulado, não só o markdown', async () => {
+    // É a camada canônica: HTML e PDF renderizam daqui. O markdown já perdeu
+    // que Maria tem cargo de origem `meeting`.
+    mockPipeline();
+    const { documentData } = await run();
+
+    expect(documentData.metadata?.projectName).toBe('Fenix');
+    expect(documentData.participants?.map((p) => p.name)).toEqual(['Maria', 'Joao']);
+    expect(documentData.participants?.[0]!.roleSource).toBe('meeting');
+    expect(documentData.decisions?.[0]!.agreement.quote).toBe('De acordo, sexta.');
+  });
+
+  it('devolve as lacunas com o campo, não só a pergunta', async () => {
+    // Quem renderiza precisa do campo para pôr o marcador no lugar certo —
+    // o cargo do Joao ao lado do Joao, e não no fim da seção.
+    mockPipeline();
+    const { gaps } = await run();
+    expect(gaps.some((g) => g.field === 'participants[Joao].role')).toBe(true);
+  });
+
+  it('documentData de entrada semeia a passada seguinte', async () => {
+    // Contraparte de devolvê-lo. Sem isto, uma segunda chamada recomeçaria
+    // com o acumulado vazio e o Pensante não veria o que já foi determinado.
+    mockPipeline();
+    const semente = { metadata: { date: '01/01/2020', projectName: 'ANTERIOR' } };
+
+    await run({
+      completed: [
+        { id: 'identificacao', title: 'Identificação', content: '## Identificação', confidence: 'ok' as const },
+      ],
+      documentData: semente,
+    });
+
+    const pedidoDoPensante = complete.mock.calls.find(([agent]) => agent === 'pensante')![1];
+    expect(pedidoDoPensante.messages[0].content).toContain('ANTERIOR');
+  });
+
   it('FALHA ALTO quando a instrução do PDF vaza para o documento', async () => {
     // Entregar calado poria a instrução de autoria dentro de uma ata que vai
     // para um cliente.

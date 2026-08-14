@@ -161,6 +161,18 @@ export interface Gap {
   why: string;
 }
 
+/**
+ * O texto da lacuna como o leitor do documento a vê.
+ *
+ * Mora aqui, e não em quem renderiza, porque markdown e HTML saem do MESMO
+ * `DocumentData` e precisam mostrar a mesma coisa. Duas construções da mesma
+ * frase divergem — e divergir aqui significaria a ata em HTML e a ata em
+ * markdown discordarem sobre o que falta.
+ */
+export function textoDeLacuna(question: string): string {
+  return `[A preencher: ${question}]`;
+}
+
 // ---------------------------------------------------------------------------
 // Afirmações auditáveis
 // ---------------------------------------------------------------------------

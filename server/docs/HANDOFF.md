@@ -45,7 +45,12 @@ transcrição bruta
 | Escritor: dados da seção → prosa; guarda contra vazamento do PDF | `lib/agents/escritor.ts` |
 | Montagem das nove seções, lacunas e perguntas | `lib/generateStep.ts` |
 | JSON intermediário (`document_data`) | `lib/documentData.ts` |
+| Renderização `DocumentData` → HTML (alvo: import do Google Docs) | `lib/render/html.ts` |
 | Prompts como artefatos versionados | `lib/prompts/` |
+
+`POST /api/generate` devolve `{ title, content, documentData, html, questions }`.
+`content` é o markdown e continua sendo o que sempre foi; `documentData` é a
+camada canônica e `html` sai DELA, nunca do markdown.
 
 **242 testes passando + 4 de rede** (`npm test` / `npm run test:live`),
 `npx tsc --noEmit` e `npm run build` limpos.
@@ -58,9 +63,12 @@ métricas de citação — é o melhor lugar para medir sem gerar o documento to
 
 ### Falta
 
-- **Fase 6 — saída em Google Docs** (a especificação original foi substituída
-  pelo Adendo 2; ver "Fase 6" abaixo).
+- **Fase 6 — só a metade da extensão.** O servidor já faz a parte dele:
+  devolve `documentData` e `html`. Falta a extensão criar o arquivo no Drive, e
+  isso está travado no manifest (ver "Fase 6" abaixo).
 - **Fase 8 — harness** em `server/eval/`.
+- **PDF** — adiado, não descartado. Sai do MESMO `documentData` que o HTML, e
+  não do HTML.
 
 ---
 
@@ -178,20 +186,42 @@ configurado (`gemini-3.5-flash`), já que a medição saiu no `lite`.
 
 ## FASE 6 — saída em Google Docs
 
-O autor decide a ordem. Resumo do que foi combinado:
+### Feito
 
-- **A extensão cria o documento, não o servidor.** O servidor devolve o
-  `DocumentData` e o HTML; a extensão pega o token via
-  `chrome.identity.getAuthToken`, cria o arquivo no Drive do usuário e abre a
-  aba. O servidor nunca vê token OAuth de usuário.
+O servidor devolve `documentData` e `html` em `/api/generate`.
+
+`lib/render/html.ts` renderiza a partir do `DocumentData`, nunca do markdown —
+o markdown já perdeu que Maria tem cargo de origem `meeting` e que a decisão
+tem concordância ancorada, e reparsear texto é onde a informação some sem
+ninguém notar. Pelo mesmo motivo o PDF, quando entrar, sai do `DocumentData` e
+**não** deste HTML: são irmãos, não um derivado do outro.
+
+O HTML fica no subconjunto que o import do Google Docs aceita — cabeçalhos,
+parágrafos, listas, `strong`. Nada de CSS, classe ou tabela: o que não
+sobrevive ao import vira ruído no documento do cliente. Documento completo com
+`<meta charset>`, e não fragmento, porque vai como ARQUIVO — sem o charset,
+"gestão" chega ao Docs como "gestÃ£o".
+
+Duas regras que os testes prendem: **HTML e markdown mostram a mesma frase de
+lacuna** (`textoDeLacuna` em `documentData.ts` é a fonte única) e **usam a
+mesma definição de vazio** (`spec.serialize()` devolvendo `null`), senão os
+dois formatos discordam sobre quais seções o documento tem.
+
+Ver `docs/medicao-2026-08-14/execucao-2-ata.html` para uma saída real.
+
+### Falta — e está travado
+
+- **A extensão cria o documento, não o servidor.** Ela pega o token via
+  `chrome.identity.getAuthToken`, manda o `html` para o Drive e abre a aba. O
+  servidor nunca vê token OAuth de usuário.
 - Use **Drive API `files.create`** com o HTML e o mimeType de destino do Google
   Docs. **Não** use `documents.batchUpdate`.
 - Escopo **`drive.file` e só ele**. Se parecer que precisa de mais, **pare e
   pergunte**.
-- Mantenha o alvo **PDF** — só adiado, não descartado. Os dois renderizam a
-  partir do `DocumentData`, não um do outro.
 - Nome do arquivo: `Ata de Reunião — {projeto} — {DD-MM-AAAA}`, caindo para o
   título da reunião quando o projeto for lacuna. Sem `undefined` nem colchetes.
+  O `documentData.metadata` tem os dois campos, e lacuna ali é campo AUSENTE,
+  não string vazia.
 
 **Impedimento já levantado, não resolvido:** o `manifest.config.ts` não tem a
 permissão `identity` nem a chave `oauth2`, e `getAuthToken` exige **ID de
@@ -244,13 +274,22 @@ Precisa de test runner? Já tem: **vitest**, em `server/`.
 3. **Espera por 429/503 tem teste unitário, e a de cota DIÁRIA foi exercitada
    de verdade** (foi ela que motivou `perDay`). A espera por cota por minuto
    ainda não foi observada acertando.
-4. **`gemini-3.5-flash` corrompeu caracteres** numa execução do bench:
-   devolveu `"gesto"` onde a transcrição diz `"gestão"`, derrubando a taxa de
-   âncoras de 100% para 29%. **Esta dívida PIOROU com o corte da compactação**:
-   antes ele estava no Pensante, que não produzia citação; agora produz, e a
-   taxa de âncoras dele sustenta a auditoria inteira. Está anotado em
-   `lib/ai/config.ts`, no comentário do agente `pensante`.
-5. **Participante sem citação some da Ata** — ver medição 3 acima.
+4. **O modelo perde acentuação.** Vista no bench (`"gesto"` por `"gestão"`) e
+   de novo na medição de 14/08, agora no `flash-lite`: as quatro entradas de
+   `topicsDiscussed` voltaram sem nenhum acento numa execução.
+
+   **A ressalva muda o tamanho do problema.** Na mesma chamada, as 20 citações
+   vieram acentuadas e todas as 20 localizaram. O modelo corrompe a paráfrase
+   que ele escreve e preserva a citação que ele copia. Isso é bom para a
+   âncora — a auditoria não desaba — e ruim para o documento, porque a ata sai
+   sem acento no corpo do texto. Continua sendo risco de qualidade voltado ao
+   cliente. Anotado em `lib/ai/config.ts`, no comentário do agente `pensante`.
+5. **Participante sem citação some da Ata** — ver medição 3 acima, e
+   `docs/medicao-2026-08-14/` para as duas execuções lado a lado.
+6. **O Pensante põe citação literal da transcrição dentro da Conclusão.** Vista
+   na execução 2: o campo `conclusion.text` veio com trechos de fala entre
+   aspas. O `guidance` pede "um único parágrafo executivo", e transcrever fala
+   não é isso. O Escritor não tem culpa — ele redigiu o que recebeu.
 
 ---
 

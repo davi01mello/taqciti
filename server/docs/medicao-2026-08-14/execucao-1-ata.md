@@ -1,4 +1,4 @@
-## Identificação
+﻿## Identificação
 
 - Data da reunião: 12/08/2026
 - Projeto: Projeto Fênix

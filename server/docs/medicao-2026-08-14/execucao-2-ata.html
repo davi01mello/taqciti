@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ata de Reunião — Projeto Fenix</title>
+</head>
+<body>
+<h1>Ata de Reunião — Projeto Fenix</h1>
+<h2>Identificação</h2>
+<p><strong>Data:</strong> 12/08/2026</p>
+<p><strong>Projeto:</strong> Projeto Fênix</p>
+
+<h2>Tópico geral</h2>
+<p><strong>Tópico:</strong> Atraso na integração e revisão do cronograma do Projeto Fênix</p>
+<p>A entrega prevista para a semana seguinte foi adiada devido a problemas na documentação da API de faturamento do cliente e a gargalos de desempenho no banco de dados. Ficou decidido o adiamento da entrega para 28 de agosto de 2026, com foco na correção da integração, criação de índice composto para otimização de consultas e realinhamento com o cliente.</p>
+
+<h2>Participantes e cargos</h2>
+<ul>
+  <li>Beatriz &ndash; arquiteta de integração</li>
+</ul>
+<p><strong>[A preencher: Qual é o cargo/papel de Ana?]</strong></p>
+<p><strong>[A preencher: Qual é o cargo/papel de Carlos?]</strong></p>
+<p><strong>[A preencher: A afirmação &quot;Ana participou da reunião.&quot; não foi confirmada pela transcrição. Ela deve constar na ata? Se sim, com que redação?]</strong></p>
+<p><strong>[A preencher: A afirmação &quot;Carlos participou da reunião.&quot; não foi confirmada pela transcrição. Ela deve constar na ata? Se sim, com que redação?]</strong></p>
+
+<h2>Tópicos discutidos</h2>
+<ol>
+  <li><strong>Atraso na integracao com a API de faturamento</strong> &ndash; Foi discutida a integracao com a API de faturamento do cliente, que travou devido a documentacao desatualizada com tres endpoints alterados e mudanca no endpoint de token sem aviso previo. Beatriz assumiu sozinha o adaptador, o que acumulou retrabalho e comprometeu o desenho do modulo de relatorios. Carlos enviara por e-mail a lista dos tres endpoints que mudaram.</li>
+  <li><strong>Gargalo de desempenho no banco de dados</strong> &ndash; Foram constatados testes de carga com gargalo na consulta de fechamento mensal, que levava onze segundos para executar por varredura na tabela. Foi avaliada a desnormalizacao da tabela, mas descartada para evitar alteracoes permanentes no modelo. Ficou decidido que Beatriz criara um indice composto cliente mais data e rodara novos testes.</li>
+  <li><strong>Revisao do cronograma e adiamento da entrega</strong> &ndash; Diante do atraso na integracao e da sobrecarga de Beatriz, a entrega prevista para a sexta-feira seguinte foi considerada inviavel pela equipe. Ficou decidido adiar a entrega para 28 de agosto de 2026, com o cancelamento da demonstracao marcada para sexta e remarcacao conjunta com a nova entrega. Ana enviara o comunicado ao cliente Rodrigo.</li>
+  <li><strong>Proposta de ambiente de homologacao separado</strong> &ndash; Carlos sugeriu a criacao de um ambiente de homologacao separado para evitar a confusoes geradas pelos testes diretos no ambiente de desenvolvimento. A ideia foi reconhecida como util, mas adiada para o proximo ciclo devido a custos de infraestrutura e falta de orcamento aprovado.</li>
+</ol>
+
+<h2>Decisões tomadas</h2>
+<ul>
+  <li>Adiar a entrega para o dia 28/08/2026</li>
+  <li>Cancelar a demo de sexta</li>
+</ul>
+
+<h2>Outcomes da reunião</h2>
+<ul>
+  <li>Alinhamento sobre a causa do atraso na integração, decorrente de documentação desatualizada da API de faturamento do cliente.</li>
+  <li>Entendimento compartilhado sobre o gargalo de desempenho na consulta de fechamento mensal devido à ausência de índice composto.</li>
+  <li>Alinhamento de expectativas sobre a inviabilidade da entrega na data originalmente prevista e a necessidade de reajustar o cronograma.</li>
+  <li>Clareza sobre a sobrecarga de Beatriz ao acumular a arquitetura de integração e a execução do adaptador.</li>
+</ul>
+
+<h2>Outputs da reunião</h2>
+<ul>
+  <li>Lista dos três endpoints que mudaram na documentação da API de faturamento.</li>
+</ul>
+
+<h2>Conclusão</h2>
+<p>Diante de atrasos na integração com a API de faturamento e gargalos de desempenho no banco de dados, o Projeto Fênix teve sua entrega adiada de sexta-feira para o dia 28/08/2026, com o cancelamento da demonstração anteriormente prevista (&quot;Então proponho o seguinte: adiar a entrega para o dia 28/08/2026, e usar o tempo pra fechar a integração e o desempenho juntos&quot;, &quot;Então fica decidido: entrega adiada para 28 de agosto&quot;, &quot;Cancelamos a demo de sexta e remarcamos junto com a entrega&quot;). Como foco imediato, a equipe atuará na criação de um índice composto para solucionar o problema de performance e na finalização do adaptador de autenticação, alinhando-se para o próximo encontro na quinta-feira (&quot;eu mando o comunicado do adiamento pro Rodrigo ainda hoje, a Beatriz cria o índice composto e roda os testes de carga de novo, e o Carlos fecha o adaptador de autenticação com o novo formato de token. A gente se fala na quinta&quot;).</p>
+
+<h2>Assinatura</h2>
+<p>Atenciosamente,</p>
+<p><strong>[A preencher: Qual nome deve assinar a ata?]</strong> &ndash; <strong>[A preencher: Qual é o cargo de quem assina?]</strong></p>
+</body>
+</html>

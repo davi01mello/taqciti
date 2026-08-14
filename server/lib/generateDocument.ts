@@ -15,7 +15,15 @@ import {
   type DocumentType,
 } from './documentTypes';
 import { TEMPLATES } from './templates';
-import { generateStep, type RenderedSection } from './generateStep';
+import {
+  generateStep,
+  type DocumentData,
+  type Gap,
+  type Question,
+  type RenderedSection,
+} from './generateStep';
+import { assertSemVazamento } from './agents/escritor';
+import { renderHtml } from './render/html';
 
 export { DOCUMENT_TYPES, isDocumentType };
 export type { DocumentType };
@@ -29,7 +37,19 @@ export interface GenerateDocumentInput {
 
 export interface GenerateDocumentResult {
   title: string;
+  /** O documento em markdown, como sempre foi. */
   content: string;
+  /**
+   * A camada canônica. `html` e o PDF da Fase 6 renderizam DAQUI — são
+   * irmãos, não um derivado do outro, e nenhum dos dois reparseia o
+   * markdown.
+   */
+  documentData: DocumentData;
+  /** O mesmo documento em HTML, no subconjunto que o import do Google Docs
+   *  aceita (Drive API `files.create`). */
+  html: string;
+  /** O que ficou por preencher, para quando a UI de perguntas existir. */
+  questions: Question[];
 }
 
 export async function generateDocument(
@@ -38,6 +58,9 @@ export async function generateDocument(
   const template = TEMPLATES[input.documentType];
 
   let completed: RenderedSection[] = [];
+  let documentData: DocumentData = {};
+  let questions: Question[] = [];
+  let gaps: Gap[] = [];
   let done = false;
   while (!done) {
     const step = await generateStep({
@@ -45,8 +68,14 @@ export async function generateDocument(
       documentType: input.documentType,
       completed,
       answers: [],
+      // Devolvido para a passada seguinte. Sem isto, um laço de mais de uma
+      // passada recomeçaria com o acumulado vazio.
+      documentData,
     });
     completed = [...completed, ...step.sections];
+    documentData = step.documentData;
+    questions = [...questions, ...step.questions];
+    gaps = [...gaps, ...step.gaps];
     done = step.done;
   }
 
@@ -54,5 +83,12 @@ export async function generateDocument(
   const body = completed.map((section) => section.content).join('\n\n');
   const content = input.date ? `${body}\n\nData informada: ${input.date}.` : body;
 
-  return { title, content };
+  const html = renderHtml({ documentType: input.documentType, data: documentData, gaps, title });
+
+  // O HTML sai do `DocumentData`, que veio do Pensante — outro caminho que o
+  // do Escritor, e portanto uma segunda porta por onde a instrução de autoria
+  // do PDF poderia chegar ao cliente. A guarda vale para os dois.
+  assertSemVazamento(html, 'o HTML do documento');
+
+  return { title, content, documentData, html, questions };
 }

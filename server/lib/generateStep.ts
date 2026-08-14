@@ -17,6 +17,7 @@
 import type { DocumentType } from './documentTypes';
 import { TEMPLATES } from './templates';
 import type { DocumentData, Gap } from './documentData';
+export type { DocumentData, Gap };
 import { runSection } from './agents/sectionPipeline';
 import { assertSemVazamento, escrever } from './agents/escritor';
 
@@ -50,11 +51,30 @@ export interface GenerateStepInput {
   completed: RenderedSection[];
   /** Respostas a perguntas de passadas anteriores. Não se pergunta duas vezes. */
   answers: Answer[];
+  /**
+   * O `documentData` que a passada anterior devolveu.
+   *
+   * Contraparte de expor `documentData` no resultado, e é o que faz o
+   * contrato de chunking funcionar de verdade: sem isto, uma segunda chamada
+   * recomeçaria com `known` vazio e o Pensante das seções seguintes não veria
+   * nada do que já foi determinado. Não mordia enquanto tudo rodava numa
+   * passada só.
+   */
+  documentData?: DocumentData;
 }
 
 export interface GenerateStepResult {
   sections: RenderedSection[];
   questions: Question[];
+  /**
+   * O JSON intermediário acumulado. É a camada canônica: HTML e PDF
+   * renderizam DAQUI, não do markdown — o markdown já perdeu que Maria tem
+   * cargo de origem `meeting` e que a decisão tem concordância ancorada.
+   */
+  documentData: DocumentData;
+  /** As lacunas, com o campo que cada uma ocupa. Quem renderiza precisa do
+   *  campo para pôr o marcador no lugar certo. */
+  gaps: Gap[];
   done: boolean;
 }
 
@@ -83,11 +103,12 @@ export async function generateStep(
 
   // O acumulado atravessa as seções: é o "não perguntar o que já foi
   // determinado" e o "não contradizer o que já foi escrito" da especificação.
-  let known: DocumentData = {};
+  let known: DocumentData = input.documentData ?? {};
   let completed = [...input.completed];
 
   const novas: RenderedSection[] = [];
   const questions: Question[] = [];
+  const gaps: Gap[] = [];
 
   for (const section of ordenadas) {
     if (jaPronta.has(section.id)) continue;
@@ -100,6 +121,7 @@ export async function generateStep(
     });
     known = run.data;
 
+    gaps.push(...run.gaps);
     for (const gap of run.gaps) questions.push(questionFor(gap, section.required));
 
     const escrita = await escrever({
@@ -122,5 +144,5 @@ export async function generateStep(
   // string contra a possibilidade de a instrução do PDF chegar num cliente.
   assertSemVazamento(completed.map((s) => s.content).join('\n\n'), 'o documento montado');
 
-  return { sections: novas, questions, done: true };
+  return { sections: novas, questions, documentData: known, gaps, done: true };
 }
