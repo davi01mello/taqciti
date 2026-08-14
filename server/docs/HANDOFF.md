@@ -110,6 +110,10 @@ O caso da concordância vizinha virou teste canônico de rede
 
 ## O que foi medido (2026-08-14)
 
+> Os artefatos estão versionados em
+> [`docs/medicao-2026-08-14/`](medicao-2026-08-14/README.md): a transcrição de
+> entrada, a Ata gerada e as respostas cruas das duas rotas.
+
 Transcrição sintética de 3.358 caracteres, com duas armadilhas plantadas: uma
 proposta de desnormalizar tabela que foi explicitamente descartada na conversa,
 e um pedido de ambiente de homologação que foi adiado.
@@ -213,10 +217,16 @@ Boa parte do insumo já existe e **deve ser reaproveitada, não reescrita**:
   prompt e schema próprios de propósito, para o resultado de duas execuções
   continuar comparável quando o prompt do Pensante mudar de versão.
 
-Fixtures precisam ser sintéticas. Há uma pronta, inventada pelo autor (reunião
-sobre modelagem de banco de dados, ~2.900 chars). Ela está fora do repo; peça
-ao autor. **O harness precisa de uma fixture LONGA também** — sem ela o cache
-não é mensurável (ver medição 1).
+Fixtures precisam ser sintéticas. Há duas:
+
+- `docs/medicao-2026-08-14/transcricao.txt`, no repo, 3.358 chars, com duas
+  armadilhas de proposta-que-não-virou-decisão e o resultado esperado descrito
+  no README da pasta;
+- a do autor (reunião sobre modelagem de banco de dados, ~2.900 chars), fora do
+  repo — peça a ele.
+
+**O harness precisa de uma fixture LONGA também** — nenhuma das duas serve para
+medir cache, e sem isso a dívida 2 não fecha (ver medição 1).
 
 Precisa de test runner? Já tem: **vitest**, em `server/`.
 

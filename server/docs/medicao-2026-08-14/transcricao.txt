@@ -1,0 +1,71 @@
+Reunião de acompanhamento — Projeto Fênix — 12/08/2026, 14h.
+
+Ana: Bom, pessoal, obrigada por virem. A pauta de hoje é o atraso da integração e o que a gente faz com o cronograma.
+
+Carlos: Posso começar? A integração com a API de faturamento do cliente travou. A documentação que eles mandaram está desatualizada em três endpoints. A gente descobriu isso só na quarta.
+
+Ana: Descobriu como?
+
+Carlos: Tentando autenticar. O endpoint de token que está no PDF deles não existe mais. Tem um novo, com outro formato de payload, e ninguém avisou.
+
+Beatriz: Isso explica o retrabalho da semana passada. Eu tinha estimado dois dias para o adaptador e já foram cinco.
+
+Ana: Beatriz, você está tocando o adaptador sozinha?
+
+Beatriz: Sozinha. Como eu sou a arquiteta de integração aqui, acabei pegando, mas isso está me tirando do desenho do módulo de relatórios.
+
+Ana: Entendi. Então temos duas frentes competindo pela mesma pessoa.
+
+Carlos: E tem a questão do banco também. Rodamos os testes de carga ontem à noite.
+
+Ana: E?
+
+Carlos: Gargalo. A consulta de fechamento mensal leva onze segundos com o volume de produção simulado. O plano de execução mostra que ela varre a tabela de lançamentos inteira.
+
+Beatriz: A gente poderia avaliar desnormalizar a tabela de lançamentos, guardar o total consolidado numa coluna.
+
+Ana: Hmm.
+
+Carlos: Antes de mexer em modelagem, eu queria ver se não é só falta de índice. Já olhou os índices, Beatriz?
+
+Beatriz: Olhei. Tem índice na data, mas não no par cliente mais data, que é como a consulta filtra.
+
+Carlos: Então é isso. Cria o índice composto e roda de novo antes de qualquer coisa.
+
+Ana: Faz sentido. Vamos deixar a desnormalização de lado por enquanto — ela muda o modelo e a gente ia carregar isso pra sempre.
+
+Beatriz: Tudo bem. Eu crio o índice hoje.
+
+Ana: Voltando ao cronograma. Com a integração atrasada e a Beatriz dividida, a entrega de sexta que vem não acontece. Concordam?
+
+Carlos: Concordo. Não tem como.
+
+Ana: O cliente já sabe que a documentação deles estava errada, eu falei com o Rodrigo ontem. Ele foi razoável. Então proponho o seguinte: adiar a entrega para o dia 28/08/2026, e usar o tempo pra fechar a integração e o desempenho juntos.
+
+Carlos: Por mim está fechado. 28 me parece realista.
+
+Beatriz: Também concordo com o 28.
+
+Ana: Então fica decidido: entrega adiada para 28 de agosto.
+
+Carlos: Só uma coisa. A gente precisa cancelar a demo que estava marcada pra sexta, senão o cliente aparece esperando ver o fluxo funcionando.
+
+Ana: Verdade. Cancelamos a demo de sexta e remarcamos junto com a entrega.
+
+Beatriz: De acordo.
+
+Ana: Mais alguma coisa?
+
+Carlos: Talvez fosse bom a gente ter um ambiente de homologação separado. Hoje testamos direto no de desenvolvimento e isso já causou confusão duas vezes.
+
+Ana: É uma boa ideia, mas custa infra e eu não tenho orçamento aprovado pra isso. Vamos pensar nisso no próximo ciclo.
+
+Carlos: Beleza.
+
+Ana: Então resumindo o que sai daqui: eu mando o comunicado do adiamento pro Rodrigo ainda hoje, a Beatriz cria o índice composto e roda os testes de carga de novo, e o Carlos fecha o adaptador de autenticação com o novo formato de token. A gente se fala na quinta.
+
+Beatriz: Fechado.
+
+Carlos: Fechado. Ah, e eu já montei a lista dos três endpoints que mudaram, mando por e-mail pra vocês depois desta reunião.
+
+Ana: Ótimo, manda sim. Obrigada, pessoal.
