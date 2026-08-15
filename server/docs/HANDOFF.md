@@ -344,8 +344,16 @@ Configuração ativa (`lib/ai/config.ts`):
 
 | agente | modelo |
 |---|---|
-| pensante, escritor | `gemini-3.5-flash` com `thinkingLevel: HIGH` |
-| auditor | `gemini-3.5-flash-lite` |
+| pensante | `gemini-3.5-flash` com `thinkingLevel: HIGH` |
+| auditor, escritor | `gemini-3.5-flash-lite` |
+
+O Escritor desceu para `lite` em 15/08 por **aritmética de cota**, não por
+custo: no free tier o teto é 20 requisições por dia, por projeto, POR MODELO.
+Uma Ata faz 9 chamadas do Pensante e 9 do Escritor; com os dois no `flash` isso
+dá 18 a 20 e a geração morre no meio — medido três vezes. Com o Escritor no
+`lite`, o `flash` carrega só o Pensante (9, ou 11 com as segundas passadas) e o
+documento fecha. **Com chave paga, reconsidere:** a redação em `flash` é
+melhor, e o motivo da descida desaparece.
 
 > ⚠️ **`DOCCITI_DATA_POLICY=training` está ligado**, porque a chave é de free
 > tier e free tier manda o conteúdo para treinamento do provedor em qualquer

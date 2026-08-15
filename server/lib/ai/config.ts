@@ -57,10 +57,22 @@ const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
   // frequente do pipeline. É verificação, não deliberação.
   auditor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
 
-  // Redação final. Fica no modelo de raciocínio: é geração de prosa, não
-  // extração. Se o custo incomodar, é a primeira linha a descer para lite —
-  // a especificação observa que a redação é a parte mais fácil.
-  escritor: { provider: 'google', model: 'gemini-3.5-flash' },
+  // Redação final. Desceu para `lite` — era a linha que o comentário anterior
+  // já apontava como a primeira a descer, e a especificação observa que a
+  // redação é a parte mais fácil.
+  //
+  // O que forçou a descida foi ARITMÉTICA, e vale registrar: no free tier o
+  // teto é de 20 requisições por dia, por projeto, POR MODELO. Uma Ata faz 9
+  // chamadas do Pensante e 9 do Escritor; com os dois no `flash` isso é 18 a
+  // 20 e a geração morre no meio — foi medido três vezes. Com o Escritor no
+  // `lite`, o `flash` carrega só o Pensante (9, ou 11 com as segundas
+  // passadas das seções `strict`), e o documento fecha.
+  //
+  // O risco de acento corrompido do `lite` não vem junto: ele foi observado
+  // na PARÁFRASE do Pensante, e na mesma chamada as citações vieram intactas.
+  // O Escritor não produz citação, e a prosa que ele gerou no `lite` nas
+  // execuções de 14/08 saiu acentuada.
+  escritor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
 };
 
 // ---------------------------------------------------------------------------
