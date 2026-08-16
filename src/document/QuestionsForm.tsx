@@ -19,11 +19,25 @@ interface QuestionsFormProps {
   perguntas: Pergunta[];
   /** Em andamento: some o botão duas vezes enquanto o servidor responde. */
   salvando?: boolean;
+  /**
+   * `true` = mora no corpo do painel de resultado; `false` (padrão) = flutua
+   * sobre o botão, no fluxo da geração.
+   *
+   * O mesmo formulário nos dois lugares de propósito: duas telas de pergunta
+   * divergiriam, e a pergunta é a mesma.
+   */
+  inline?: boolean;
   onConfirmar: (respostas: Resposta[]) => void;
   onPular: () => void;
 }
 
-export function QuestionsForm({ perguntas, salvando, onConfirmar, onPular }: QuestionsFormProps) {
+export function QuestionsForm({
+  perguntas,
+  salvando,
+  inline = false,
+  onConfirmar,
+  onPular,
+}: QuestionsFormProps) {
   const [valores, setValores] = useState<Record<string, string>>({});
 
   const preenchidas = perguntas.filter((p) => valores[p.id]?.trim()).length;
@@ -40,7 +54,13 @@ export function QuestionsForm({ perguntas, salvando, onConfirmar, onPular }: Que
   };
 
   return (
-    <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[60vh] overflow-y-auto rounded-panel p-3 shadow-float animate-entry">
+    <div
+      className={
+        inline
+          ? 'rounded-panel border border-borderc bg-white/[0.03] p-3 animate-entry'
+          : 'glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[60vh] overflow-y-auto rounded-panel p-3 shadow-float animate-entry'
+      }
+    >
       <p className="text-body font-semibold text-foreground">
         {perguntas.length === 1
           ? 'Uma informação não estava na reunião'

@@ -55,7 +55,7 @@ import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
 import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
-import type { GenerationResult } from '@/document/generateDocument';
+import type { DocumentoPronto } from '@/document/generateDocument';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { Sheen, SHEEN_HOST, SHEEN_HOST_POSITIONED, trackSheen } from '@/shared/ui/Sheen';
@@ -641,7 +641,7 @@ function MeetingScreen({
   onOpenWide: () => void;
 }) {
   const [generated, setGenerated] = useState<
-    Extract<GenerationResult, { status: 'success' }> | null
+    DocumentoPronto | null
   >(null);
 
   return (
@@ -687,7 +687,13 @@ function MeetingScreen({
           emptyMessage="Nenhuma fala foi capturada nesta reunião."
           scroll={false}
         />
-        {generated && <GeneratedDocumentResult result={generated} />}
+        {generated && (
+          <GeneratedDocumentResult
+            documento={generated}
+            source={record}
+            onAtualizado={setGenerated}
+          />
+        )}
       </div>
 
       {/*

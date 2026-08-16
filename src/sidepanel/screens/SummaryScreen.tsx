@@ -15,7 +15,7 @@ import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { GenerateDocumentMenu } from '@/document/GenerateDocumentMenu';
 import { GeneratedDocumentResult } from '@/document/GeneratedDocumentResult';
-import type { GenerationResult } from '@/document/generateDocument';
+import type { DocumentoPronto } from '@/document/generateDocument';
 import { usePlatform } from '@/shared/platform/context';
 import { AppShell } from '@/shared/ui/AppShell';
 import { Button } from '@/shared/ui/Button';
@@ -32,9 +32,7 @@ interface SummaryScreenProps {
 export function SummaryScreen({ session }: SummaryScreenProps) {
   const platform = usePlatform();
   const [copied, setCopied] = useState(false);
-  const [generated, setGenerated] = useState<Extract<GenerationResult, { status: 'success' }> | null>(
-    null,
-  );
+  const [generated, setGenerated] = useState<DocumentoPronto | null>(null);
 
   const durationSeconds = Math.round(
     ((session.endedAt ?? session.startedAt) - session.startedAt) / 1000,
@@ -133,7 +131,13 @@ export function SummaryScreen({ session }: SummaryScreenProps) {
             scroll={false}
           />
 
-          {generated && <GeneratedDocumentResult result={generated} />}
+          {generated && (
+            <GeneratedDocumentResult
+              documento={generated}
+              source={session}
+              onAtualizado={setGenerated}
+            />
+          )}
         </div>
       )}
     </AppShell>

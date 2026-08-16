@@ -72,6 +72,30 @@ export type Entrega =
   | { via: 'download'; arquivo: string }
   | { via: 'falhou'; message: string };
 
+/**
+ * O documento depois de gerado — o que o painel de resultado mostra.
+ *
+ * É um objeto só, e não a geração de um lado e a entrega do outro, porque as
+ * três coisas que o usuário vê depois do clique (para onde foi, o que ficou
+ * por responder, e o texto) mudam JUNTAS: responder uma pergunta troca o HTML,
+ * o que troca o arquivo a rebaixar. Estados separados divergiriam.
+ */
+export interface DocumentoPronto {
+  documentType: DocumentType;
+  title: string;
+  /** Markdown, para leitura na tela. */
+  content: string;
+  /** O HTML corrente — atualizado quando o usuário responde as perguntas. */
+  html: string;
+  documentData: unknown;
+  /** O que ainda não foi respondido. Vazio quando não sobrou nada. */
+  questions: Pergunta[];
+  gaps: Lacuna[];
+  projectName?: string;
+  /** Ausente enquanto a entrega não terminou. */
+  entrega?: Entrega;
+}
+
 /** O nome do arquivo, a partir do que a geração apurou. */
 export function nomeDoDocumento(
   source: GenerationSource,

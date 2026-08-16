@@ -12,6 +12,7 @@ import {
   entregarDocumento,
   nomeDoDocumento,
   requestGeneration,
+  type DocumentoPronto,
   type DocumentType,
   type Entrega,
   type GenerationResult,
@@ -81,8 +82,30 @@ function abrirDocumento(url: string): void {
 
 interface GenerateDocumentMenuProps {
   source: GenerationSource;
-  onGenerated: (result: Extract<GenerationResult, { status: 'success' }>) => void;
+  /**
+   * Chamado mais de uma vez pelo MESMO documento: assim que ele existe, e de
+   * novo quando a entrega termina. O painel de resultado precisa aparecer
+   * antes da entrega — ela leva segundos, e esconder o documento até lá faria
+   * o usuário esperar por algo que já está pronto.
+   */
+  onGenerated: (documento: DocumentoPronto) => void;
   className?: string;
+}
+
+/** A geração crua vira o estado que o painel de resultado consome. */
+function comoDocumento(
+  generation: Extract<GenerationResult, { status: 'success' }>,
+): DocumentoPronto {
+  return {
+    documentType: generation.documentType,
+    title: generation.title,
+    content: generation.content,
+    html: generation.html,
+    documentData: generation.documentData,
+    questions: generation.questions,
+    gaps: generation.gaps,
+    projectName: generation.metadata.projectName,
+  };
 }
 
 export function GenerateDocumentMenu({
@@ -154,6 +177,8 @@ export function GenerateDocumentMenu({
     documentType: DocumentType,
     generation: Extract<GenerationResult, { status: 'success' }>,
     html: string,
+    /** O que voltou de `/api/answers`, quando o usuário respondeu algo. */
+    atualizacao?: Partial<DocumentoPronto>,
   ) => {
     setGenerating({ status: 'loading', documentType, etapa: 'entregando' });
 
@@ -162,6 +187,10 @@ export function GenerateDocumentMenu({
       nomeDoDocumento(source, documentType, generation.metadata.projectName),
       documentType,
     );
+
+    // O painel passa a mostrar para onde o documento foi — e, se houve
+    // respostas, o estado já atualizado por elas.
+    onGenerated({ ...comoDocumento(generation), ...atualizacao, html, entrega });
 
     if (entrega.via === 'docs') {
       abrirDocumento(entrega.url);
@@ -196,9 +225,9 @@ export function GenerateDocumentMenu({
         return;
       }
 
-      // O documento existe. Ele aparece na tela antes da entrega — o servidor
-      // já o produziu, e já custou.
-      onGenerated(generation);
+      // O documento existe. Ele aparece na tela ANTES da entrega — a entrega
+      // leva segundos, e o servidor já produziu (e já cobrou) o texto.
+      onGenerated(comoDocumento(generation));
 
       // Há o que perguntar? Pergunta ANTES de entregar: responder depois
       // geraria uma segunda versão do arquivo no Drive.
@@ -242,11 +271,18 @@ export function GenerateDocumentMenu({
       answers: respostas,
       title: generation.title,
     }).then((resultado) => {
-      void finalizar(
-        documentType,
-        generation,
-        resultado.status === 'success' ? resultado.html : generation.html,
-      );
+      if (resultado.status !== 'success') {
+        // Entrega o documento COMO ESTAVA em vez de perder a geração — as
+        // lacunas continuam marcadas nele, e o painel de resultado deixa
+        // responder de novo.
+        void finalizar(documentType, generation, generation.html);
+        return;
+      }
+      void finalizar(documentType, generation, resultado.html, {
+        documentData: resultado.documentData,
+        questions: resultado.questions,
+        gaps: resultado.gaps,
+      });
     });
   };
 
