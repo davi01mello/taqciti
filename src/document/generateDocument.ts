@@ -17,6 +17,7 @@ import {
 import { transcriptToText } from '@/features/history/export';
 import { criarGoogleDoc, nomeDoArquivo, oauthConfigurado, type GoogleDocResult } from './googleDocs';
 import { baixarComoHtml } from './baixarDocumento';
+import type { Lacuna, Pergunta } from './answers';
 
 export type { GoogleDocResult };
 
@@ -52,6 +53,11 @@ export type GenerationResult =
       content: string;
       html: string;
       metadata: DocumentMetadata;
+      /** O JSON intermediário inteiro, para `POST /api/answers` preencher. */
+      documentData: unknown;
+      /** O que a IA não conseguiu determinar. */
+      questions: Pergunta[];
+      gaps: Lacuna[];
     }
   | { status: 'error'; documentType: DocumentType; message: string };
 
@@ -66,8 +72,22 @@ export type Entrega =
   | { via: 'download'; arquivo: string }
   | { via: 'falhou'; message: string };
 
+/** O nome do arquivo, a partir do que a geração apurou. */
+export function nomeDoDocumento(
+  source: GenerationSource,
+  documentType: DocumentType,
+  projeto: string | undefined,
+): string {
+  return nomeDoArquivo(
+    DOCUMENT_TYPE_LABELS[documentType],
+    projeto,
+    source.title,
+    new Date(source.startedAt),
+  );
+}
+
 /**
- * Gera o documento e o entrega — que é o fluxo que o botão executa.
+ * Entrega o documento pronto.
  *
  * **Qual caminho depende do manifesto, não de configuração no código.** Com
  * cliente OAuth registrado, o documento vai direto para o Google Docs e a aba
@@ -75,53 +95,27 @@ export type Entrega =
  * como autenticar: uma tentativa fadada ao "bad client id" só poria na cara do
  * usuário um erro de configuração que não é problema dele.
  *
- * A entrega NÃO derruba a geração. Se ela falhar, o documento gerado continua
- * sendo devolvido e aparece na tela — perder um documento que o servidor já
- * produziu, e já custou, por causa do passo seguinte seria trocar uma falha
- * parcial por uma total.
+ * Separado da geração de propósito: entre uma e outra entra a etapa de
+ * perguntas, e o HTML entregue pode ser o que voltou COM as respostas.
  */
-export async function gerarEEntregar(
-  source: GenerationSource,
+export async function entregarDocumento(
+  html: string,
+  nome: string,
   documentType: DocumentType,
-  /** Avisa quando a geração termina e a entrega começa. A segunda etapa leva
-   *  segundos, e sem rótulo próprio o botão parece travado. */
-  onEtapa?: (etapa: 'gerando' | 'entregando') => void,
-): Promise<{ generation: GenerationResult; entrega?: Entrega }> {
-  onEtapa?.('gerando');
-  const generation = await requestGeneration(source, documentType);
-  if (generation.status !== 'success') return { generation };
-  onEtapa?.('entregando');
-
-  if (!generation.html) {
-    return {
-      generation,
-      entrega: {
-        via: 'falhou',
-        message: 'O servidor não devolveu o HTML do documento.',
-      },
-    };
+): Promise<Entrega> {
+  if (!html) {
+    return { via: 'falhou', message: 'O servidor não devolveu o HTML do documento.' };
   }
-
-  const nome = nomeDoArquivo(
-    DOCUMENT_TYPE_LABELS[documentType],
-    generation.metadata.projectName,
-    source.title,
-    new Date(source.startedAt),
-  );
 
   if (!oauthConfigurado()) {
-    baixarComoHtml(generation.html, nome);
-    return { generation, entrega: { via: 'download', arquivo: `${nome}.html` } };
+    baixarComoHtml(html, nome);
+    return { via: 'download', arquivo: `${nome}.html` };
   }
 
-  const upload = await criarGoogleDoc({ html: generation.html, documentType, nome });
-  return {
-    generation,
-    entrega:
-      upload.status === 'success'
-        ? { via: 'docs', url: upload.url }
-        : { via: 'falhou', message: upload.message },
-  };
+  const upload = await criarGoogleDoc({ html, documentType, nome });
+  return upload.status === 'success'
+    ? { via: 'docs', url: upload.url }
+    : { via: 'falhou', message: upload.message };
 }
 
 export async function requestGeneration(
@@ -172,6 +166,8 @@ export async function requestGeneration(
       content: string;
       html?: string;
       documentData?: { metadata?: DocumentMetadata };
+      questions?: Pergunta[];
+      gaps?: Lacuna[];
     };
     return {
       status: 'success',
@@ -180,6 +176,9 @@ export async function requestGeneration(
       content: data.content,
       html: data.html ?? '',
       metadata: data.documentData?.metadata ?? {},
+      documentData: data.documentData ?? {},
+      questions: data.questions ?? [],
+      gaps: data.gaps ?? [],
     };
   } catch {
     return {

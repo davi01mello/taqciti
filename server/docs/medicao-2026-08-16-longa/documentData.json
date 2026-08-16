@@ -1,0 +1,384 @@
+{
+    "metadata":  {
+                     "date":  "16/08/2026",
+                     "projectName":  "Atlas"
+                 },
+    "participants":  [
+                         {
+                             "name":  "Rafael",
+                             "role":  "Coordenador de produto",
+                             "roleSource":  "meeting",
+                             "quotes":  [
+                                            {
+                                                "quote":  "Rafael: Boa tarde, pessoal. Vamos começar, já são cinco e pouco. Letícia tá aí?",
+                                                "anchor":  {
+                                                               "start":  61,
+                                                               "end":  140,
+                                                               "exact":  true
+                                                           }
+                                            },
+                                            {
+                                                "quote":  "Letícia: O coordenador de produto.",
+                                                "anchor":  {
+                                                               "start":  6684,
+                                                               "end":  6718,
+                                                               "exact":  true
+                                                           }
+                                            },
+                                            {
+                                                "quote":  "Rafael: Exatamente, coordenador. Não garçom.",
+                                                "anchor":  {
+                                                               "start":  6720,
+                                                               "end":  6764,
+                                                               "exact":  true
+                                                           }
+                                            }
+                                        ]
+                         },
+                         {
+                             "name":  "Letícia",
+                             "roleSource":  "unknown",
+                             "quotes":  [
+                                            {
+                                                "quote":  "Letícia: Tô, tô. Só um segundo que meu microfone tava mudo.",
+                                                "anchor":  {
+                                                               "start":  142,
+                                                               "end":  201,
+                                                               "exact":  true
+                                                           }
+                                            }
+                                        ]
+                         },
+                         {
+                             "name":  "Bruno",
+                             "roleSource":  "unknown",
+                             "quotes":  [
+                                            {
+                                                "quote":  "Bruno: Vi por cima. Depois eu comento.",
+                                                "anchor":  {
+                                                               "start":  287,
+                                                               "end":  325,
+                                                               "exact":  true
+                                                           }
+                                            }
+                                        ]
+                         },
+                         {
+                             "name":  "Sandra",
+                             "roleSource":  "unknown",
+                             "quotes":  [
+                                            {
+                                                "quote":  "Sandra: Tô aqui, oi gente.",
+                                                "anchor":  {
+                                                               "start":  708,
+                                                               "end":  734,
+                                                               "exact":  true
+                                                           }
+                                            }
+                                        ]
+                         },
+                         {
+                             "name":  "Diego",
+                             "roleSource":  "unknown",
+                             "quotes":  [
+                                            {
+                                                "quote":  "Diego: Oi? Desculpa, entrei atrasado.",
+                                                "anchor":  {
+                                                               "start":  10826,
+                                                               "end":  10863,
+                                                               "exact":  true
+                                                           }
+                                            }
+                                        ]
+                         }
+                     ],
+    "topicsDiscussed":  [
+                            {
+                                "title":  "Adiamento do Go-live do Projeto Atlas",
+                                "summary":  "Discussão sobre o adiamento do go-live do Projeto Atlas. Letícia informou que, embora a migração do core esteja noventa por cento concluída, o módulo de faturamento apresenta regras de negócio antigas e não documentadas que demandam mais tempo. Para evitar os riscos de subir um sistema instável, a equipe concordou em adiar a data de lançamento em duas semanas, movendo-a de dez de setembro para vinte e quatro de setembro.",
+                                "quotes":  [
+                                               {
+                                                   "quote":  "A migração do core tá noventa por cento. O que falta é o módulo de faturamento, que é justamente o mais chato.",
+                                                   "anchor":  {
+                                                                  "start":  820,
+                                                                  "end":  930,
+                                                                  "exact":  true
+                                                              }
+                                               },
+                                               {
+                                                   "quote":  "o go-live tá marcado pro dia dez de setembro. Eu acho que não dá.",
+                                                   "anchor":  {
+                                                                  "start":  1377,
+                                                                  "end":  1442,
+                                                                  "exact":  true
+                                                              }
+                                               },
+                                               {
+                                                   "quote":  "a gente adia o go-live do dia dez de setembro pro dia vinte e quatro de setembro.",
+                                                   "anchor":  {
+                                                                  "start":  2507,
+                                                                  "end":  2588,
+                                                                  "exact":  true
+                                                              }
+                                               },
+                                               {
+                                                   "quote":  "Então tá decidido, go-live dia vinte e quatro de setembro.",
+                                                   "anchor":  {
+                                                                  "start":  2724,
+                                                                  "end":  2782,
+                                                                  "exact":  true
+                                                              }
+                                               }
+                                           ]
+                            }
+                        ],
+    "decisions":  [
+                      {
+                          "text":  "Adiar o go-live do Projeto Atlas do dia 10 de setembro para o dia 24 de setembro.",
+                          "agreement":  {
+                                            "quote":  "Por mim tá ótimo. Vinte e quatro dá.",
+                                            "anchor":  {
+                                                           "start":  2620,
+                                                           "end":  2656,
+                                                           "exact":  true
+                                                       }
+                                        },
+                          "confidence":  "high",
+                          "quotes":  [
+                                         {
+                                             "quote":  "a gente adia o go-live do dia dez de setembro pro dia vinte e quatro de setembro. Duas semanas exatas.",
+                                             "anchor":  {
+                                                            "start":  2507,
+                                                            "end":  2609,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Por mim tá ótimo. Vinte e quatro dá.",
+                                             "anchor":  {
+                                                            "start":  2620,
+                                                            "end":  2656,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Fechado.",
+                                             "anchor":  {
+                                                            "start":  2665,
+                                                            "end":  2673,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Então tá decidido, go-live dia vinte e quatro de setembro.",
+                                             "anchor":  {
+                                                            "start":  2724,
+                                                            "end":  2782,
+                                                            "exact":  true
+                                                        }
+                                         }
+                                     ]
+                      },
+                      {
+                          "text":  "Cancelar a contratação de estagiários no momento, postergando a reavaliação do tema para outubro.",
+                          "agreement":  {
+                                            "quote":  "Perfeito.",
+                                            "anchor":  {
+                                                           "start":  5862,
+                                                           "end":  5871,
+                                                           "exact":  true
+                                                       }
+                                        },
+                          "confidence":  "high",
+                          "quotes":  [
+                                         {
+                                             "quote":  "Então tá. Vamos voltar atrás. A gente não contrata estagiário agora.",
+                                             "anchor":  {
+                                                            "start":  5604,
+                                                            "end":  5672,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "A gente reabre isso depois do go-live, em outubro.",
+                                             "anchor":  {
+                                                            "start":  5702,
+                                                            "end":  5752,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Melhor assim mesmo.",
+                                             "anchor":  {
+                                                            "start":  5761,
+                                                            "end":  5780,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Então fica decidido: não contrata agora, revisita em outubro.",
+                                             "anchor":  {
+                                                            "start":  5790,
+                                                            "end":  5851,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Perfeito.",
+                                             "anchor":  {
+                                                            "start":  5862,
+                                                            "end":  5871,
+                                                            "exact":  true
+                                                        }
+                                         }
+                                     ]
+                      },
+                      {
+                          "text":  "Configurar e subir o sistema de monitoramento até quarta-feira.",
+                          "agreement":  {
+                                            "quote":  "Pode deixar. Quarta tá tranquilo.",
+                                            "anchor":  {
+                                                           "start":  6404,
+                                                           "end":  6437,
+                                                           "exact":  true
+                                                       }
+                                        },
+                          "confidence":  "high",
+                          "quotes":  [
+                                         {
+                                             "quote":  "Bruno, sobe o monitoramento até quarta.",
+                                             "anchor":  {
+                                                            "start":  6356,
+                                                            "end":  6395,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Pode deixar. Quarta tá tranquilo.",
+                                             "anchor":  {
+                                                            "start":  6404,
+                                                            "end":  6437,
+                                                            "exact":  true
+                                                        }
+                                         }
+                                     ]
+                      },
+                      {
+                          "text":  "Manter o tema escuro fora do escopo do go-live.",
+                          "agreement":  {
+                                            "quote":  "Fechado.",
+                                            "anchor":  {
+                                                           "start":  12138,
+                                                           "end":  12146,
+                                                           "exact":  true
+                                                       }
+                                        },
+                          "confidence":  "high",
+                          "quotes":  [
+                                         {
+                                             "quote":  "Então tá. Tema escuro fica fora do escopo do go-live.",
+                                             "anchor":  {
+                                                            "start":  12076,
+                                                            "end":  12129,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Fechado.",
+                                             "anchor":  {
+                                                            "start":  12138,
+                                                            "end":  12146,
+                                                            "exact":  true
+                                                        }
+                                         }
+                                     ]
+                      },
+                      {
+                          "text":  "Dividir a atividade de code review entre Letícia e Bruno a partir do dia seguinte.",
+                          "agreement":  {
+                                            "quote":  "Fechado.",
+                                            "anchor":  {
+                                                           "start":  12795,
+                                                           "end":  12803,
+                                                           "exact":  true
+                                                       }
+                                        },
+                          "confidence":  "high",
+                          "quotes":  [
+                                         {
+                                             "quote":  "Bruno, você topa dividir o review comigo?",
+                                             "anchor":  {
+                                                            "start":  12680,
+                                                            "end":  12721,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Topo.",
+                                             "anchor":  {
+                                                            "start":  12730,
+                                                            "end":  12735,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Então a partir de amanhã a gente divide.",
+                                             "anchor":  {
+                                                            "start":  12746,
+                                                            "end":  12786,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Fechado.",
+                                             "anchor":  {
+                                                            "start":  12795,
+                                                            "end":  12803,
+                                                            "exact":  true
+                                                        }
+                                         }
+                                     ]
+                      },
+                      {
+                          "text":  "Enviar a planilha com o mapeamento dos casos de borda do faturamento no mesmo dia.",
+                          "agreement":  {
+                                            "quote":  "Mando hoje.",
+                                            "anchor":  {
+                                                           "start":  13556,
+                                                           "end":  13567,
+                                                           "exact":  true
+                                                       }
+                                        },
+                          "confidence":  "high",
+                          "quotes":  [
+                                         {
+                                             "quote":  "Numa planilha. Eu mando.",
+                                             "anchor":  {
+                                                            "start":  9633,
+                                                            "end":  9657,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Manda pra todo mundo.",
+                                             "anchor":  {
+                                                            "start":  9667,
+                                                            "end":  9688,
+                                                            "exact":  true
+                                                        }
+                                         },
+                                         {
+                                             "quote":  "Mando hoje.",
+                                             "anchor":  {
+                                                            "start":  9697,
+                                                            "end":  9708,
+                                                            "exact":  true
+                                                        }
+                                         }
+                                     ]
+                      }
+                  ],
+    "conclusion":  {
+                       "text":  "O Projeto Atlas avança na consolidação das complexas regras do módulo de faturamento, tendo o seu go-live estrategicamente postergado para 24 de setembro para garantir a estabilidade do sistema. Visando otimizar a velocidade de entrega e reduzir gargalos na reta final, a equipe reestruturou o fluxo de code review e delimitou rigorosamente o escopo, adiando novas contratações e demandas estéticas secundárias. O foco imediato do time está direcionado para a ativação do monitoramento em produção e para o mapeamento dos casos de borda do faturamento, enquanto tópicos como a análise de conformidade de dados com a LGPD, a resolução de divergências em testes de carga e a expansão do ambiente de homologação permanecem na agenda para definição pós-lançamento."
+                   }
+}

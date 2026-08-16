@@ -48,8 +48,11 @@ export interface GenerateDocumentResult {
   /** O mesmo documento em HTML, no subconjunto que o import do Google Docs
    *  aceita (Drive API `files.create`). */
   html: string;
-  /** O que ficou por preencher, para quando a UI de perguntas existir. */
+  /** O que ficou por preencher, para a UI de perguntas. */
   questions: Question[];
+  /** As mesmas lacunas com o campo que cada uma ocupa. `POST /api/answers`
+   *  precisa delas para saber o que preencher e o que sobrou. */
+  gaps: Gap[];
 }
 
 export async function generateDocument(
@@ -90,5 +93,5 @@ export async function generateDocument(
   // do PDF poderia chegar ao cliente. A guarda vale para os dois.
   assertSemVazamento(html, 'o HTML do documento');
 
-  return { title, content, documentData, html, questions };
+  return { title, content, documentData, html, questions, gaps };
 }

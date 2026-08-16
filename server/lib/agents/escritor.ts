@@ -116,6 +116,26 @@ export async function escrever(input: EscreverInput): Promise<EscreverResult> {
     return { section: null, lacunasAcrescentadas: [], usage: zeroUsage() };
   }
 
+  // Seção de pura estrutura: montada em CÓDIGO, sem chamar modelo.
+  //
+  // Corta um terço das chamadas do Escritor e, junto, a chance de o modelo
+  // perder um participante ou trocar um acento numa lista de nomes — que é
+  // exatamente o tipo de erro que ninguém confere numa ata.
+  if (spec.renderPlain) {
+    const texto = spec.renderPlain(input.data, input.section.id, input.gaps);
+    assertSemVazamento(texto, `a seção "${input.section.title}"`);
+    return {
+      section: {
+        id: input.section.id,
+        title: input.section.title,
+        content: texto,
+        confidence: confidenceFor(input.section, dados, input.gaps),
+      },
+      lacunasAcrescentadas: [],
+      usage: zeroUsage(),
+    };
+  }
+
   const system = renderPrompt('escritor', input.promptVersion ?? 'v1');
 
   // Cresce por acréscimo, então o prefixo da seção k contém o da k-1 — é o

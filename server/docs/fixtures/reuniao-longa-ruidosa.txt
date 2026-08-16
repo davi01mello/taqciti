@@ -1,0 +1,617 @@
+Reunião de planejamento — Projeto Atlas — 16/08/2026, 14h05
+
+Rafael: Boa tarde, pessoal. Vamos começar, já são cinco e pouco. Letícia tá aí?
+
+Letícia: Tô, tô. Só um segundo que meu microfone tava mudo.
+
+Rafael: Tranquilo. Enquanto isso, Bruno, você conseguiu ver aquele negócio do log?
+
+Bruno: Vi por cima. Depois eu comento.
+
+Rafael: Beleza. Então, gente, a pauta de hoje. Eu mandei por e-mail mas ninguém leu, né.
+
+Letícia: Eu li.
+
+Bruno: Eu abri.
+
+Rafael: Abrir não conta, Bruno.
+
+Bruno: [risos] Justo.
+
+Rafael: Ó, três coisas. Primeiro, o go-live do Atlas. Segundo, o time, que a gente precisa falar sobre contratação. E terceiro, o orçamento do trimestre, que a Sandra vai entrar pra falar. Sandra tá?
+
+Sandra: Tô aqui, oi gente.
+
+Rafael: Ótimo. Então vamos do começo. Letícia, como tá a migração?
+
+Letícia: Então. A migração do core tá noventa por cento. O que falta é o módulo de faturamento, que é justamente o mais chato.
+
+Rafael: Chato por quê?
+
+Letícia: Porque ele tem umas regras de negócio que ninguém documentou. Tem coisa lá de dois mil e dezenove que a gente só descobre quando quebra.
+
+Bruno: É verdade. Semana passada eu achei um if que checava se o CNPJ começava com três. Ninguém sabe por quê.
+
+Rafael: Sério?
+
+Bruno: Sério. Tá lá até hoje. Eu não mexi porque tenho medo.
+
+Letícia: Faz bem.
+
+Rafael: Tá, mas em prazo, como fica?
+
+Letícia: Em prazo... olha, o go-live tá marcado pro dia dez de setembro. Eu acho que não dá.
+
+Rafael: Não dá por quanto?
+
+Letícia: Umas duas semanas, no mínimo.
+
+Rafael: Duas semanas é muito, Letícia.
+
+Letícia: Eu sei que é muito. Mas se a gente subir no dia dez, sobe com o faturamento pela metade, e aí é pior.
+
+Bruno: Concordo com ela. Subir quebrado é pior.
+
+Rafael: Hmm.
+
+Sandra: Posso falar uma coisa? Do lado financeiro, mudar a data tem impacto. A gente tinha previsto o início do faturamento novo em setembro.
+
+Rafael: Impacto de quanto?
+
+Sandra: Não sei de cabeça. Eu levanto.
+
+Rafael: Levanta e me manda.
+
+Sandra: Mando.
+
+Letícia: Mas Rafa, olha, o impacto de subir errado é maior. Se o faturamento gerar boleto errado a gente vai ter que estornar, vai ter cliente ligando...
+
+Rafael: Não, eu entendi. Eu só queria ter o número.
+
+Bruno: [inaudível] ... isso já aconteceu no Órion.
+
+Rafael: O quê, Bruno? Cortou.
+
+Bruno: Eu falei que isso já aconteceu no projeto Órion. A gente subiu na marra e depois passou três semanas consertando.
+
+Rafael: Ah é, verdade. Aquilo foi feio.
+
+Letícia: Foi horrível.
+
+Rafael: Tá bom. Então eu proponho o seguinte: a gente adia o go-live do dia dez de setembro pro dia vinte e quatro de setembro. Duas semanas exatas.
+
+Letícia: Por mim tá ótimo. Vinte e quatro dá.
+
+Bruno: Fechado.
+
+Sandra: Tudo bem, eu ajusto a projeção.
+
+Rafael: Então tá decidido, go-live dia vinte e quatro de setembro.
+
+Letícia: Beleza.
+
+Rafael: Eu aviso o cliente hoje ainda.
+
+Sandra: Ah, aproveita e fala do orçamento com eles.
+
+Rafael: Falo, mas isso é outro assunto, deixa pro final.
+
+Sandra: Tá.
+
+Rafael: Próximo ponto. Time.
+
+Letícia: Ah, esse é o meu tema favorito.
+
+Rafael: [risos] Eu sei. Então, a gente tá com três pessoas no Atlas e claramente é pouco.
+
+Letícia: É muito pouco. Eu tô fazendo code review de tudo, tô fazendo arquitetura, tô fazendo call com cliente. Não dá.
+
+Bruno: E eu tô sozinho no backend desde que o Márcio saiu.
+
+Rafael: Pois é. Eu conversei com o RH e tem verba pra dois estagiários.
+
+Letícia: Estagiário?
+
+Rafael: É.
+
+Letícia: Rafa, estagiário não resolve o meu problema. Estagiário aumenta meu problema, porque eu vou ter que ensinar.
+
+Bruno: Também acho.
+
+Rafael: Mas é o que tem. Pleno a gente não tem verba.
+
+Letícia: Então é melhor não ter ninguém.
+
+Rafael: Não, não é melhor não ter ninguém.
+
+Letícia: É sim.
+
+Rafael: Olha, vamos fazer o seguinte, a gente contrata os dois estagiários e vê como fica. Se não der certo, a gente reavalia.
+
+Letícia: [suspiro] Tá.
+
+Bruno: Tá.
+
+Rafael: Então fechado, dois estagiários. Eu abro a vaga essa semana.
+
+Letícia: Tá bom.
+
+Rafael: Próximo. Ah não, espera. Sandra, você ia falar do orçamento.
+
+Sandra: Ia. Posso agora?
+
+Rafael: Pode.
+
+Sandra: Então. O orçamento do trimestre pro Atlas é de oitenta mil.
+
+Rafael: Oitenta?
+
+Sandra: Oitenta.
+
+Rafael: Isso não bate com o que eu vi na planilha.
+
+Sandra: Deixa eu ver aqui... ah não, desculpa. Cento e oitenta mil. Eu falei errado, é cento e oitenta.
+
+Rafael: Ah, bom. Cento e oitenta faz sentido.
+
+Sandra: Cento e oitenta mil, sendo que setenta já foi comprometido com licença de software.
+
+Bruno: Setenta em licença? De quê?
+
+Sandra: Deixa eu ver... banco de dados, a ferramenta de observabilidade, e o Figma.
+
+Bruno: O Figma custa isso tudo?
+
+Sandra: Não, o Figma é pouco. A maior parte é banco.
+
+Letícia: Faz sentido, a gente tá pagando o cluster inteiro.
+
+Rafael: Tá. Então sobra cento e dez.
+
+Sandra: Sobra cento e dez.
+
+Rafael: E os estagiários entram nesses cento e dez?
+
+Sandra: Não, estagiário é outra rubrica. Vem de pessoal.
+
+Rafael: Ah, ok.
+
+Letícia: Rafa, posso voltar num assunto?
+
+Rafael: Pode.
+
+Letícia: Sobre os estagiários. Eu pensei melhor e eu realmente acho que é um erro.
+
+Rafael: Por quê?
+
+Letícia: Porque a gente tá com go-live em cinco semanas. Colocar duas pessoas novas agora, no meio da reta final, vai me custar mais tempo do que vai me poupar. Eu não vou conseguir dar atenção pra eles e pro faturamento ao mesmo tempo.
+
+Bruno: Eu concordo com ela agora que ela falou assim.
+
+Rafael: Hmm. É um ponto.
+
+Letícia: Se fosse depois do go-live, ótimo. Agora, não.
+
+Rafael: Sandra, a verba de estágio é do trimestre ou dá pra segurar?
+
+Sandra: Dá pra segurar pro próximo. Não perde.
+
+Rafael: Então tá. Vamos voltar atrás. A gente não contrata estagiário agora.
+
+Letícia: Obrigada.
+
+Rafael: A gente reabre isso depois do go-live, em outubro.
+
+Bruno: Melhor assim mesmo.
+
+Rafael: Então fica decidido: não contrata agora, revisita em outubro.
+
+Letícia: Perfeito.
+
+Rafael: Eu cancelo a abertura da vaga então.
+
+Sandra: E eu não mexo na rubrica.
+
+Rafael: Isso.
+
+Bruno: Rafa, e o monitoramento?
+
+Rafael: Ah, é. Fala.
+
+Bruno: A gente tá cego em produção. Se cair, a gente descobre pelo cliente.
+
+Letícia: Isso é verdade e é vergonhoso.
+
+Bruno: A ferramenta já tá paga, como a Sandra falou. Só não tá configurada.
+
+Rafael: Por que não tá configurada?
+
+Bruno: Porque ninguém teve tempo.
+
+Rafael: Quanto tempo leva?
+
+Bruno: Um dia. Talvez dois.
+
+Rafael: Bruno, sobe o monitoramento até quarta.
+
+Bruno: Pode deixar. Quarta tá tranquilo.
+
+Rafael: Ótimo.
+
+Letícia: Isso aí já resolve metade da minha ansiedade.
+
+Rafael: [risos] Boa.
+
+Rafael: Alguém quer café? Eu vou pegar. Volto em dois minutos.
+
+Letícia: Traz pra mim.
+
+Bruno: Pra mim também.
+
+Rafael: Vocês acham que eu sou o quê?
+
+Letícia: O coordenador de produto.
+
+Rafael: Exatamente, coordenador. Não garçom.
+
+Bruno: [risos]
+
+[pausa]
+
+Rafael: Voltei. Cadê a Sandra?
+
+Letícia: Ela saiu, disse que tinha outra call.
+
+Rafael: Ah, tá. Ela já falou o que precisava mesmo.
+
+Letícia: Falou.
+
+Rafael: Ó, tem uma coisa que eu queria discutir que não tava na pauta.
+
+Letícia: Fala.
+
+Rafael: Infraestrutura. A gente tá rodando em máquina virtual, do jeito antigo.
+
+Letícia: Tá.
+
+Rafael: Eu andei conversando com o pessoal do Órion e eles migraram pra cubernetes e falam maravilhas.
+
+Letícia: Kubernetes.
+
+Rafael: É isso que eu falei.
+
+Letícia: Você falou cubernetes.
+
+Rafael: Tanto faz. Enfim, vale a pena?
+
+Letícia: Olha... vale e não vale. Kubernetes resolve problema de escala. A gente não tem problema de escala.
+
+Bruno: A gente tem problema de deploy.
+
+Letícia: Isso a gente resolve com pipeline melhor, não precisa de Kubernetes.
+
+Bruno: Também acho. O nosso diploi hoje é um script de bash de dois mil e vinte.
+
+Rafael: Sério que ainda é bash?
+
+Bruno: É bash. Com sudo.
+
+Letícia: Não fala isso em voz alta.
+
+Rafael: [risos]
+
+Rafael: Mas então, Kubernetes não?
+
+Letícia: Eu não diria não. Eu diria não agora. É um projeto grande, e a gente tem go-live em cinco semanas.
+
+Bruno: Concordo.
+
+Rafael: Tá, mas fica no radar?
+
+Letícia: Fica no radar.
+
+Rafael: Beleza. Vamos deixar como possibilidade pro ano que vem.
+
+Letícia: Isso.
+
+Bruno: Ah, sobre escala. Rafa, você lembra daquele teste de carga?
+
+Rafael: Lembro vagamente.
+
+Bruno: Então, eu rodei semana passada. O banco aguenta duzentas requisições por segundo antes de começar a engasgar.
+
+Letícia: Duzentas? Não, o banco aguenta quinhentas.
+
+Bruno: Não aguenta, não.
+
+Letícia: Aguenta sim, eu vi o dashboard.
+
+Bruno: Você viu o dashboard de qual ambiente?
+
+Letícia: Do de produção.
+
+Bruno: Eu rodei em homologação, que tem metade da máquina.
+
+Letícia: Ah, então não é comparável.
+
+Bruno: Talvez não.
+
+Letícia: Mas mesmo dobrando, dá quatrocentas, não quinhentas.
+
+Bruno: Pois é. Alguma coisa tá errada numa das duas medições.
+
+Rafael: E qual é a certa?
+
+Bruno: Não sei.
+
+Letícia: Também não sei.
+
+Rafael: Vocês precisam descobrir isso.
+
+Letícia: A gente descobre.
+
+Bruno: Depois do go-live.
+
+Letícia: Depois do go-live.
+
+Rafael: Tá bom, mas não esquece.
+
+Bruno: Não esqueço.
+
+Rafael: Ó, mudando de assunto. Alguém viu o jogo ontem?
+
+Bruno: Vi. Foi um roubo.
+
+Letícia: Eu não vejo futebol.
+
+Bruno: O pênalti não existiu, Letícia.
+
+Letícia: Eu acredito em você.
+
+Rafael: Foi pênalti sim.
+
+Bruno: Não foi!
+
+Rafael: Foi.
+
+Letícia: Gente, foco.
+
+Rafael: Verdade, desculpa. Voltando.
+
+Rafael: Letícia, sobre o faturamento. Você falou que falta o módulo. O que exatamente falta?
+
+Letícia: Falta a regra de proporcionalidade quando o cliente troca de plano no meio do mês.
+
+Rafael: E isso é difícil?
+
+Letícia: Não é difícil, é chato. Tem uns dez casos de borda.
+
+Bruno: Onze.
+
+Letícia: Onze, o Bruno mapeou.
+
+Rafael: Mapeou onde?
+
+Bruno: Numa planilha. Eu mando.
+
+Rafael: Manda pra todo mundo.
+
+Bruno: Mando hoje.
+
+Rafael: Ótimo.
+
+Letícia: Rafa, uma dúvida. Sobre LGPD. A gente vai guardar log de acesso ao faturamento?
+
+Rafael: Hmm.
+
+Letícia: Porque se guardar, tem retenção, tem...
+
+Rafael: É, tem. Deixa eu ver isso.
+
+Letícia: Tá.
+
+Rafael: Bom, e sobre o cliente. Eu vou falar com eles hoje sobre o adiamento.
+
+Bruno: Eles vão aceitar?
+
+Rafael: Acho que sim. O Marcelo é razoável.
+
+Letícia: O Marcelo é o quê mesmo? Diretor?
+
+Rafael: Ele é o gerente de operações lá.
+
+Letícia: Ah, tá.
+
+Rafael: Ele já sabe que tá apertado. Eu já tinha sinalizado.
+
+Bruno: Melhor assim.
+
+Rafael: Ó, e tem outra coisa. A gente precisa de um ambiente de homologação de verdade.
+
+Bruno: A gente tem homologação.
+
+Rafael: Tem, mas é meia máquina, como você falou.
+
+Bruno: É.
+
+Rafael: Isso não deveria ser assim.
+
+Letícia: Concordo, mas custa dinheiro.
+
+Rafael: Custa quanto?
+
+Letícia: Não sei. Uns três mil por mês? Bruno?
+
+Bruno: Por aí.
+
+Rafael: Três mil por mês nos cento e dez que sobraram... dá.
+
+Letícia: Dá, mas a Sandra saiu, então a gente não fecha isso hoje.
+
+Rafael: Verdade. Fica pra próxima.
+
+Bruno: Anota aí.
+
+Rafael: Anotei.
+
+[ruído]
+
+Diego: Oi? Desculpa, entrei atrasado.
+
+Rafael: Diego! Achei que você não vinha.
+
+Diego: Eu tava numa outra call que estourou.
+
+Rafael: Tranquilo. A gente já falou de go-live e de time.
+
+Diego: Ah, e ficou o quê?
+
+Rafael: Go-live vinte e quatro de setembro, e estagiário fica pra outubro.
+
+Diego: Ah, legal. Eu ia falar contra o estagiário mesmo.
+
+Letícia: Você chegou tarde e já concordou comigo, gostei.
+
+Diego: [risos]
+
+Rafael: Diego, você ia falar do design, né?
+
+Diego: Ia. É rápido.
+
+Rafael: Fala.
+
+Diego: A tela de faturamento tá pronta no Figma. Eu mandei ontem à noite.
+
+Letícia: Eu vi. Ficou boa.
+
+Diego: Tem uma coisa que eu queria confirmar. O cliente pediu pra ter um resumo no topo, com o total do mês. Isso dá?
+
+Letícia: Dá. É só uma soma.
+
+Diego: Então eu deixo.
+
+Letícia: Deixa.
+
+Rafael: Ótimo.
+
+Diego: E tem a questão do tema escuro.
+
+Rafael: Tema escuro?
+
+Diego: O cliente pediu.
+
+Rafael: Pediu pra quem?
+
+Diego: Pra mim, num call.
+
+Rafael: Diego, isso não passou por mim.
+
+Diego: Eu ia falar hoje.
+
+Rafael: Tá, mas ó, tema escuro agora não.
+
+Diego: Tá.
+
+Rafael: Não é não pra sempre. É não agora.
+
+Diego: Entendi.
+
+Letícia: A gente nem tem design system, fazer tema escuro sem design system é sofrimento.
+
+Diego: Verdade.
+
+Rafael: Então tá. Tema escuro fica fora do escopo do go-live.
+
+Diego: Fechado.
+
+Letícia: Isso precisa estar escrito em algum lugar, senão daqui a duas semanas alguém pergunta.
+
+Rafael: Vai estar na ata.
+
+Letícia: Ótimo.
+
+Rafael: Mais alguma coisa?
+
+Bruno: Do meu lado não.
+
+Letícia: Eu tenho uma. Sobre o code review.
+
+Rafael: Fala.
+
+Letícia: Eu tô sendo gargalo. Tudo passa por mim.
+
+Rafael: E qual a proposta?
+
+Letícia: Que o Bruno também possa aprovar.
+
+Bruno: Eu posso.
+
+Rafael: Tem algum problema nisso?
+
+Letícia: Do lado técnico não. É só uma questão de a gente combinar.
+
+Rafael: Então combina.
+
+Letícia: Bruno, você topa dividir o review comigo?
+
+Bruno: Topo.
+
+Letícia: Então a partir de amanhã a gente divide.
+
+Bruno: Fechado.
+
+Rafael: Ótimo, isso destrava bastante.
+
+Diego: Posso pedir uma coisa?
+
+Rafael: Pode.
+
+Diego: Quando mudar tela, me avisa antes de mergear. Semana passada mudaram um espaçamento e eu descobri em produção.
+
+Letícia: Isso foi eu, desculpa.
+
+Diego: Sem problema, só avisa.
+
+Letícia: Aviso.
+
+Rafael: Bom. Então recapitulando o que a gente fechou hoje.
+
+Rafael: Um, go-live adiado do dia dez pro dia vinte e quatro de setembro.
+
+Rafael: Dois, estagiário não entra agora, volta em outubro.
+
+Rafael: Três, Bruno sobe o monitoramento até quarta.
+
+Rafael: Quatro, tema escuro fora do escopo do go-live.
+
+Rafael: Cinco, Bruno e Letícia dividem code review a partir de amanhã.
+
+Letícia: E o Bruno manda a planilha dos casos de borda.
+
+Rafael: Isso, seis.
+
+Bruno: Mando hoje.
+
+Rafael: E ficou em aberto: o ambiente de homologação, que depende da Sandra, e a divergência do teste de carga.
+
+Letícia: E a LGPD.
+
+Rafael: E a LGPD, que eu vou ver.
+
+Letícia: Tá.
+
+Rafael: Alguém discorda de alguma coisa?
+
+Bruno: Não.
+
+Letícia: Não.
+
+Diego: Não.
+
+Rafael: Então tá. Obrigado, gente. Semana que vem mesma hora.
+
+Letícia: Falou.
+
+Bruno: Valeu.
+
+Diego: Tchau.

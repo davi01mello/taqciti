@@ -67,29 +67,33 @@ describe('omitWhenEmpty', () => {
   });
 });
 
-describe('lacunas', () => {
-  it('o marcador que o modelo escreveu é preservado, sem duplicar', async () => {
-    complete.mockResolvedValueOnce(
-      reply(`## Participantes e cargos\n\n- Maria — Gerente de Dados\n- João — ${marcadorDeLacuna(lacunaDoJoao)}`),
-    );
+/** Uma lacuna numa seção de PROSA, que é a que passa pelo modelo. */
+const lacunaDaDecisao: Gap = {
+  sectionId: 'decisoes',
+  field: 'decisions[0]',
+  question: 'A afirmação X deve constar na ata?',
+  why: 'Rejeitada duas vezes.',
+};
 
-    const result = await escrever({
-      section: secao('participantes'),
-      data: participantes,
-      gaps: [lacunaDoJoao],
-      completed: [],
+describe('seções de pura estrutura não gastam chamada', () => {
+  // Corta um terço das chamadas do Escritor e, junto, a chance de o modelo
+  // perder um participante ou trocar um acento numa lista de nomes.
+  for (const id of ['identificacao', 'participantes', 'assinatura']) {
+    it(`${id} é montada em código`, async () => {
+      const result = await escrever({
+        section: secao(id),
+        data: participantes,
+        gaps: [],
+        completed: [],
+      });
+
+      expect(complete).not.toHaveBeenCalled();
+      expect(result.section!.content).toContain(`## ${secao(id).title}`);
+      expect(result.usage.inputTokens).toBe(0);
     });
+  }
 
-    const ocorrencias = result.section!.content.split(marcadorDeLacuna(lacunaDoJoao)).length - 1;
-    expect(ocorrencias).toBe(1);
-    expect(result.lacunasAcrescentadas).toEqual([]);
-  });
-
-  it('lacuna que o modelo esqueceu é acrescentada pelo código', async () => {
-    // Sem isto a ata sairia parecendo completa, com o cargo do João
-    // simplesmente ausente em vez de marcado como pendente.
-    complete.mockResolvedValueOnce(reply('## Participantes e cargos\n\n- Maria — Gerente de Dados\n- João'));
-
+  it('a lacuna aparece mesmo sem modelo nenhum', async () => {
     const result = await escrever({
       section: secao('participantes'),
       data: participantes,
@@ -98,7 +102,56 @@ describe('lacunas', () => {
     });
 
     expect(result.section!.content).toContain(marcadorDeLacuna(lacunaDoJoao));
-    expect(result.lacunasAcrescentadas).toEqual([lacunaDoJoao]);
+    expect(complete).not.toHaveBeenCalled();
+  });
+
+  it('o participante sai com o nome EXATO que o Pensante apurou', async () => {
+    // É o ganho de qualidade da rota sem modelo: nome de gente não passa por
+    // reescrita.
+    const result = await escrever({
+      section: secao('participantes'),
+      data: participantes,
+      gaps: [],
+      completed: [],
+    });
+
+    expect(result.section!.content).toContain('Maria');
+    expect(result.section!.content).toContain('João');
+  });
+});
+
+describe('lacunas nas seções de prosa', () => {
+  it('o marcador que o modelo escreveu é preservado, sem duplicar', async () => {
+    complete.mockResolvedValueOnce(
+      reply(`## Decisões tomadas\n\n- Adiar a entrega\n- ${marcadorDeLacuna(lacunaDaDecisao)}`),
+    );
+
+    const result = await escrever({
+      section: secao('decisoes'),
+      data: {},
+      gaps: [lacunaDaDecisao],
+      completed: [],
+    });
+
+    const ocorrencias = result.section!.content.split(marcadorDeLacuna(lacunaDaDecisao)).length - 1;
+    expect(ocorrencias).toBe(1);
+    expect(result.lacunasAcrescentadas).toEqual([]);
+  });
+
+  it('lacuna que o modelo esqueceu é acrescentada pelo código', async () => {
+    // Sem isto a ata sairia parecendo completa, com a pendência simplesmente
+    // ausente em vez de marcada.
+    complete.mockResolvedValueOnce(reply('## Decisões tomadas\n\n- Adiar a entrega'));
+
+    const result = await escrever({
+      section: secao('decisoes'),
+      data: {},
+      gaps: [lacunaDaDecisao],
+      completed: [],
+    });
+
+    expect(result.section!.content).toContain(marcadorDeLacuna(lacunaDaDecisao));
+    expect(result.lacunasAcrescentadas).toEqual([lacunaDaDecisao]);
   });
 
   it('o marcador cita a pergunta que vai para o usuário, não um texto genérico', async () => {
@@ -109,14 +162,14 @@ describe('lacunas', () => {
     complete.mockResolvedValueOnce(reply(''));
 
     const result = await escrever({
-      section: secao('participantes'),
-      data: participantes,
-      gaps: [lacunaDoJoao],
+      section: secao('decisoes'),
+      data: {},
+      gaps: [lacunaDaDecisao],
       completed: [],
     });
 
-    expect(result.section!.content).toContain('## Participantes e cargos');
-    expect(result.section!.content).toContain(marcadorDeLacuna(lacunaDoJoao));
+    expect(result.section!.content).toContain('## Decisões tomadas');
+    expect(result.section!.content).toContain(marcadorDeLacuna(lacunaDaDecisao));
   });
 });
 
@@ -174,14 +227,18 @@ describe('confidence', () => {
 });
 
 describe('o que o Escritor recebe', () => {
+  const comTopicos = {
+    topicsDiscussed: [{ title: 'Integração', summary: 'A API travou.', quotes: [] }],
+  };
+
   it('NÃO recebe a transcrição', async () => {
     // O que entra no documento já foi decidido e conferido. Dar a transcrição
     // ao Escritor abriria uma segunda porta para informação não auditada.
-    complete.mockResolvedValueOnce(reply('## Participantes e cargos\n\n- Maria'));
+    complete.mockResolvedValueOnce(reply('## Tópicos discutidos\n\n1. Integração'));
 
     await escrever({
-      section: secao('participantes'),
-      data: participantes,
+      section: secao('topicos_discutidos'),
+      data: comTopicos,
       gaps: [],
       completed: [],
     });
@@ -198,11 +255,11 @@ describe('o que o Escritor recebe', () => {
     const anteriores: RenderedSection[] = [
       { id: 'identificacao', title: 'Identificação', content: '## Identificação\n\n13/08/2026', confidence: 'ok' },
     ];
-    complete.mockResolvedValueOnce(reply('## Participantes e cargos\n\n- Maria'));
+    complete.mockResolvedValueOnce(reply('## Tópicos discutidos\n\n1. Integração'));
 
     await escrever({
-      section: secao('participantes'),
-      data: participantes,
+      section: secao('topicos_discutidos'),
+      data: comTopicos,
       gaps: [],
       completed: anteriores,
     });
@@ -211,17 +268,17 @@ describe('o que o Escritor recebe', () => {
   });
 
   it('recebe os dados da seção, e só os dela', async () => {
-    complete.mockResolvedValueOnce(reply('## Participantes e cargos\n\n- Maria'));
+    complete.mockResolvedValueOnce(reply('## Tópicos discutidos\n\n1. Integração'));
 
     await escrever({
-      section: secao('participantes'),
-      data: { ...participantes, conclusion: { text: 'CONCLUSAO DE OUTRA SECAO' } },
+      section: secao('topicos_discutidos'),
+      data: { ...comTopicos, conclusion: { text: 'CONCLUSAO DE OUTRA SECAO' } },
       gaps: [],
       completed: [],
     });
 
     const pedido = complete.mock.calls[0]![1].messages[0].content;
-    expect(pedido).toContain('Maria');
+    expect(pedido).toContain('Integração');
     expect(pedido).not.toContain('CONCLUSAO DE OUTRA SECAO');
   });
 });

@@ -183,9 +183,19 @@ describe('montagem da Ata', () => {
     await run();
 
     const escritor = complete.mock.calls.filter(([agent]) => agent === 'escritor');
-    // A primeira não tem anterior; a última tem todas as anteriores.
-    expect(escritor[0]![1].cacheablePrefix).toBeUndefined();
+    // A Identificação é montada em código e não passa pelo Escritor, mas
+    // entra em `completed` — então a PRIMEIRA chamada do Escritor já a vê.
+    expect(escritor[0]![1].cacheablePrefix).toContain('## Identificação');
     expect(escritor[escritor.length - 1]![1].cacheablePrefix).toContain('## Identificação');
+  });
+
+  it('as seções de pura estrutura não gastam chamada do Escritor', async () => {
+    // Identificação, Participantes e Assinatura são montadas em código.
+    mockPipeline();
+    const { sections } = await run();
+
+    const chamadas = complete.mock.calls.filter(([agent]) => agent === 'escritor').length;
+    expect(chamadas).toBe(sections.length - 3);
   });
 
   it('a transcrição chega ao Pensante e para nele', async () => {

@@ -230,7 +230,29 @@ export interface SectionDataSpec {
    * para a ata. O Escritor redige a partir dos dados, e não da transcrição.
    */
   serialize(data: DocumentData, sectionId: string): string | null;
+  /**
+   * Markdown da seção montado em CÓDIGO, sem chamar modelo.
+   *
+   * Presente só onde a seção é pura estrutura — Identificação, Participantes,
+   * Assinatura. Ali o Escritor não tem prosa para escrever: ele receberia uma
+   * lista de nomes e devolveria a mesma lista de nomes. A chamada seria custo
+   * pago por nada e risco de graça, porque um modelo que reescreve uma lista
+   * de participantes pode perder um nome ou trocar um acento — e ninguém
+   * confere lista de nome.
+   *
+   * Ausente = a seção tem prosa de verdade e vai para o Escritor.
+   */
+  renderPlain?(data: DocumentData, sectionId: string, gaps: Gap[]): string;
 }
+
+/** O marcador de lacuna em markdown. Igual ao do Escritor, e pelo mesmo
+ *  `textoDeLacuna`, para as duas rotas não divergirem. */
+function marcador(gap: Gap | undefined, campo: string): string {
+  return `**${textoDeLacuna(gap ? gap.question : campo)}**`;
+}
+
+const lacunaDoCampo = (gaps: Gap[], field: string): Gap | undefined =>
+  gaps.find((g) => g.field === field);
 
 /** Lista para o Escritor, ou `null` quando não sobrou item. */
 function bullets(items: string[]): string | null {
@@ -367,6 +389,17 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         data.metadata?.projectName ? `Projeto: ${data.metadata.projectName}` : '',
       ]);
     },
+    renderPlain(data, _sectionId, gaps) {
+      const projeto = data.metadata?.projectName ?? marcador(lacunaDoCampo(gaps, 'metadata.projectName'), 'projeto');
+      const quando = data.metadata?.date ?? marcador(lacunaDoCampo(gaps, 'metadata.date'), 'data');
+      return [
+        '## Identificação',
+        '',
+        `${projeto} - ${quando}`,
+        '',
+        `**DATA:** ${quando}`,
+      ].join('\n');
+    },
   },
 
   topico_geral: {
@@ -453,6 +486,14 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
           (p) => `${p.name} — ${p.role ?? 'cargo não determinado'} (origem: ${p.roleSource})`,
         ),
       );
+    },
+    renderPlain(data, _sectionId, gaps) {
+      const linhas = (data.participants ?? []).map((p) => {
+        const cargo =
+          p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`), `cargo de ${p.name}`);
+        return `- ${p.name} – ${cargo}`;
+      });
+      return ['## Participantes e cargos', '', '**PARTICIPANTES – CARGO:**', '', ...linhas].join('\n');
     },
   },
 
@@ -631,6 +672,11 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         `Nome de quem assina: ${data.signature?.name ?? '(não determinado)'}`,
         `Cargo de quem assina: ${data.signature?.role ?? '(não determinado)'}`,
       ]);
+    },
+    renderPlain(data, _sectionId, gaps) {
+      const nome = data.signature?.name ?? marcador(lacunaDoCampo(gaps, 'signature.name'), 'quem assina');
+      const cargo = data.signature?.role ?? marcador(lacunaDoCampo(gaps, 'signature.role'), 'cargo de quem assina');
+      return ['## Assinatura', '', 'Atenciosamente,', '', `${nome} – ${cargo}`].join('\n');
     },
   },
 };

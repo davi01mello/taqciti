@@ -147,7 +147,7 @@ export async function pensar(input: PensarInput): Promise<PensarResult> {
   // seção encerraria o prefixo comum antes da transcrição. O que varia —
   // guidance da seção, fatos já determinados, rejeições — vem DEPOIS da
   // transcrição, na mensagem de usuário.
-  const system = renderPrompt('pensante', input.promptVersion ?? 'v2');
+  const system = renderPrompt('pensante', input.promptVersion ?? 'v3');
 
   const pedido = [
     `# Seção a preencher: ${input.section.title}`,

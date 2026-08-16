@@ -9,11 +9,16 @@ import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import {
   DOCUMENT_TYPE_LABELS,
-  gerarEEntregar,
+  entregarDocumento,
+  nomeDoDocumento,
+  requestGeneration,
   type DocumentType,
+  type Entrega,
   type GenerationResult,
   type GenerationSource,
 } from './generateDocument';
+import { aplicarRespostas, type Resposta } from './answers';
+import { QuestionsForm } from './QuestionsForm';
 
 type Area = 'gente' | 'producao';
 
@@ -47,6 +52,13 @@ type Generating =
   // Duas etapas visíveis: a segunda leva segundos e, sem rótulo próprio, o
   // botão parece travado justamente quando já deu tudo certo no servidor.
   | { status: 'loading'; documentType: DocumentType; etapa: 'gerando' | 'entregando' }
+  // Entre gerar e entregar: o que a IA não conseguiu determinar.
+  | {
+      status: 'perguntando';
+      documentType: DocumentType;
+      generation: Extract<GenerationResult, { status: 'success' }>;
+      salvando: boolean;
+    }
   | { status: 'error'; documentType: DocumentType; message: string }
   // O download não abre aba nenhuma. Sem um aviso, o clique parece não ter
   // feito nada — o arquivo caiu na pasta de downloads em silêncio.
@@ -84,7 +96,9 @@ export function GenerateDocumentMenu({
   const [generating, setGenerating] = useState<Generating>({ status: 'idle' });
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const busy = generating.status === 'loading';
+  // `perguntando` conta como ocupado: um clique fora ali chamaria `reset()` e
+  // jogaria fora um documento que o servidor já gerou e já cobrou.
+  const busy = generating.status === 'loading' || generating.status === 'perguntando';
 
   const reset = () => {
     setOpen(false);
@@ -135,49 +149,104 @@ export function GenerateDocumentMenu({
     setGenerating({ status: 'idle' });
   };
 
+  /** Último passo: manda o HTML para o Docs ou para o download. */
+  const finalizar = async (
+    documentType: DocumentType,
+    generation: Extract<GenerationResult, { status: 'success' }>,
+    html: string,
+  ) => {
+    setGenerating({ status: 'loading', documentType, etapa: 'entregando' });
+
+    const entrega: Entrega = await entregarDocumento(
+      html,
+      nomeDoDocumento(source, documentType, generation.metadata.projectName),
+      documentType,
+    );
+
+    if (entrega.via === 'docs') {
+      abrirDocumento(entrega.url);
+      reset();
+      return;
+    }
+
+    if (entrega.via === 'download') {
+      // Fecha o menu mas mantém o aviso: o download não abre aba, e sem isso
+      // o clique parece não ter feito nada.
+      setOpen(false);
+      setArea(null);
+      setGenerating({ status: 'baixado', arquivo: entrega.arquivo });
+      return;
+    }
+
+    // Falha da entrega, não da geração: o texto está na tela atrás do menu.
+    setGenerating({
+      status: 'error',
+      documentType,
+      message: `Documento gerado, mas a entrega falhou. ${entrega.message}`,
+    });
+  };
+
   const generate = (documentType: DocumentType) => {
     if (busy) return;
     setGenerating({ status: 'loading', documentType, etapa: 'gerando' });
 
-    const emEtapa = (etapa: 'gerando' | 'entregando') =>
-      setGenerating({ status: 'loading', documentType, etapa });
-
-    void gerarEEntregar(source, documentType, emEtapa).then(({ generation, entrega }) => {
+    void requestGeneration(source, documentType).then((generation) => {
       if (generation.status !== 'success') {
         setGenerating({ status: 'error', documentType, message: generation.message });
         return;
       }
 
-      // O documento existe. Ele aparece na tela mesmo que a entrega tenha
-      // falhado — o servidor já o produziu, e já custou.
+      // O documento existe. Ele aparece na tela antes da entrega — o servidor
+      // já o produziu, e já custou.
       onGenerated(generation);
 
-      if (entrega?.via === 'docs') {
-        abrirDocumento(entrega.url);
-        reset();
-        return;
-      }
-
-      if (entrega?.via === 'download') {
-        // Fecha o menu mas mantém o aviso: o download não abre aba, e sem
-        // isso o clique parece não ter feito nada.
+      // Há o que perguntar? Pergunta ANTES de entregar: responder depois
+      // geraria uma segunda versão do arquivo no Drive.
+      if (generation.questions.length > 0) {
+        // O menu sai de cena: o formulário ocupa o mesmo lugar, e os dois
+        // abertos ao mesmo tempo se sobreporiam.
         setOpen(false);
         setArea(null);
-        setGenerating({ status: 'baixado', arquivo: entrega.arquivo });
+        setGenerating({ status: 'perguntando', documentType, generation, salvando: false });
         return;
       }
 
-      if (entrega?.via === 'falhou') {
-        // Falha da entrega, não da geração: o texto está na tela atrás do menu.
-        setGenerating({
-          status: 'error',
-          documentType,
-          message: `Documento gerado, mas a entrega falhou. ${entrega.message}`,
-        });
-        return;
-      }
+      void finalizar(documentType, generation, generation.html);
+    });
+  };
 
-      reset();
+  /**
+   * Aplica as respostas e entrega o documento atualizado.
+   *
+   * Nenhum modelo roda nisso: as perguntas são sobre campos ausentes, a
+   * resposta é o valor do campo, e o HTML é reconstruído da estrutura. Se o
+   * servidor falhar aqui, entrega-se o documento COMO ESTAVA em vez de perder
+   * a geração — as lacunas continuam marcadas nele.
+   */
+  const responder = (
+    documentType: DocumentType,
+    generation: Extract<GenerationResult, { status: 'success' }>,
+    respostas: Resposta[],
+  ) => {
+    if (respostas.length === 0) {
+      void finalizar(documentType, generation, generation.html);
+      return;
+    }
+
+    setGenerating({ status: 'perguntando', documentType, generation, salvando: true });
+
+    void aplicarRespostas({
+      documentType,
+      documentData: generation.documentData,
+      gaps: generation.gaps,
+      answers: respostas,
+      title: generation.title,
+    }).then((resultado) => {
+      void finalizar(
+        documentType,
+        generation,
+        resultado.status === 'success' ? resultado.html : generation.html,
+      );
     });
   };
 
@@ -192,6 +261,23 @@ export function GenerateDocumentMenu({
       >
         Gerar Documento
       </Button>
+
+      {generating.status === 'perguntando' && (
+        <QuestionsForm
+          perguntas={generating.generation.questions}
+          salvando={generating.salvando}
+          onConfirmar={(respostas) =>
+            responder(generating.documentType, generating.generation, respostas)
+          }
+          onPular={() =>
+            void finalizar(
+              generating.documentType,
+              generating.generation,
+              generating.generation.html,
+            )
+          }
+        />
+      )}
 
       {generating.status === 'baixado' && (
         // Instrução, e não só confirmação: o arquivo sozinho não vira Google
