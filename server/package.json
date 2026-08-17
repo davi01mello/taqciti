@@ -2,7 +2,7 @@
   "name": "taqciti-document-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Servidor de geração de documento pós-reunião do TaqCITi — geração hoje é um stub, ver lib/generateDocument.ts.",
+  "description": "Servidor de geração de documento pós-reunião do TaqCITi — pipeline Pensante/Auditor/Escritor, ver lib/generateDocument.ts.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

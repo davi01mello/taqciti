@@ -1,10 +1,17 @@
 /**
  * Endereço do servidor de geração de documento (fase 2 do "Continuar
  * fluxo") — projeto independente em `server/` na raiz do repo, ver o
- * README de lá. Só existe valor de dev por enquanto: produção entra junto
- * com o deploy real do servidor, numa fase futura.
+ * README de lá.
+ *
+ * `http://localhost:3000` é o padrão de dev, e continua sendo o que
+ * `npm run dev`/`npm run build` usam sem configuração nenhuma. Para apontar
+ * pra um servidor de verdade, defina `VITE_DOCCITI_SERVER_URL` na build da
+ * extensão — mesmo mecanismo de `SERVER_SHARED_KEY` logo abaixo, e pelo
+ * mesmo motivo: o valor entra no bundle, não pede reescrever código pra
+ * trocar de ambiente.
  */
-export const SERVER_BASE_URL = 'http://localhost:3000';
+export const SERVER_BASE_URL =
+  import.meta.env.VITE_DOCCITI_SERVER_URL ?? 'http://localhost:3000';
 
 /**
  * Segredo compartilhado enviado no header `x-docciti-key`. O servidor

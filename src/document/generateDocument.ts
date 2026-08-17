@@ -208,7 +208,7 @@ export async function requestGeneration(
     return {
       status: 'error',
       documentType,
-      message: 'Não foi possível falar com o servidor. Ele está rodando em localhost:3000?',
+      message: `Não foi possível falar com o servidor (${SERVER_BASE_URL}). Ele está no ar?`,
     };
   }
 }

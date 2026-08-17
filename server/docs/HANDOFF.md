@@ -64,9 +64,14 @@ métricas de citação — é o melhor lugar para medir sem gerar o documento to
 
 ### Falta
 
-- **Fase 6 — só a metade da extensão.** O servidor já faz a parte dele:
-  devolve `documentData` e `html`. Falta a extensão criar o arquivo no Drive, e
-  isso está travado no manifest (ver "Fase 6" abaixo).
+- **Fase 6 — concluída.** O servidor devolve `documentData` e `html`; a
+  extensão decide entre Docs direto e download sozinha (ver "Fase 6"
+  abaixo, atualizado — o impedimento de manifest que este handoff descrevia
+  foi resolvido depois de escrito).
+- **Deploy do servidor** — nunca foi hospedado; `server/` só roda via
+  `npm run dev` local, e a extensão apontava pra `localhost:3000` fixo sem
+  jeito de trocar. Resolvido em 17/08/2026: `VITE_DOCCITI_SERVER_URL` na
+  build da extensão, guia de deploy em `server/README.md`.
 - **Fase 8 — harness** em `server/eval/`.
 - **PDF** — adiado, não descartado. Sai do MESMO `documentData` que o HTML, e
   não do HTML.
@@ -251,11 +256,23 @@ Ver `docs/medicao-2026-08-14/execucao-2-ata.html` para uma saída real.
   O `documentData.metadata` tem os dois campos, e lacuna ali é campo AUSENTE,
   não string vazia.
 
-**Impedimento já levantado, não resolvido:** o `manifest.config.ts` não tem a
-permissão `identity` nem a chave `oauth2`, e `getAuthToken` exige **ID de
-extensão estável** — o próprio repo documenta que o ID muda entre dev
-(unpacked) e Web Store. A correção é fixar `key` no manifest e registrar o
-client no Google Cloud. Não é motivo para inverter a arquitetura.
+**Este impedimento foi resolvido depois deste handoff.** O commit
+`feat(fase6)` já entregou o caminho: `manifest.config.ts` tem `identity` nas
+`permissions`, o bloco `oauth2` (client id lido de
+`VITE_GOOGLE_OAUTH_CLIENT_ID`, com placeholder que mantém o manifesto válido
+sem client registrado) e a `key` fixa que trava o ID da extensão entre
+clones/máquinas — ver `docs/google-docs-setup.md`. `entregarDocumento` em
+`src/document/generateDocument.ts` já decide sozinho entre Docs direto e
+download, lendo `oauthConfigurado()`.
+
+**Estado real (17/08/2026):** nenhum build de release define
+`VITE_GOOGLE_OAUTH_CLIENT_ID` (não está em `.github/workflows/release.yml`
+nem em nenhum `.env` versionado), então `oauthConfigurado()` é sempre
+`false` em produção e o caminho de Docs direto nunca roda — todo mundo usa
+o download. Decisão do autor: tratar isso como **descontinuado por ora**,
+não como pendência a destravar. Se um dia precisar do caminho direto de
+verdade, o trabalho é só configurar o client OAuth (`docs/google-docs-setup.md`),
+não mexer em código.
 
 ---
 

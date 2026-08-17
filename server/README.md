@@ -43,6 +43,54 @@ Sobe em `http://localhost:3000`.
 não confie em hot reload, ou você mede contra um processo que ainda não viu
 a mudança.
 
+## Deploy
+
+O servidor é um app Next.js (App Router) comum — sem `output: 'export'`, sem
+nada que exija hospedagem especial. `npm run build` já compila as rotas de
+API como dinâmicas (confirmado: `next build` gera `/api/generate` e as
+outras como `ƒ`, não `○`), então qualquer host Node/Next serve. **Vercel é o
+caminho de menor atrito** (é a plataforma do próprio Next.js, detecta o app
+sozinho) — sem `vercel.json` nenhum: importe o repositório, aponte o **Root
+Directory para `server/`** (é um projeto Next.js à parte dentro do
+monorepo) e configure as variáveis abaixo no dashboard.
+
+### Variáveis no host
+
+As mesmas de `.env.local` (ver `.env.example`), preenchidas no ambiente do
+deploy em vez de arquivo:
+
+- `DOCCITI_SHARED_KEY` — **precisa bater com `VITE_DOCCITI_SHARED_KEY`** da
+  build da extensão (ver abaixo). Sem ela a rota devolve 500 de propósito
+  (falha fechada).
+- `GOOGLE_API_KEY` — a chave do Gemini. Enquanto for free tier, mantenha
+  `DOCCITI_DATA_POLICY=training` também (aí as rotas só aceitam transcrição
+  que se declare `"sintetica": true`); tire a linha quando a chave virar
+  paga.
+- `ANTHROPIC_API_KEY` / `XAI_API_KEY` — só entram em cena se algum agente for
+  apontado pra esses provedores via `DOCCITI_PENSANTE`/`DOCCITI_AUDITOR`/
+  `DOCCITI_ESCRITOR`. A configuração ativa em `lib/ai/config.ts` usa só
+  `google` nos três agentes, então deixar essas duas vazias é o normal, não
+  uma pendência.
+
+### Apontando a extensão pra esse servidor
+
+Por padrão a extensão fala com `http://localhost:3000` — é o valor de dev, e
+continua sendo o default sem configuração nenhuma (ver
+`src/shared/config/serverConfig.ts`). Para uma build que fale com o servidor
+deployado, defina as duas variáveis **na build da extensão** (raiz do repo,
+não aqui):
+
+```powershell
+$env:VITE_DOCCITI_SERVER_URL = 'https://<seu-projeto>.vercel.app'
+$env:VITE_DOCCITI_SHARED_KEY = '<o mesmo valor de DOCCITI_SHARED_KEY no host>'
+npm run build
+```
+
+O CORS (`lib/apiGuard.ts`) já reflete qualquer origem `chrome-extension://`
+— vale tanto para a extensão carregada no Chrome quanto no Edge (os dois
+usam o mesmo esquema de URL pra extensão, o Edge não inventou um
+`edge-extension://` próprio), sem configuração adicional por navegador.
+
 ## Rotas
 
 ```
@@ -408,12 +456,16 @@ chamada de rede — provedor de verdade se testa com `/api/ai/smoke`.
 script que dependia de `node arquivo.ts` resolver import ESM sem extensão, o
 que não acontece.
 
-## A geração ainda é um stub
+## O pipeline está de pé
 
-`generateDocument` em `lib/generateDocument.ts` ainda devolve seções stub —
-Pensante e Auditor estão de pé e exercitáveis por `/api/ai/secao`, mas o
-Escritor ainda não existe. `lib/generateStep.ts` continua sendo o ponto único
-de troca.
+`generateDocument` em `lib/generateDocument.ts` não é mais stub: chama
+`generateStep` em laço pelas nove seções (Pensante → Auditor → Escritor,
+ver `lib/agents/`), monta o markdown na ordem do template e devolve
+`documentData` + `html` junto. `/api/generate` expõe isso como "documento
+inteiro numa tacada"; quem quiser controle fino (uma seção por vez,
+perguntas, respostas) usa `generateStep` ou `/api/ai/secao` direto. Ver
+`docs/HANDOFF.md` para o estado detalhado e o que falta (harness da Fase 8,
+PDF).
 
 ## DocCiti (mockup do hero animado) — descontinuado
 
