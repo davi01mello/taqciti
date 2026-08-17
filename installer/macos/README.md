@@ -64,8 +64,8 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
    console. Se `~/Desktop` não existir, usa `~/TaqCITi (não apagar)/` e avisa
    o motivo no log da instalação.
 2. Ajusta o dono (`chown`) dos arquivos copiados para esse usuário — o `cp`
-   anterior rodou como root, então sem isso o Chrome não conseguiria nem ler
-   os arquivos.
+   anterior rodou como root, então sem isso o navegador (Chrome ou Edge)
+   não conseguiria nem ler os arquivos.
 3. Copia esse caminho para a área de transferência via `pbcopy`, rodado no
    contexto do usuário. Se falhar, só avisa e imprime o caminho — não derruba
    a instalação.
@@ -73,13 +73,15 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
    preenchido, numa cópia salva em
    `~/Library/Application Support/TaqCITi/guide/`, no contexto do usuário.
 
-> **Não abre `chrome://extensions` sozinho** (essa etapa existia aqui
-> antes, via `open -a "Google Chrome" chrome://extensions`). Em testes
-> reais isso nunca funcionou — o Chrome parece filtrar/ignorar URLs
-> `chrome://` recebidas via linha de comando de um processo externo, por
-> segurança, independente do sistema operacional. O guia orienta a pessoa
-> a abrir uma aba nova e colar o endereço (já copiado por um botão
-> dedicado nele).
+> **Não abre a página de extensões do navegador sozinho** (essa etapa
+> existia aqui antes, via `open -a "Google Chrome" chrome://extensions`).
+> Em testes reais isso nunca funcionou — o navegador parece
+> filtrar/ignorar esses esquemas de URL internos recebidos via linha de
+> comando de um processo externo, por segurança, independente do sistema
+> operacional. O guia (que se adapta sozinho ao navegador padrão do
+> usuário, detectado por `navigator.userAgent`) orienta a pessoa a abrir
+> uma aba nova e colar o endereço certo (já copiado por um botão dedicado
+> nele).
 
 ## Testar localmente
 

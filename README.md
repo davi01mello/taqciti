@@ -1,8 +1,9 @@
 # TaqCITi Standalone
 
-Extensão Chrome de transcrição automática de reuniões do Google Meet — captura
-invisível, histórico 100% local. Sem envio a nenhum backend, sem conta de
-produto, sem diagnóstico técnico: só escuta a reunião e guarda a transcrição.
+Extensão para Chrome e Edge de transcrição automática de reuniões do Google
+Meet — captura invisível, histórico 100% local. Sem envio a nenhum backend,
+sem conta de produto, sem diagnóstico técnico: só escuta a reunião e guarda
+a transcrição.
 
 Extraída do núcleo de captura da extensão TaqCITi (repositório
 `citi-flow-companion`), removendo tudo que dependia da plataforma CITi Flow
@@ -21,8 +22,9 @@ npm run typecheck
 npm test
 ```
 
-Depois do build, carregue a pasta `dist/` em `chrome://extensions` → Modo
-desenvolvedor → "Carregar sem compactação".
+Depois do build, carregue a pasta `dist/` em `chrome://extensions` (Chrome)
+ou `edge://extensions` (Edge) → Modo desenvolvedor → "Carregar sem
+compactação".
 
 ## Distribuição
 

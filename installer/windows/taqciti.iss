@@ -3,21 +3,22 @@
 ; Compila para um .exe único que embute o conteúdo de dist/ (build de
 ; produção da extensão) e, ao rodar, copia esses arquivos para uma pasta
 ; fixa na Área de Trabalho do usuário, copia o caminho para a área de
-; transferência, e abre o guia visual de instalação no Google Chrome
-; especificamente. NÃO tenta abrir chrome://extensions sozinho — ver o
-; comentário em CurStepChanged no [Code] abaixo sobre por que isso foi
-; removido (Chrome ignora esse esquema de URL quando vem via linha de
-; comando de outro processo).
+; transferência, e abre o guia visual de instalação no navegador
+; escolhido. NÃO tenta abrir chrome://extensions/edge://extensions sozinho
+; — ver o comentário em CurStepChanged no [Code] abaixo sobre por que isso
+; foi removido (o navegador ignora esse esquema de URL quando vem via
+; linha de comando de outro processo).
 ;
-; Por que Chrome especificamente, e não "o navegador padrão": a extensão
-; só funciona no Chrome (é carregada via chrome://extensions), então abrir
-; "o navegador padrão" nunca fez sentido — e na prática quebrou: numa
-; máquina com Edge como padrão, o Windows tentava resolver "chrome"
-; genericamente e mostrava "não instalado, procure na Microsoft Store",
-; mesmo com o Chrome de fato instalado. Ver FindChromeExe/InitializeSetup
-; no [Code] abaixo. Se o Chrome não for encontrado, a instalação inteira é
-; abortada antes de copiar qualquer arquivo (nenhuma extensão sem Chrome
-; faz sentido pela metade).
+; A extensão roda tanto no Google Chrome quanto no Microsoft Edge (os dois
+; são Chromium e aceitam "Carregar sem compactação" do mesmo jeito), então
+; o instalador procura os dois (FindChromeExe/FindEdgeExe no [Code]
+; abaixo). Se achar só um, usa esse direto, sem perguntar nada. Se achar os
+; dois, pergunta numa página própria do assistente (BrowserChoicePage) —
+; é a única interação manual que existe neste instalador, e só aparece
+; quando há ambiguidade de verdade. Se não achar nenhum dos dois, a
+; instalação inteira é abortada antes de copiar qualquer arquivo (a
+; extensão não faz sentido pela metade sem um navegador Chromium pra
+; carregá-la).
 ;
 ; Pré-requisito: rodar `npm run build` (na raiz do repo) ANTES de compilar
 ; este script, para que dist/ exista e esteja atualizada. Ver README.md
@@ -65,11 +66,23 @@ Source: "..\guide\index.html"; DestDir: "{localappdata}\TaqCITi\guide"; Flags: i
 
 [Code]
 var
-  { Resolvido uma única vez em InitializeSetup e reaproveitado depois em
-    CurStepChanged — se estivesse vazio nesse ponto, a instalação já
-    teria sido abortada, então todo uso posterior pode supor que está
-    preenchido. }
+  { Resolvidos uma única vez em InitializeSetup. Ao contrário da versão
+    anterior (só Chrome), um dos dois PODE estar vazio aqui — só os dois
+    vazios ao mesmo tempo aborta a instalação (ver InitializeSetup). }
   ChromeExePath: String;
+  EdgeExePath: String;
+  { Resolvido em CurStepChanged(ssInstall), a partir dos dois acima e da
+    escolha do usuário (se houve escolha) — é o que CurStepChanged
+    (ssPostInstall) usa pra abrir o guia, no lugar do antigo ChromeExePath
+    fixo. }
+  BrowserExePath: String;
+  { 'chrome' ou 'edge' — grava em window.TAQCITI_BROWSER (via
+    WriteInstallPathScript) pra o guia saber com certeza qual navegador foi
+    escolhido, sem precisar adivinhar pela navigator.userAgent. }
+  BrowserKind: String;
+  BrowserChoicePage: TWizardPage;
+  ChromeRadio: TNewRadioButton;
+  EdgeRadio: TNewRadioButton;
 
 function GetInstallPath(): String;
 begin
@@ -135,27 +148,124 @@ begin
   end;
 end;
 
+{ Mesma lógica de FindChromeExe, trocando só o executável e as pastas
+  padrão — o Edge é Chromium e registra a própria chave "App Paths" do
+  mesmo jeito que o Chrome. }
+function FindEdgeExe(): String;
+var
+  EdgePath: String;
+  AppPathsKey: String;
+begin
+  AppPathsKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe';
+  Result := '';
+
+  if RegQueryStringValue(HKLM, AppPathsKey, '', EdgePath) and FileExists(EdgePath) then
+  begin
+    Result := EdgePath;
+    Exit;
+  end;
+
+  if RegQueryStringValue(HKCU, AppPathsKey, '', EdgePath) and FileExists(EdgePath) then
+  begin
+    Result := EdgePath;
+    Exit;
+  end;
+
+  { O instalador oficial do Edge Stable é 32-bit mesmo em Windows 64-bit,
+    então {pf32} costuma ser o caminho de verdade — mas checa {pf} primeiro
+    porque instalações via MSI corporativo podem ir para lá. }
+  EdgePath := ExpandConstant('{pf}\Microsoft\Edge\Application\msedge.exe');
+  if FileExists(EdgePath) then
+  begin
+    Result := EdgePath;
+    Exit;
+  end;
+
+  EdgePath := ExpandConstant('{pf32}\Microsoft\Edge\Application\msedge.exe');
+  if FileExists(EdgePath) then
+  begin
+    Result := EdgePath;
+    Exit;
+  end;
+
+  EdgePath := ExpandConstant('{localappdata}\Microsoft\Edge\Application\msedge.exe');
+  if FileExists(EdgePath) then
+  begin
+    Result := EdgePath;
+    Exit;
+  end;
+end;
+
 { Roda antes de qualquer página do assistente ou cópia de arquivo.
   Retornar False aqui aborta a instalação inteira imediatamente — nada é
   copiado, nenhuma pasta é criada. É o único lugar cedo o suficiente pra
-  bloquear a instalação por completo se o Chrome não existir, em vez de
-  descobrir isso só depois de já ter copiado tudo. }
+  bloquear a instalação por completo se nem Chrome nem Edge existirem, em
+  vez de descobrir isso só depois de já ter copiado tudo. }
 function InitializeSetup(): Boolean;
 begin
   ChromeExePath := FindChromeExe();
-  if ChromeExePath = '' then
+  EdgeExePath := FindEdgeExe();
+  if (ChromeExePath = '') and (EdgeExePath = '') then
   begin
     MsgBox(
-      'O Google Chrome não foi encontrado nesta máquina.' + #13#10 + #13#10 +
-      'A extensão TaqCITi só funciona no Chrome (é carregada via ' +
-      'chrome://extensions), então a instalação não pode continuar sem ele.' + #13#10 + #13#10 +
-      'Instale o Chrome e rode este instalador de novo:' + #13#10 +
-      'https://www.google.com/chrome/',
+      'Não encontramos o Google Chrome nem o Microsoft Edge nesta máquina.' + #13#10 + #13#10 +
+      'A extensão TaqCITi precisa de um navegador baseado em Chromium ' +
+      '(Chrome ou Edge) para funcionar, então a instalação não pode ' +
+      'continuar sem um dos dois.' + #13#10 + #13#10 +
+      'Instale um deles e rode este instalador de novo:' + #13#10 +
+      'https://www.google.com/chrome/' + #13#10 +
+      'https://www.microsoft.com/edge',
       mbCriticalError, MB_OK);
     Result := False;
     Exit;
   end;
   Result := True;
+end;
+
+{ Cria a página de escolha de navegador. Roda depois de InitializeSetup
+  (ChromeExePath/EdgeExePath já resolvidos), então os dois Enabled abaixo
+  já sabem o que existe de verdade na máquina. wpWelcome como âncora não
+  importa muito — DisableWelcomePage tira essa página da fila, então esta
+  é a primeira que o assistente mostra de qualquer forma (quando não é
+  pulada, ver ShouldSkipPage). }
+procedure InitializeWizard();
+begin
+  BrowserChoicePage := CreateCustomPage(wpWelcome,
+    'Escolha o navegador',
+    'O TaqCITi funciona no Google Chrome ou no Microsoft Edge. Qual dos dois você usa?');
+
+  ChromeRadio := TNewRadioButton.Create(BrowserChoicePage);
+  ChromeRadio.Parent := BrowserChoicePage.Surface;
+  ChromeRadio.Caption := 'Google Chrome';
+  ChromeRadio.Top := 0;
+  ChromeRadio.Width := BrowserChoicePage.SurfaceWidth;
+  ChromeRadio.Enabled := ChromeExePath <> '';
+  ChromeRadio.Checked := ChromeExePath <> '';
+
+  EdgeRadio := TNewRadioButton.Create(BrowserChoicePage);
+  EdgeRadio.Parent := BrowserChoicePage.Surface;
+  EdgeRadio.Caption := 'Microsoft Edge';
+  EdgeRadio.Top := ChromeRadio.Top + ChromeRadio.Height + 8;
+  EdgeRadio.Width := BrowserChoicePage.SurfaceWidth;
+  EdgeRadio.Enabled := EdgeExePath <> '';
+  { Só marca Edge de início se Chrome não existir — Chrome é o padrão
+    quando os dois existem (menor mudança de comportamento pra quem já
+    usava o instalador antes desta versão). }
+  if (ChromeExePath = '') and (EdgeExePath <> '') then
+    EdgeRadio.Checked := True;
+end;
+
+{ Pula a página de escolha quando não há escolha de verdade: só um dos
+  dois foi encontrado (o outro Enabled := False não impediria o clique em
+  "Avançar" sozinho, então pular a página de propósito é o que mantém o
+  instalador silencioso no caso comum de hoje — só Chrome instalado). Se
+  nenhum dos dois existisse, InitializeSetup já teria abortado antes de
+  chegar aqui. }
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if PageID = BrowserChoicePage.ID then
+    Result := (ChromeExePath = '') or (EdgeExePath = '');
 end;
 
 function JsEscape(const S: String): String;
@@ -188,12 +298,18 @@ end;
   arquivo novo, pequeno, só com bytes ASCII + o caminho já em UTF-8
   (concatenados com "+", que em AnsiString é anexação de bytes crua, sem
   Copy/Pos no meio) evita esse risco por completo. }
-procedure WriteInstallPathScript(const DestDir, InstallPath: String);
+procedure WriteInstallPathScript(const DestDir, InstallPath, BrowserKindValue: String);
 var
   ScriptContent: AnsiString;
 begin
   ScriptContent := 'window.TAQCITI_INSTALL_PATH = "' +
-    Utf8Encode(JsEscape(InstallPath)) + '";';
+    Utf8Encode(JsEscape(InstallPath)) + '";' + #13#10 +
+    { O guia (installer/guide/index.html) usa isto pra saber com certeza
+      qual navegador vai abrir — mais confiável que adivinhar pela
+      navigator.userAgent, porque é exatamente o navegador que o Exec
+      abaixo está prestes a abrir, escolhido pelo usuário ou resolvido
+      sozinho quando só um existia. }
+    'window.TAQCITI_BROWSER = "' + Utf8Encode(JsEscape(BrowserKindValue)) + '";';
   SaveStringToFile(DestDir + '\install-path.js', ScriptContent, False);
 end;
 
@@ -220,6 +336,38 @@ var
   InstallPath, GuideDir: String;
   ResultCode: Integer;
 begin
+  if CurStep = ssInstall then
+  begin
+    { Resolvido aqui, cedo, e reaproveitado em ssPostInstall abaixo. Os
+      dois radio buttons só existem de verdade (não nil) quando a página
+      não foi pulada — ShouldSkipPage já garante isso: ela só pula quando
+      um dos dois caminhos está vazio, e nesse caso o if/else abaixo nem
+      olha pros radios. }
+    if (ChromeExePath <> '') and (EdgeExePath <> '') then
+    begin
+      if EdgeRadio.Checked then
+      begin
+        BrowserExePath := EdgeExePath;
+        BrowserKind := 'edge';
+      end
+      else
+      begin
+        BrowserExePath := ChromeExePath;
+        BrowserKind := 'chrome';
+      end;
+    end
+    else if EdgeExePath <> '' then
+    begin
+      BrowserExePath := EdgeExePath;
+      BrowserKind := 'edge';
+    end
+    else
+    begin
+      BrowserExePath := ChromeExePath;
+      BrowserKind := 'chrome';
+    end;
+  end;
+
   if CurStep = ssPostInstall then
   begin
     InstallPath := GetInstallPath();
@@ -230,22 +378,21 @@ begin
       acima instala index.html ali durante a etapa de cópia de arquivos,
       que roda antes de ssPostInstall. }
     GuideDir := ExpandConstant('{localappdata}\TaqCITi\guide');
-    WriteInstallPathScript(GuideDir, InstallPath);
+    WriteInstallPathScript(GuideDir, InstallPath, BrowserKind);
 
-    { ChromeExePath já foi resolvido (e validado) em InitializeSetup — se
-      estivesse vazio, a instalação teria sido abortada antes de chegar
-      aqui, então não precisa checar de novo.
+    { BrowserExePath já foi resolvido em ssInstall, a partir de caminhos
+      validados em InitializeSetup — não precisa checar de novo.
 
       Só abrimos o guia aqui — NÃO tentamos mais abrir chrome://extensions
-      via Exec. Em dois testes manuais reais, com duas abordagens de
-      código diferentes (dois Exec separados, depois um Exec só com as
-      duas URLs como argumentos), o guia sempre abriu certo, mas
-      chrome://extensions nunca abriu. Isso não é bug do nosso Exec: o
-      Chrome parece filtrar/ignorar URLs de esquema chrome:// recebidas
-      como argumento de linha de comando de um processo externo, por
-      segurança. Não tem workaround confiável — o guia agora instrui a
-      pessoa a abrir uma aba nova e colar o endereço (já copiado por um
-      botão dedicado), em vez de prometer que a aba abre sozinha. }
-    Exec(ChromeExePath, '"' + GuideDir + '\index.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+      (ou edge://extensions) via Exec. Em testes manuais reais, com
+      abordagens de código diferentes, o guia sempre abriu certo, mas o
+      esquema de URL interno do navegador nunca abriu. Isso não é bug do
+      nosso Exec: o navegador parece filtrar/ignorar essas URLs quando
+      recebidas como argumento de linha de comando de um processo
+      externo, por segurança. Não tem workaround confiável — o guia
+      instrui a pessoa a abrir uma aba nova e colar o endereço (já
+      copiado por um botão dedicado), em vez de prometer que a aba abre
+      sozinha. }
+    Exec(BrowserExePath, '"' + GuideDir + '\index.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;

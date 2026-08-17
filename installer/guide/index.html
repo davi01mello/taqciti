@@ -242,6 +242,12 @@
   .toggle {
     width: 34px;
     height: 18px;
+    /* Sem isto, dentro de uma linha flex apertada (o toggle-wrap da barra
+       lateral do Edge, com seta + toggle + rótulo competindo por ~112px)
+       o navegador encolhe o toggle abaixo dos 34px — mas o círculo branco
+       em .toggle.on::after continua deslizando os mesmos 16px fixos,
+       saindo pra fora do pílula já encolhida. */
+    flex-shrink: 0;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.15);
     position: relative;
@@ -311,6 +317,73 @@
     flex-shrink: 0;
   }
 
+  /* Mock do edge://extensions — o "Modo do desenvolvedor" mora numa barra
+     lateral esquerda, não no canto superior direito como no Chrome. As
+     duas versões do mock do passo 1 ficam sempre no HTML; qual delas
+     aparece é decidido por CSS, via a classe no <body> que o script no
+     fim do arquivo define. */
+  .mock-edge {
+    display: none;
+  }
+
+  body.browser-edge .mock-chrome {
+    display: none;
+  }
+
+  body.browser-edge .mock-edge {
+    display: block;
+  }
+
+  .mock-body-edge {
+    display: flex;
+  }
+
+  .mock-edge-sidebar {
+    width: 132px;
+    flex-shrink: 0;
+    padding: 14px 10px;
+    border-right: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mock-edge-sidebar-item {
+    font-size: 11.5px;
+    color: var(--muted);
+    padding: 6px 8px;
+    border-radius: 6px;
+    line-height: 1.3;
+  }
+
+  .mock-edge-sidebar-item.active {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .mock-edge-toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding: 6px 8px;
+  }
+
+  .mock-edge-main {
+    flex: 1;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .mock-edge-main-hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
   /* Setas animadas */
   .arrow-anchor {
     position: relative;
@@ -330,6 +403,30 @@
   .arrow.to-upload {
     top: -34px;
     left: 8px;
+  }
+
+  /* A seta do toggle do Edge fica NO FLUXO normal, dentro do próprio
+     ".mock-edge-toggle-wrap" (ver HTML), em vez de posicionada em pixels
+     absolutos — a barra lateral tem outro item de texto ("Obter extensões
+     da Microsoft Store") que quebra em 1 ou 2 linhas dependendo da
+     largura, e um "top" fixo em px apontava pro lugar errado sempre que
+     essa quebra de linha mudava. Ficando dentro do mesmo flex row que o
+     toggle, a seta sempre aponta pro alvo certo, não importa o que
+     aconteça acima dela. */
+  .arrow-inline {
+    flex-shrink: 0;
+    animation: arrow-bounce-inline 1.1s ease-in-out infinite;
+    filter: drop-shadow(0 0 6px rgba(122, 242, 165, 0.65));
+  }
+
+  @keyframes arrow-bounce-inline {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(4px);
+    }
   }
 
   @keyframes arrow-bounce {
@@ -419,19 +516,20 @@
       <article class="step-card">
         <h3><span class="step-num">1</span> Ative o "Modo do desenvolvedor"</h3>
         <p class="step-desc">
-          Abra uma nova aba no Chrome e cole (Ctrl+V) o endereço abaixo — já
-          copiado pra você. No canto superior direito da página, ative o
-          interruptor "Modo do desenvolvedor".
+          Abra uma nova aba no <span class="browser-name">Chrome</span> e cole (Ctrl+V) o
+          endereço abaixo — já copiado pra você. <span id="dev-mode-location">No canto
+          superior direito da página</span>, ative o interruptor "Modo do
+          desenvolvedor".
         </p>
         <div class="path-row chrome-url-row">
-          <div class="path-value">chrome://extensions</div>
+          <div class="path-value extensions-url">chrome://extensions</div>
           <button class="copy-btn" id="copy-chrome-url-btn" type="button">Copiar</button>
         </div>
-        <div class="mock arrow-anchor">
+        <div class="mock mock-chrome arrow-anchor">
           <div class="mock-titlebar">
             <span class="mock-dot"></span><span class="mock-dot"></span
             ><span class="mock-dot"></span>
-            <span class="mock-url">chrome://extensions</span>
+            <span class="mock-url extensions-url">chrome://extensions</span>
           </div>
           <div class="mock-body">
             <div class="mock-toprow">
@@ -458,6 +556,49 @@
             </svg>
           </div>
         </div>
+        <!--
+          O Edge é Chromium, mas a página edge://extensions organiza o
+          "Modo do desenvolvedor" numa barra lateral esquerda, não no canto
+          superior direito como no Chrome — por isso este é um mock
+          diferente, não só o mesmo com o texto trocado. Fica sempre no
+          HTML; a classe "browser-edge" no <body> (definida no script no
+          fim do arquivo) decide qual dos dois mocks aparece.
+        -->
+        <div class="mock mock-edge arrow-anchor">
+          <div class="mock-titlebar">
+            <span class="mock-dot"></span><span class="mock-dot"></span
+            ><span class="mock-dot"></span>
+            <span class="mock-url extensions-url">edge://extensions</span>
+          </div>
+          <div class="mock-body-edge">
+            <div class="mock-edge-sidebar">
+              <div class="mock-edge-sidebar-item active">Extensões</div>
+              <div class="mock-edge-sidebar-item">Obter extensões da Microsoft Store</div>
+              <div class="mock-edge-toggle-wrap">
+                <svg
+                  class="arrow-inline"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                >
+                  <path
+                    d="M3 12h13M12 6l6 6-6 6"
+                    stroke="rgb(45 219 96)"
+                    stroke-width="2.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span class="toggle on"></span>
+                <span class="toggle-label">Modo do desenvolvedor</span>
+              </div>
+            </div>
+            <div class="mock-edge-main">
+              <span class="mock-edge-main-hint">Suas extensões aparecem aqui</span>
+            </div>
+          </div>
+        </div>
       </article>
 
       <article class="step-card">
@@ -471,7 +612,7 @@
           <div class="mock-titlebar">
             <span class="mock-dot"></span><span class="mock-dot"></span
             ><span class="mock-dot"></span>
-            <span class="mock-url">chrome://extensions</span>
+            <span class="mock-url extensions-url">chrome://extensions</span>
           </div>
           <div class="mock-body">
             <div class="mock-buttons">
@@ -513,8 +654,8 @@
       <span>⚠️</span>
       <span>
         <strong>Não mova, renomeie ou apague</strong> a pasta de instalação depois de
-        carregada — o Chrome lê os arquivos direto dela, e a extensão para de
-        funcionar se ela sumir ou mudar de lugar.
+        carregada — o <span class="browser-name">Chrome</span> lê os arquivos direto dela, e a
+        extensão para de funcionar se ela sumir ou mudar de lugar.
       </span>
     </div>
 
@@ -566,6 +707,44 @@
       document.body.removeChild(ta);
     }
 
+    // Fonte da verdade de qual navegador está abrindo este guia, em ordem:
+    // 1. window.TAQCITI_BROWSER — só o instalador Windows escreve isso (via
+    //    install-path.js, gerado por WriteInstallPathScript em
+    //    installer/windows/taqciti.iss); é o navegador que ELE escolheu
+    //    abrir, então é a fonte mais confiável quando existe.
+    // 2. navigator.userAgent — cobre Linux e macOS, onde o guia é aberto
+    //    via xdg-open/open no navegador padrão de verdade do usuário.
+    // 3. Chrome como default final, se nada acima disser o contrário.
+    var IS_EDGE = (function () {
+      if (window.TAQCITI_BROWSER === 'edge') return true;
+      if (window.TAQCITI_BROWSER === 'chrome') return false;
+      return /Edg\//.test(navigator.userAgent || '');
+    })();
+    var EXTENSIONS_URL = IS_EDGE ? 'edge://extensions' : 'chrome://extensions';
+
+    (function () {
+      if (IS_EDGE) {
+        document.body.classList.add('browser-edge');
+      }
+      // ".browser-name" cobre as duas menções em prosa (passo 1 e aviso
+      // final); ".extensions-url" cobre as três em formato de URL/mock
+      // (linha de cópia do passo 1, e os mock-url dos passos 1 e 2).
+      var browserNameEls = document.querySelectorAll('.browser-name');
+      for (var i = 0; i < browserNameEls.length; i++) {
+        browserNameEls[i].textContent = IS_EDGE ? 'Edge' : 'Chrome';
+      }
+      var urlEls = document.querySelectorAll('.extensions-url');
+      for (var j = 0; j < urlEls.length; j++) {
+        urlEls[j].textContent = EXTENSIONS_URL;
+      }
+      var devModeLocation = document.getElementById('dev-mode-location');
+      if (devModeLocation) {
+        devModeLocation.textContent = IS_EDGE
+          ? 'Na barra lateral esquerda da página'
+          : 'No canto superior direito da página';
+      }
+    })();
+
     (function () {
       var platform = (navigator.platform || navigator.userAgent || '');
       var isMac = /Mac/i.test(platform);
@@ -610,10 +789,10 @@
       });
     })();
 
-    // Botão "Copiar" do endereço chrome://extensions (Passo 1). Texto fixo,
-    // sem placeholder pra checar — bem mais simples que o do caminho acima.
+    // Botão "Copiar" do endereço de extensões (Passo 1). Usa EXTENSIONS_URL
+    // (definido acima, já resolvido pro navegador certo) em vez de um
+    // texto fixo.
     (function () {
-      var CHROME_URL = 'chrome://extensions';
       var btn = document.getElementById('copy-chrome-url-btn');
       btn.addEventListener('click', function () {
         var done = function () {
@@ -625,11 +804,11 @@
           }, 1800);
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(CHROME_URL).then(done, function () {
-            fallbackCopy(CHROME_URL, done);
+          navigator.clipboard.writeText(EXTENSIONS_URL).then(done, function () {
+            fallbackCopy(EXTENSIONS_URL, done);
           });
         } else {
-          fallbackCopy(CHROME_URL, done);
+          fallbackCopy(EXTENSIONS_URL, done);
         }
       });
     })();

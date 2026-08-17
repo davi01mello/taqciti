@@ -42,12 +42,14 @@ baixados como executáveis sem confirmação explícita):
    preenchido, numa cópia salva em `~/.local/share/taqciti/guide/` (via
    `xdg-open`).
 
-> **Não abre `chrome://extensions` sozinho** (essa etapa existia aqui
-> antes). Em testes reais isso nunca funcionou — o Chrome parece
-> filtrar/ignorar URLs `chrome://` recebidas via linha de comando de um
-> processo externo, por segurança, independente do sistema operacional. O
-> guia orienta a pessoa a abrir uma aba nova e colar o endereço (já
-> copiado por um botão dedicado nele).
+> **Não abre a página de extensões do navegador sozinho** (essa etapa
+> existia aqui antes, tentando `chrome://extensions`). Em testes reais isso
+> nunca funcionou — o navegador parece filtrar/ignorar esses esquemas de
+> URL internos recebidos via linha de comando de um processo externo, por
+> segurança, independente do sistema operacional. O guia (que se adapta
+> sozinho ao navegador padrão do usuário, detectado por
+> `navigator.userAgent`) orienta a pessoa a abrir uma aba nova e colar o
+> endereço certo (já copiado por um botão dedicado nele).
 
 ## Testar localmente
 
