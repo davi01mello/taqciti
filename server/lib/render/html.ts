@@ -343,22 +343,39 @@ export function renderHtml(input: RenderHtmlInput): string {
 }
 
 /**
- * A capa do modelo, comprimida na mesma página do conteúdo.
+ * A capa do modelo — folha própria, marca e título centralizados, quebra de
+ * página antes do conteúdo.
  *
- * O modelo usa uma página inteira só para marca e título, sobre um fundo
- * sangrado. Nem a página dedicada nem o fundo atravessam o import do Google
- * Docs, e uma capa em branco no meio de um documento importado é pior que não
- * ter capa. O que sobrevive — e é o que identifica o documento — é a marca e
- * o título, e é isso que fica.
+ * O modelo (`example.pdf`) usa uma página inteira só para isso, sobre um
+ * fundo sangrado até a borda. O fundo sangrado não sobrevive a nada fora do
+ * PDF — nem impressão, nem importação — e por isso não é reproduzido aqui.
+ * A quebra de página (`page-break-after`/`break-after`) sobrevive à
+ * impressão e a exportar/imprimir como PDF pelo navegador, que hoje é o
+ * caminho mais comum (download do `.html` é o padrão; a entrega direta ao
+ * Google Docs está inativa).
+ *
+ * **Import para o Google Docs continua sem capa própria.** O conversor do
+ * Docs descarta `page-break`/`break-after` junto com o resto do que não é
+ * atributo `style` inline — uma capa em branco sobrevivendo pela metade
+ * (marca certa, sem quebra) seria pior que a capa compactada de antes. Quem
+ * for importar pro Docs ainda vê marca + título como abertura da mesma
+ * página do conteúdo, não como página própria.
+ *
+ * `min-height` aproxima a altura útil de uma página A4 (842pt) menos as
+ * margens de `@page` (2,5cm ≈ 71pt de cada lado) — o suficiente para a
+ * marca e o título ficarem centralizados verticalmente numa impressão ou
+ * PDF de uma página só.
  */
 function blocoDeAbertura(titulo: string): string {
   return [
-    '<div style="text-align:center;margin:0 0 24pt 0">',
+    '<div style="page-break-after:always;break-after:page;min-height:700pt;' +
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+      'text-align:center">',
     `  <img src="${marcaDataUri()}" alt="CITi 30 anos" ` +
       `width="${MARCA_LARGURA_PT}" height="${MARCA_ALTURA_PT}" ` +
-      `style="width:${MARCA_LARGURA_PT}pt;height:${MARCA_ALTURA_PT}pt">`,
+      `style="width:${MARCA_LARGURA_PT}pt;height:${MARCA_ALTURA_PT}pt;margin:0 0 24pt 0">`,
+    `  <h1 style="${S.titulo};margin:0">${escapeHtml(titulo)}</h1>`,
     '</div>',
-    `<h1 style="${S.titulo}">${escapeHtml(titulo)}</h1>`,
   ].join('\n');
 }
 
