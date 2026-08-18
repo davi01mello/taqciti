@@ -211,6 +211,7 @@ function structuredCloneish(data: DocumentData): DocumentData {
     ...(data.topicsDiscussed ? { topicsDiscussed: [...data.topicsDiscussed] } : {}),
     ...(data.outcomes ? { outcomes: [...data.outcomes] } : {}),
     ...(data.outputs ? { outputs: [...data.outputs] } : {}),
+    ...(data.qa ? { qa: [...data.qa] } : {}),
     ...(data.generic ? { generic: { ...data.generic } } : {}),
   };
 }

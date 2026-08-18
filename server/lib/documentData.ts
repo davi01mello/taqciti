@@ -131,10 +131,26 @@ export interface Signature {
   role?: string;
 }
 
-/** Fallback dos templates placeholder (x1, daily, planning, review). */
+/** Fallback dos templates placeholder (daily, planning, review). */
 export interface GenericItem {
   text: string;
   quotes: AnchoredQuote[];
+}
+
+/**
+ * Um par pergunta-do-entrevistador / resposta-do-candidato, do X1.
+ *
+ * Dois campos citáveis, cada um com suas próprias `quotes` — por isso não
+ * reaproveita `GenericItem` (que só tem um texto). Perder a citação da
+ * resposta não deve derrubar a pergunta junto: os dois são auditados e
+ * descartados independentemente, ver `claims`/`drop` de
+ * `perguntas_respostas` em `SECTION_DATA_SPECS`.
+ */
+export interface QaExchange {
+  pergunta?: string;
+  quotesPergunta: AnchoredQuote[];
+  resposta?: string;
+  quotesResposta: AnchoredQuote[];
 }
 
 export interface DocumentData {
@@ -147,6 +163,8 @@ export interface DocumentData {
   outputs?: Output[];
   conclusion?: Conclusion;
   signature?: Signature;
+  /** X1 — pares pergunta/resposta, na ordem em que apareceram na entrevista. */
+  qa?: QaExchange[];
   /** Por seção, para os templates que ainda não têm estrutura própria. */
   generic?: Record<string, GenericItem[]>;
 }
@@ -677,6 +695,137 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       const nome = data.signature?.name ?? marcador(lacunaDoCampo(gaps, 'signature.name'), 'quem assina');
       const cargo = data.signature?.role ?? marcador(lacunaDoCampo(gaps, 'signature.role'), 'cargo de quem assina');
       return ['## Assinatura', '', 'Atenciosamente,', '', `${nome} – ${cargo}`].join('\n');
+    },
+  },
+
+  /**
+   * X1 — pares pergunta do entrevistador / resposta do candidato.
+   *
+   * UMA chamada ao Pensante devolve a lista INTEIRA de pares (mesmo padrão de
+   * `topicos_discutidos`/`decisoes`/`participantes`), não uma seção por
+   * pergunta — isso manteria o custo fixo mesmo com entrevistas de tamanhos
+   * bem diferentes, em vez de gastar uma chamada por pergunta ou travar num
+   * teto de perguntas escolhido a dedo.
+   *
+   * Cada pergunta e cada resposta é uma AuditableClaim própria: perder a
+   * citação da resposta não deve derrubar que a pergunta foi feita, e
+   * vice-versa — mesmo raciocínio de `decisoes`, onde o texto e a
+   * concordância são conferidos e descartados em separado.
+   */
+  perguntas_respostas: {
+    schema: {
+      type: 'object',
+      properties: {
+        pares: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              pergunta: {
+                type: 'string',
+                description:
+                  'A pergunta feita pelo entrevistador/RH, condensada com suas próprias ' +
+                  'palavras se a fala original for longa — sem inventar o que não foi ' +
+                  'perguntado.',
+              },
+              quotesPergunta: QUOTES,
+              resposta: {
+                type: 'string',
+                description:
+                  'A resposta que o candidato deu a ESTA pergunta específica, condensada ' +
+                  'sem alterar o sentido — sem inventar o que a pessoa não disse.',
+              },
+              quotesResposta: QUOTES,
+            },
+            required: ['pergunta', 'quotesPergunta', 'resposta', 'quotesResposta'],
+          },
+        },
+      },
+      required: ['pares'],
+    },
+    merge(data, payload, _sectionId, locate) {
+      data.qa = (
+        (
+          payload as {
+            pares?: {
+              pergunta?: string;
+              quotesPergunta?: unknown;
+              resposta?: string;
+              quotesResposta?: unknown;
+            }[];
+          }
+        )?.pares ?? []
+      )
+        .filter((par) => par?.pergunta || par?.resposta)
+        .map((par) => ({
+          ...(par.pergunta ? { pergunta: par.pergunta } : {}),
+          quotesPergunta: anchorQuotes(par.quotesPergunta, locate),
+          ...(par.resposta ? { resposta: par.resposta } : {}),
+          quotesResposta: anchorQuotes(par.quotesResposta, locate),
+        }));
+    },
+    claims(data) {
+      const claims: AuditableClaim[] = [];
+      (data.qa ?? []).forEach((par, index) => {
+        if (par.pergunta) {
+          claims.push({
+            path: `qa[${index}].pergunta`,
+            text: `O entrevistador perguntou: "${par.pergunta}"`,
+            anchors: located(par.quotesPergunta),
+          });
+        }
+        if (par.resposta) {
+          claims.push({
+            path: `qa[${index}].resposta`,
+            text: `O entrevistado respondeu: "${par.resposta}"`,
+            anchors: located(par.quotesResposta),
+          });
+        }
+      });
+      return claims;
+    },
+    drop(data, paths) {
+      data.qa = (data.qa ?? []).map((par, index) => {
+        const semPergunta = paths.has(`qa[${index}].pergunta`);
+        const semResposta = paths.has(`qa[${index}].resposta`);
+        if (!semPergunta && !semResposta) return par;
+        return {
+          ...par,
+          ...(semPergunta ? { pergunta: undefined, quotesPergunta: [] } : {}),
+          ...(semResposta ? { resposta: undefined, quotesResposta: [] } : {}),
+        };
+      });
+    },
+    serialize(data) {
+      const pares = (data.qa ?? []).filter((par) => par.pergunta || par.resposta);
+      if (pares.length === 0) return null;
+      return pares
+        .map((par) =>
+          [
+            par.pergunta ? `Pergunta: ${par.pergunta}` : '',
+            par.resposta ? `Resposta: ${par.resposta}` : '',
+          ]
+            .filter(Boolean)
+            .join(' | '),
+        )
+        .join('\n');
+    },
+    // `renderPlain`, e não Escritor: fidelidade ao que foi perguntado/
+    // respondido importa mais que prosa reescrita, e um modelo redigindo de
+    // novo arrisca alterar o sentido de uma resposta — o mesmo raciocínio de
+    // Identificação/Participantes/Assinatura.
+    renderPlain(data, _sectionId, gaps) {
+      const pares = data.qa ?? [];
+      const blocos = pares.map((par, index) => {
+        const pergunta =
+          par.pergunta ??
+          marcador(lacunaDoCampo(gaps, `qa[${index}].pergunta`), `a pergunta ${index + 1}`);
+        const resposta =
+          par.resposta ??
+          marcador(lacunaDoCampo(gaps, `qa[${index}].resposta`), `a resposta ${index + 1}`);
+        return [`**Gente e gestão:** ${pergunta}`, '', `**Entrevistado:** ${resposta}`].join('\n');
+      });
+      return ['## Perguntas e respostas', '', blocos.join('\n\n')].join('\n');
     },
   },
 };

@@ -41,13 +41,21 @@ describe('cobertura do registro', () => {
   });
 
   it('seção de template placeholder cai no genérico, sem quebrar', () => {
-    // x1, daily, planning e review continuam funcionando — a especificação
-    // pede exatamente isso enquanto os templates deles forem placeholder.
-    for (const type of ['x1', 'daily', 'planning', 'review'] as const) {
+    // daily, planning e review continuam placeholder — a especificação pede
+    // exatamente isso enquanto os templates deles não tiverem modelo. x1 saiu
+    // desta lista: ganhou spec própria (perguntas_respostas), ver o teste
+    // abaixo.
+    for (const type of ['daily', 'planning', 'review'] as const) {
       for (const section of TEMPLATES[type].sections) {
         expect(() => specForSection(section)).not.toThrow();
         expect(SECTION_DATA_SPECS[section.id]).toBeUndefined();
       }
+    }
+  });
+
+  it('toda seção do X1 tem spec própria', () => {
+    for (const section of TEMPLATES.x1.sections) {
+      expect(SECTION_DATA_SPECS[section.id], section.id).toBeDefined();
     }
   });
 
@@ -248,7 +256,7 @@ describe('decisões', () => {
 });
 
 describe('genérico (templates placeholder)', () => {
-  const spec = specForSection(TEMPLATES.x1.sections[0]!);
+  const spec = specForSection(TEMPLATES.daily.sections[0]!);
 
   it('guarda os itens por id de seção', () => {
     const data: DocumentData = {};

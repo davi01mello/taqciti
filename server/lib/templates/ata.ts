@@ -32,6 +32,10 @@ import type { DocumentTemplate } from './types';
 export const ata: DocumentTemplate = {
   documentType: 'ata',
   label: 'Ata de Reunião',
+  // Idêntico ao que já estava hardcoded em blocoDeAbertura() de
+  // render/html.ts — minúsculas em "reunião" de propósito, para o HTML da
+  // Ata sair byte a byte igual ao de antes desta mudança.
+  documentTitle: 'Ata de reunião',
   sections: [
     {
       id: 'identificacao',

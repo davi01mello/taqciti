@@ -1,12 +1,10 @@
 /**
- * Botão "Gerar Documento" com menu de dois níveis. Nenhum dos contextos onde
- * este botão vive (janela principal redimensionável, painel flutuante no Meet) tem
- * largura garantida pra dois níveis lado a lado, então o nível 2 SUBSTITUI o
- * nível 1 (drill-down) em vez de abrir como submenu lateral.
+ * Botão "Gerar Documento" com os dois tipos disponíveis (Ata, X1) numa lista
+ * direta — sem menu de área/drill-down, que fazia sentido com 5 tipos e não
+ * faz mais com 2.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/Button';
-import { Icon } from '@/shared/ui/Icon';
 import {
   DOCUMENT_TYPE_LABELS,
   entregarDocumento,
@@ -21,32 +19,13 @@ import {
 import { aplicarRespostas, type Resposta } from './answers';
 import { QuestionsForm } from './QuestionsForm';
 
-type Area = 'gente' | 'producao';
-
-// "Abrir no DocCiti" fica fora do drill-down, direto no nível 1: é a única
-// saída pra quem quer montar algo fora do que o servidor já gera, então
-// precisa de um clique só, não dois.
-const AREA_DEFS: { key: Area; label: string }[] = [
-  { key: 'gente', label: 'Gente e gestão' },
-  { key: 'producao', label: 'Produção' },
+// Só os dois documentos com pipeline de verdade (ver server/lib/templates/).
+// daily/planning/review continuam existindo no servidor como stub genérico —
+// só pararam de aparecer aqui.
+const MENU_ITEMS: { documentType: DocumentType; label: string }[] = [
+  { documentType: 'ata', label: DOCUMENT_TYPE_LABELS.ata },
+  { documentType: 'x1', label: DOCUMENT_TYPE_LABELS.x1 },
 ];
-
-type MenuItem =
-  | { kind: 'generate'; documentType: DocumentType; label: string }
-  | { kind: 'disabled'; label: string };
-
-const AREA_ITEMS: Record<Area, MenuItem[]> = {
-  gente: [
-    { kind: 'generate', documentType: 'x1', label: DOCUMENT_TYPE_LABELS.x1 },
-    { kind: 'disabled', label: 'Feedback' },
-  ],
-  producao: [
-    { kind: 'generate', documentType: 'ata', label: DOCUMENT_TYPE_LABELS.ata },
-    { kind: 'generate', documentType: 'daily', label: DOCUMENT_TYPE_LABELS.daily },
-    { kind: 'generate', documentType: 'planning', label: DOCUMENT_TYPE_LABELS.planning },
-    { kind: 'generate', documentType: 'review', label: DOCUMENT_TYPE_LABELS.review },
-  ],
-};
 
 type Generating =
   | { status: 'idle' }
@@ -114,8 +93,6 @@ export function GenerateDocumentMenu({
   className = '',
 }: GenerateDocumentMenuProps) {
   const [open, setOpen] = useState(false);
-  const [area, setArea] = useState<Area | null>(null);
-  const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const [generating, setGenerating] = useState<Generating>({ status: 'idle' });
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -125,7 +102,6 @@ export function GenerateDocumentMenu({
 
   const reset = () => {
     setOpen(false);
-    setArea(null);
     setGenerating({ status: 'idle' });
   };
 
@@ -142,35 +118,20 @@ export function GenerateDocumentMenu({
     return () => document.removeEventListener('pointerdown', onPointerDown, { capture: true });
   }, [open, busy]);
 
-  // Escape volta um nível antes de fechar. Listener na fase de CAPTURA do
-  // document — não no wrapper — porque trocar de nível troca os botões de
-  // DOM, o que derruba o foco pro <body>; um handler que depende de bolhar a
-  // partir do elemento focado perde o próximo Escape. Capture no document
-  // dispara antes de qualquer handler de Escape em fase de bolha (ex.: o
-  // painel do Meet se recolhendo com o mesmo Escape), então stopPropagation
-  // aqui evita os dois picarem o mesmo tecla.
+  // Fecha no Escape. Capture no document, e não no wrapper, pelo mesmo
+  // motivo de sempre: dispara antes de qualquer handler de Escape em fase de
+  // bolha (ex.: o painel do Meet se recolhendo com o mesmo Escape), e
+  // stopPropagation evita os dois picarem a mesma tecla.
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || busy) return;
       event.stopPropagation();
-      if (area) goBack();
-      else reset();
+      reset();
     };
     document.addEventListener('keydown', onKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [open, area, busy]);
-
-  const goToArea = (key: Area) => {
-    setDirection('forward');
-    setArea(key);
-  };
-
-  const goBack = () => {
-    setDirection('back');
-    setArea(null);
-    setGenerating({ status: 'idle' });
-  };
+  }, [open, busy]);
 
   /** Último passo: manda o HTML para o Docs ou para o download. */
   const finalizar = async (
@@ -202,7 +163,6 @@ export function GenerateDocumentMenu({
       // Fecha o menu mas mantém o aviso: o download não abre aba, e sem isso
       // o clique parece não ter feito nada.
       setOpen(false);
-      setArea(null);
       setGenerating({ status: 'baixado', arquivo: entrega.arquivo });
       return;
     }
@@ -235,7 +195,6 @@ export function GenerateDocumentMenu({
         // O menu sai de cena: o formulário ocupa o mesmo lugar, e os dois
         // abertos ao mesmo tempo se sobreporiam.
         setOpen(false);
-        setArea(null);
         setGenerating({ status: 'perguntando', documentType, generation, salvando: false });
         return;
       }
@@ -323,7 +282,7 @@ export function GenerateDocumentMenu({
           <p className="mt-1 text-caption text-muted">{generating.arquivo}</p>
           <p className="mt-2 text-caption text-muted">
             Arraste o arquivo para o Google Drive e abra com Documentos Google — ele
-            vira uma ata formatada.
+            vira um documento formatado.
           </p>
           <button
             type="button"
@@ -337,76 +296,30 @@ export function GenerateDocumentMenu({
 
       {open && (
         <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-panel p-1.5 shadow-float animate-entry">
-          {area === null ? (
-            <div
-              key="root"
-              className={direction === 'forward' ? 'animate-slide-in-right' : 'animate-slide-in-left'}
-            >
-              {AREA_DEFS.map((a) => (
-                <button
-                  key={a.key}
-                  type="button"
-                  onClick={() => goToArea(a.key)}
-                  className="flex w-full items-center justify-between rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/[0.07]"
-                >
-                  {a.label}
-                  <Icon name="chevron" size={14} className="-rotate-90 text-muted" />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div
-              key={area}
-              className={direction === 'forward' ? 'animate-slide-in-right' : 'animate-slide-in-left'}
-            >
+          {MENU_ITEMS.map((item) => {
+            const emAndamento =
+              generating.status === 'loading' && generating.documentType === item.documentType;
+            const label = !emAndamento
+              ? item.label
+              : generating.etapa === 'entregando'
+                ? 'Preparando o documento...'
+                : `Gerando ${item.label}...`;
+
+            return (
               <button
+                key={item.documentType}
                 type="button"
-                onClick={() => !busy && goBack()}
                 aria-disabled={busy}
-                className={`mb-1 flex items-center gap-1.5 rounded-control px-3 py-2 text-caption font-semibold text-muted transition-colors duration-200 ease-flow hover:bg-white/5 hover:text-foreground ${busy ? 'pointer-events-none opacity-50' : ''}`}
+                onClick={() => generate(item.documentType)}
+                className={`flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/[0.07] ${busy ? 'pointer-events-none opacity-50' : ''}`}
               >
-                <Icon name="chevron" size={13} className="rotate-90" />
-                {AREA_DEFS.find((a) => a.key === area)?.label}
+                {label}
               </button>
+            );
+          })}
 
-              {AREA_ITEMS[area].map((item) => {
-                if (item.kind === 'disabled') {
-                  return (
-                    <div
-                      key={item.label}
-                      className="flex w-full items-center justify-between rounded-control px-3 py-2.5 text-body text-muted/60"
-                    >
-                      {item.label}
-                      <span className="text-micro">em breve</span>
-                    </div>
-                  );
-                }
-
-                const emAndamento =
-                  generating.status === 'loading' && generating.documentType === item.documentType;
-                const label = !emAndamento
-                  ? item.label
-                  : generating.etapa === 'entregando'
-                    ? 'Preparando o documento...'
-                    : `Gerando ${item.label}...`;
-
-                return (
-                  <button
-                    key={item.documentType}
-                    type="button"
-                    aria-disabled={busy}
-                    onClick={() => generate(item.documentType)}
-                    className={`flex w-full items-center rounded-control px-3 py-2.5 text-left text-body font-semibold text-foreground transition-colors duration-200 ease-flow hover:bg-white/[0.07] ${busy ? 'pointer-events-none opacity-50' : ''}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-
-              {generating.status === 'error' && (
-                <p className="mt-1 px-3 pb-1 text-caption text-danger">{generating.message}</p>
-              )}
-            </div>
+          {generating.status === 'error' && (
+            <p className="mt-1 px-3 pb-1 text-caption text-danger">{generating.message}</p>
           )}
         </div>
       )}

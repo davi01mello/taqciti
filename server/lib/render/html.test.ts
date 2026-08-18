@@ -260,13 +260,68 @@ describe('compatibilidade com o import do Google Docs', () => {
 });
 
 describe('templates placeholder', () => {
-  it('x1 renderiza pelo genérico, sem quebrar', () => {
+  it('daily renderiza pelo genérico, sem quebrar', () => {
+    const html = renderHtml({
+      documentType: 'daily',
+      data: { generic: { documento: [{ text: 'algo discutido', quotes: [] }] } },
+      gaps: [],
+      title: 'Daily',
+    });
+    expect(html).toContain('algo discutido');
+  });
+});
+
+describe('X1 — perguntas e respostas', () => {
+  it('renderiza cada par com os dois rótulos pedidos', () => {
     const html = renderHtml({
       documentType: 'x1',
-      data: { generic: { documento: [{ text: 'algo discutido', quotes: [] }] } },
+      data: {
+        qa: [
+          {
+            pergunta: 'Por que você quer essa vaga?',
+            quotesPergunta: [],
+            resposta: 'Porque gosto do desafio técnico.',
+            quotesResposta: [],
+          },
+        ],
+      },
       gaps: [],
       title: 'X1',
     });
-    expect(html).toContain('algo discutido');
+    expect(html).toContain('Gente e gestão');
+    expect(html).toContain('Por que você quer essa vaga?');
+    expect(html).toContain('Entrevistado');
+    expect(html).toContain('Porque gosto do desafio técnico.');
+  });
+
+  it('usa o título do documento, não o da Ata', () => {
+    const html = renderHtml({
+      documentType: 'x1',
+      data: { qa: [] },
+      gaps: [],
+      title: 'X1',
+    });
+    expect(html).toContain('Doc de Conversa 1:1 — X1</h1>');
+    expect(html).not.toContain('Ata de reunião</h1>');
+  });
+
+  it('campo descartado pela auditoria vira lacuna, não some o par inteiro', () => {
+    const html = renderHtml({
+      documentType: 'x1',
+      data: {
+        qa: [{ pergunta: 'Por que você quer essa vaga?', quotesPergunta: [], quotesResposta: [] }],
+      },
+      gaps: [
+        {
+          sectionId: 'perguntas_respostas',
+          field: 'qa[0].resposta',
+          question: 'Qual foi a resposta a esta pergunta?',
+          why: 'Rejeitada pela conferência contra a transcrição.',
+        },
+      ],
+      title: 'X1',
+    });
+    expect(html).toContain('Por que você quer essa vaga?');
+    expect(html).toContain('Qual foi a resposta a esta pergunta?');
   });
 });

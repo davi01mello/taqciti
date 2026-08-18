@@ -215,6 +215,31 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
       ].join('\n');
     },
   },
+
+  perguntas_respostas: {
+    // Sem <h2> próprio — os pares aparecem como linhas rotuladas, no mesmo
+    // estilo de DATA/TÓPICO/ANDAMENTO, não como uma seção narrativa. O
+    // documento inteiro do X1 já é isto, então um título de seção por cima
+    // seria redundante com o <h1> da abertura.
+    cabecalho: false,
+    render(data, gaps) {
+      const pares = data.qa ?? [];
+      return pares
+        .map((par, index) => {
+          const pergunta = par.pergunta
+            ? escapeHtml(par.pergunta)
+            : lacunaDe(gaps, `qa[${index}].pergunta`);
+          const resposta = par.resposta
+            ? escapeHtml(par.resposta)
+            : lacunaDe(gaps, `qa[${index}].resposta`);
+          return [
+            linhaRotulada('Gente e gestão', pergunta),
+            linhaRotulada('Entrevistado', resposta),
+          ].join('\n');
+        })
+        .join(`\n<div style="margin:0 0 14pt 0"></div>\n`);
+    },
+  },
 };
 
 const GENERIC_RENDERER: SectionRenderer = {
@@ -308,7 +333,7 @@ export function renderHtml(input: RenderHtmlInput): string {
     '</style>',
     '</head>',
     '<body>',
-    blocoDeAbertura(),
+    blocoDeAbertura(template.documentTitle ?? template.label),
     corpo,
     rodape(),
     '</body>',
@@ -326,14 +351,14 @@ export function renderHtml(input: RenderHtmlInput): string {
  * ter capa. O que sobrevive — e é o que identifica o documento — é a marca e
  * o título, e é isso que fica.
  */
-function blocoDeAbertura(): string {
+function blocoDeAbertura(titulo: string): string {
   return [
     '<div style="text-align:center;margin:0 0 24pt 0">',
     `  <img src="${marcaDataUri()}" alt="CITi 30 anos" ` +
       `width="${MARCA_LARGURA_PT}" height="${MARCA_ALTURA_PT}" ` +
       `style="width:${MARCA_LARGURA_PT}pt;height:${MARCA_ALTURA_PT}pt">`,
     '</div>',
-    `<h1 style="${S.titulo}">Ata de reunião</h1>`,
+    `<h1 style="${S.titulo}">${escapeHtml(titulo)}</h1>`,
   ].join('\n');
 }
 

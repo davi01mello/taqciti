@@ -32,5 +32,7 @@ export interface SectionSpec {
 export interface DocumentTemplate {
   documentType: DocumentType;
   label: string;
+  /** O `<h1>` do HTML renderizado (ver `render/html.ts`). Ausente cai no `label`. */
+  documentTitle?: string;
   sections: SectionSpec[];
 }

@@ -266,7 +266,7 @@ describe('montagem da Ata', () => {
 });
 
 describe('templates placeholder', () => {
-  it('x1 gera seção única e genérica, sem quebrar', async () => {
+  it('daily gera seção única e genérica, sem quebrar', async () => {
     // Não há modelo para eles. O que não pode é quebrar.
     complete.mockImplementation(async (agent: string) =>
       agent === 'escritor'
@@ -276,12 +276,49 @@ describe('templates placeholder', () => {
 
     const { sections } = await generateStep({
       transcript,
+      documentType: 'daily',
+      completed: [],
+      answers: [],
+    });
+
+    expect(sections).toHaveLength(TEMPLATES.daily.sections.length);
+    expect(sections[0]!.content).toContain('Texto.');
+  });
+});
+
+describe('X1 — perguntas e respostas', () => {
+  it('monta o par via renderPlain, sem chamar o Escritor', async () => {
+    complete.mockImplementation(async (agent: string) => {
+      if (agent === 'auditor') return reply({ supported: true, reason: 'ok' });
+      if (agent === 'escritor') {
+        throw new Error('Escritor não deveria ser chamado — a seção usa renderPlain.');
+      }
+      return reply({
+        pares: [
+          {
+            pergunta: 'Por que você quer essa vaga?',
+            // Precisa ser um trecho literal do `transcript` deste arquivo —
+            // sem âncora localizável o Auditor rejeita SEM gastar chamada
+            // (ver `buildExcerpt` em auditor.ts), e o par some do teste.
+            quotesPergunta: ['Joao explicou o pipeline.'],
+            resposta: 'Porque gosto do desafio técnico.',
+            quotesResposta: ['Entao adiamos a entrega para sexta-feira.'],
+          },
+        ],
+      });
+    });
+
+    const { sections } = await generateStep({
+      transcript,
       documentType: 'x1',
       completed: [],
       answers: [],
     });
 
-    expect(sections).toHaveLength(TEMPLATES.x1.sections.length);
-    expect(sections[0]!.content).toContain('Texto.');
+    expect(sections).toHaveLength(1);
+    expect(sections[0]!.content).toContain('Gente e gestão');
+    expect(sections[0]!.content).toContain('Entrevistado');
+    expect(sections[0]!.content).toContain('Por que você quer essa vaga?');
+    expect(sections[0]!.content).toContain('Porque gosto do desafio técnico.');
   });
 });
