@@ -4,6 +4,32 @@ import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/api
 import { activeDataPolicyWarning } from '@/lib/ai';
 
 /**
+ * Sem isto, o Vercel mata a função no teto padrão da plataforma — bem menos
+ * que o necessário. Uma Ata completa é de 20 a 30 chamadas de modelo (9
+ * Pensante + laço do Auditor + 9 Escritor).
+ *
+ * 300 É O TETO DURO DO PLANO HOBBY, confirmado por deploy real falhando com
+ * "maxDuration between 1 and 300 for plan hobby" ao tentar 600 (17/08/2026).
+ * Não é conservador por escolha — é o máximo que este plano aceita.
+ *
+ * E 300 PROVAVELMENTE NÃO BASTA. A medição mais recente na configuração
+ * ATIVA (`docs/medicao-2026-08-16-longa/`, Pensante em `gemini-3.5-flash` com
+ * `thinkingLevel: HIGH`) levou 202s para CINCO das nove seções — a cota
+ * diária acabou antes de fechar o documento inteiro. Extrapolando de forma
+ * linear, nove seções ficam por volta de 360s. Ou seja: no plano Hobby, uma
+ * Ata completa de verdade tem boa chance de estourar o teto de função MESMO
+ * no valor máximo permitido — isso é limite de plataforma, não bug daqui.
+ *
+ * Duas saídas, nenhuma delas é "só mudar este número":
+ * 1. Upgrade pro plano Pro/Enterprise da Vercel (permite mais que 300s,
+ *    valor exato não verificado — confira no dashboard antes de assumir).
+ * 2. Tornar a geração assíncrona (job em background + polling, ou streaming
+ *    seção a seção) em vez de uma chamada síncrona só. Redesenho de
+ *    arquitetura, não ajuste de configuração — não fiz isso agora.
+ */
+export const maxDuration = 300;
+
+/**
  * CORS permissivo por design: a extensão chama esta rota a partir de
  * `chrome-extension://<id>`, e esse id muda entre modo dev (unpacked) e
  * produção (Chrome Web Store) — não dá pra fixar um valor só. Por isso

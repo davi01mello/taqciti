@@ -18,6 +18,11 @@ import { TEMPLATES } from '@/lib/templates';
 import { isDocumentType } from '@/lib/documentTypes';
 import type { DocumentData } from '@/lib/documentData';
 
+/** Ver o mesmo comentário em app/api/generate/route.ts — pedir várias seções
+ *  aqui de uma vez soma o mesmo risco de teto de função do Vercel. 300 é o
+ *  teto duro do plano Hobby, confirmado por deploy real. */
+export const maxDuration = 300;
+
 export function OPTIONS(request: NextRequest): NextResponse {
   return new NextResponse(null, {
     status: 204,

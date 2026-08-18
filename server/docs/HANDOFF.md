@@ -314,27 +314,47 @@ Precisa de test runner? Já tem: **vitest**, em `server/`.
    que vão quebrar primeiro, e como cada um falha, estão em
    [`docs/divida-verificacao-provedores.md`](divida-verificacao-provedores.md).
    **Leia antes de ligar qualquer chave nova.**
-2. **Cache nunca deu hit** — ver medição 1 acima. Continua aberta, e agora com
-   uma causa concreta: falta transcrição de teste grande o bastante.
+2. **Cache: já deu hit, mas não fecha a dívida.** Atualizado em 17/08/2026 —
+   ver [`docs/medicao-2026-08-16-longa/`](medicao-2026-08-16-longa/README.md).
+   Com a fixture longa (13.943 chars, ~3.500 tokens), `cachedInputTokens`
+   saiu de zero pela primeira vez: **1.899 tokens cacheados**, sobre um teto
+   teórico de ~14.000. O cache funciona, mas rende **13% do esperado** — não
+   trate como resolvido, trate como "funciona, ganho menor que a arquitetura
+   assumiu".
 3. **Espera por 429/503 tem teste unitário, e a de cota DIÁRIA foi exercitada
    de verdade** (foi ela que motivou `perDay`). A espera por cota por minuto
    ainda não foi observada acertando.
-4. **O modelo perde acentuação.** Vista no bench (`"gesto"` por `"gestão"`) e
-   de novo na medição de 14/08, agora no `flash-lite`: as quatro entradas de
-   `topicsDiscussed` voltaram sem nenhum acento numa execução.
-
-   **A ressalva muda o tamanho do problema.** Na mesma chamada, as 20 citações
-   vieram acentuadas e todas as 20 localizaram. O modelo corrompe a paráfrase
-   que ele escreve e preserva a citação que ele copia. Isso é bom para a
-   âncora — a auditoria não desaba — e ruim para o documento, porque a ata sai
-   sem acento no corpo do texto. Continua sendo risco de qualidade voltado ao
-   cliente. Anotado em `lib/ai/config.ts`, no comentário do agente `pensante`.
-5. **Participante sem citação some da Ata** — ver medição 3 acima, e
-   `docs/medicao-2026-08-14/` para as duas execuções lado a lado.
-6. **O Pensante põe citação literal da transcrição dentro da Conclusão.** Vista
-   na execução 2: o campo `conclusion.text` veio com trechos de fala entre
-   aspas. O `guidance` pede "um único parágrafo executivo", e transcrever fala
-   não é isso. O Escritor não tem culpa — ele redigiu o que recebeu.
+4. **O modelo perde acentuação — mas só foi visto no `lite`.** Vista no bench
+   (`"gesto"` por `"gestão"`) e na medição de 14/08 no `flash-lite`. **Não
+   reapareceu na medição de 16/08, com o Pensante já no `flash` (config
+   ativa)** — consistente com a hipótese de ser defeito do `lite`, mas é uma
+   amostra só, não confirmação. Se algum dia trocar o Pensante de volta pro
+   `lite`, essa dívida volta a valer.
+5. **Participante sem citação some da Ata** — ver medição 3 acima
+   (`docs/medicao-2026-08-14/`). **Não reapareceu na medição de 16/08**
+   (os cinco certos entraram, o sexto — que era do cliente, não participante
+   — ficou de fora corretamente), mas de novo é uma amostra, não descarta a
+   instabilidade. Mitigação aplicada em 17/08/2026: `guidance` da seção
+   `participantes` em `lib/templates/ata.ts` agora pede citação ativa por
+   participante e avisa a consequência (descarte) — não foi medida de novo
+   depois da mudança, então é aplicada, não confirmada.
+6. **O Pensante põe citação literal da transcrição dentro da Conclusão.**
+   Vista na execução 2 de 14/08. Mitigação aplicada em 17/08/2026: `guidance`
+   da seção `conclusao` em `lib/templates/ata.ts` ganhou um lembrete
+   explícito de prosa sem aspas — mesma ressalva, não medida de novo.
+7. **NOVO (17/08/2026), ATUALIZADO (18/08/2026) — o plano Hobby da Vercel
+   provavelmente não aguenta uma Ata inteira.** `app/api/generate`,
+   `/api/ai/secao` e `/api/ai/bench` ganharam `export const maxDuration = 300`
+   depois que a medição de 16/08 mostrou 202s para só cinco das nove seções
+   (cota diária cortou antes de fechar) — extrapolando, nove seções ficam por
+   volta de 360s. Tentei 600 primeiro; o deploy real falhou com "Serverless
+   Functions must have a maxDuration between 1 and 300 for plan hobby" — 300
+   é o TETO DURO confirmado do plano, não um valor conservador escolhido.
+   Ou seja: mesmo no máximo permitido, uma Ata completa tem boa chance de
+   estourar o teto de função no Hobby. Isso não se resolve subindo o número —
+   precisa de plano pago da Vercel (teto exato não verificado) ou de tornar a
+   geração assíncrona (job em background/streaming), redesenho que não foi
+   feito.
 
 ---
 
@@ -427,7 +447,13 @@ E as que se firmaram durante o trabalho:
 
 1. Rode `npm test` e `npm run build` para confirmar que o estado bate com o
    descrito aqui.
-2. Peça ao autor uma transcrição sintética **longa** (30 mil caracteres para
-   cima) e meça o cache com ela em `/api/ai/secao`. É a única dívida que o
-   corte da compactação prometeu resolver e ainda não resolveu na medição.
+2. **Atualizado 17/08/2026 — feito, parcialmente.** A fixture longa existe
+   (`docs/fixtures/reuniao-longa-ruidosa.txt`, 13.943 chars — menor que os 30
+   mil sugeridos aqui antes, mas já bastou para passar do piso de cache) e a
+   medição rodou (`docs/medicao-2026-08-16-longa/`): cache saiu de zero, mas
+   rendeu bem menos que o teto teórico. **O que ainda falta**: ninguém rodou
+   as nove seções fechando o documento inteiro — a cota diária cortou na
+   sexta. Se quiser medir isso, precisa de chave paga (a free tier não
+   aguenta uma Ata inteira) ou economizar quota reduzindo `thinkingLevel` em
+   seções simples antes de tentar.
 3. Só então decida entre Fase 6 e Fase 8 com o autor.
