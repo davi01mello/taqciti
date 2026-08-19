@@ -152,9 +152,31 @@ export function offsetMinutesAt(instantMs: number, timeZone: string): number {
   }
 }
 
-/** `true` se o fuso é um identificador IANA que a plataforma reconhece. */
+/**
+ * Offset puro — "-03:00", "+0300", "+03", "Z". NÃO é fuso: não carrega regra
+ * de horário de verão, então não resolve "terça que vem" em lugar nenhum.
+ *
+ * Precisa de teste próprio porque o `Intl` ACEITA offset como `timeZone` e
+ * não reclama; quem tem que recusar é este arquivo.
+ */
+const OFFSET_PURO = /^[+-]\d{2}(:?\d{2})?$|^[Zz]$/;
+
+/**
+ * `true` se o fuso é um identificador IANA que a plataforma reconhece.
+ *
+ * Quem decide é o `Intl`, e não uma regra de formato nossa. A versão anterior
+ * exigia uma "/" no nome — atalho para barrar sigla ("BRT") e offset
+ * ("-03:00") de uma vez —, mas isso recusava junto os identificadores IANA de
+ * um componente só, e o mais comum deles é **UTC**. O efeito: em qualquer
+ * máquina configurada em UTC (servidor, imagem corporativa, boa parte do
+ * Linux), o fuso de quem capturou era descartado em silêncio e trocado por
+ * `America/Sao_Paulo` com confiança `baixa` — ou seja, o dia local da reunião
+ * podia sair errado justamente no dado que existe para resolver "amanhã".
+ * Passou despercebido porque as máquinas de desenvolvimento estavam todas em
+ * America/*; apareceu no primeiro CI, que roda em UTC.
+ */
 export function isValidTimezone(timeZone: string): boolean {
-  if (!timeZone || !timeZone.includes('/')) return false;
+  if (!timeZone || OFFSET_PURO.test(timeZone)) return false;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone }).format(0);
     return true;

@@ -195,6 +195,29 @@ describe('isValidTimezone', () => {
     expect(isValidTimezone('')).toBe(false);
     expect(isValidTimezone('-03:00')).toBe(false);
   });
+
+  it('aceita IANA de um componente só — UTC é o caso que importa', () => {
+    // A versão anterior exigia "/" no nome e recusava estes. Numa máquina
+    // configurada em UTC — servidor, imagem corporativa, boa parte do Linux —
+    // isso descartava o fuso real de quem capturou e o trocava por
+    // America/Sao_Paulo em silêncio, com o dia local podendo sair errado.
+    expect(isValidTimezone('UTC')).toBe(true);
+    expect(isValidTimezone('GMT')).toBe(true);
+    expect(isValidTimezone('Japan')).toBe(true);
+  });
+
+  it('recusa offset puro em qualquer forma, que o Intl aceitaria', () => {
+    // Offset não tem regra de horário de verão, então não resolve "terça que
+    // vem". O Intl aceita todos estes sem reclamar — recusar é trabalho daqui.
+    for (const offset of ['-03:00', '+03:00', '+0300', '+03', 'Z']) {
+      expect(isValidTimezone(offset)).toBe(false);
+    }
+  });
+
+  it('recusa o que não é fuso nenhum', () => {
+    expect(isValidTimezone('xyz')).toBe(false);
+    expect(isValidTimezone('Nao/Existe')).toBe(false);
+  });
 });
 
 describe('buildTemporalContext', () => {
