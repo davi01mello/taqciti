@@ -24,6 +24,7 @@ import {
 } from './generateStep';
 import { assertSemVazamento } from './agents/escritor';
 import { renderHtml } from './render/html';
+import { renderPdf } from './render/pdf';
 
 export { DOCUMENT_TYPES, isDocumentType };
 export type { DocumentType };
@@ -48,6 +49,13 @@ export interface GenerateDocumentResult {
   /** O mesmo documento em HTML, no subconjunto que o import do Google Docs
    *  aceita (Drive API `files.create`). */
   html: string;
+  /**
+   * O mesmo documento em PDF, pronto pra baixar — base64, porque a rota
+   * devolve JSON. Ausente quando a geração do PDF falhou: o HTML e o
+   * download continuam funcionando, só sem PDF daquela vez (ver o
+   * try/catch abaixo).
+   */
+  pdf?: string;
   /** O que ficou por preencher, para a UI de perguntas. */
   questions: Question[];
   /** As mesmas lacunas com o campo que cada uma ocupa. `POST /api/answers`
@@ -93,5 +101,23 @@ export async function generateDocument(
   // do PDF poderia chegar ao cliente. A guarda vale para os dois.
   assertSemVazamento(html, 'o HTML do documento');
 
-  return { title, content, documentData, html, questions, gaps };
+  // Sem `assertSemVazamento` própria aqui: o PDF desenha exatamente os
+  // mesmos campos de `documentData` que o HTML acima de já conferiu — texto
+  // dentro de um PDF fica em streams comprimidos, então varrer os bytes
+  // crus do arquivo não pegaria nada mesmo que houvesse algo (e daria falsa
+  // confiança). A garantia real é a fonte ser a mesma, já verificada.
+  //
+  // Isolado de propósito: o PDF é irmão do HTML, não pré-requisito dele. Se
+  // `pdfkit` lançar por qualquer motivo, a geração inteira não pode morrer
+  // por causa disso — o HTML e o caminho de download continuam de pé, só
+  // sem PDF nesta chamada.
+  let pdf: string | undefined;
+  try {
+    const pdfBuffer = await renderPdf({ documentType: input.documentType, data: documentData, gaps, title });
+    pdf = pdfBuffer.toString('base64');
+  } catch (error) {
+    console.error('[generateDocument] falha ao gerar o PDF — devolvendo sem ele', error);
+  }
+
+  return { title, content, documentData, html, pdf, questions, gaps };
 }

@@ -18,6 +18,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
 import { applyAnswers } from '@/lib/applyAnswers';
 import { renderHtml } from '@/lib/render/html';
+import { renderPdf } from '@/lib/render/pdf';
 import { isDocumentType } from '@/lib/documentTypes';
 import { TEMPLATES } from '@/lib/templates';
 import { assertSemVazamento } from '@/lib/agents/escritor';
@@ -103,12 +104,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     optional: !(template.sections.find((s) => s.id === gap.sectionId)?.required ?? true),
   }));
 
+  // Mesmo isolamento de /api/generate: o PDF é irmão do HTML, não
+  // pré-requisito. Sem isso, responder uma pergunta faria o download voltar
+  // a ser HTML mesmo quando a geração original tinha PDF — inconsistente
+  // pra quem só respondeu uma lacuna.
+  let pdf: string | undefined;
+  try {
+    const pdfBuffer = await renderPdf({
+      documentType: body.documentType,
+      data: resultado.data,
+      gaps: resultado.gaps,
+      title: titulo,
+    });
+    pdf = pdfBuffer.toString('base64');
+  } catch (error) {
+    console.error('[api/answers] falha ao gerar o PDF — devolvendo sem ele', error);
+  }
+
   return NextResponse.json(
     {
       documentData: resultado.data,
       gaps: resultado.gaps,
       questions,
       html,
+      pdf,
       aplicadas: resultado.aplicadas,
       // Nunca somem em silêncio: quem chamou precisa saber que respondeu algo
       // que não tinha onde entrar.

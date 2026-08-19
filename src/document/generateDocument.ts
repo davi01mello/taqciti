@@ -2,11 +2,10 @@
  * Contrato com POST /api/generate — extraído de DocumentPage.tsx pra ser
  * reaproveitado pelo menu "Gerar Documento" sem duplicar o fetch.
  *
- * O servidor devolve o mesmo documento em três formas, e as três importam:
- * `content` (markdown, para mostrar na hora), `html` (para o Google Docs) e
- * `documentData` (a estrutura, de onde as duas saem). Nada aqui reparseia o
- * markdown para produzir as outras — quando o PDF entrar, ele também sai do
- * `documentData`.
+ * O servidor devolve o mesmo documento em quatro formas, e todas importam:
+ * `content` (markdown, para mostrar na hora), `html` (para o Google Docs),
+ * `pdf` (para o download, base64) e `documentData` (a estrutura, de onde as
+ * outras três saem). Nada aqui reparseia uma pra produzir outra.
  */
 import type { LiveSegment } from '@/shared/types/domain';
 import {
@@ -16,7 +15,7 @@ import {
 } from '@/shared/config/serverConfig';
 import { transcriptToText } from '@/features/history/export';
 import { criarGoogleDoc, nomeDoArquivo, oauthConfigurado, type GoogleDocResult } from './googleDocs';
-import { baixarComoHtml } from './baixarDocumento';
+import { baixarComoHtml, baixarComoPdf } from './baixarDocumento';
 import type { Lacuna, Pergunta } from './answers';
 
 export type { GoogleDocResult };
@@ -52,6 +51,9 @@ export type GenerationResult =
       title: string;
       content: string;
       html: string;
+      /** Base64. Ausente quando o servidor não conseguiu gerar o PDF daquela
+       *  vez — o download cai pro HTML nesse caso. */
+      pdf?: string;
       metadata: DocumentMetadata;
       /** O JSON intermediário inteiro, para `POST /api/answers` preencher. */
       documentData: unknown;
@@ -65,7 +67,8 @@ export type GenerationResult =
  * Como o documento chega até a pessoa.
  *
  * `docs`     — criado direto no Google Docs dela e aberto numa aba.
- * `download` — baixado como HTML, para ela subir no próprio Drive.
+ * `download` — baixado pronto: PDF quando o servidor mandou um, HTML como
+ *              fallback quando não mandou.
  */
 export type Entrega =
   | { via: 'docs'; url: string }
@@ -87,6 +90,9 @@ export interface DocumentoPronto {
   content: string;
   /** O HTML corrente — atualizado quando o usuário responde as perguntas. */
   html: string;
+  /** O PDF corrente, base64 — mesma atualização do `html`. Ausente quando o
+   *  servidor não conseguiu gerar um daquela vez. */
+  pdf?: string;
   documentData: unknown;
   /** O que ainda não foi respondido. Vazio quando não sobrou nada. */
   questions: Pergunta[];
@@ -115,23 +121,30 @@ export function nomeDoDocumento(
  *
  * **Qual caminho depende do manifesto, não de configuração no código.** Com
  * cliente OAuth registrado, o documento vai direto para o Google Docs e a aba
- * abre. Sem ele, baixa. A extensão nem TENTA o caminho direto quando não há
- * como autenticar: uma tentativa fadada ao "bad client id" só poria na cara do
+ * abre. Sem ele, baixa — PDF quando o servidor mandou um, HTML como fallback
+ * quando não mandou (versão antiga do servidor, ou a geração do PDF falhou
+ * daquela vez). A extensão nem TENTA o caminho do Docs quando não há como
+ * autenticar: uma tentativa fadada ao "bad client id" só poria na cara do
  * usuário um erro de configuração que não é problema dele.
  *
  * Separado da geração de propósito: entre uma e outra entra a etapa de
- * perguntas, e o HTML entregue pode ser o que voltou COM as respostas.
+ * perguntas, e o HTML/PDF entregue pode ser o que voltou COM as respostas.
  */
 export async function entregarDocumento(
   html: string,
   nome: string,
   documentType: DocumentType,
+  pdf?: string,
 ): Promise<Entrega> {
   if (!html) {
-    return { via: 'falhou', message: 'O servidor não devolveu o HTML do documento.' };
+    return { via: 'falhou', message: 'O servidor não devolveu o documento.' };
   }
 
   if (!oauthConfigurado()) {
+    if (pdf) {
+      baixarComoPdf(pdf, nome);
+      return { via: 'download', arquivo: `${nome}.pdf` };
+    }
     baixarComoHtml(html, nome);
     return { via: 'download', arquivo: `${nome}.html` };
   }
@@ -189,6 +202,7 @@ export async function requestGeneration(
       title: string;
       content: string;
       html?: string;
+      pdf?: string;
       documentData?: { metadata?: DocumentMetadata };
       questions?: Pergunta[];
       gaps?: Lacuna[];
@@ -199,6 +213,7 @@ export async function requestGeneration(
       title: data.title,
       content: data.content,
       html: data.html ?? '',
+      pdf: data.pdf,
       metadata: data.documentData?.metadata ?? {},
       documentData: data.documentData ?? {},
       questions: data.questions ?? [],

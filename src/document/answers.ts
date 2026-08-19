@@ -38,6 +38,9 @@ export type AplicarRespostasResult =
   | {
       status: 'success';
       html: string;
+      /** Base64. Ausente quando o servidor não conseguiu gerar o PDF
+       *  daquela vez — o download cai pro HTML nesse caso. */
+      pdf?: string;
       documentData: unknown;
       gaps: Lacuna[];
       questions: Pergunta[];

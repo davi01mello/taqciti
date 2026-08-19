@@ -73,8 +73,15 @@ métricas de citação — é o melhor lugar para medir sem gerar o documento to
   jeito de trocar. Resolvido em 17/08/2026: `VITE_DOCCITI_SERVER_URL` na
   build da extensão, guia de deploy em `server/README.md`.
 - **Fase 8 — harness** em `server/eval/`.
-- **PDF** — adiado, não descartado. Sai do MESMO `documentData` que o HTML, e
-  não do HTML.
+- **PDF — feito em 18/08/2026.** `lib/render/pdf.ts`, `pdfkit` nativo (sem
+  navegador headless — decisão do autor, ver o comentário no topo do
+  arquivo). Sai do MESMO `documentData` que o HTML, gerado em `generateDocument.ts`
+  e `/api/answers` isolado num try/catch — se falhar, a geração não morre,
+  só sai sem `pdf`. É o formato que a extensão baixa por padrão agora
+  (`baixarComoPdf` em `src/document/baixarDocumento.ts`); `html` continua de
+  fallback e para o caminho OAuth. Paridade com o HTML é estrutural (mesmas
+  seções, rótulos, disciplina de lacuna), não pixel a pixel — motores de
+  desenho diferentes.
 
 ---
 

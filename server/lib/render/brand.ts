@@ -37,15 +37,16 @@ export const MARCA_ALTURA_PX = 120;
 export const MARCA_LARGURA_PT = 160;
 export const MARCA_ALTURA_PT = Math.round((MARCA_LARGURA_PT * MARCA_ALTURA_PX) / MARCA_LARGURA_PX);
 
-let cache: string | undefined;
+let cacheBuffer: Buffer | undefined;
+let cacheDataUri: string | undefined;
 
-/** Lido uma vez: são ~23KB de base64, e reler por documento seria I/O à toa. */
-export function marcaDataUri(): string {
-  if (cache !== undefined) return cache;
+/** Lido uma vez: são ~23KB de PNG, e reler por documento seria I/O à toa. */
+function lerMarca(): Buffer {
+  if (cacheBuffer !== undefined) return cacheBuffer;
 
   const caminho = join(process.cwd(), 'lib', 'render', 'assets', 'citi-30-anos.png');
   try {
-    cache = `data:image/png;base64,${readFileSync(caminho).toString('base64')}`;
+    cacheBuffer = readFileSync(caminho);
   } catch (error) {
     // Falha ALTO. Uma ata sem a marca sai parecendo documento de outra
     // instituição, e o defeito só apareceria com o arquivo já na mão do
@@ -54,5 +55,17 @@ export function marcaDataUri(): string {
       `Marca do documento não encontrada em ${caminho}. Causa: ${(error as Error).message}`,
     );
   }
-  return cache;
+  return cacheBuffer;
+}
+
+/** Pro `<img src="data:...">` do HTML — autocontido, ver o porquê no topo. */
+export function marcaDataUri(): string {
+  cacheDataUri ??= `data:image/png;base64,${lerMarca().toString('base64')}`;
+  return cacheDataUri;
+}
+
+/** Pro `doc.image(...)` do `pdfkit`, que consome Buffer de PNG direto — sem
+ *  motivo pra decodificar de volta um base64 que a gente acabou de codificar. */
+export function marcaBuffer(): Buffer {
+  return lerMarca();
 }

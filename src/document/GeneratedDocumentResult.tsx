@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { Icon } from '@/shared/ui/Icon';
 import { aplicarRespostas, type Resposta } from './answers';
-import { baixarComoHtml } from './baixarDocumento';
+import { baixarComoHtml, baixarComoPdf } from './baixarDocumento';
 import { oauthConfigurado } from './googleDocs';
 import { QuestionsForm } from './QuestionsForm';
 import {
@@ -87,6 +87,7 @@ export function GeneratedDocumentResult({
       onAtualizado({
         ...documento,
         html: resultado.html,
+        pdf: resultado.pdf,
         documentData: resultado.documentData,
         questions: resultado.questions,
         gaps: resultado.gaps,
@@ -112,7 +113,9 @@ export function GeneratedDocumentResult({
         <Button
           variant="secondary"
           size="compact"
-          onClick={() => baixarComoHtml(documento.html, nome)}
+          onClick={() =>
+            documento.pdf ? baixarComoPdf(documento.pdf, nome) : baixarComoHtml(documento.html, nome)
+          }
         >
           <Icon name="arrowDown" size={13} />
           Baixar documento
@@ -208,15 +211,18 @@ function Entregue({
   }
 
   if (entrega.via === 'download') {
+    const ehPdf = entrega.arquivo.endsWith('.pdf');
     return (
       <p className={`${base} bg-white/[0.03] text-foreground`}>
         <Icon name="check" size={13} className="mt-0.5 shrink-0 text-primary" />
         <span>
           Baixado como <span className="font-semibold">{entrega.arquivo}</span>.
-          <span className="mt-0.5 block text-muted">
-            Arraste para o Google Drive e abra com Documentos Google.
-            {!oauthConfigurado() && ' O envio direto ainda não foi configurado neste ambiente.'}
-          </span>
+          {!ehPdf && (
+            <span className="mt-0.5 block text-muted">
+              Arraste para o Google Drive e abra com Documentos Google.
+              {!oauthConfigurado() && ' O envio direto ainda não foi configurado neste ambiente.'}
+            </span>
+          )}
         </span>
       </p>
     );

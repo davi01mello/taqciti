@@ -37,6 +37,15 @@ import { TEMPLATES } from '../templates';
 import { specForSection, textoDeLacuna, type DocumentData, type Gap } from '../documentData';
 import type { SectionSpec } from '../templates/types';
 import { marcaDataUri, MARCA_ALTURA_PT, MARCA_LARGURA_PT } from './brand';
+import {
+  TAMANHO_CORPO_PT,
+  TAMANHO_RODAPE_PT,
+  TAMANHO_SECAO_PT,
+  TAMANHO_SUBTITULO_PT,
+  TAMANHO_TITULO_PT,
+  TINTA,
+  TINTA_FRACA,
+} from './typography';
 
 /** Escapa o que vai virar texto. Tudo aqui veio de modelo — um `<` solto
  *  quebraria a estrutura, e um `<script>` seria pior que quebrar. */
@@ -53,18 +62,16 @@ export function escapeHtml(value: string): string {
 // ---------------------------------------------------------------------------
 
 const FAMILIA = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
-const TINTA = '#000000';
-const TINTA_FRACA = '#888888';
 
 const S = {
-  titulo: `font-family:${FAMILIA};font-size:44pt;font-weight:bold;color:${TINTA};text-align:center;margin:0 0 28pt 0;line-height:1.1`,
-  subtitulo: `font-family:${FAMILIA};font-size:17.3pt;font-weight:bold;color:${TINTA};text-align:center;margin:0 0 24pt 0`,
-  secao: `font-family:${FAMILIA};font-size:26.7pt;font-weight:bold;color:${TINTA};margin:28pt 0 10pt 0;line-height:1.2`,
-  corpo: `font-family:${FAMILIA};font-size:14.7pt;color:${TINTA};margin:0 0 10pt 0;line-height:1.45`,
-  item: `font-family:${FAMILIA};font-size:14.7pt;color:${TINTA};margin:0 0 6pt 0;line-height:1.45`,
+  titulo: `font-family:${FAMILIA};font-size:${TAMANHO_TITULO_PT}pt;font-weight:bold;color:${TINTA};text-align:center;margin:0 0 28pt 0;line-height:1.1`,
+  subtitulo: `font-family:${FAMILIA};font-size:${TAMANHO_SUBTITULO_PT}pt;font-weight:bold;color:${TINTA};text-align:center;margin:0 0 24pt 0`,
+  secao: `font-family:${FAMILIA};font-size:${TAMANHO_SECAO_PT}pt;font-weight:bold;color:${TINTA};margin:28pt 0 10pt 0;line-height:1.2`,
+  corpo: `font-family:${FAMILIA};font-size:${TAMANHO_CORPO_PT}pt;color:${TINTA};margin:0 0 10pt 0;line-height:1.45`,
+  item: `font-family:${FAMILIA};font-size:${TAMANHO_CORPO_PT}pt;color:${TINTA};margin:0 0 6pt 0;line-height:1.45`,
   lista: 'margin:0 0 10pt 0;padding-left:26pt',
   rotulo: 'font-weight:bold',
-  rodape: `font-family:${FAMILIA};font-size:10.7pt;color:${TINTA_FRACA};text-align:center;margin:2pt 0;line-height:1.35`,
+  rodape: `font-family:${FAMILIA};font-size:${TAMANHO_RODAPE_PT}pt;color:${TINTA_FRACA};text-align:center;margin:2pt 0;line-height:1.35`,
   lacuna: `font-weight:bold;color:${TINTA}`,
 } as const;
 
@@ -266,11 +273,20 @@ function lacunaDe(gaps: Lacunas, field: string): string {
 // Documento
 // ---------------------------------------------------------------------------
 
-/** O rodapé institucional do modelo, palavra por palavra. */
-const RODAPE = [
+/** O rodapé institucional do modelo, palavra por palavra. Exportado porque
+ *  `render/pdf.ts` desenha o mesmo rodapé — uma fonte só, pros dois nunca
+ *  discordarem do texto oficial. */
+export const RODAPE = [
   'Centro Integrado de tecnologia da Informação',
   'Centro de Informática, Universidade Federal de Pernambuco - CIn, UFPE',
 ];
+
+/** Esta seção ganha `<h2>` no HTML, ou título de seção no PDF? Exportado
+ *  pelo mesmo motivo de `RODAPE` — `pdf.ts` precisa da mesma resposta, e
+ *  duas listas hardcoded divergem cedo ou tarde. */
+export function temCabecalho(sectionId: string): boolean {
+  return (SECTION_RENDERERS[sectionId] ?? GENERIC_RENDERER).cabecalho;
+}
 
 export interface RenderHtmlInput {
   documentType: DocumentType;

@@ -464,8 +464,13 @@ ver `lib/agents/`), monta o markdown na ordem do template e devolve
 `documentData` + `html` junto. `/api/generate` expõe isso como "documento
 inteiro numa tacada"; quem quiser controle fino (uma seção por vez,
 perguntas, respostas) usa `generateStep` ou `/api/ai/secao` direto. Ver
-`docs/HANDOFF.md` para o estado detalhado e o que falta (harness da Fase 8,
-PDF).
+`docs/HANDOFF.md` para o estado detalhado e o que falta (harness da Fase 8).
+
+`/api/generate` e `/api/answers` também devolvem `pdf` (base64) — irmão do
+`html`, saído do mesmo `documentData` via `lib/render/pdf.ts` (`pdfkit`
+nativo, sem navegador headless). É o formato que a extensão baixa por
+padrão; `html` continua existindo como fallback e para o caminho OAuth
+direto ao Google Docs, que precisa de HTML.
 
 ## DocCiti (mockup do hero animado) — descontinuado
 

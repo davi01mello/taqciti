@@ -133,11 +133,14 @@ export function GenerateDocumentMenu({
     return () => document.removeEventListener('keydown', onKeyDown, { capture: true });
   }, [open, busy]);
 
-  /** Último passo: manda o HTML para o Docs ou para o download. */
+  /** Último passo: manda o documento para o Docs ou para o download. */
   const finalizar = async (
     documentType: DocumentType,
     generation: Extract<GenerationResult, { status: 'success' }>,
     html: string,
+    /** Base64. Acompanha `html` — os dois trocam juntos quando o usuário
+     *  responde perguntas (ver `responder`). */
+    pdf: string | undefined,
     /** O que voltou de `/api/answers`, quando o usuário respondeu algo. */
     atualizacao?: Partial<DocumentoPronto>,
   ) => {
@@ -147,11 +150,12 @@ export function GenerateDocumentMenu({
       html,
       nomeDoDocumento(source, documentType, generation.metadata.projectName),
       documentType,
+      pdf,
     );
 
     // O painel passa a mostrar para onde o documento foi — e, se houve
     // respostas, o estado já atualizado por elas.
-    onGenerated({ ...comoDocumento(generation), ...atualizacao, html, entrega });
+    onGenerated({ ...comoDocumento(generation), ...atualizacao, html, pdf, entrega });
 
     if (entrega.via === 'docs') {
       abrirDocumento(entrega.url);
@@ -199,7 +203,7 @@ export function GenerateDocumentMenu({
         return;
       }
 
-      void finalizar(documentType, generation, generation.html);
+      void finalizar(documentType, generation, generation.html, generation.pdf);
     });
   };
 
@@ -217,7 +221,7 @@ export function GenerateDocumentMenu({
     respostas: Resposta[],
   ) => {
     if (respostas.length === 0) {
-      void finalizar(documentType, generation, generation.html);
+      void finalizar(documentType, generation, generation.html, generation.pdf);
       return;
     }
 
@@ -234,10 +238,10 @@ export function GenerateDocumentMenu({
         // Entrega o documento COMO ESTAVA em vez de perder a geração — as
         // lacunas continuam marcadas nele, e o painel de resultado deixa
         // responder de novo.
-        void finalizar(documentType, generation, generation.html);
+        void finalizar(documentType, generation, generation.html, generation.pdf);
         return;
       }
-      void finalizar(documentType, generation, resultado.html, {
+      void finalizar(documentType, generation, resultado.html, resultado.pdf, {
         documentData: resultado.documentData,
         questions: resultado.questions,
         gaps: resultado.gaps,
@@ -269,20 +273,24 @@ export function GenerateDocumentMenu({
               generating.documentType,
               generating.generation,
               generating.generation.html,
+              generating.generation.pdf,
             )
           }
         />
       )}
 
       {generating.status === 'baixado' && (
-        // Instrução, e não só confirmação: o arquivo sozinho não vira Google
-        // Doc, e quem baixou precisa saber que o próximo passo existe.
+        // PDF já está pronto — só confirmação. HTML (fallback, quando o
+        // servidor não conseguiu gerar o PDF daquela vez) ainda precisa da
+        // instrução de arrastar pro Drive, porque o arquivo sozinho não vira
+        // Google Doc.
         <div className="glass absolute left-0 right-0 top-[calc(100%+8px)] z-50 rounded-panel p-3 shadow-float animate-entry">
           <p className="text-body font-semibold text-foreground">Documento baixado</p>
           <p className="mt-1 text-caption text-muted">{generating.arquivo}</p>
           <p className="mt-2 text-caption text-muted">
-            Arraste o arquivo para o Google Drive e abra com Documentos Google — ele
-            vira um documento formatado.
+            {generating.arquivo.endsWith('.pdf')
+              ? 'Já está pronto pra usar.'
+              : 'Arraste o arquivo para o Google Drive e abra com Documentos Google — ele vira um documento formatado.'}
           </p>
           <button
             type="button"
