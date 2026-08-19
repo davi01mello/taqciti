@@ -14,7 +14,7 @@
  *
  * De `public/assets-docs/ata-de-reuniao/example.pdf`, extraídas do CONTEÚDO
  * REAL do arquivo (stream de página decodificado, não leitura visual): A4
- * (596×842pt), margem de 1in (72pt), Arial, texto preto, rodapé em cinza com
+ * (596×842pt), margem de 1in (72pt), texto preto, rodapé em cinza com
  * linha fina acima, e a escala tipográfica 33 / 20 / 13 / 12 / 11 / 8pt —
  * título da capa, subtítulo da capa, título de seção, rótulo de campo,
  * corpo, rodapé (ver `./typography.ts`, que também documenta o fator ×0,75
@@ -68,7 +68,19 @@ export function escapeHtml(value: string): string {
 // Tipografia do modelo
 // ---------------------------------------------------------------------------
 
-const FAMILIA = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
+/**
+ * Barlow é a fonte do documento (ver `./fonts.ts` — no PDF ela vai EMBUTIDA,
+ * então lá o arquivo é idêntico em qualquer máquina).
+ *
+ * Aqui não dá pra embutir: o destino é o import do Google Docs, que descarta
+ * `<style>` — e `@font-face` só existe dentro de folha de estilo, nunca em
+ * atributo `style`. Então o HTML PEDE Barlow e cai em Arial quando ela não
+ * existe. No Docs isso funciona: Barlow está no catálogo dele. Num navegador
+ * sem a fonte instalada, sai Arial — que é justamente o que o modelo
+ * institucional usa, então o pior caso é o documento voltar a parecer o
+ * modelo.
+ */
+const FAMILIA = "Barlow, Arial, 'Helvetica Neue', Helvetica, sans-serif";
 
 const S = {
   titulo: `font-family:${FAMILIA};font-size:${TAMANHO_TITULO_PT}pt;font-weight:bold;color:${TINTA};text-align:center;margin:0;line-height:1.1`,
@@ -409,11 +421,14 @@ export function renderHtml(input: RenderHtmlInput): string {
  * largura toda, e dentro do Docs — que reescreve a árvore — isso é
  * exatamente o tipo de coisa que escorrega pra esquerda.
  *
- * **A vertical é aproximada, a horizontal não.** No modelo a marca fica a
- * 21,6pt do topo da FOLHA, dentro da faixa de cabeçalho; com `@page
- * { margin: 1in }` o HTML não alcança essa faixa, então ela começa na margem
- * e o espaçador abaixo aproxima a distância até o título (linha de base a
- * ~306pt do topo, no modelo). `render/pdf.ts` usa a coordenada exata.
+ * **A marca sobe PARA DENTRO da margem, de propósito.** No modelo ela fica a
+ * 21,6pt do topo da FOLHA — acima da margem de 1in, na faixa de cabeçalho. Um
+ * `margin-top` negativo de 50,4pt (72 − 21,6) tira a marca da caixa de
+ * conteúdo e a põe onde o modelo põe. Sem isso ela encostava na margem, 50pt
+ * abaixo do lugar, e a capa inteira descia junto. Os espaçadores seguintes
+ * completam a distância até a linha de base do título (~306pt do topo, no
+ * modelo). `render/pdf.ts` usa as coordenadas exatas; aqui elas são o alvo de
+ * um layout de fluxo, que chega perto e não é ponto a ponto.
  *
  * **Sem marca repetida no topo das páginas internas.** O modelo repete uma
  * versão menor da marca no cabeçalho de cada página (`render/pdf.ts`
@@ -430,8 +445,8 @@ function blocoDeAbertura(titulo: string, subtitulo: string): string {
     '<div style="page-break-after:always;break-after:page;min-height:640pt;text-align:center">',
     `  <img src="${marcaDataUri()}" alt="CITi — Centro Integrado de Tecnologia da Informação" ` +
       `width="${largura}" height="${altura}" ` +
-      `style="display:block;margin:0 auto;width:${largura}pt;height:${altura}pt">`,
-    '  <div style="height:190pt"></div>',
+      `style="display:block;margin:-50.4pt auto 0 auto;width:${largura}pt;height:${altura}pt">`,
+    '  <div style="height:240pt"></div>',
     `  <h1 style="${S.titulo}">${escapeHtml(titulo)}</h1>`,
     subtitulo,
     '</div>',

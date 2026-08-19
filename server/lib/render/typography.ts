@@ -41,7 +41,8 @@ export const CINZA_LINHA = '#888888';
  *  Dois cinzas diferentes, papéis diferentes. */
 export const COR_SUBTITULO_CAPA = '#999999';
 
-/** Título da capa — `/F8 44 Tf` (Arial Bold) × 0,75. */
+/** Título da capa — `/F8 44 Tf` (o negrito do modelo) × 0,75. A FONTE não
+ *  vem do modelo, só os tamanhos: ver `./fonts.ts`. */
 export const TAMANHO_TITULO_PT = 33;
 /** Subtítulo da capa — `/F8 26.666666 Tf`, também negrito. */
 export const TAMANHO_SUBTITULO_CAPA_PT = 20;

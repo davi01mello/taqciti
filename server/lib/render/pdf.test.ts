@@ -35,7 +35,8 @@ async function trechosDeTextoPorPagina(pdf: Buffer): Promise<number[]> {
     for (const stream of streams) {
       if (!(stream instanceof PDFRawStream)) continue;
       const bytes = Buffer.from(stream.getContents());
-      // `pdfkit` comprime; a capa que o `pdf-lib` monta, não.
+      // 0x78 é o cabeçalho do zlib: o `pdfkit` comprime os streams, mas o
+      // teste não deve depender disso pra sempre.
       texto += (bytes[0] === 0x78 ? inflateSync(bytes) : bytes).toString('latin1');
     }
     return (texto.match(/\b(Tj|TJ)\b/g) ?? []).length;
@@ -127,6 +128,31 @@ describe('renderPdf', () => {
     });
     expect(ehPdfValido(buffer)).toBe(true);
     expect(buffer.length).toBeGreaterThan(0);
+  });
+
+  it('leva a Barlow EMBUTIDA, e nenhuma fonte de leitor', async () => {
+    // A diferença que este teste guarda: um PDF pode PEDIR "Barlow" sem
+    // carregar a fonte, e aí ele abre com o que o leitor tiver no lugar —
+    // o documento chega ao cliente com outra cara e ninguém do lado de cá
+    // percebe. `/FontFile2` é o arquivo de verdade dentro do PDF; sem ele,
+    // é só um pedido.
+    const buffer = await renderPdf({
+      documentType: 'ata',
+      data: ataCompleta,
+      gaps: [lacunaCargo],
+      title: 'Ata de Reunião — fontes',
+    });
+    const bytes = buffer.toString('latin1');
+
+    expect(bytes).toContain('/FontFile2');
+    // O prefixo de seis letras é do SUBCONJUNTO que o pdfkit gera — só os
+    // glifos usados entram, e é por isso que o arquivo não engorda 200KB.
+    expect(bytes).toMatch(/\/BaseFont\s*\/[A-Z]{6}\+Barlow-Regular/);
+    expect(bytes).toMatch(/\/BaseFont\s*\/[A-Z]{6}\+Barlow-Bold/);
+
+    // Nem sobra de Helvetica: se `registrarFontes` falhasse silenciosamente,
+    // o pdfkit desenharia com ela e o documento sairia errado sem erro.
+    expect(bytes).not.toContain('Helvetica');
   });
 
   it('lista longa pagina sem deixar pagina quase vazia pelo caminho', async () => {

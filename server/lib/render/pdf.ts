@@ -2,13 +2,17 @@
  * `DocumentData` → PDF, irmão de `render/html.ts` — sai do MESMO dado
  * canônico, não de uma conversão do HTML.
  *
- * ── Duas bibliotecas, um propósito cada ──────────────────────────────────
+ * ── Um motor só: `pdfkit` ────────────────────────────────────────────────
  *
- * `pdfkit` desenha o CONTEÚDO (texto, seção por seção) — é bom nisso e
- * pagina sozinho quando o texto passa da margem. `pdf-lib` monta a CAPA,
- * porque é ele que embute imagem em posição absoluta sem um fluxo de texto
- * no meio, e faz a MONTAGEM final: junta a capa com as páginas de conteúdo
- * que o `pdfkit` gerou.
+ * Capa e conteúdo saem do mesmo `PDFDocument`. Houve uma fase com `pdf-lib`
+ * montando a capa e fundindo com as páginas do `pdfkit`, e ela existia por um
+ * motivo que não existe mais: a capa embutia uma PÁGINA de `example.pdf`, e
+ * só o `pdf-lib` sabe fazer isso. Desde que o gráfico virou um JPEG próprio
+ * (ver `./modelo.ts`), não sobrou nada ali que o `pdfkit` não faça — e
+ * juntar dois motores custava caro em duas frentes: as coordenadas invertiam
+ * de sentido no meio do arquivo, e a fonte embutida teria que ser registrada
+ * duas vezes, em duas bibliotecas, com o risco de capa e miolo saírem com
+ * fontes diferentes.
  *
  * ── Fidelidade ao modelo: as coordenadas são as DELE ─────────────────────
  *
@@ -17,9 +21,8 @@
  * posição da marca, do título, do subtítulo, do recorte do gráfico, da linha
  * do rodapé. O modelo trabalha em coordenadas de cima pra baixo (a primeira
  * coisa que o stream faz é `1 0 0 -1 0 842 cm`), que é também o sistema do
- * `pdfkit`; por isso as medidas de conteúdo abaixo são "distância a partir
- * do topo da página", batendo direto com o modelo. `pdf-lib` é de baixo pra
- * cima, então a capa converte com `A4_ALTURA_PT - medida`.
+ * `pdfkit`: as medidas abaixo são "distância a partir do topo da página" e
+ * batem direto com o modelo, sem conversão.
  *
  * O modelo tem MediaBox 596×842 e o A4 do `pdfkit` é 595,28×841,89 — 0,7pt e
  * 0,1pt de diferença, menos de 0,1%. As medidas entram sem reescala: corrigir
@@ -36,24 +39,25 @@
  * exceção: aí a paridade é visual de propósito, porque é o gráfico real do
  * modelo com a marca real por cima.
  *
- * ── Helvetica no lugar de Arial ──────────────────────────────────────────
+ * ── A fonte é Barlow, e é a única divergência escolhida ─────────────────
  *
- * Arial não é uma das 14 fontes padrão do PDF. Helvetica é — e não é "uma
- * sem serifa parecida": as duas têm a MESMA métrica (mesma largura por
- * glifo, mesma entrelinha), e a maior parte dos leitores em Windows resolve
- * o pedido de Helvetica desenhando Arial. É a substituição padrão do
- * formato, a mesma que o `font-family` do HTML já faz como fallback.
+ * O modelo usa Arial; o documento usa Barlow, embutida. Ver `./fonts.ts`
+ * para o porquê de embutir e para a licença. Uma consequência prática mora
+ * aqui: NENHUMA métrica de fonte pode ser constante neste arquivo. A
+ * entrelinha e a linha de base do rodapé são calculadas a partir da fonte
+ * ATIVA (`doc.currentLineHeight`, ascendente do `_font`), porque os números
+ * da Helvetica que estavam aqui — 0,925em de altura natural, 0,718em de
+ * ascendente — não valem para a Barlow, que tem 1,2em e 1,0em.
  *
  * ── Marca e rodapé em TODA página interna ───────────────────────────────
  *
  * O modelo desenha a marca menor no topo e o rodapé institucional na base de
  * toda página interna (confirmado: o XObject `/X4` e o par linha+texto
- * aparecem nas 3 páginas de `example.pdf`). `renderConteudoPdfkit` reproduz
- * os dois com o listener `pageAdded` do `pdfkit`, que dispara pra primeira
- * página e pra cada quebra automática.
+ * aparecem nas 3 páginas de `example.pdf`). `desenharMoldura` reproduz os
+ * dois no listener `pageAdded` do `pdfkit` — que dispara também para a CAPA,
+ * onde eles não vão; daí a trava `molduraAtiva`.
  */
 import PDFDocument from 'pdfkit';
-import { PDFDocument as PDFLibDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
 import type { DocumentType } from '../documentTypes';
 import { TEMPLATES } from '../templates';
 import type { DocumentTemplate } from '../templates/types';
@@ -68,6 +72,7 @@ import {
   MARCA_CAPA_TOPO_PT,
 } from './brand';
 import { capaGraficoBuffer } from './modelo';
+import { FONTE_NEGRITO, FONTE_REGULAR, registrarFontes } from './fonts';
 import { RODAPE, temCabecalho } from './html';
 import {
   CINZA_LINHA,
@@ -99,9 +104,10 @@ const MARGEM_PT = 72;
  */
 const MARGEM_INFERIOR_PT = 140;
 
-/** A4 nos mesmos pontos que o `pdfkit` usa por padrão — a capa (pdf-lib)
- *  precisa ter o tamanho EXATO das páginas de conteúdo (pdfkit), senão o
- *  PDF final mistura tamanhos de página. */
+/** A4 nos mesmos pontos que o `pdfkit` usa para `size: 'A4'`. Repetido aqui
+ *  como constante porque as coordenadas absolutas da capa e do rodapé
+ *  precisam da largura e da altura da folha, e o `pdfkit` só as expõe pela
+ *  página, que nem sempre existe na hora de calcular. */
 const A4_LARGURA_PT = 595.28;
 const A4_ALTURA_PT = 841.89;
 
@@ -146,50 +152,76 @@ export interface RenderPdfInput {
   title: string;
 }
 
-/** `#rrggbb` → o `rgb(...)` 0–1 que `pdf-lib` espera. */
-function corPdfLib(hex: string) {
-  const limpo = hex.replace('#', '');
-  return rgb(
-    Number.parseInt(limpo.slice(0, 2), 16) / 255,
-    Number.parseInt(limpo.slice(2, 4), 16) / 255,
-    Number.parseInt(limpo.slice(4, 6), 16) / 255,
-  );
-}
-
 /**
- * Documento PDF completo, pronto pra download: capa (pdf-lib, gráfico real
- * do modelo) + conteúdo (pdfkit, seção por seção) — montados num Buffer só.
+ * Documento PDF completo, pronto pra download: capa + conteúdo, seção por
+ * seção, num Buffer só.
  */
-export async function renderPdf(input: RenderPdfInput): Promise<Buffer> {
+export function renderPdf(input: RenderPdfInput): Promise<Buffer> {
   const template = TEMPLATES[input.documentType];
   // Só a Ata tem o conceito de projeto/data — X1 não, e forçar essa linha
   // (ou uma lacuna pra ela) na capa de uma entrevista seria inventar um
   // campo que o documento não pede.
   const temIdentificacao = template.sections.some((s) => s.id === 'identificacao');
 
-  const conteudoBytes = await renderConteudoPdfkit(input, template);
+  // `autoFirstPage: false` porque o construtor do pdfkit cria a página 1
+  // ANTES de dar chance de registrar a fonte e o listener de `pageAdded`
+  // abaixo — sem isso a capa sairia em Helvetica e com moldura.
+  const doc = new PDFDocument({
+    size: 'A4',
+    autoFirstPage: false,
+    // `font: null` impede o `pdfkit` de abrir Helvetica no construtor. Ele
+    // faz isso por padrão, e para isso lê `js/data/Helvetica.afm` de dentro
+    // do próprio pacote — um arquivo que este documento NUNCA usa, já que
+    // toda fonte aqui é Barlow embutida. Além de inútil, era frágil: em build
+    // de produção o caminho desse `.afm` chegou a ser reescrito pelo bundler
+    // e a leitura falhava (ver `serverExternalPackages` em `next.config.ts`).
+    // Não pedir a fonte é mais seguro que garantir que ela seja encontrada.
+    font: null as unknown as string,
+    margins: {
+      top: MARGEM_PT,
+      bottom: MARGEM_INFERIOR_PT,
+      left: MARGEM_PT,
+      right: MARGEM_PT,
+    },
+  });
+  registrarFontes(doc);
+  doc.info.Title = input.title;
 
-  const pdfLibDoc = await PDFLibDocument.create();
-  await construirCapa(
-    pdfLibDoc,
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const pronto = new Promise<Buffer>((resolve, reject) => {
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+
+  // A capa não leva marca de cabeçalho nem rodapé — ela TEM a marca grande e
+  // o gráfico, e o modelo deixa o pé dela limpo. Como `pageAdded` dispara pra
+  // toda página, inclusive a primeira, a trava é o jeito de dizer "a partir
+  // daqui, sim".
+  let molduraAtiva = false;
+  doc.on('pageAdded', () => {
+    if (molduraAtiva) desenharMoldura(doc);
+  });
+
+  doc.addPage();
+  desenharCapa(
+    doc,
     template.documentTitle ?? template.label,
     input.data,
     input.gaps,
     temIdentificacao,
   );
 
-  const conteudoDoc = await PDFLibDocument.load(conteudoBytes);
-  const paginasConteudo = await pdfLibDoc.copyPages(conteudoDoc, conteudoDoc.getPageIndices());
-  for (const pagina of paginasConteudo) pdfLibDoc.addPage(pagina);
+  molduraAtiva = true;
+  doc.addPage();
+  desenharConteudo(doc, input, template);
 
-  pdfLibDoc.setTitle(input.title);
-
-  const bytesFinais = await pdfLibDoc.save();
-  return Buffer.from(bytesFinais);
+  doc.end();
+  return pronto;
 }
 
 // ---------------------------------------------------------------------------
-// Capa (pdf-lib)
+// Capa
 // ---------------------------------------------------------------------------
 
 /**
@@ -198,12 +230,11 @@ export async function renderPdf(input: RenderPdfInput): Promise<Buffer> {
  *
  * ── Máscara em vez de recorte ──────────────────────────────────────────
  *
- * O modelo limita o gráfico com um `re`+`W* n` (clip). `pdf-lib` não expõe
- * clip no `drawImage`, então aqui o gráfico entra inteiro e um retângulo
- * BRANCO cobre tudo acima da mesma fronteira. O resultado impresso é
- * idêntico — a página é branca de qualquer forma —, e diferente da versão
- * anterior (que mascarava a página do modelo embutida) não sobra texto
- * placeholder escondido sob a máscara: o que está por baixo é imagem.
+ * O modelo limita o gráfico com um `re`+`W* n` (clip). Aqui o gráfico entra
+ * inteiro e um retângulo BRANCO cobre tudo acima da mesma fronteira. O
+ * resultado impresso é idêntico — a página é branca de qualquer forma —, e
+ * o que fica escondido sob a máscara é imagem, não texto: nada de
+ * placeholder do modelo vazando numa cópia/colagem.
  *
  * ── Centralizado, e é o que o modelo faz ────────────────────────────────
  *
@@ -214,48 +245,34 @@ export async function renderPdf(input: RenderPdfInput): Promise<Buffer> {
  * regra da identidade, e ele salta aos olhos quando o título abaixo está
  * centrado de verdade.
  */
-async function construirCapa(
-  pdfLibDoc: PDFLibDocument,
+function desenharCapa(
+  doc: Doc,
   titulo: string,
   data: DocumentData,
   gaps: Gap[],
   temIdentificacao: boolean,
-): Promise<void> {
-  const pagina = pdfLibDoc.addPage([A4_LARGURA_PT, A4_ALTURA_PT]);
+): void {
+  doc.image(
+    capaGraficoBuffer(),
+    CAPA_GRAFICO_X_PT,
+    CAPA_GRAFICO_BASE_PT - CAPA_GRAFICO_ALTURA_PT,
+    { width: CAPA_GRAFICO_LARGURA_PT, height: CAPA_GRAFICO_ALTURA_PT },
+  );
 
-  const grafico = await pdfLibDoc.embedJpg(capaGraficoBuffer());
-  pagina.drawImage(grafico, {
-    x: CAPA_GRAFICO_X_PT,
-    y: A4_ALTURA_PT - CAPA_GRAFICO_BASE_PT,
-    width: CAPA_GRAFICO_LARGURA_PT,
-    height: CAPA_GRAFICO_ALTURA_PT,
-  });
+  // `save`/`restore` porque `fill` deixa a cor de preenchimento suja, e a
+  // próxima coisa a desenhar é texto preto.
+  doc
+    .save()
+    .rect(0, 0, A4_LARGURA_PT, CAPA_GRAFICO_RECORTE_TOPO_PT)
+    .fill('#ffffff')
+    .restore();
 
-  const fronteira = A4_ALTURA_PT - CAPA_GRAFICO_RECORTE_TOPO_PT;
-  pagina.drawRectangle({
-    x: 0,
-    y: fronteira,
-    width: A4_LARGURA_PT,
-    height: A4_ALTURA_PT - fronteira,
-    color: rgb(1, 1, 1),
-  });
-
-  const logo = await pdfLibDoc.embedPng(marcaBuffer());
-  pagina.drawImage(logo, {
-    x: (A4_LARGURA_PT - MARCA_CAPA_LARGURA_PT) / 2,
-    y: A4_ALTURA_PT - MARCA_CAPA_TOPO_PT - MARCA_CAPA_ALTURA_PT,
+  doc.image(marcaBuffer(), (A4_LARGURA_PT - MARCA_CAPA_LARGURA_PT) / 2, MARCA_CAPA_TOPO_PT, {
     width: MARCA_CAPA_LARGURA_PT,
     height: MARCA_CAPA_ALTURA_PT,
   });
 
-  const fonteNegrito = await pdfLibDoc.embedFont(StandardFonts.HelveticaBold);
-
-  desenharCentralizado(pagina, titulo, {
-    fonte: fonteNegrito,
-    tamanho: TAMANHO_TITULO_PT,
-    base: CAPA_TITULO_BASE_PT,
-    cor: TINTA,
-  });
+  desenharCentralizado(doc, titulo, TAMANHO_TITULO_PT, CAPA_TITULO_BASE_PT, TINTA);
 
   // Subtítulo "{projeto} - {data}", NEGRITO e cinza próprio (não regular,
   // não o cinza da linha do rodapé — confirmado no stream do modelo: `.6 .6
@@ -265,65 +282,43 @@ async function construirCapa(
   if (temIdentificacao) {
     const projeto = data.metadata?.projectName ?? lacunaDe(gaps, 'metadata.projectName');
     const quando = data.metadata?.date ?? lacunaDe(gaps, 'metadata.date');
-    desenharCentralizado(pagina, `${projeto} - ${quando}`, {
-      fonte: fonteNegrito,
-      tamanho: TAMANHO_SUBTITULO_CAPA_PT,
-      base: CAPA_SUBTITULO_BASE_PT,
-      cor: COR_SUBTITULO_CAPA,
-    });
+    desenharCentralizado(
+      doc,
+      `${projeto} - ${quando}`,
+      TAMANHO_SUBTITULO_CAPA_PT,
+      CAPA_SUBTITULO_BASE_PT,
+      COR_SUBTITULO_CAPA,
+    );
   }
 }
 
-/** Centraliza medindo o texto na própria fonte — `pdf-lib` não tem
- *  `align:'center'`, e chutar a largura desalinharia justo o elemento que o
- *  modelo mais depende de estar no eixo. `base` é a linha de base contada a
- *  partir do TOPO da página, como no modelo. */
+/**
+ * Texto centralizado no eixo da página, com a linha de BASE na medida do
+ * modelo (contada a partir do topo).
+ *
+ * Centraliza dentro da caixa de texto, não da folha: as margens são iguais
+ * dos dois lados, então o eixo é o mesmo — e assim um título longo demais
+ * quebra dentro da margem em vez de vazar pra fora da página.
+ */
 function desenharCentralizado(
-  pagina: ReturnType<PDFLibDocument['addPage']>,
+  doc: Doc,
   texto: string,
-  opcoes: { fonte: PDFFont; tamanho: number; base: number; cor: string },
+  tamanho: number,
+  base: number,
+  cor: string,
 ): void {
-  const largura = opcoes.fonte.widthOfTextAtSize(texto, opcoes.tamanho);
-  pagina.drawText(texto, {
-    x: (A4_LARGURA_PT - largura) / 2,
-    y: A4_ALTURA_PT - opcoes.base,
-    size: opcoes.tamanho,
-    font: opcoes.fonte,
-    color: corPdfLib(opcoes.cor),
+  doc.font(FONTE_NEGRITO).fontSize(tamanho).fillColor(cor);
+  doc.text(texto, MARGEM_PT, topoDaLinhaDeBase(doc, base, tamanho), {
+    width: A4_LARGURA_PT - MARGEM_PT * 2,
+    align: 'center',
   });
 }
 
 // ---------------------------------------------------------------------------
-// Conteúdo (pdfkit)
+// Conteúdo
 // ---------------------------------------------------------------------------
 
-/** Só as páginas de conteúdo — sem capa. `renderPdf` funde isto com a capa
- *  do pdf-lib depois. */
-function renderConteudoPdfkit(input: RenderPdfInput, template: DocumentTemplate): Promise<Buffer> {
-  // `autoFirstPage: false` porque o construtor do pdfkit cria a página 1
-  // ANTES de dar chance de registrar o listener de `pageAdded` abaixo — sem
-  // isso a marca e o rodapé sairiam em toda página MENOS a primeira.
-  const doc = new PDFDocument({
-    size: 'A4',
-    autoFirstPage: false,
-    margins: {
-      top: MARGEM_PT,
-      bottom: MARGEM_INFERIOR_PT,
-      left: MARGEM_PT,
-      right: MARGEM_PT,
-    },
-  });
-
-  doc.on('pageAdded', () => desenharMoldura(doc));
-  doc.addPage();
-
-  const chunks: Buffer[] = [];
-  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-  const pronto = new Promise<Buffer>((resolve, reject) => {
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-  });
-
+function desenharConteudo(doc: Doc, input: RenderPdfInput, template: DocumentTemplate): void {
   const ordenadas = template.sections.slice().sort((a, b) => a.order - b.order);
   for (const section of ordenadas) {
     const spec = specForSection(section);
@@ -340,9 +335,6 @@ function renderConteudoPdfkit(input: RenderPdfInput, template: DocumentTemplate)
     const textoDesenhado = desenharConteudoSecao(doc, section.id, input.data, gapsDaSecao, dados);
     desenharSobras(doc, gapsDaSecao, textoDesenhado);
   }
-
-  doc.end();
-  return pronto;
 }
 
 /**
@@ -375,11 +367,10 @@ function desenharMoldura(doc: Doc): void {
   doc.page.margins.bottom = 0;
 
   // Preto, como todo texto do modelo — o cinza é só do traço acima.
-  doc.font('Helvetica').fontSize(TAMANHO_RODAPE_PT).fillColor(TINTA);
+  doc.font(FONTE_REGULAR).fontSize(TAMANHO_RODAPE_PT).fillColor(TINTA);
   RODAPE.forEach((linha, indice) => {
-    // `pdfkit` posiciona pelo TOPO da caixa de linha, o modelo dá a linha de
-    // base; a ascendente da Helvetica (0,718 em) faz a ponte.
-    const topo = RODAPE_TEXTO_BASE_PT + indice * RODAPE_ENTRELINHA_PT - TAMANHO_RODAPE_PT * 0.718;
+    const base = RODAPE_TEXTO_BASE_PT + indice * RODAPE_ENTRELINHA_PT;
+    const topo = topoDaLinhaDeBase(doc, base, TAMANHO_RODAPE_PT);
     doc.text(linha, MARGEM_PT, topo, {
       width: A4_LARGURA_PT - MARGEM_PT * 2,
       align: 'center',
@@ -400,13 +391,38 @@ function desenharMoldura(doc: Doc): void {
 // de um `moveDown` no laço) é o que permite os dois espaços diferentes que o
 // modelo usa — e o laço não tem como saber qual deles vale.
 
-/** Folga de linha que o `pdfkit` precisa somar à altura natural da fonte pra
- *  chegar na entrelinha do modelo. A Helvetica ocupa 0,925em entre ascendente
- *  e descendente; o resto até `ENTRELINHA` é o `lineGap`. */
-const folgaDeLinha = (tamanho: number): number => tamanho * (ENTRELINHA - 0.925);
+/**
+ * A altura natural de uma linha depende da FONTE, não só do tamanho: a
+ * Helvetica ocupa 0,925em entre ascendente e descendente, a Barlow ocupa
+ * 1,2em. Estes dois ajudantes leem a métrica da fonte ATIVA em vez de trazer
+ * o número de alguma delas embutido — foi o que permitiu trocar Arial por
+ * Barlow sem reescrever o ritmo vertical inteiro. Chame só DEPOIS de
+ * `doc.font(...).fontSize(...)`.
+ */
+
+/** Folga que o `pdfkit` precisa somar à altura natural da linha pra chegar na
+ *  entrelinha do modelo. `currentLineHeight(false)` = (ascendente −
+ *  descendente) × tamanho. */
+function folgaDeLinha(doc: Doc, tamanho: number): number {
+  return Math.max(0, tamanho * ENTRELINHA - doc.currentLineHeight(false));
+}
+
+/**
+ * Onde pôr o TOPO da caixa de linha pra que a linha de BASE caia na medida do
+ * modelo. O `pdfkit` posiciona pelo topo e desce até a base pela ascendente da
+ * fonte — a mesma conta, com o mesmo número, que ele faz internamente.
+ */
+function topoDaLinhaDeBase(doc: Doc, base: number, tamanho: number): number {
+  // `_font` é interno do `pdfkit`, mas é de onde ele próprio tira a
+  // ascendente na hora de desenhar; qualquer outra fonte de verdade
+  // divergiria dele. O fallback de 1000 (=1em) é o da Barlow, então na pior
+  // hipótese o rodapé fica onde já está.
+  const fonte = (doc as unknown as { _font?: { ascender?: number } })._font;
+  return base - ((fonte?.ascender ?? 1000) / 1000) * tamanho;
+}
 
 /** Opções de fluxo pra um parágrafo de corpo — margem a margem. */
-const fluxoDeParagrafo = (tamanho: number) => ({ lineGap: folgaDeLinha(tamanho) });
+const fluxoDeParagrafo = (doc: Doc, tamanho: number) => ({ lineGap: folgaDeLinha(doc, tamanho) });
 
 /**
  * Um item de lista, com o marcador na coluna dele e o texto na coluna do
@@ -436,10 +452,9 @@ function desenharItemDeLista(
 ): void {
   const xMarcador = MARGEM_PT + LISTA_MARCADOR_RECUO_PT;
   const xTexto = MARGEM_PT + LISTA_TEXTO_RECUO_PT;
-  const fluxo = fluxoDeItem();
 
-  doc.font('Helvetica').fontSize(TAMANHO_ITEM_PT).fillColor(TINTA);
-  const altura = doc.heightOfString(textoPlano, fluxo);
+  doc.font(FONTE_REGULAR).fontSize(TAMANHO_ITEM_PT).fillColor(TINTA);
+  const altura = doc.heightOfString(textoPlano, fluxoDeItem(doc));
   const baseDoTexto = A4_ALTURA_PT - MARGEM_INFERIOR_PT;
   // A segunda condição é a saída para o item mais alto que uma página
   // inteira: aí não existe página onde ele caiba, e abrir uma nova só
@@ -456,16 +471,16 @@ function desenharItemDeLista(
 }
 
 /** Opções de fluxo pro TEXTO de um item — largura reduzida pelo recuo. */
-const fluxoDeItem = () => ({
+const fluxoDeItem = (doc: Doc) => ({
   width: A4_LARGURA_PT - MARGEM_PT - (MARGEM_PT + LISTA_TEXTO_RECUO_PT),
-  lineGap: folgaDeLinha(TAMANHO_ITEM_PT),
+  lineGap: folgaDeLinha(doc, TAMANHO_ITEM_PT),
 });
 
 /** Lista de textos simples, um bullet cada — Decisões, Outcomes, Outputs. */
 function desenharListaSimples(doc: Doc, textos: string[]): void {
   for (const texto of textos) {
     desenharItemDeLista(doc, '•', texto, () => {
-      doc.font('Helvetica').fontSize(TAMANHO_ITEM_PT).fillColor(TINTA).text(texto, fluxoDeItem());
+      doc.font(FONTE_REGULAR).fontSize(TAMANHO_ITEM_PT).fillColor(TINTA).text(texto, fluxoDeItem(doc));
     });
   }
   if (textos.length > 0) doc.y += GAP_PARAGRAFO_PT;
@@ -473,10 +488,10 @@ function desenharListaSimples(doc: Doc, textos: string[]): void {
 
 function desenharTituloSecao(doc: Doc, titulo: string): void {
   doc
-    .font('Helvetica-Bold')
+    .font(FONTE_NEGRITO)
     .fontSize(TAMANHO_SECAO_PT)
     .fillColor(TINTA)
-    .text(titulo, fluxoDeParagrafo(TAMANHO_SECAO_PT));
+    .text(titulo, fluxoDeParagrafo(doc, TAMANHO_SECAO_PT));
   doc.y += GAP_ANTES_DA_LISTA_PT;
 }
 
@@ -486,11 +501,11 @@ function desenharTituloSecao(doc: Doc, titulo: string): void {
  *  `desenharSobras`). */
 function linhaRotulada(doc: Doc, rotulo: string, valor: string): string {
   doc
-    .font('Helvetica-Bold')
+    .font(FONTE_NEGRITO)
     .fontSize(TAMANHO_CORPO_PT)
     .fillColor(TINTA)
-    .text(`${rotulo}: `, { ...fluxoDeParagrafo(TAMANHO_CORPO_PT), continued: true });
-  doc.font('Helvetica').text(valor);
+    .text(`${rotulo}: `, { ...fluxoDeParagrafo(doc, TAMANHO_CORPO_PT), continued: true });
+  doc.font(FONTE_REGULAR).text(valor);
   doc.y += GAP_PARAGRAFO_PT;
   return `${rotulo}: ${valor}`;
 }
@@ -527,10 +542,10 @@ function desenharIdentificacao(doc: Doc, data: DocumentData, gaps: Gap[]): strin
  *  item, `/F7` só no bullet). */
 function desenharParticipantes(doc: Doc, data: DocumentData, gaps: Gap[]): string {
   doc
-    .font('Helvetica-Bold')
+    .font(FONTE_NEGRITO)
     .fontSize(TAMANHO_CORPO_PT)
     .fillColor(TINTA)
-    .text('PARTICIPANTES – CARGO:', fluxoDeParagrafo(TAMANHO_CORPO_PT));
+    .text('PARTICIPANTES – CARGO:', fluxoDeParagrafo(doc, TAMANHO_CORPO_PT));
   doc.y += GAP_ANTES_DA_LISTA_PT;
 
   const linhas = (data.participants ?? []).map((participante) => {
@@ -539,7 +554,7 @@ function desenharParticipantes(doc: Doc, data: DocumentData, gaps: Gap[]): strin
   });
   for (const linha of linhas) {
     desenharItemDeLista(doc, '•', linha, () => {
-      doc.font('Helvetica-Bold').fontSize(TAMANHO_ITEM_PT).fillColor(TINTA).text(linha, fluxoDeItem());
+      doc.font(FONTE_NEGRITO).fontSize(TAMANHO_ITEM_PT).fillColor(TINTA).text(linha, fluxoDeItem(doc));
     });
   }
   doc.y += GAP_PARAGRAFO_PT;
@@ -558,12 +573,12 @@ function desenharTopicoGeral(doc: Doc, data: DocumentData): string {
 }
 
 function desenharAssinatura(doc: Doc, data: DocumentData, gaps: Gap[]): string {
-  const fluxo = fluxoDeParagrafo(TAMANHO_CORPO_PT);
-  doc
-    .font('Helvetica')
-    .fontSize(TAMANHO_CORPO_PT)
-    .fillColor(TINTA)
-    .text('Atenciosamente,', fluxo);
+  // A fonte é escolhida ANTES de medir a folga de linha: `folgaDeLinha` lê a
+  // métrica da fonte ativa, e medir antes do `doc.font(...)` daria a métrica
+  // de quem desenhou por último.
+  doc.font(FONTE_REGULAR).fontSize(TAMANHO_CORPO_PT).fillColor(TINTA);
+  const fluxo = fluxoDeParagrafo(doc, TAMANHO_CORPO_PT);
+  doc.text('Atenciosamente,', fluxo);
 
   const nome = data.signature?.name ?? lacunaDe(gaps, 'signature.name');
   const cargo = data.signature?.role ?? lacunaDe(gaps, 'signature.role');
@@ -586,11 +601,11 @@ function desenharTopicosDiscutidos(doc: Doc, data: DocumentData): string {
     const plano = `${topico.title}: ${topico.summary}`;
     desenharItemDeLista(doc, `${index + 1}.`, plano, () => {
       doc
-        .font('Helvetica-Bold')
+        .font(FONTE_NEGRITO)
         .fontSize(TAMANHO_ITEM_PT)
         .fillColor(TINTA)
-        .text(`${topico.title}: `, { ...fluxoDeItem(), continued: true });
-      doc.font('Helvetica').text(topico.summary);
+        .text(`${topico.title}: `, { ...fluxoDeItem(doc), continued: true });
+      doc.font(FONTE_REGULAR).text(topico.summary);
     });
     linhas.push(`${index + 1}. ${plano}`);
   });
@@ -683,10 +698,10 @@ function desenharConteudoSecao(
       const texto = dados ?? '';
       if (texto) {
         doc
-          .font('Helvetica')
+          .font(FONTE_REGULAR)
           .fontSize(TAMANHO_CORPO_PT)
           .fillColor(TINTA)
-          .text(texto, fluxoDeParagrafo(TAMANHO_CORPO_PT));
+          .text(texto, fluxoDeParagrafo(doc, TAMANHO_CORPO_PT));
         doc.y += GAP_PARAGRAFO_PT;
       }
       return texto;
@@ -703,9 +718,9 @@ function desenharSobras(doc: Doc, gaps: Gap[], jaDesenhado: string): void {
   const soltas = gaps.filter((gap) => !jaDesenhado.includes(gap.question));
   if (soltas.length === 0) return;
 
-  doc.font('Helvetica-Bold').fontSize(TAMANHO_CORPO_PT).fillColor(TINTA);
+  doc.font(FONTE_NEGRITO).fontSize(TAMANHO_CORPO_PT).fillColor(TINTA);
   for (const gap of soltas) {
-    doc.text(textoDeLacuna(gap.question), fluxoDeParagrafo(TAMANHO_CORPO_PT));
+    doc.text(textoDeLacuna(gap.question), fluxoDeParagrafo(doc, TAMANHO_CORPO_PT));
   }
   doc.y += GAP_PARAGRAFO_PT;
 }

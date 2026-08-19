@@ -221,7 +221,7 @@ bloco de texto vem embrulhado num `cm` de escala `.75 0 0 .75`, então o valor
 bruto do `Tf` é PIXEL a 96dpi e o pt real é ele × 0,75. Já convertido:
 
 - **A4** (596×842pt no modelo), margem lateral de **1in**;
-- **Arial**, texto `#000000` — **inclusive o rodapé**; o único cinza escuro é
+- texto `#000000` — **inclusive o rodapé**; o único cinza escuro é
   a linha fina acima dele (`#888888`), e o único cinza claro é o subtítulo da
   capa (`#999999`);
 - escala **33 / 20 / 13 / 12 / 11 / 8pt** — título da capa, subtítulo da capa,
@@ -230,6 +230,18 @@ bruto do `Tf` é PIXEL a 96dpi e o pt real é ele × 0,75. Já convertido:
   **6pt** entre um rótulo/título e a lista que ele abre;
 - lista com marcador a **18pt** da margem e texto a **32,5pt** (recuo
   pendente).
+
+**A FONTE é Barlow, e é a única coisa que NÃO vem do modelo.** O modelo usa
+Arial; a decisão do autor foi Barlow. Ela vai **embutida** no PDF
+(`lib/render/assets/fonts/`, SIL OFL — `OFL.txt` ao lado dos `.ttf` é
+condição da licença, não documentação opcional). Consequência que já cobrou
+caro uma vez: **nenhuma métrica de fonte pode ser constante** em
+`lib/render/pdf.ts`. Entrelinha e linha de base saem da fonte ativa
+(`currentLineHeight`, ascendente do `_font`), porque Helvetica ocupa 0,925em e
+Barlow ocupa 1,2em — os números antigos, aplicados à Barlow, desmontariam o
+ritmo vertical inteiro. No HTML a fonte não pode ser embutida (`@font-face` só
+vive em `<style>`, que o Docs descarta), então lá ela é pedida com Arial de
+queda; o Docs tem Barlow no catálogo.
 
 **Os dois assets da capa saíram do modelo, não de uma biblioteca de marca.**
 `lib/render/assets/citi-preto.png` é o XObject `/X4` (a marca PRETA, a mesma
@@ -266,6 +278,26 @@ Duas regras que os testes prendem: **HTML e markdown mostram a mesma frase de
 lacuna** (`textoDeLacuna` em `documentData.ts` é a fonte única) e **usam a
 mesma definição de vazio** (`spec.serialize()` devolvendo `null`), senão os
 dois formatos discordam sobre quais seções o documento tem.
+
+### O PDF precisa ser conferido contra `next start`, não só contra o vitest
+
+`pdfkit` lê arquivos de dentro do próprio pacote. Empacotado pelo Turbopack,
+o caminho é reescrito e a leitura falha — **só em build de produção**. E como
+`generateDocument` isola a geração do PDF de propósito (o HTML continua
+saindo), a rota respondia **200 sem PDF e sem erro visível**: o download vinha
+sem o arquivo, em silêncio, exatamente no ambiente que importa. Nenhum teste
+unitário pega isso, porque nenhum passa pelo bundler.
+
+Duas travas hoje: `serverExternalPackages: ['pdfkit']` em `next.config.ts` e
+`font: null` no construtor (não pedir fonte padrão nenhuma — todas as fontes
+do documento são Barlow embutida).
+
+**Como conferir sem gastar cota de modelo:** `npm run build && npm run start`
+e chamar **`POST /api/answers`** com um `documentData` salvo. Essa rota
+renderiza HTML e PDF e não chama modelo nenhum — é o caminho real de "responder
+uma lacuna" e serve de prova de fumaça do render em produção. `POST
+/api/generate` também serve, mas roda o pipeline inteiro e queima a cota
+diária do free tier (20 requisições por dia, por modelo).
 
 Ver `docs/medicao-2026-08-14/execucao-2-ata.html` para uma saída real.
 

@@ -77,8 +77,55 @@ describe('estilo do modelo institucional', () => {
     expect(render()).toContain('Ata de reunião</h1>');
   });
 
-  it('usa Arial, como o modelo', () => {
-    expect(render()).toContain('Arial');
+  it('pede Barlow, com Arial (a do modelo) como queda', () => {
+    // Barlow é a fonte escolhida; no HTML ela não pode ser embutida, então o
+    // que precisa estar garantido é a ORDEM — Barlow primeiro, e uma queda
+    // que não seja uma fonte qualquer do sistema.
+    const familia = /font-family:Barlow, ?Arial/;
+    expect(render()).toMatch(familia);
+  });
+
+  it('escapa < > & aspas vindos do conteúdo, não só do fixture', () => {
+    // O `<` já tinha teste unitário em `escapeHtml`, mas nunca havia sido
+    // exercitado ATRAVÉS do render — e numa execução real do pipeline ele
+    // escapou da conferência porque o Escritor parafraseou o "<200ms" que
+    // estava na transcrição. Aqui o caractere é forçado em campos de seções
+    // diferentes, que é como ele chegaria de verdade.
+    const html = renderHtml({
+      documentType: 'ata',
+      data: {
+        metadata: { date: '12/08/2026', projectName: 'Alpha & Beta <Ltda>' },
+        generalTopic: { topic: 'Latência <200ms', progress: 'Meta "p95" & p99 mantida.' },
+        participants: [
+          { name: 'Ana <Souza>', role: 'Dev & Ops', roleSource: 'meeting', quotes: [] },
+        ],
+        decisions: [
+          {
+            text: 'Manter o SLA em <200ms',
+            agreement: { quote: 'ok', anchor: { start: 0, end: 2, exact: true } },
+            confidence: 'high',
+            quotes: [],
+          },
+        ],
+        conclusion: { text: 'Fecha com "aspas" & sinais <perigosos>.' },
+      },
+      gaps: [],
+      title: 'Ata & <teste>',
+    });
+
+    // Nenhuma marcação nova pôde nascer do conteúdo.
+    expect(html).not.toContain('<200ms');
+    expect(html).not.toContain('<Ltda>');
+    expect(html).not.toContain('<Souza>');
+    expect(html).not.toContain('<perigosos>');
+    expect(html).toContain('&lt;200ms');
+    expect(html).toContain('Alpha &amp; Beta &lt;Ltda&gt;');
+    expect(html).toContain('&quot;aspas&quot; &amp; sinais &lt;perigosos&gt;');
+
+    // E o documento continua sendo HTML bem formado: todo `&` do arquivo é
+    // início de entidade, nenhum é um `&` solto que o parser teria que
+    // adivinhar.
+    expect(html).not.toMatch(/&(?!amp;|lt;|gt;|quot;|ndash;|#)/);
   });
 
   it('centraliza a identidade da capa: marca, título e subtítulo', () => {
@@ -86,7 +133,7 @@ describe('estilo do modelo institucional', () => {
     // `text-align` de um pai: o conversor do Docs reescreve a árvore, e é
     // exatamente aí que um `<img>` inline escorrega pra esquerda.
     const html = render();
-    expect(html).toContain('display:block;margin:0 auto');
+    expect(html).toMatch(/<img [^>]*style="display:block;margin:[^";]*auto/);
     expect(html).toMatch(/<h1 style="[^"]*text-align:center[^"]*">Ata de reunião<\/h1>/);
     expect(html).toMatch(/<p style="[^"]*text-align:center[^"]*">Projeto Fênix - 12\/08\/2026<\/p>/);
   });
