@@ -1,33 +1,53 @@
 /**
- * O PDF de referência (`example.pdf`) como Buffer — a fonte do gráfico
- * sangrado da capa que `pdf.ts` embute de verdade via `pdf-lib`, em vez de
- * tentar redesenhá-lo à mão (a primeira tentativa foi um gradiente
- * aproximado; este arquivo é o que substitui aquilo pela arte real).
+ * O gráfico sangrado da capa — a onda verde/azul do modelo institucional —
+ * como Buffer de JPEG.
  *
- * `assets/example.pdf` é CÓPIA de
- * `public/assets-docs/ata-de-reuniao/example.pdf`, na raiz do repo — mesma
- * razão e o mesmo par que já existe pra `citi-30-anos.png`/`image.png` em
- * `brand.ts`: `server/` é projeto independente e não deve alcançar arquivo
- * de fora dele. Trocando o modelo, troque nos dois lugares.
+ * ── Por que o arquivo, e não mais o `example.pdf` inteiro ────────────────
  *
- * Falha ALTO se faltar, como a marca: todo documento gerado depende disto
- * pra capa, então um arquivo ausente precisa quebrar a geração na hora, não
- * produzir uma capa incompleta em silêncio.
+ * A versão anterior carregava `example.pdf` em runtime, embutia a PÁGINA
+ * inteira do modelo como fundo da capa e cobria a metade de cima com um
+ * retângulo branco. Funcionava visualmente, mas arrastava dois defeitos:
+ *
+ *  1. o texto placeholder do modelo ("Ata de reunião", "[Nome do Projeto] -
+ *     [Data da Ata]") continuava DENTRO do PDF gerado, invisível sob o
+ *     retângulo mas presente pra qualquer cópia/colagem ou extração de texto
+ *     — quem selecionasse a capa levava junto o placeholder;
+ *  2. 214KB de PDF de referência entravam no bundle do servidor pra render
+ *     usar só uma imagem de 90KB.
+ *
+ * `assets/capa-grafico.jpg` é o XObject `/X9` da primeira página do modelo,
+ * extraído direto do stream `DCTDecode` (portanto os MESMOS pixels, sem
+ * recompressão, sem redesenho). Fonte:
+ * `public/assets-docs/ata-de-reuniao/example.pdf`.
+ *
+ * ── Ele é a capa INTEIRA achatada, e por isso precisa da máscara ─────────
+ *
+ * `/X9` não é só a onda: é um rasterizado da capa completa, com a marca e o
+ * título "Ata de reunião" queimados nos pixels. O modelo resolve isso
+ * RECORTANDO a imagem na faixa de baixo (`-1 470.45288 598 372.54712 re`) e
+ * desenhando por cima a marca e o texto de verdade, vetoriais. `pdf.ts`
+ * reproduz o mesmo recorte — ver `CAPA_GRAFICO_*` lá. Desenhar esta imagem
+ * sem o recorte faria aparecer um segundo título, em pixel, embaixo do
+ * nosso.
+ *
+ * Falha ALTO se faltar, como a marca: toda capa depende disto, então um
+ * arquivo ausente precisa quebrar a geração na hora, não produzir uma capa
+ * incompleta em silêncio.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 let cache: Buffer | undefined;
 
-export function modeloAtaBuffer(): Buffer {
+export function capaGraficoBuffer(): Buffer {
   if (cache !== undefined) return cache;
 
-  const caminho = join(process.cwd(), 'lib', 'render', 'assets', 'example.pdf');
+  const caminho = join(process.cwd(), 'lib', 'render', 'assets', 'capa-grafico.jpg');
   try {
     cache = readFileSync(caminho);
   } catch (error) {
     throw new Error(
-      `PDF de referência não encontrado em ${caminho}. Causa: ${(error as Error).message}`,
+      `Gráfico da capa não encontrado em ${caminho}. Causa: ${(error as Error).message}`,
     );
   }
   return cache;

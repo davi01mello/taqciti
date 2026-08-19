@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { escapeHtml, renderHtml, SECTION_RENDERERS } from './html';
-import { MARCA_LARGURA_PT } from './brand';
+import { MARCA_CAPA_LARGURA_PT } from './brand';
+import { CINZA_LINHA, TAMANHO_RODAPE_PT, TINTA } from './typography';
 import { TEMPLATES } from '../templates';
 import { textoDeLacuna, type DocumentData, type Gap } from '../documentData';
 import { marcadorDeLacuna } from '../agents/escritor';
@@ -69,7 +70,7 @@ describe('estilo do modelo institucional', () => {
     // servidor.
     const html = render();
     expect(html).toContain('src="data:image/png;base64,');
-    expect(html).toContain(`width:${MARCA_LARGURA_PT}pt`);
+    expect(html).toContain(`width:${Math.round(MARCA_CAPA_LARGURA_PT)}pt`);
   });
 
   it('abre com o título do modelo', () => {
@@ -80,10 +81,39 @@ describe('estilo do modelo institucional', () => {
     expect(render()).toContain('Arial');
   });
 
-  it('traz o rodapé institucional', () => {
+  it('centraliza a identidade da capa: marca, título e subtítulo', () => {
+    // A marca é centralizada pela CAIXA (`margin:0 auto`), não por herdar
+    // `text-align` de um pai: o conversor do Docs reescreve a árvore, e é
+    // exatamente aí que um `<img>` inline escorrega pra esquerda.
+    const html = render();
+    expect(html).toContain('display:block;margin:0 auto');
+    expect(html).toMatch(/<h1 style="[^"]*text-align:center[^"]*">Ata de reunião<\/h1>/);
+    expect(html).toMatch(/<p style="[^"]*text-align:center[^"]*">Projeto Fênix - 12\/08\/2026<\/p>/);
+  });
+
+  it('o subtítulo "[Projeto] - [Data]" sai UMA vez, e é na capa', () => {
+    // No modelo ele mora sob o título da capa; a página de conteúdo traz só a
+    // linha DATA. Repetir era divergência, não redundância inofensiva.
+    const html = render();
+    const ocorrencias = html.split('Projeto Fênix - 12/08/2026').length - 1;
+    expect(ocorrencias).toBe(1);
+    expect(html.indexOf('Projeto Fênix - 12/08/2026')).toBeLessThan(html.indexOf('DATA:'));
+  });
+
+  it('títulos de seção ficam à ESQUERDA — só a capa é centralizada', () => {
+    expect(render()).toMatch(/<h2 style="[^"]*text-align:left[^"]*">Tópicos discutidos<\/h2>/);
+  });
+
+  it('traz o rodapé institucional, em preto sob uma linha cinza', () => {
+    // No modelo o cinza é só do traço: o texto do rodapé é `0 0 0 rg`, como
+    // todo o resto do documento.
     const html = render();
     expect(html).toContain('Centro Integrado de tecnologia da Informação');
     expect(html).toContain('CIn, UFPE');
+    expect(html).toContain(`border-top:1px solid ${CINZA_LINHA}`);
+    expect(html).toMatch(
+      new RegExp(`font-size:${TAMANHO_RODAPE_PT}pt;color:${TINTA}`),
+    );
   });
 
   it('apresenta data, tópico e andamento como linhas rotuladas', () => {

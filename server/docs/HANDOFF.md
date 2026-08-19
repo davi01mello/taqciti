@@ -212,21 +212,41 @@ ninguém notar. Pelo mesmo motivo o PDF, quando entrar, sai do `DocumentData` e
 ### O estilo vem do modelo, e as medidas foram EXTRAÍDAS dele
 
 O modelo é `public/assets-docs/ata-de-reuniao/example.pdf` (na raiz do repo,
-não em `server/`). A marca é `image.png`, ao lado dele.
+não em `server/`).
 
-Nada ali foi estimado — os valores saíram do próprio arquivo: **A4
-(596×842pt)**, **Arial**, texto `#000000`, rodapé `#888888`, escala
-tipográfica **44 / 26,7 / 17,3 / 14,7 / 10,7pt**, marca desenhada com
-**160,5pt** de largura. Se precisar reconferir, o caminho foi `pdftotext
--layout` para a estrutura e leitura dos streams do PDF (fontes, operadores
-`rg`/`RG` de cor, `Tf` de tamanho, `cm`+`Do` de imagem) — não há dependência
-nova envolvida.
+Nada ali foi estimado — os valores saíram do próprio arquivo, lendo os streams
+de página decodificados (`Tf` de tamanho, `rg`/`RG` de cor, `cm`+`Do` de
+imagem, `re`+`W* n` de recorte). Cuidado com um detalhe fácil de perder: cada
+bloco de texto vem embrulhado num `cm` de escala `.75 0 0 .75`, então o valor
+bruto do `Tf` é PIXEL a 96dpi e o pt real é ele × 0,75. Já convertido:
+
+- **A4** (596×842pt no modelo), margem lateral de **1in**;
+- **Arial**, texto `#000000` — **inclusive o rodapé**; o único cinza escuro é
+  a linha fina acima dele (`#888888`), e o único cinza claro é o subtítulo da
+  capa (`#999999`);
+- escala **33 / 20 / 13 / 12 / 11 / 8pt** — título da capa, subtítulo da capa,
+  título de seção, corpo e linha rotulada, item de lista, rodapé;
+- entrelinha **1,3225×** o tamanho da fonte, **12pt** entre parágrafos e
+  **6pt** entre um rótulo/título e a lista que ele abre;
+- lista com marcador a **18pt** da margem e texto a **32,5pt** (recuo
+  pendente).
+
+**Os dois assets da capa saíram do modelo, não de uma biblioteca de marca.**
+`lib/render/assets/citi-preto.png` é o XObject `/X4` (a marca PRETA, a mesma
+da capa e do cabeçalho das três páginas) e `capa-grafico.jpg` é o `/X9` (a
+onda sangrada). A marca VERDE "citi 30 anos" que estava aqui antes era outra
+marca e foi removida. `/X9` é a capa inteira ACHATADA, com um "Ata de reunião"
+queimado em pixel: ele só pode entrar recortado na faixa de baixo, como o
+modelo faz — ver `lib/render/modelo.ts`.
 
 **A capa não sobrevive ao Docs.** O modelo tem uma página inteira só de marca
 e título, sobre um fundo sangrado. Nem página dedicada nem fundo atravessam o
 import, e uma capa em branco no meio de um documento importado é pior que não
-ter capa — por isso ela vira um bloco de abertura na MESMA página do conteúdo.
-Foi a decisão do autor ("a marca na mesma página").
+ter capa — por isso, **no HTML**, ela vira um bloco de abertura na MESMA
+página do conteúdo. Foi a decisão do autor ("a marca na mesma página"). **No
+PDF a capa é fiel**: `lib/render/pdf.ts` monta a página com o gráfico real, a
+marca preta centralizada e título/subtítulo centralizados nas coordenadas do
+modelo.
 
 **Cabeçalho de seção só onde o modelo tem.** Identificação, Tópico geral,
 Participantes e Assinatura entram como linhas rotuladas (`DATA:`, `TÓPICO:`,

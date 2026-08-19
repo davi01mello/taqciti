@@ -12,10 +12,15 @@
  *
  * ── De onde vêm as medidas ─────────────────────────────────────────────────
  *
- * De `public/assets-docs/ata-de-reuniao/example.pdf`, extraídas do arquivo e
- * não estimadas: A4 (596×842pt), Arial, texto preto, rodapé em cinza, e a
- * escala tipográfica 44 / 26,7 / 17,3 / 14,7 / 10,7pt. A marca é desenhada em
- * 160,5pt de largura, e é essa a medida usada aqui.
+ * De `public/assets-docs/ata-de-reuniao/example.pdf`, extraídas do CONTEÚDO
+ * REAL do arquivo (stream de página decodificado, não leitura visual): A4
+ * (596×842pt), margem de 1in (72pt), Arial, texto preto, rodapé em cinza com
+ * linha fina acima, e a escala tipográfica 33 / 20 / 13 / 12 / 11 / 8pt —
+ * título da capa, subtítulo da capa, título de seção, rótulo de campo,
+ * corpo, rodapé (ver `./typography.ts`, que também documenta o fator ×0,75
+ * entre o valor bruto do `Tf` no stream e o pt final). A marca é desenhada
+ * em 160,5pt de largura na capa; nas páginas internas o modelo repete uma
+ * versão menor no topo, que este HTML não reproduz — ver `blocoDeAbertura`.
  *
  * ── Estilo INLINE, e não folha de estilo ───────────────────────────────────
  *
@@ -36,15 +41,17 @@ import type { DocumentType } from '../documentTypes';
 import { TEMPLATES } from '../templates';
 import { specForSection, textoDeLacuna, type DocumentData, type Gap } from '../documentData';
 import type { SectionSpec } from '../templates/types';
-import { marcaDataUri, MARCA_ALTURA_PT, MARCA_LARGURA_PT } from './brand';
+import { marcaDataUri, MARCA_CAPA_ALTURA_PT, MARCA_CAPA_LARGURA_PT } from './brand';
 import {
+  CINZA_LINHA,
+  COR_SUBTITULO_CAPA,
   TAMANHO_CORPO_PT,
+  TAMANHO_ITEM_PT,
   TAMANHO_RODAPE_PT,
   TAMANHO_SECAO_PT,
-  TAMANHO_SUBTITULO_PT,
+  TAMANHO_SUBTITULO_CAPA_PT,
   TAMANHO_TITULO_PT,
   TINTA,
-  TINTA_FRACA,
 } from './typography';
 
 /** Escapa o que vai virar texto. Tudo aqui veio de modelo — um `<` solto
@@ -64,14 +71,26 @@ export function escapeHtml(value: string): string {
 const FAMILIA = "Arial, 'Helvetica Neue', Helvetica, sans-serif";
 
 const S = {
-  titulo: `font-family:${FAMILIA};font-size:${TAMANHO_TITULO_PT}pt;font-weight:bold;color:${TINTA};text-align:center;margin:0 0 28pt 0;line-height:1.1`,
-  subtitulo: `font-family:${FAMILIA};font-size:${TAMANHO_SUBTITULO_PT}pt;font-weight:bold;color:${TINTA};text-align:center;margin:0 0 24pt 0`,
-  secao: `font-family:${FAMILIA};font-size:${TAMANHO_SECAO_PT}pt;font-weight:bold;color:${TINTA};margin:28pt 0 10pt 0;line-height:1.2`,
+  titulo: `font-family:${FAMILIA};font-size:${TAMANHO_TITULO_PT}pt;font-weight:bold;color:${TINTA};text-align:center;margin:0;line-height:1.1`,
+  // Subtítulo da capa ("[Projeto] - [Data]") — negrito e cinza próprio no
+  // modelo, não regular/preto: ver `COR_SUBTITULO_CAPA` em `typography.ts`.
+  subtitulo: `font-family:${FAMILIA};font-size:${TAMANHO_SUBTITULO_CAPA_PT}pt;font-weight:bold;color:${COR_SUBTITULO_CAPA};text-align:center;margin:12pt 0 0 0`,
+  // Título de seção: alinhado à ESQUERDA. A centralização é da identidade da
+  // capa, não das seções internas.
+  secao: `font-family:${FAMILIA};font-size:${TAMANHO_SECAO_PT}pt;font-weight:bold;color:${TINTA};text-align:left;margin:28pt 0 10pt 0;line-height:1.2`,
+  // Linha rotulada — "DATA:", "TÓPICO:", "ANDAMENTO:", "PARTICIPANTES –
+  // CARGO:", "Gente e gestão:", "Entrevistado:". É CORPO (12pt), maior que o
+  // item de lista (11pt) — no modelo não é o mesmo texto.
+  rotuloLinha: `font-family:${FAMILIA};font-size:${TAMANHO_CORPO_PT}pt;color:${TINTA};margin:0 0 10pt 0;line-height:1.45`,
   corpo: `font-family:${FAMILIA};font-size:${TAMANHO_CORPO_PT}pt;color:${TINTA};margin:0 0 10pt 0;line-height:1.45`,
-  item: `font-family:${FAMILIA};font-size:${TAMANHO_CORPO_PT}pt;color:${TINTA};margin:0 0 6pt 0;line-height:1.45`,
+  item: `font-family:${FAMILIA};font-size:${TAMANHO_ITEM_PT}pt;color:${TINTA};margin:0 0 6pt 0;line-height:1.45`,
+  // "[Nome] – [Cargo]" do participante sai em negrito no modelo — só o
+  // marcador da lista (nativo do navegador) fica no peso normal.
+  itemParticipante: `font-family:${FAMILIA};font-size:${TAMANHO_ITEM_PT}pt;font-weight:bold;color:${TINTA};margin:0 0 6pt 0;line-height:1.45`,
   lista: 'margin:0 0 10pt 0;padding-left:26pt',
   rotulo: 'font-weight:bold',
-  rodape: `font-family:${FAMILIA};font-size:${TAMANHO_RODAPE_PT}pt;color:${TINTA_FRACA};text-align:center;margin:2pt 0;line-height:1.35`,
+  // Rodapé em PRETO: no modelo o cinza é só do traço acima dele.
+  rodape: `font-family:${FAMILIA};font-size:${TAMANHO_RODAPE_PT}pt;color:${TINTA};text-align:center;margin:2pt 0;line-height:1.35`,
   lacuna: `font-weight:bold;color:${TINTA}`,
 } as const;
 
@@ -84,14 +103,14 @@ const lacuna = (question: string): string =>
 /** Linha `RÓTULO: valor`, que é como o modelo apresenta data, tópico e
  *  andamento — sem título de seção próprio. */
 const linhaRotulada = (rotulo: string, valor: string): string =>
-  p(`<span style="${S.rotulo}">${escapeHtml(rotulo)}:</span> ${valor}`);
+  p(`<span style="${S.rotulo}">${escapeHtml(rotulo)}:</span> ${valor}`, S.rotuloLinha);
 
-function lista(itens: string[], ordenada = false): string {
+function lista(itens: string[], ordenada = false, estiloItem: string = S.item): string {
   if (itens.length === 0) return '';
   const tag = ordenada ? 'ol' : 'ul';
   return [
     `<${tag} style="${S.lista}">`,
-    ...itens.map((i) => `  <li style="${S.item}">${i}</li>`),
+    ...itens.map((i) => `  <li style="${estiloItem}">${i}</li>`),
     `</${tag}>`,
   ].join('\n');
 }
@@ -129,20 +148,12 @@ interface SectionRenderer {
 export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
   identificacao: {
     cabecalho: false,
+    // Só a linha DATA. O "Projeto - Data" desta mesma seção é o SUBTÍTULO DA
+    // CAPA (ver `subtituloDaCapa`), e no modelo ele aparece uma vez só, sob o
+    // título — repeti-lo aqui era divergência, não redundância inofensiva.
     render(data, gaps) {
-      const projeto = data.metadata?.projectName;
       const quando = data.metadata?.date;
-      return [
-        // A linha "Projeto - Data" do modelo, logo abaixo do título.
-        p(
-          [
-            projeto ? escapeHtml(projeto) : lacunaDe(gaps, 'metadata.projectName'),
-            quando ? escapeHtml(quando) : lacunaDe(gaps, 'metadata.date'),
-          ].join(' - '),
-          S.subtitulo,
-        ),
-        linhaRotulada('DATA', quando ? escapeHtml(quando) : lacunaDe(gaps, 'metadata.date')),
-      ].join('\n');
+      return linhaRotulada('DATA', quando ? escapeHtml(quando) : lacunaDe(gaps, 'metadata.date'));
     },
   },
 
@@ -166,7 +177,10 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
           : lacunaDe(gaps, `participants[${participante.name}].role`);
         return `${escapeHtml(participante.name)} &ndash; ${cargo}`;
       });
-      return [p(`<span style="${S.rotulo}">PARTICIPANTES &ndash; CARGO:</span>`), lista(itens)]
+      return [
+        p(`<span style="${S.rotulo}">PARTICIPANTES &ndash; CARGO:</span>`, S.rotuloLinha),
+        lista(itens, false, S.itemParticipante),
+      ]
         .filter(Boolean)
         .join('\n');
     },
@@ -278,7 +292,7 @@ function lacunaDe(gaps: Lacunas, field: string): string {
  *  discordarem do texto oficial. */
 export const RODAPE = [
   'Centro Integrado de tecnologia da Informação',
-  'Centro de Informática, Universidade Federal de Pernambuco - CIn, UFPE',
+  'Centro de Informática, Universidade Federal de Pernambuco- CIn, UFPE',
 ];
 
 /** Esta seção ganha `<h2>` no HTML, ou título de seção no PDF? Exportado
@@ -309,6 +323,13 @@ export interface RenderHtmlInput {
 export function renderHtml(input: RenderHtmlInput): string {
   const template = TEMPLATES[input.documentType];
 
+  // Só a Ata tem o conceito de projeto/data — X1 não, e forçar essa linha (ou
+  // uma lacuna pra ela) na capa de uma entrevista seria inventar um campo que
+  // o documento não pede. Mesma decisão que `render/pdf.ts`.
+  const subtitulo = template.sections.some((s) => s.id === 'identificacao')
+    ? subtituloDaCapa(input.data, daSecao(input.gaps, 'identificacao'))
+    : '';
+
   const corpo = template.sections
     .slice()
     .sort((a, b) => a.order - b.order)
@@ -328,7 +349,9 @@ export function renderHtml(input: RenderHtmlInput): string {
         ? `<h2 style="${S.secao}">${escapeHtml(section.title)}</h2>`
         : '';
 
-      return [cabecalho, conteudo, pendenciasSoltas(lacunasDaSecao, conteudo)]
+      // A capa conta como já renderizado: a lacuna do nome do projeto sai
+      // NELA, e sem isso `pendenciasSoltas` a repetiria no fim da seção.
+      return [cabecalho, conteudo, pendenciasSoltas(lacunasDaSecao, subtitulo + conteudo)]
         .filter(Boolean)
         .join('\n');
     })
@@ -344,12 +367,15 @@ export function renderHtml(input: RenderHtmlInput): string {
     '<style>',
     // Só o que o inline não alcança: tamanho de página e margens. O Docs
     // ignora, o navegador e a impressão obedecem.
-    '  @page { size: A4; margin: 2.5cm; }',
+    // 1in (72pt) — o modelo traduz cada bloco de texto com x=72 antes de
+    // desenhar (ver `./typography.ts` sobre o `cm` de escala do stream); uma
+    // primeira leitura tinha assumido 2,5cm.
+    '  @page { size: A4; margin: 1in; }',
     `  body { margin: 0; font-family: ${FAMILIA}; color: ${TINTA}; }`,
     '</style>',
     '</head>',
     '<body>',
-    blocoDeAbertura(template.documentTitle ?? template.label),
+    blocoDeAbertura(template.documentTitle ?? template.label, subtitulo),
     corpo,
     rodape(),
     '</body>',
@@ -377,27 +403,62 @@ export function renderHtml(input: RenderHtmlInput): string {
  * for importar pro Docs ainda vê marca + título como abertura da mesma
  * página do conteúdo, não como página própria.
  *
- * `min-height` aproxima a altura útil de uma página A4 (842pt) menos as
- * margens de `@page` (2,5cm ≈ 71pt de cada lado) — o suficiente para a
- * marca e o título ficarem centralizados verticalmente numa impressão ou
- * PDF de uma página só.
+ * **A marca NÃO é centralizada por herança de `text-align`.** Ela é bloco com
+ * `margin:0 auto`, que centra a CAIXA da imagem no eixo da página. Um `<img>`
+ * inline centralizado por `text-align` do pai depende de o pai ocupar a
+ * largura toda, e dentro do Docs — que reescreve a árvore — isso é
+ * exatamente o tipo de coisa que escorrega pra esquerda.
+ *
+ * **A vertical é aproximada, a horizontal não.** No modelo a marca fica a
+ * 21,6pt do topo da FOLHA, dentro da faixa de cabeçalho; com `@page
+ * { margin: 1in }` o HTML não alcança essa faixa, então ela começa na margem
+ * e o espaçador abaixo aproxima a distância até o título (linha de base a
+ * ~306pt do topo, no modelo). `render/pdf.ts` usa a coordenada exata.
+ *
+ * **Sem marca repetida no topo das páginas internas.** O modelo repete uma
+ * versão menor da marca no cabeçalho de cada página (`render/pdf.ts`
+ * reproduz isso via `pageAdded` do `pdfkit`) — HTML não tem o conceito de
+ * "topo de cada página impressa" fora de `@page`, que o Docs também
+ * descarta. Reproduzir exigiria JS de impressão (`window.print()` com
+ * `position:fixed` só funciona em alguns motores) fora do escopo de um
+ * arquivo estático.
  */
-function blocoDeAbertura(titulo: string): string {
+function blocoDeAbertura(titulo: string, subtitulo: string): string {
+  const largura = Math.round(MARCA_CAPA_LARGURA_PT);
+  const altura = Math.round(MARCA_CAPA_ALTURA_PT);
   return [
-    '<div style="page-break-after:always;break-after:page;min-height:700pt;' +
-      'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-      'text-align:center">',
-    `  <img src="${marcaDataUri()}" alt="CITi 30 anos" ` +
-      `width="${MARCA_LARGURA_PT}" height="${MARCA_ALTURA_PT}" ` +
-      `style="width:${MARCA_LARGURA_PT}pt;height:${MARCA_ALTURA_PT}pt;margin:0 0 24pt 0">`,
-    `  <h1 style="${S.titulo};margin:0">${escapeHtml(titulo)}</h1>`,
+    '<div style="page-break-after:always;break-after:page;min-height:640pt;text-align:center">',
+    `  <img src="${marcaDataUri()}" alt="CITi — Centro Integrado de Tecnologia da Informação" ` +
+      `width="${largura}" height="${altura}" ` +
+      `style="display:block;margin:0 auto;width:${largura}pt;height:${altura}pt">`,
+    '  <div style="height:190pt"></div>',
+    `  <h1 style="${S.titulo}">${escapeHtml(titulo)}</h1>`,
+    subtitulo,
     '</div>',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
+/** "[Projeto] - [Data]", o subtítulo que o modelo põe sob o título da CAPA —
+ *  não na página de conteúdo. Devolve '' pros tipos de documento sem o
+ *  conceito de projeto/data. */
+function subtituloDaCapa(data: DocumentData, gaps: Lacunas): string {
+  const projeto = data.metadata?.projectName;
+  const quando = data.metadata?.date;
+  return p(
+    [
+      projeto ? escapeHtml(projeto) : lacunaDe(gaps, 'metadata.projectName'),
+      quando ? escapeHtml(quando) : lacunaDe(gaps, 'metadata.date'),
+    ].join(' - '),
+    S.subtitulo,
+  );
+}
+
+/** Linha fina cinza, texto preto — no modelo o cinza é só do traço. */
 function rodape(): string {
   return [
-    `<div style="margin-top:36pt;padding-top:10pt;border-top:1px solid ${TINTA_FRACA}">`,
+    `<div style="margin-top:36pt;padding-top:10pt;border-top:1px solid ${CINZA_LINHA}">`,
     ...RODAPE.map((linha) => `  ${p(escapeHtml(linha), S.rodape)}`),
     '</div>',
   ].join('\n');
