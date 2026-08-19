@@ -126,8 +126,9 @@ function desenharCapa(
   // desenham por cima. `fundoCapaBuffer()` devolve `null` até alguém
   // exportar o gráfico do modelo pra
   // server/lib/render/assets/fundo-capa.png (cópia de
-  // public/assets-docs/ata-de-reuniao/fundo-capa.png); até lá a capa sai só
-  // com marca e título, sem quebrar nada.
+  // public/assets-docs/ata-de-reuniao/fundo-capa.png) — quando existir, tem
+  // prioridade sobre a aproximação abaixo. Até lá, `desenharFundoAproximado`
+  // desenha ondas com gradiente em vez de deixar a capa em branco.
   const fundo = fundoCapaBuffer();
   if (fundo) {
     const alturaFundo = doc.page.height * 0.45;
@@ -135,6 +136,8 @@ function desenharCapa(
       width: doc.page.width,
       height: alturaFundo,
     });
+  } else {
+    desenharFundoAproximado(doc);
   }
 
   const centroX = doc.page.width / 2;
@@ -174,6 +177,49 @@ function desenharCapa(
         width: larguraConteudo,
         align: 'left',
       });
+  }
+}
+
+/**
+ * Aproximação vetorial do gráfico ondulado azul/verde do modelo — três
+ * faixas com curva e gradiente, sangradas até a borda inferior.
+ *
+ * NÃO é uma cópia do original — é código, não a arte de verdade — mas é
+ * melhor que capa em branco enquanto o PNG de `fundoCapaBuffer()` não
+ * existir. Se um dia o PNG aparecer, ele passa a ter prioridade (ver o
+ * `if/else` em `desenharCapa`) e esta função para de ser chamada.
+ */
+function desenharFundoAproximado(doc: Doc): void {
+  const W = doc.page.width;
+  const H = doc.page.height;
+
+  const faixas: { topo: number; corA: string; corB: string; opacidade: number }[] = [
+    { topo: H * 0.62, corA: '#1e5aa8', corB: '#2f9e6e', opacidade: 0.85 },
+    { topo: H * 0.7, corA: '#2f7fbf', corB: '#3fae7e', opacidade: 0.85 },
+    { topo: H * 0.8, corA: '#4fa8d8', corB: '#5fc79a', opacidade: 0.9 },
+  ];
+
+  for (const faixa of faixas) {
+    doc.save();
+    doc
+      .moveTo(0, faixa.topo + H * 0.06)
+      .bezierCurveTo(
+        W * 0.22,
+        faixa.topo - H * 0.05,
+        W * 0.45,
+        faixa.topo + H * 0.07,
+        W * 0.68,
+        faixa.topo - H * 0.02,
+      )
+      .bezierCurveTo(W * 0.85, faixa.topo - H * 0.06, W * 0.95, faixa.topo + H * 0.02, W, faixa.topo - H * 0.03)
+      .lineTo(W, H)
+      .lineTo(0, H)
+      .closePath();
+
+    const gradiente = doc.linearGradient(0, faixa.topo, W, H);
+    gradiente.stop(0, faixa.corA, faixa.opacidade).stop(1, faixa.corB, faixa.opacidade);
+    doc.fill(gradiente);
+    doc.restore();
   }
 }
 
