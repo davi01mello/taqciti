@@ -272,6 +272,21 @@ function desenharTopicosDiscutidos(doc: Doc, data: DocumentData): string {
 }
 
 /**
+ * Só `text` — igual a `SECTION_RENDERERS.decisoes` do HTML. `spec.serialize()`
+ * inclui confiança e a citação da concordância porque é isso que o Escritor
+ * recebe pra redigir com contexto; mas a concordância é evidência da
+ * auditoria, não conteúdo da ata, e o markdown do Escritor também não a
+ * imprime — cair pro genérico aqui vazaria essa evidência pro documento
+ * final, o que o HTML deliberadamente não faz.
+ */
+function desenharDecisoes(doc: Doc, data: DocumentData): string {
+  const decisoes = data.decisions ?? [];
+  doc.font('Helvetica').fontSize(TAMANHO_CORPO_PT).fillColor(TINTA);
+  for (const decisao of decisoes) doc.text(`•  ${decisao.text}`);
+  return decisoes.map((d) => d.text).join('\n');
+}
+
+/**
  * X1 — o conteúdo principal do documento. Mesmo par "Gente e gestão" /
  * "Entrevistado" do HTML (`render/html.ts`, `SECTION_RENDERERS
  * .perguntas_respostas`) — não pode cair pro genérico mais pobre, é
@@ -312,6 +327,8 @@ function desenharConteudoSecao(
       return desenharAssinatura(doc, data, gaps);
     case 'topicos_discutidos':
       return desenharTopicosDiscutidos(doc, data);
+    case 'decisoes':
+      return desenharDecisoes(doc, data);
     case 'perguntas_respostas':
       return desenharPerguntasRespostas(doc, data, gaps);
     default: {
