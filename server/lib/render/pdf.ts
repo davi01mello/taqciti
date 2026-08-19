@@ -638,6 +638,12 @@ function desenharPerguntasRespostas(doc: Doc, data: DocumentData, gaps: Gap[]): 
     const resposta = par.resposta ?? lacunaDe(gaps, `qa[${index}].resposta`);
     partes.push(linhaRotulada(doc, 'Gente e gestão', pergunta));
     partes.push(linhaRotulada(doc, 'Entrevistado', resposta));
+    // Um respiro a MAIS entre um par e o próximo. Sem ele todos os espaços
+    // ficam iguais e as seis linhas viram uma lista corrida, sem mostrar
+    // qual resposta pertence a qual pergunta — que é a única estrutura que
+    // este documento tem. O modelo não decide isto: ele é uma Ata, e não tem
+    // par de pergunta e resposta.
+    doc.y += GAP_PARAGRAFO_PT;
   });
 
   return partes.join('\n');
