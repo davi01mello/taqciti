@@ -1,0 +1,80 @@
+# Testa os DOIS projetos deste repo a cada push e a cada PR.
+#
+# Por que separado de `release.yml`: aquele dispara só em tag `v*.*.*`, e o
+# que ele faz é EMPACOTAR — compila os instaladores e publica. Ele nunca roda
+# um teste, e nunca toca em `server/`. Ou seja: até aqui nada no CI olhava o
+# servidor de geração de documento, que é metade do produto. Este arquivo é
+# essa metade que faltava, mais o `typecheck`/`test` da extensão, que também
+# só rodavam na máquina de quem estava desenvolvendo.
+#
+# São dois `npm ci` porque são dois projetos independentes, com
+# `package-lock.json` próprio — a raiz é a extensão (Vite), `server/` é o
+# Next.js. Um `npm ci` só na raiz não instala nada do servidor.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  extensao:
+    name: Extensão (raiz)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  servidor:
+    name: Servidor (server/)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      # O `build` NÃO é redundante com os testes, e esta é a lição mais cara
+      # deste repo até agora: o `pdfkit` lê arquivos de dentro do próprio
+      # pacote, e empacotado pelo bundler esse caminho quebrava. O resultado
+      # era um PDF que falhava SÓ em produção — `next dev` e o vitest
+      # carregam o pacote normalmente e passam. Ver `serverExternalPackages`
+      # em `server/next.config.ts` e a seção correspondente no HANDOFF.
+      #
+      # `DOCCITI_SHARED_KEY` é um valor descartável só pro build não reclamar
+      # de configuração ausente: nada aqui chama provedor de IA, então
+      # nenhuma chave de verdade é necessária — e nenhuma deve ser posta aqui.
+      - run: npm run build
+        env:
+          DOCCITI_SHARED_KEY: ci-build-only
+
+      # Prova de fumaça do render DENTRO da build de produção, que é o único
+      # lugar onde o defeito acima aparece. `POST /api/answers` renderiza HTML
+      # e PDF e não chama modelo nenhum — então roda de graça, sem chave e sem
+      # cota. Falha se o PDF não vier, se não for um PDF de verdade, ou se a
+      # Barlow não estiver embutida nele.
+      - name: Prova de fumaça do PDF em produção
+        env:
+          DOCCITI_SHARED_KEY: ci-build-only
+        run: |
+          npm run start &
+          npx --yes wait-on http://localhost:3000 --timeout 90000
+          node scripts/smokePdf.mjs
