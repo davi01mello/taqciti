@@ -171,9 +171,15 @@ begin
     Exit;
   end;
 
-  { O instalador oficial do Edge Stable é 32-bit mesmo em Windows 64-bit,
-    então {pf32} costuma ser o caminho de verdade — mas checa {pf} primeiro
-    porque instalações via MSI corporativo podem ir para lá. }
+  // ATENÇÃO ao comentar constantes do Inno aqui: comentário de chaves NÃO
+  // aninha, então um "{pf32}" dentro de um bloco { ... } fecha o comentário
+  // no primeiro "}" e o resto da frase vira código. Foi exatamente o que
+  // quebrou a compilação da v2.0.0 ("Unknown identifier 'costuma'"). Use
+  // "//" em qualquer comentário que precise citar uma constante.
+  //
+  // O instalador oficial do Edge Stable é 32-bit mesmo em Windows 64-bit,
+  // então {pf32} costuma ser o caminho de verdade — mas checa {pf} primeiro
+  // porque instalações via MSI corporativo podem ir para lá.
   EdgePath := ExpandConstant('{pf}\Microsoft\Edge\Application\msedge.exe');
   if FileExists(EdgePath) then
   begin

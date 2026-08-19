@@ -35,6 +35,38 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # O instalador Windows só era compilado DURANTE uma release — e por isso um
+  # erro de sintaxe nele só aparecia na hora de publicar. Foi o que aconteceu
+  # com a v2.0.0: um comentário `{ ... }` no [Code] citava a constante
+  # `{pf32}`, comentário de chaves não aninha em Pascal, o comentário fechou
+  # no primeiro `}` e o resto da frase virou código ("Unknown identifier
+  # 'costuma'"). O defeito estava no repositório havia dois dias, invisível.
+  #
+  # Compilar aqui é o mesmo trabalho que o `release.yml` faz, sem publicar
+  # nada: se o instalador não compila, o PR fica vermelho em vez de a release
+  # abortar.
+  instalador-windows:
+    name: Instalador Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      # O .iss empacota `dist/*`; sem o build ele falha por arquivo ausente,
+      # que esconderia um erro de sintaxe de verdade.
+      - run: npm run build
+      - name: Instalar Inno Setup
+        run: choco install innosetup --no-progress -y
+      # Versão fictícia: aqui só interessa se COMPILA. A de verdade sai do
+      # nome da tag, no release.yml.
+      - name: Compilar instalador
+        shell: cmd
+        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.0.0-ci installer\windows\taqciti.iss'
+
   servidor:
     name: Servidor (server/)
     runs-on: ubuntu-latest
