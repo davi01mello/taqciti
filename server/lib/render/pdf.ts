@@ -413,17 +413,41 @@ const fluxoDeParagrafo = (tamanho: number) => ({ lineGap: folgaDeLinha(tamanho) 
  * texto: a linha que quebra volta alinhada sob o TEXTO, não sob o marcador,
  * que é o recuo pendente do modelo. `escrever` desenha o conteúdo do item e
  * pode alternar peso à vontade — recebe o cursor já posicionado.
+ *
+ * ── Por que MEDE antes de desenhar ──────────────────────────────────────
+ *
+ * Marcador e texto saem em duas chamadas que precisam compartilhar a mesma
+ * coordenada de topo, e a segunda restaura `doc.y`. Se o `pdfkit` abrir
+ * página entre as duas, esse `doc.y` restaurado é uma coordenada da página
+ * ANTERIOR: cai abaixo da margem da página nova, dispara outra quebra, e o
+ * item seguinte repete tudo. A primeira versão disto fazia exatamente isso e
+ * produzia uma sequência de páginas quase em branco — uma com o "4." sozinho,
+ * a seguinte vazia. Medir a altura e quebrar ANTES mantém os dois juntos e
+ * ainda evita marcador órfão no pé da página.
+ *
+ * `textoPlano` é o conteúdo do item sem formatação, só pra medir — `escrever`
+ * é que desenha de verdade, com os pesos certos.
  */
-function desenharItemDeLista(doc: Doc, marcador: string, escrever: () => void): void {
-  const topo = doc.y;
+function desenharItemDeLista(
+  doc: Doc,
+  marcador: string,
+  textoPlano: string,
+  escrever: () => void,
+): void {
   const xMarcador = MARGEM_PT + LISTA_MARCADOR_RECUO_PT;
   const xTexto = MARGEM_PT + LISTA_TEXTO_RECUO_PT;
+  const fluxo = fluxoDeItem();
 
-  doc
-    .font('Helvetica')
-    .fontSize(TAMANHO_ITEM_PT)
-    .fillColor(TINTA)
-    .text(marcador, xMarcador, topo, { lineBreak: false, width: xTexto - xMarcador });
+  doc.font('Helvetica').fontSize(TAMANHO_ITEM_PT).fillColor(TINTA);
+  const altura = doc.heightOfString(textoPlano, fluxo);
+  const baseDoTexto = A4_ALTURA_PT - MARGEM_INFERIOR_PT;
+  // A segunda condição é a saída para o item mais alto que uma página
+  // inteira: aí não existe página onde ele caiba, e abrir uma nova só
+  // gastaria papel — deixa o `pdfkit` quebrar no meio dele.
+  if (doc.y + altura > baseDoTexto && altura <= baseDoTexto - MARGEM_PT) doc.addPage();
+
+  const topo = doc.y;
+  doc.text(marcador, xMarcador, topo, { lineBreak: false, width: xTexto - xMarcador });
 
   doc.y = topo;
   doc.x = xTexto;
@@ -440,7 +464,7 @@ const fluxoDeItem = () => ({
 /** Lista de textos simples, um bullet cada — Decisões, Outcomes, Outputs. */
 function desenharListaSimples(doc: Doc, textos: string[]): void {
   for (const texto of textos) {
-    desenharItemDeLista(doc, '•', () => {
+    desenharItemDeLista(doc, '•', texto, () => {
       doc.font('Helvetica').fontSize(TAMANHO_ITEM_PT).fillColor(TINTA).text(texto, fluxoDeItem());
     });
   }
@@ -514,7 +538,7 @@ function desenharParticipantes(doc: Doc, data: DocumentData, gaps: Gap[]): strin
     return `${participante.name} – ${cargo}`;
   });
   for (const linha of linhas) {
-    desenharItemDeLista(doc, '•', () => {
+    desenharItemDeLista(doc, '•', linha, () => {
       doc.font('Helvetica-Bold').fontSize(TAMANHO_ITEM_PT).fillColor(TINTA).text(linha, fluxoDeItem());
     });
   }
@@ -559,7 +583,8 @@ function desenharTopicosDiscutidos(doc: Doc, data: DocumentData): string {
   const linhas: string[] = [];
 
   topicos.forEach((topico, index) => {
-    desenharItemDeLista(doc, `${index + 1}.`, () => {
+    const plano = `${topico.title}: ${topico.summary}`;
+    desenharItemDeLista(doc, `${index + 1}.`, plano, () => {
       doc
         .font('Helvetica-Bold')
         .fontSize(TAMANHO_ITEM_PT)
@@ -567,7 +592,7 @@ function desenharTopicosDiscutidos(doc: Doc, data: DocumentData): string {
         .text(`${topico.title}: `, { ...fluxoDeItem(), continued: true });
       doc.font('Helvetica').text(topico.summary);
     });
-    linhas.push(`${index + 1}. ${topico.title}: ${topico.summary}`);
+    linhas.push(`${index + 1}. ${plano}`);
   });
   if (topicos.length > 0) doc.y += GAP_PARAGRAFO_PT;
 

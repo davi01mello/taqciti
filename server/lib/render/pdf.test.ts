@@ -1,4 +1,6 @@
+import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import { PDFArray, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
 import { renderPdf } from './pdf';
 import type { DocumentData, Gap } from '../documentData';
 
@@ -11,6 +13,33 @@ import type { DocumentData, Gap } from '../documentData';
  */
 function ehPdfValido(buffer: Buffer): boolean {
   return buffer.length > 0 && buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+}
+
+/**
+ * Quantos trechos de texto cada página desenha (`Tj`/`TJ` no stream
+ * descomprimido). Não é medida de beleza — é o mínimo necessário pra
+ * distinguir "página cheia" de "página que só tem o rodapé", que é a forma
+ * que o defeito de paginação assume. Ver o teste que usa isto.
+ */
+async function trechosDeTextoPorPagina(pdf: Buffer): Promise<number[]> {
+  const doc = await PDFDocument.load(pdf);
+  return doc.getPages().map((pagina) => {
+    const ctx = pagina.node.context;
+    const conteudo = ctx.lookup(pagina.node.get(PDFName.of('Contents')));
+    const streams =
+      conteudo instanceof PDFArray
+        ? conteudo.asArray().map((ref) => ctx.lookup(ref))
+        : [conteudo];
+
+    let texto = '';
+    for (const stream of streams) {
+      if (!(stream instanceof PDFRawStream)) continue;
+      const bytes = Buffer.from(stream.getContents());
+      // `pdfkit` comprime; a capa que o `pdf-lib` monta, não.
+      texto += (bytes[0] === 0x78 ? inflateSync(bytes) : bytes).toString('latin1');
+    }
+    return (texto.match(/\b(Tj|TJ)\b/g) ?? []).length;
+  });
 }
 
 const ataCompleta: DocumentData = {
@@ -98,6 +127,48 @@ describe('renderPdf', () => {
     });
     expect(ehPdfValido(buffer)).toBe(true);
     expect(buffer.length).toBeGreaterThan(0);
+  });
+
+  it('lista longa pagina sem deixar pagina quase vazia pelo caminho', async () => {
+    // A regressão que este teste existe pra pegar, encontrada rodando o
+    // pipeline de verdade: o item de lista desenha marcador e texto em duas
+    // chamadas que compartilham a coordenada de topo, e quando o `pdfkit`
+    // quebrava a página ENTRE as duas, o `doc.y` restaurado era da página
+    // anterior — o que disparava outra quebra, e outra. O documento saía com
+    // 7 páginas, uma delas contendo só o "4." e a seguinte totalmente em
+    // branco.
+    const paragrafo =
+      'Constatou-se que, para volumes de até mil requisições por segundo, o tempo de ' +
+      'resposta atende ao limite acordado; acima disso ocorre degradação relevante, e a ' +
+      'origem exata, se no banco de dados ou na fila de processamento, não pôde ser ' +
+      'determinada de imediato pela equipe durante esta reunião de acompanhamento.';
+
+    const buffer = await renderPdf({
+      documentType: 'ata',
+      data: {
+        metadata: { date: '19/08/2026', projectName: 'Projeto Meridiano' },
+        topicsDiscussed: Array.from({ length: 8 }, (_, i) => ({
+          title: `Tópico número ${i + 1}`,
+          summary: paragrafo,
+          quotes: [],
+        })),
+        outcomes: Array.from({ length: 6 }, (_, i) => ({
+          text: `${paragrafo} (resultado ${i + 1})`,
+          quotes: [],
+        })),
+      },
+      gaps: [],
+      title: 'Ata de Reunião — paginação',
+    });
+
+    const [, ...conteudo] = await trechosDeTextoPorPagina(buffer);
+    expect(conteudo.length).toBeGreaterThan(1); // o payload precisa mesmo paginar
+
+    // Toda página de conteúdo desenha o rodapé (2 trechos). Uma que fique
+    // perto disso não tem conteúdo nenhum. A última pode ser curta de
+    // verdade — é onde o documento acaba.
+    const semAUltima = conteudo.slice(0, -1);
+    expect(Math.min(...semAUltima)).toBeGreaterThan(6);
   });
 
   it('titulo da capa vem do tipo de documento, nao do title recebido', async () => {
