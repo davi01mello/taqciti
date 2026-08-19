@@ -29,12 +29,13 @@ import PDFDocument from 'pdfkit';
 import type { DocumentType } from '../documentTypes';
 import { TEMPLATES } from '../templates';
 import { specForSection, textoDeLacuna, type DocumentData, type Gap } from '../documentData';
-import { marcaBuffer, MARCA_ALTURA_PT, MARCA_LARGURA_PT } from './brand';
+import { fundoCapaBuffer, marcaBuffer, MARCA_ALTURA_PT, MARCA_LARGURA_PT } from './brand';
 import { RODAPE, temCabecalho } from './html';
 import {
   TAMANHO_CORPO_PT,
   TAMANHO_RODAPE_PT,
   TAMANHO_SECAO_PT,
+  TAMANHO_SUBTITULO_PT,
   TAMANHO_TITULO_PT,
   TINTA,
   TINTA_FRACA,
@@ -79,7 +80,12 @@ export function renderPdf(input: RenderPdfInput): Promise<Buffer> {
   // Mesma fonte que blocoDeAbertura() em html.ts: o título da capa é o do
   // TIPO de documento, não o `input.title` (que carrega o nome específico da
   // reunião/entrevista) — os dois motores precisam concordar sobre isso.
-  desenharCapa(doc, template.documentTitle ?? template.label);
+  //
+  // "Identificação" existe no template? Só a Ata tem — X1 não tem o conceito
+  // de projeto/data, e forçar essa linha (ou uma lacuna pra ela) na capa de
+  // uma entrevista seria inventar um campo que o documento não pede.
+  const temIdentificacao = template.sections.some((s) => s.id === 'identificacao');
+  desenharCapa(doc, template.documentTitle ?? template.label, input.data, input.gaps, temIdentificacao);
   doc.addPage();
 
   const ordenadas = template.sections.slice().sort((a, b) => a.order - b.order);
@@ -109,24 +115,66 @@ export function renderPdf(input: RenderPdfInput): Promise<Buffer> {
 // Capa
 // ---------------------------------------------------------------------------
 
-function desenharCapa(doc: Doc, titulo: string): void {
-  const alturaBloco = MARCA_ALTURA_PT + 24 + TAMANHO_TITULO_PT * 1.2;
-  const y = Math.max(MARGEM_PT, (doc.page.height - alturaBloco) / 2);
-  const centroX = doc.page.width / 2;
+function desenharCapa(
+  doc: Doc,
+  titulo: string,
+  data: DocumentData,
+  gaps: Gap[],
+  temIdentificacao: boolean,
+): void {
+  // Sangrado até a borda, ANTES de qualquer outra coisa — texto e marca
+  // desenham por cima. `fundoCapaBuffer()` devolve `null` até alguém
+  // exportar o gráfico do modelo pra
+  // server/lib/render/assets/fundo-capa.png (cópia de
+  // public/assets-docs/ata-de-reuniao/fundo-capa.png); até lá a capa sai só
+  // com marca e título, sem quebrar nada.
+  const fundo = fundoCapaBuffer();
+  if (fundo) {
+    const alturaFundo = doc.page.height * 0.45;
+    doc.image(fundo, 0, doc.page.height - alturaFundo, {
+      width: doc.page.width,
+      height: alturaFundo,
+    });
+  }
 
-  doc.image(marcaBuffer(), centroX - MARCA_LARGURA_PT / 2, y, {
+  const centroX = doc.page.width / 2;
+  doc.image(marcaBuffer(), centroX - MARCA_LARGURA_PT / 2, MARGEM_PT, {
     width: MARCA_LARGURA_PT,
     height: MARCA_ALTURA_PT,
   });
 
+  // Título alinhado à ESQUERDA, não centralizado — é assim que o modelo
+  // desenha (conferido visualmente contra `example.pdf`, ver a conversa que
+  // motivou este ajuste). Posição vertical aproximada — 38% da altura da
+  // página — porque não há coordenada exata extraída do modelo pra isto
+  // ainda, só a leitura visual do PDF de referência.
+  const larguraConteudo = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   doc
     .font('Helvetica-Bold')
     .fontSize(TAMANHO_TITULO_PT)
     .fillColor(TINTA)
-    .text(titulo, doc.page.margins.left, y + MARCA_ALTURA_PT + 24, {
-      width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-      align: 'center',
+    .text(titulo, doc.page.margins.left, doc.page.height * 0.38, {
+      width: larguraConteudo,
+      align: 'left',
     });
+
+  // Subtítulo "{projeto} - {data}", cinza, logo abaixo — só quando o
+  // documento TEM esse conceito (a Ata tem; X1 não). Mesmo fallback de
+  // lacuna que o resto do documento usa, pra não sumir em silêncio se
+  // faltar.
+  if (temIdentificacao) {
+    const projeto = data.metadata?.projectName ?? lacunaDe(gaps, 'metadata.projectName');
+    const quando = data.metadata?.date ?? lacunaDe(gaps, 'metadata.date');
+    doc.moveDown(0.2);
+    doc
+      .font('Helvetica')
+      .fontSize(TAMANHO_SUBTITULO_PT)
+      .fillColor(TINTA_FRACA)
+      .text(`${projeto} - ${quando}`, doc.page.margins.left, doc.y, {
+        width: larguraConteudo,
+        align: 'left',
+      });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -160,19 +208,21 @@ function lacunaDe(gaps: Gap[], field: string): string {
   return textoDeLacuna(gap ? gap.question : field);
 }
 
+/**
+ * Só DESENHA a linha DATA — o "{projeto} - {data}" que esta seção também
+ * carrega já saiu na capa (`desenharCapa`), igual ao modelo (`example.pdf`
+ * mostra essa linha uma vez só, embaixo do título, não de novo na página de
+ * conteúdo).
+ *
+ * `projeto` entra no texto DEVOLVIDO mesmo sem ser desenhado aqui — é o que
+ * faz `desenharSobras` reconhecer que a lacuna de `metadata.projectName` já
+ * apareceu (na capa) e não desenhá-la de novo no fim desta seção.
+ */
 function desenharIdentificacao(doc: Doc, data: DocumentData, gaps: Gap[]): string {
   const projeto = data.metadata?.projectName ?? lacunaDe(gaps, 'metadata.projectName');
   const quando = data.metadata?.date ?? lacunaDe(gaps, 'metadata.date');
-
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(TAMANHO_CORPO_PT + 2.6)
-    .fillColor(TINTA)
-    .text(`${projeto} - ${quando}`, { align: 'center' });
-  doc.moveDown(0.3);
-
   const linha = linhaRotulada(doc, 'DATA', quando);
-  return `${projeto} - ${quando}\n${linha}`;
+  return `${projeto}\n${linha}`;
 }
 
 function desenharParticipantes(doc: Doc, data: DocumentData, gaps: Gap[]): string {
@@ -197,6 +247,28 @@ function desenharAssinatura(doc: Doc, data: DocumentData, gaps: Gap[]): string {
   doc.text(`${nome} – ${cargo}`);
 
   return `Atenciosamente,\n${nome} – ${cargo}`;
+}
+
+/**
+ * Numerada — igual ao modelo e a `SECTION_RENDERERS.topicos_discutidos` do
+ * HTML. O genérico (`spec.serialize()`) junta os tópicos com "- ", sem
+ * número; cai pro genérico aqui perderia a numeração que o modelo mostra.
+ */
+function desenharTopicosDiscutidos(doc: Doc, data: DocumentData): string {
+  const topicos = data.topicsDiscussed ?? [];
+  const linhas: string[] = [];
+
+  topicos.forEach((topico, index) => {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(TAMANHO_CORPO_PT)
+      .fillColor(TINTA)
+      .text(`${index + 1}. ${topico.title}: `, { continued: true });
+    doc.font('Helvetica').text(topico.summary);
+    linhas.push(`${index + 1}. ${topico.title}: ${topico.summary}`);
+  });
+
+  return linhas.join('\n');
 }
 
 /**
@@ -238,6 +310,8 @@ function desenharConteudoSecao(
       return desenharParticipantes(doc, data, gaps);
     case 'assinatura':
       return desenharAssinatura(doc, data, gaps);
+    case 'topicos_discutidos':
+      return desenharTopicosDiscutidos(doc, data);
     case 'perguntas_respostas':
       return desenharPerguntasRespostas(doc, data, gaps);
     default: {

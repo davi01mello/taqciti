@@ -69,3 +69,33 @@ export function marcaDataUri(): string {
 export function marcaBuffer(): Buffer {
   return lerMarca();
 }
+
+// ---------------------------------------------------------------------------
+// Gráfico sangrado da capa
+// ---------------------------------------------------------------------------
+
+let cacheFundoCapa: Buffer | null | undefined;
+
+/**
+ * O gráfico ondulado azul/verde que sangra até a borda na capa do modelo
+ * (`example.pdf`). Ao contrário da marca, esta é uma imagem OPCIONAL — o
+ * repo ainda não tem o arquivo (`assets/fundo-capa.png`, cópia de
+ * `public/assets-docs/ata-de-reuniao/fundo-capa.png`, mesmo par que
+ * `citi-30-anos.png`/`image.png`).
+ *
+ * `null` em vez de lançar: diferente da marca, faltar isto não faz o
+ * documento parecer de outra instituição — só uma capa mais simples. Não
+ * vale derrubar a geração inteira por um gráfico decorativo ausente,
+ * enquanto ninguém tiver exportado o arquivo.
+ */
+export function fundoCapaBuffer(): Buffer | null {
+  if (cacheFundoCapa !== undefined) return cacheFundoCapa;
+
+  const caminho = join(process.cwd(), 'lib', 'render', 'assets', 'fundo-capa.png');
+  try {
+    cacheFundoCapa = readFileSync(caminho);
+  } catch {
+    cacheFundoCapa = null;
+  }
+  return cacheFundoCapa;
+}
