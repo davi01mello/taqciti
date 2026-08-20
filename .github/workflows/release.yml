@@ -6,6 +6,25 @@ on:
       - "v*.*.*"
   workflow_dispatch: {}
 
+# O endereço do servidor e o segredo compartilhado entram NO BUNDLE da
+# extensão, na hora da build — não são lidos em runtime. Uma build sem eles
+# aponta para `http://localhost:3000`, o padrão de desenvolvimento.
+#
+# Foi o que aconteceu com os instaladores da v2.0.0: saíram apontando para
+# localhost e só funcionariam para quem estivesse rodando o servidor na
+# própria máquina. Por isso os jobs abaixo CONFEREM e falham alto — um
+# instalador publicado com o endereço errado é um defeito que só aparece na
+# mão de quem instalou.
+#
+# Configurar em Settings → Secrets and variables → Actions:
+#   Variables → DOCCITI_SERVER_URL   (https://<projeto>.vercel.app, sem "/" no fim)
+#   Secrets   → DOCCITI_SHARED_KEY   (o mesmo valor da variável no servidor)
+#
+# Ver server/docs/deploy-vercel.md.
+env:
+  VITE_DOCCITI_SERVER_URL: ${{ vars.DOCCITI_SERVER_URL }}
+  VITE_DOCCITI_SHARED_KEY: ${{ secrets.DOCCITI_SHARED_KEY }}
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -17,6 +36,10 @@ jobs:
           node-version: 20
 
       - run: npm ci
+
+      - name: Conferir configuração de release
+        shell: bash
+        run: bash .github/scripts/check-release-env.sh
 
       - run: npm run build
 
@@ -49,6 +72,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Conferir configuração de release
+        run: bash .github/scripts/check-release-env.sh
+
       - name: Instalar makeself
         run: |
           sudo apt-get update
@@ -79,6 +105,9 @@ jobs:
           node-version: 20
 
       - run: npm ci
+
+      - name: Conferir configuração de release
+        run: bash .github/scripts/check-release-env.sh
 
       - name: Extrair versão da tag
         id: version
