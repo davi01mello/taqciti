@@ -28,6 +28,12 @@ compactação".
 
 ## Distribuição
 
+O passo a passo para publicar — servidor no ar, variáveis, tag, e como
+conferir que o instalador realmente fala com o servidor — está em
+[`docs/publicar-release.md`](docs/publicar-release.md). Vale ler antes de
+cortar uma tag: a `v2.0.0` foi publicada apontando para `localhost` e só
+funcionava na máquina de quem construiu.
+
 Cada tag `v*.*.*` dispara `.github/workflows/release.yml`, que builda e
 compila três instaladores nativos (Windows `.exe`, Linux `.run`, macOS
 `.pkg` — ver `installer/`) e os publica em dois canais:

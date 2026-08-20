@@ -84,6 +84,10 @@ diagnosticar.
 O `release.yml` lê os dois e **falha a build se faltarem**, em vez de produzir
 instaladores apontando para localhost em silêncio.
 
+O procedimento completo da release — em que ordem fazer, como conferir o
+instalador publicado e o que fazer quando o check aborta — está em
+`docs/publicar-release.md`, na raiz do repositório.
+
 ---
 
 ## 4. A chave precisa ser PAGA. Isto não é preferência.
