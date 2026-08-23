@@ -31,6 +31,7 @@ import type { SectionSpec } from '../templates/types';
 import { specForSection, type DocumentData, type Gap, type Locate } from '../documentData';
 import type { Answer } from '../generateStep';
 import { createLocator, type LocatedAnchor } from './anchoring';
+import { ehRotuloDeSelf, PERGUNTA_DO_NOME } from '../rotuloDeSelf';
 
 export interface PensarInput {
   /** A transcrição bruta, literal. Vai como prefixo cacheável. */
@@ -248,14 +249,46 @@ export function detectGaps(section: SectionSpec, data: DocumentData): Gap[] {
 
   if (section.id === 'participantes') {
     for (const p of data.participants ?? []) {
+      /*
+       * "Você" não é nome — é como o Meet chama quem gravou enquanto o nome
+       * real não aparece no DOM. Sem isto a ata sai afirmando que Você
+       * participou da reunião, que foi o defeito reportado.
+       *
+       * Vira LACUNA e não descarte: a pessoa participou de verdade, e sumir
+       * com ela seria pior do que não saber o nome dela. Quem responde é quem
+       * gerou o documento — que estava na reunião e sabe. Ver
+       * `lib/rotuloDeSelf.ts`.
+       */
+      const ehSelf = ehRotuloDeSelf(p.name);
+
+      if (ehSelf) {
+        gaps.push({
+          sectionId: section.id,
+          field: `participants[${p.name}].name`,
+          question: PERGUNTA_DO_NOME.replace('{rotulo}', p.name),
+          why: `A transcrição identifica essa pessoa apenas como "${p.name}", que é o rótulo do Meet para quem gravou.`,
+        });
+      }
+
       if (p.role) continue;
       gaps.push({
         sectionId: section.id,
         field: `participants[${p.name}].role`,
-        // O template usa `{nome}` como marcador; é o único lugar onde ele
-        // aparece, e substituí-lo aqui evita duplicar o texto da pergunta.
-        question: (section.askWhenMissing[0] ?? '').replace('{nome}', p.name),
-        why: `Não houve evidência na reunião do cargo de ${p.name}.`,
+        /*
+         * O template usa `{nome}` como marcador; é o único lugar onde ele
+         * aparece, e substituí-lo aqui evita duplicar o texto da pergunta.
+         *
+         * Mas com rótulo de self a substituição crua produzia "Qual é o
+         * cargo/papel de Você?" — pergunta que ninguém entende. E aqui dá para
+         * ser direto: quem o Meet chamou de "Você" é justamente quem está
+         * gerando o documento e lendo o formulário.
+         */
+        question: ehSelf
+          ? 'Qual é o seu cargo/papel nesta reunião?'
+          : (section.askWhenMissing[0] ?? '').replace('{nome}', p.name),
+        why: ehSelf
+          ? 'A reunião não deixa claro o cargo de quem gravou.'
+          : `Não houve evidência na reunião do cargo de ${p.name}.`,
       });
     }
   }

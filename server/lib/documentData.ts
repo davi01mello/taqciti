@@ -22,6 +22,7 @@
 import type { SectionSpec } from './templates/types';
 import type { JsonSchema } from './ai';
 import type { LocatedAnchor } from './agents/anchoring';
+import { ehRotuloDeSelf, limparRotuloDeSelf } from './rotuloDeSelf';
 
 /** De onde veio o cargo de um participante. Vem do guidance da Ata. */
 export type RoleSource = 'meeting' | 'user' | 'unknown';
@@ -394,7 +395,14 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     merge(data, payload) {
       const p = (payload ?? {}) as Metadata;
       data.metadata = {
-        ...(p.date ? { date: p.date } : {}),
+        // Preserva o que já se sabia. Antes isto substituía `metadata` inteiro,
+        // e a data que `generateDocument` semeia a partir do carimbo real da
+        // reunião era apagada pela primeira resposta do modelo.
+        ...data.metadata,
+        // A data semeada GANHA da deduzida: uma veio do relógio de quem
+        // gravou, a outra de um modelo lendo uma transcrição que quase nunca
+        // diz que dia é. Ver `dataDaReuniao.ts`.
+        ...(p.date && !data.metadata?.date ? { date: p.date } : {}),
         ...(p.projectName ? { projectName: p.projectName } : {}),
       };
     },
@@ -475,7 +483,11 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       )
         .filter((p) => p?.name)
         .map((p) => ({
-          name: p.name,
+          // "Bernardo Belfort (Você)" tem nome de verdade e só precisa perder a
+          // decoração. O rótulo puro ("Você") passa INTACTO de propósito: quem
+          // o transforma em lacuna é `detectGaps`, e apagá-lo aqui sumiria com
+          // um participante real. Ver `rotuloDeSelf.ts`.
+          name: limparRotuloDeSelf(p.name),
           ...(p.role ? { role: p.role } : {}),
           roleSource: p.role ? (p.roleSource ?? 'meeting') : 'unknown',
           quotes: anchorQuotes(p.quotes, locate),
@@ -509,7 +521,11 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       const linhas = (data.participants ?? []).map((p) => {
         const cargo =
           p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`), `cargo de ${p.name}`);
-        return `- ${p.name} – ${cargo}`;
+        // "Você" não é nome: sai como lacuna, e a pessoa continua na lista.
+        const nome = ehRotuloDeSelf(p.name)
+          ? marcador(lacunaDoCampo(gaps, `participants[${p.name}].name`), `nome de "${p.name}"`)
+          : p.name;
+        return `- ${nome} – ${cargo}`;
       });
       return ['## Participantes e cargos', '', '**PARTICIPANTES – CARGO:**', '', ...linhas].join('\n');
     },

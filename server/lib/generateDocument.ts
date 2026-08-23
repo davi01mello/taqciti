@@ -23,6 +23,7 @@ import {
   type RenderedSection,
 } from './generateStep';
 import { assertSemVazamento } from './agents/escritor';
+import { formatarDataDaReuniao } from './dataDaReuniao';
 import { renderHtml } from './render/html';
 import { renderPdf } from './render/pdf';
 
@@ -69,7 +70,23 @@ export async function generateDocument(
   const template = TEMPLATES[input.documentType];
 
   let completed: RenderedSection[] = [];
-  let documentData: DocumentData = {};
+
+  /*
+   * A data entra ANTES do pipeline, não depois.
+   *
+   * `input.date` é o carimbo real do início da captura, mandado pela extensão.
+   * Semeado aqui, ele já está em `documentData` quando a seção Identificação
+   * roda: o `merge` dela preserva o que já se sabe, e o `detectGaps` não abre
+   * lacuna para um campo preenchido. O resultado é a ata sair com a data certa
+   * em vez de `[A preencher: data]` para algo que o servidor tinha na mão.
+   *
+   * Semear DEPOIS do laço não resolveria: o markdown de cada seção é montado
+   * durante o pipeline, então a Identificação já teria sido escrita com a
+   * lacuna dentro. Ver `dataDaReuniao.ts` para o fuso, que é onde isto morde.
+   */
+  const dataDaReuniao = formatarDataDaReuniao(input.date);
+  let documentData: DocumentData = dataDaReuniao ? { metadata: { date: dataDaReuniao } } : {};
+
   let questions: Question[] = [];
   let gaps: Gap[] = [];
   let done = false;
@@ -91,8 +108,10 @@ export async function generateDocument(
   }
 
   const title = input.title ? `${template.label} — ${input.title}` : `${template.label} (teste)`;
-  const body = completed.map((section) => section.content).join('\n\n');
-  const content = input.date ? `${body}\n\nData informada: ${input.date}.` : body;
+  // Sem "Data informada: <ISO>" no rodapé. Aquilo despejava um timestamp cru
+  // ("2026-08-22T14:30:00.000Z") no fim da ata que o cliente lê, e existia
+  // porque a data não tinha para onde ir. Agora ela tem: a Identificação.
+  const content = completed.map((section) => section.content).join('\n\n');
 
   const html = renderHtml({ documentType: input.documentType, data: documentData, gaps, title });
 
