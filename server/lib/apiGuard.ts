@@ -46,13 +46,28 @@ function secretsMatch(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/**
+ * Origens de PÁGINA (não `chrome-extension://`) que também têm permissão.
+ *
+ * O botão "Gerar Documento" do painel flutuante roda dentro do content
+ * script injetado em `meet.google.com` (ver `src/content/ui/PanelApp.tsx` →
+ * `GenerateDocumentMenu` → `requestGeneration`), e um `fetch` disparado de
+ * dentro de um content script carrega a origem da PÁGINA para fins de CORS,
+ * não a da extensão — `chrome-extension://` só é a origem de chamadas feitas
+ * de dentro de uma página própria da extensão (ex.: `document/index.html`).
+ * Sem esta lista, o preflight do painel flutuante volta sem
+ * `Access-Control-Allow-Origin`, o navegador bloqueia o POST antes de sair, e
+ * a extensão nunca vê um 401/200 — só um erro de rede genérico.
+ */
+const ALLOWED_PAGE_ORIGINS = ['https://meet.google.com'];
+
 export function corsHeaders(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': `Content-Type, ${SHARED_KEY_HEADER}`,
     Vary: 'Origin',
   };
-  if (origin && origin.startsWith('chrome-extension://')) {
+  if (origin && (origin.startsWith('chrome-extension://') || ALLOWED_PAGE_ORIGINS.includes(origin))) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
   return headers;
