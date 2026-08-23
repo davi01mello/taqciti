@@ -26,7 +26,7 @@ export default defineManifest({
   name: 'TaqCITi Standalone',
   description:
     'Transcrição automática de reuniões do Google Meet — captura invisível e histórico 100% local, sem integração com nenhum backend.',
-  version: '2.1.1',
+  version: '2.1.2',
   minimum_chrome_version: '116',
 
   /*
