@@ -1,39 +1,47 @@
-# Deploy do servidor na Vercel
+# Deploy do servidor
 
 Runbook completo. Nenhuma chave aparece aqui: tudo é variável de ambiente, e o
 mesmo procedimento serve para a sua chave hoje e para a da empresa depois —
 troca-se o valor, não o código.
+
+> **Produção hoje é o Railway**, em
+> `https://taqciti-production.up.railway.app`. Este documento já se chamou
+> `deploy-vercel.md` e descrevia a Vercel do começo ao fim, muito depois de a
+> produção ter mudado de casa — inclusive mandando rodar a prova de fumaça
+> contra um endereço `.vercel.app` que não existe mais. O nome do arquivo
+> perdeu o host de propósito, para não rotular errado de novo.
+>
+> O app continua sendo um Next.js (App Router) comum, sem `output: 'export'` e
+> sem nada que exija hospedagem especial — qualquer host Node/Next serve. O que
+> muda entre hosts está na seção 8.
 
 ---
 
 ## 1. Criar o projeto
 
 O repositório tem **dois projetos independentes**: a extensão na raiz e este
-servidor em `server/`. A Vercel precisa saber disso.
-
-Ao importar o repositório:
+servidor em `server/`. O host precisa saber disso.
 
 | Campo | Valor |
 | --- | --- |
 | **Root Directory** | `server` |
-| Framework Preset | Next.js (detectado sozinho) |
-| Build Command | padrão |
-| Install Command | padrão |
+| Framework | Next.js (detectado sozinho) |
+| Build / Install | padrão |
 
-**`Root Directory = server` é obrigatório.** Sem isso a Vercel tenta construir
-a extensão (Vite) achando que é o app Next, e o deploy falha ou publica a
-coisa errada. Não dá para configurar isso por arquivo — é ajuste de projeto,
-no painel.
+**`Root Directory = server` é obrigatório.** Sem isso o host tenta construir a
+extensão (Vite) achando que é o app Next, e o deploy falha ou publica a coisa
+errada. É ajuste de projeto, no painel — não dá para configurar por arquivo.
 
-`vercel.json` (neste diretório) fixa a região em `gru1` (São Paulo), que é a
-mais perto de quem usa.
+O Railway **redeploya sozinho** a cada push na branch conectada (`main`). Levou
+~1 minuto nas duas vezes medidas em 22/08/2026. Não existe passo manual de
+deploy no fluxo normal.
 
 ---
 
 ## 2. Variáveis do SERVIDOR
 
-Painel do projeto → **Settings → Environment Variables**. Marque *Production*
-e *Preview*.
+No painel do host, nas variáveis de ambiente do serviço. Esta tabela não muda
+de host para host.
 
 | Variável | Obrigatória | O que é |
 | --- | --- | --- |
@@ -57,6 +65,11 @@ openssl rand -hex 24
 > que qualquer pessoa consegue abrir. Serve para barrar varredura e uso
 > acidental da cota — não para tratar quem chama como confiável. Ver
 > `lib/apiGuard.ts`.
+>
+> E não conte com o CORS para ajudar: ele reflete **qualquer** origem, de
+> propósito, porque o painel é um content script declarado para `<all_urls>` e
+> uma lista de origens permitidas precisaria conter a internet. O bloco de
+> `corsHeaders` explica por extenso.
 
 ---
 
@@ -74,7 +87,7 @@ No GitHub, em **Settings → Secrets and variables → Actions**:
 
 | Nome | Onde | Valor |
 | --- | --- | --- |
-| `DOCCITI_SERVER_URL` | **Variables** | `https://<seu-projeto>.vercel.app` — sem barra no fim |
+| `DOCCITI_SERVER_URL` | **Variables** | `https://taqciti-production.up.railway.app` — sem barra no fim |
 | `DOCCITI_SHARED_KEY` | **Secrets** | o mesmo valor da seção 2 |
 
 A URL vai em *Variables* e não em *Secrets* porque ela não é segredo (está no
@@ -113,22 +126,33 @@ por modelo**. Uma Ata completa consome quase tudo.
 
 ---
 
-## 5. Tempo de execução — leia antes de prometer prazo
+## 5. Tempo de execução
 
-`app/api/generate/route.ts` declara `maxDuration = 300`, que é o **teto duro
-do plano Hobby** (confirmado por deploy real falhando ao tentar 600).
+**O teto de 300s não existe mais.** Ele era da Vercel, e vale a pena dizer por
+extenso porque a versão anterior deste documento o tratava como o maior risco
+aberto do projeto:
 
-A medição mais recente estima uma Ata completa em **~360s**. Ou seja: no
-Hobby, uma geração de verdade tem boa chance de estourar o limite da função —
-isso é limite de plataforma, não defeito do código.
+> "A medição mais recente estima uma Ata completa em ~360s. No Hobby, uma
+> geração de verdade tem boa chance de estourar o limite da função."
 
-Duas saídas:
+Isso está certo **na Vercel**, onde cada rota vira uma função serverless com
+teto duro por requisição, e onde as duas únicas saídas eram plano Pro ou
+redesenhar a geração como job assíncrono. Nenhuma das duas foi feita, e nenhuma
+das duas é necessária hoje: no Railway o app roda como processo Node de vida
+longa (`next start`), não como função serverless. `export const maxDuration` é
+**diretiva da Vercel** — o Next a compila em configuração de função, e em
+qualquer outro host Node ela é inerte. Os três `maxDuration = 300` no código
+não limitam nada aqui.
 
-1. **Plano Pro.** Permite `maxDuration` maior; depois de migrar, subir o valor
-   naquele arquivo (é uma constante estática — o Next a lê em build, então não
-   dá para vir de variável de ambiente).
-2. **Tornar a geração assíncrona** (job em background + polling, ou streaming
-   seção a seção). É redesenho de arquitetura, não ajuste de configuração.
+**O que ainda NÃO foi medido:** nunca rodei uma geração completa de ~360s
+através do proxy do Railway nesta configuração. O teto de função sumiu; o que
+um proxy HTTP tolera de resposta lenta é outra pergunta, e ela continua sem
+resposta medida. Antes de prometer prazo a alguém, gere uma Ata de verdade e
+cronometre — é o único teste que exercita a coisa inteira.
+
+E o teto que **continua valendo em qualquer host** é o do próprio código:
+transcrição acima de `DOCCITI_MAX_TRANSCRIPT_CHARS` (padrão 400.000
+caracteres) leva **413** antes de virar uma conta cara.
 
 ---
 
@@ -141,7 +165,7 @@ embutida.
 
 ```bash
 cd server
-SMOKE_BASE_URL=https://<seu-projeto>.vercel.app \
+SMOKE_BASE_URL=https://taqciti-production.up.railway.app \
 DOCCITI_SHARED_KEY=<a mesma chave> \
 node scripts/smokePdf.mjs
 ```
@@ -160,15 +184,43 @@ sem PDF**, em silêncio, só em build de produção.
 Para provar o pipeline inteiro (aí sim consumindo cota), `POST /api/generate`
 com `x-docciti-key` e um `transcript`.
 
+Para conferir só que o deploy subiu — sem chave nenhuma — um `OPTIONS` basta,
+e distingue "no ar" de "no ar com a versão nova":
+
+```bash
+curl -sI -X OPTIONS \
+  -H 'Origin: https://meet.google.com' \
+  -H 'Access-Control-Request-Method: POST' \
+  https://taqciti-production.up.railway.app/api/generate
+```
+
 ---
 
 ## 7. Trocar para a chave da empresa
 
 Nada de código muda.
 
-1. Vercel → Settings → Environment Variables → editar `GOOGLE_API_KEY`.
-2. **Redeploy** — variável de ambiente só vale a partir do próximo deploy.
+1. Painel do host → variáveis de ambiente → editar `GOOGLE_API_KEY`.
+2. **Redeploy** — variável de ambiente só vale a partir do próximo deploy. No
+   Railway, salvar a variável já dispara um; confirme que ele terminou antes de
+   testar, ou você mede contra o processo antigo.
 3. Rodar a prova de fumaça da seção 6.
 
 Se o `DOCCITI_SHARED_KEY` também mudar, é preciso **reconstruir a extensão**
 (o valor está no bundle): atualizar o secret no GitHub e cortar uma tag nova.
+
+---
+
+## 8. O que sobrou da Vercel, e por que fica
+
+Dois artefatos no repositório só fazem sentido na Vercel. Nenhum atrapalha o
+Railway, e os dois ficam como porta de volta — mas nenhum dos dois está
+surtindo efeito hoje, o que importa saber antes de confiar neles:
+
+| Artefato | O que faz na Vercel | Hoje |
+| --- | --- | --- |
+| `server/vercel.json` | fixa a região em `gru1` (São Paulo) | **inerte.** O Railway responde de `mia1` (Miami) — dá para confirmar no header `x-railway-edge` de qualquer resposta. A intenção de servir do Brasil não está sendo cumprida; se latência importar, a região se ajusta no painel do Railway. |
+| `maxDuration = 300` em `app/api/generate`, `/api/ai/secao`, `/api/ai/bench` | teto da função serverless | **inerte** (ver seção 5). |
+
+Se voltar para a Vercel, os dois voltam a valer sozinhos — e a seção 5 volta a
+ser o maior risco aberto do projeto.

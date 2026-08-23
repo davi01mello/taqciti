@@ -4,40 +4,41 @@ import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/api
 import { activeDataPolicyWarning } from '@/lib/ai';
 
 /**
- * Sem isto, o Vercel mata a função no teto padrão da plataforma — bem menos
- * que o necessário. Uma Ata completa é de 20 a 30 chamadas de modelo (9
- * Pensante + laço do Auditor + 9 Escritor).
+ * INERTE NO HOST ATUAL. `maxDuration` é diretiva da Vercel: o Next a compila
+ * em configuração de função serverless, e num host que roda o app como
+ * processo Node de vida longa — que é o caso do Railway, produção desde
+ * 08/2026 — ela não limita nada. Fica como porta de volta, não como proteção
+ * ativa. Ver `docs/deploy.md`, seções 5 e 8.
  *
- * 300 É O TETO DURO DO PLANO HOBBY, confirmado por deploy real falhando com
- * "maxDuration between 1 and 300 for plan hobby" ao tentar 600 (17/08/2026).
- * Não é conservador por escolha — é o máximo que este plano aceita.
+ * O que o valor significa QUANDO vale: 300 é o teto duro do plano Hobby,
+ * confirmado por deploy real falhando com "maxDuration between 1 and 300 for
+ * plan hobby" ao tentar 600 (17/08/2026). Não é conservador por escolha.
  *
- * E 300 PROVAVELMENTE NÃO BASTA. A medição mais recente na configuração
- * ATIVA (`docs/medicao-2026-08-16-longa/`, Pensante em `gemini-3.5-flash` com
- * `thinkingLevel: HIGH`) levou 202s para CINCO das nove seções — a cota
- * diária acabou antes de fechar o documento inteiro. Extrapolando de forma
- * linear, nove seções ficam por volta de 360s. Ou seja: no plano Hobby, uma
- * Ata completa de verdade tem boa chance de estourar o teto de função MESMO
- * no valor máximo permitido — isso é limite de plataforma, não bug daqui.
+ * E lá 300 provavelmente não bastaria. Uma Ata completa é de 20 a 30 chamadas
+ * de modelo (9 Pensante + laço do Auditor + 9 Escritor); a medição mais
+ * recente na configuração ATIVA (`docs/medicao-2026-08-16-longa/`, Pensante em
+ * `gemini-3.5-flash` com `thinkingLevel: HIGH`) levou 202s para CINCO das nove
+ * seções — a cota diária acabou antes de fechar o documento. Extrapolando
+ * linearmente, nove seções ficam por volta de 360s.
  *
- * Duas saídas, nenhuma delas é "só mudar este número":
- * 1. Upgrade pro plano Pro/Enterprise da Vercel (permite mais que 300s,
- *    valor exato não verificado — confira no dashboard antes de assumir).
- * 2. Tornar a geração assíncrona (job em background + polling, ou streaming
- *    seção a seção) em vez de uma chamada síncrona só. Redesenho de
- *    arquitetura, não ajuste de configuração — não fiz isso agora.
+ * Era esse o maior risco aberto do projeto, e ele saiu de cena junto com a
+ * Vercel: nem plano Pro nem redesenho assíncrono são necessários hoje. O que
+ * continua SEM MEDIÇÃO é quanto o proxy do host atual tolera de resposta lenta
+ * — o teto de função sumiu, o de rede nunca foi medido.
  */
 export const maxDuration = 300;
 
 /**
- * CORS permissivo por design: a extensão chama esta rota a partir de
- * `chrome-extension://<id>`, e esse id muda entre modo dev (unpacked) e
- * produção (Chrome Web Store) — não dá pra fixar um valor só. Por isso
- * refletimos de volta qualquer Origin que comece com "chrome-extension://".
+ * CORS permissivo por design, e mais permissivo do que este comentário já
+ * disse: `corsHeaders` reflete QUALQUER origem, não só `chrome-extension://`.
+ * A extensão chama daqui de dois contextos diferentes — de uma página própria
+ * dela (origem `chrome-extension://<id>`, que ainda por cima muda entre
+ * unpacked e Web Store) e de dentro do content script, que carrega a origem da
+ * PÁGINA e roda em `<all_urls>`. Não há lista que cubra isso.
  *
- * O que segura o abuso agora não é o CORS e sim o segredo compartilhado no
- * header `x-docciti-key`, validado abaixo. Motivação e limites da tranca:
- * `lib/apiGuard.ts`.
+ * O que segura o abuso não é o CORS e sim o segredo compartilhado no header
+ * `x-docciti-key`, validado abaixo. Motivação e limites da tranca — incluindo
+ * por que o CORS aqui não defende nada: `lib/apiGuard.ts`.
  */
 
 export function OPTIONS(request: NextRequest): NextResponse {

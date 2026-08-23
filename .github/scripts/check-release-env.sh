@@ -10,7 +10,7 @@
 # Falhar aqui custa uma release; publicar errado custa a confianca de quem
 # instalou e nao entende por que "nao gera nada".
 #
-# Ver server/docs/deploy-vercel.md.
+# Ver server/docs/deploy.md.
 set -euo pipefail
 
 erros=0
@@ -63,7 +63,7 @@ esac
 if [ "${erros}" -ne 0 ]; then
   echo
   echo "Release abortada: ${erros} problema(s) na configuracao."
-  echo "Nada foi publicado. Ver server/docs/deploy-vercel.md."
+  echo "Nada foi publicado. Ver server/docs/deploy.md."
   exit 1
 fi
 

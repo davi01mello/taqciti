@@ -34,10 +34,10 @@ import {
   type BenchOutput,
 } from '@/lib/ai/bench';
 
-/** Ver o mesmo comentário em app/api/generate/route.ts — vários modelos em
- *  sequência, com pausa entre eles, soma o mesmo risco de teto de função do
- *  Vercel, ainda mais fácil de estourar aqui. 300 é o teto duro do plano
- *  Hobby, confirmado por deploy real. */
+/** Ver o mesmo comentário em app/api/generate/route.ts: diretiva da Vercel,
+ *  INERTE no Railway. Vários modelos em sequência, com pausa entre eles, era o
+ *  caso mais fácil de estourar o teto de função lá. 300 é o teto duro do plano
+ *  Hobby, confirmado por deploy real; fica como porta de volta. */
 export const maxDuration = 300;
 
 /** Pausa entre modelos, para não empilhar requisições numa chave free tier. */

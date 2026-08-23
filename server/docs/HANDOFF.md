@@ -401,19 +401,29 @@ Precisa de test runner? Já tem: **vitest**, em `server/`.
    Vista na execução 2 de 14/08. Mitigação aplicada em 17/08/2026: `guidance`
    da seção `conclusao` em `lib/templates/ata.ts` ganhou um lembrete
    explícito de prosa sem aspas — mesma ressalva, não medida de novo.
-7. **NOVO (17/08/2026), ATUALIZADO (18/08/2026) — o plano Hobby da Vercel
-   provavelmente não aguenta uma Ata inteira.** `app/api/generate`,
-   `/api/ai/secao` e `/api/ai/bench` ganharam `export const maxDuration = 300`
-   depois que a medição de 16/08 mostrou 202s para só cinco das nove seções
-   (cota diária cortou antes de fechar) — extrapolando, nove seções ficam por
-   volta de 360s. Tentei 600 primeiro; o deploy real falhou com "Serverless
-   Functions must have a maxDuration between 1 and 300 for plan hobby" — 300
-   é o TETO DURO confirmado do plano, não um valor conservador escolhido.
-   Ou seja: mesmo no máximo permitido, uma Ata completa tem boa chance de
-   estourar o teto de função no Hobby. Isso não se resolve subindo o número —
-   precisa de plano pago da Vercel (teto exato não verificado) ou de tornar a
-   geração assíncrona (job em background/streaming), redesenho que não foi
-   feito.
+7. ~~**NOVO (17/08/2026), ATUALIZADO (18/08/2026) — o plano Hobby da Vercel
+   provavelmente não aguenta uma Ata inteira.**~~ **RESOLVIDO POR MUDANÇA DE
+   HOST (22/08/2026), não por trabalho de engenharia.**
+
+   O que era: `app/api/generate`, `/api/ai/secao` e `/api/ai/bench` ganharam
+   `export const maxDuration = 300` depois que a medição de 16/08 mostrou 202s
+   para só cinco das nove seções (cota diária cortou antes de fechar) —
+   extrapolando, nove seções ficam por volta de 360s. Tentei 600 primeiro; o
+   deploy real falhou com "Serverless Functions must have a maxDuration between
+   1 and 300 for plan hobby". 300 era o TETO DURO do plano, e mesmo no máximo
+   permitido uma Ata completa tinha boa chance de estourar. As saídas eram
+   plano pago ou redesenho assíncrono — **nenhuma das duas foi feita**.
+
+   Por que caiu: produção migrou para o **Railway**, que roda o app como
+   processo Node de vida longa em vez de funções serverless. `maxDuration` é
+   diretiva da Vercel e é inerte lá; os três `export` continuam no código como
+   porta de volta, sem efeito hoje. Ver `docs/deploy.md`, seções 5 e 8.
+
+   O que sobrou de aberto: **quanto o proxy do Railway tolera de resposta
+   lenta nunca foi medido.** O teto de função sumiu; o de rede é outra
+   pergunta e continua sem resposta. Uma geração completa de ~360s através do
+   proxy ainda não foi cronometrada — é o teste que falta antes de prometer
+   prazo a alguém.
 
 ---
 

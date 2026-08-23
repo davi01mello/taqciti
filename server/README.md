@@ -48,11 +48,16 @@ a mudança.
 O servidor é um app Next.js (App Router) comum — sem `output: 'export'`, sem
 nada que exija hospedagem especial. `npm run build` já compila as rotas de
 API como dinâmicas (confirmado: `next build` gera `/api/generate` e as
-outras como `ƒ`, não `○`), então qualquer host Node/Next serve. **Vercel é o
-caminho de menor atrito** (é a plataforma do próprio Next.js, detecta o app
-sozinho) — sem `vercel.json` nenhum: importe o repositório, aponte o **Root
-Directory para `server/`** (é um projeto Next.js à parte dentro do
-monorepo) e configure as variáveis abaixo no dashboard.
+outras como `ƒ`, não `○`), então qualquer host Node/Next serve.
+
+**Produção hoje roda no Railway**, em
+`https://taqciti-production.up.railway.app`, com redeploy automático a cada
+push em `main`. Seja qual for o host, aponte o **Root Directory para
+`server/`** (é um projeto Next.js à parte dentro do monorepo) e configure as
+variáveis abaixo no painel dele.
+
+O runbook completo — incluindo por que o teto de 300s que o código ainda
+declara não vale aqui — está em [`docs/deploy.md`](docs/deploy.md).
 
 ### Variáveis no host
 
@@ -81,7 +86,7 @@ deployado, defina as duas variáveis **na build da extensão** (raiz do repo,
 não aqui):
 
 ```powershell
-$env:VITE_DOCCITI_SERVER_URL = 'https://<seu-projeto>.vercel.app'
+$env:VITE_DOCCITI_SERVER_URL = 'https://taqciti-production.up.railway.app'
 $env:VITE_DOCCITI_SHARED_KEY = '<o mesmo valor de DOCCITI_SHARED_KEY no host>'
 npm run build
 ```

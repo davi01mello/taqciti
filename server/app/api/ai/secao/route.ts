@@ -18,9 +18,10 @@ import { TEMPLATES } from '@/lib/templates';
 import { isDocumentType } from '@/lib/documentTypes';
 import type { DocumentData } from '@/lib/documentData';
 
-/** Ver o mesmo comentário em app/api/generate/route.ts — pedir várias seções
- *  aqui de uma vez soma o mesmo risco de teto de função do Vercel. 300 é o
- *  teto duro do plano Hobby, confirmado por deploy real. */
+/** Ver o mesmo comentário em app/api/generate/route.ts: diretiva da Vercel,
+ *  INERTE no Railway (que roda processo Node de vida longa, não função
+ *  serverless). 300 é o teto duro do plano Hobby, confirmado por deploy real;
+ *  fica como porta de volta. */
 export const maxDuration = 300;
 
 export function OPTIONS(request: NextRequest): NextResponse {

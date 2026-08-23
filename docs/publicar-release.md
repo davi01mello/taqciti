@@ -42,16 +42,18 @@ errado.
 
 ### 1. Servidor no ar, e respondendo
 
-O runbook do deploy é `server/docs/deploy-vercel.md`. O mínimo:
-**Root Directory = `server`**, `DOCCITI_SHARED_KEY` e a chave do provedor nas
-Environment Variables da Vercel.
+O runbook do deploy é `server/docs/deploy.md`. Produção roda no **Railway**
+(`https://taqciti-production.up.railway.app`), com redeploy automático a cada
+push em `main`. O mínimo: **Root Directory = `server`**,
+`DOCCITI_SHARED_KEY` e a chave do provedor nas variáveis de ambiente do
+serviço.
 
 Confirme que responde, antes de gastar uma release — a prova de fumaça não
 consome cota de modelo nenhum:
 
 ```bash
 cd server
-SMOKE_BASE_URL=https://<projeto>.vercel.app \
+SMOKE_BASE_URL=https://taqciti-production.up.railway.app \
 DOCCITI_SHARED_KEY=<a mesma chave> \
 node scripts/smokePdf.mjs
 ```
@@ -62,13 +64,13 @@ node scripts/smokePdf.mjs
 
 | Nome | Onde | Valor |
 | --- | --- | --- |
-| `DOCCITI_SERVER_URL` | **Variables** | `https://<projeto>.vercel.app` — `https://`, sem barra no fim |
-| `DOCCITI_SHARED_KEY` | **Secrets** | **idêntico** ao valor que está na Vercel |
+| `DOCCITI_SERVER_URL` | **Variables** | `https://taqciti-production.up.railway.app` — `https://`, sem barra no fim |
+| `DOCCITI_SHARED_KEY` | **Secrets** | **idêntico** ao valor que está no Railway |
 
 > **O check não testa o servidor.** Ele confere só que as duas existem, que a
 > URL não é `localhost`/`127.0.0.1`, que começa com `https://` e que não
 > termina em `/`. Nada disso toca a rede. Se você preencher as duas com o
-> servidor fora do ar, ou com a chave diferente da que está na Vercel, a
+> servidor fora do ar, ou com a chave diferente da que está no host, a
 > release **passa verde e publica instaladores quebrados** — com exatamente o
 > mesmo sintoma da `v2.0.0`. É por isso que o passo 1 vem antes do 2.
 
@@ -153,8 +155,9 @@ Release verde não prova instalador bom — a `v2.0.0` ficou verde.
    grep -r "localhost:3000" ~/Desktop/"TaqCITi (não apagar)"/assets/
    ```
 
-   Sem resultado = certo. Para confirmar o outro lado, procure o endereço da
-   Vercel no mesmo lugar — ele **tem** que aparecer.
+   Sem resultado = certo. Para confirmar o outro lado, procure
+   `taqciti-production.up.railway.app` no mesmo lugar — ele **tem** que
+   aparecer.
 
 3. **Rode uma reunião de verdade** — carregue a pasta em `chrome://extensions`
    e gere um documento até o fim. É o único teste que exercita extensão,
@@ -168,7 +171,7 @@ Release verde não prova instalador bom — a `v2.0.0` ficou verde.
 | --- | --- | --- |
 | `FALTA VITE_DOCCITI_SERVER_URL` | a Variable `DOCCITI_SERVER_URL` não existe | criar em *Variables* (não em *Secrets*) |
 | `FALTA VITE_DOCCITI_SHARED_KEY` | o Secret `DOCCITI_SHARED_KEY` não existe | criar em *Secrets* |
-| `aponta para a maquina local` | a Variable foi preenchida com `localhost` | trocar pelo endereço da Vercel |
+| `aponta para a maquina local` | a Variable foi preenchida com `localhost` | trocar pelo endereço de produção (Railway) |
 | `precisa comecar com https://` | endereço `http://` | a extensão roda em página https (Meet); `http://` seria bloqueado como conteúdo misto |
 | `nao pode terminar com '/'` | barra no fim | duplicaria em `${url}/api/generate` |
 | nenhuma run apareceu | tag fora do padrão `v*.*.*` | cortar `vX.Y.Z` com três números |
