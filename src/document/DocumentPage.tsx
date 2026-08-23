@@ -79,7 +79,7 @@ export function DocumentPage() {
           {/* O menu ocupa uma coluna estreita mesmo numa janela larga: ele
               abre uma lista, e uma lista esticada por 760px fica ilegível. */}
           <div className="mt-3 max-w-[280px]">
-            <GenerateDocumentMenu source={record} onGenerated={setGenerated} />
+            <GenerateDocumentMenu source={record} onGenerated={setGenerated} ampla />
           </div>
         </header>
       }
@@ -98,6 +98,7 @@ export function DocumentPage() {
             documento={generated}
             source={record}
             onAtualizado={setGenerated}
+            ampla
           />
         )}
       </div>

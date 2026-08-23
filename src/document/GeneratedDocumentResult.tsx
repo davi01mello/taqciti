@@ -31,6 +31,11 @@ interface GeneratedDocumentResultProps {
   source: GenerationSource;
   /** Devolve o documento atualizado quando o usuário responde algo. */
   onAtualizado: (documento: DocumentoPronto) => void;
+  /**
+   * `true` = a página larga de 760px; `false` (padrão) = o painel de 396px.
+   * Mesma justificativa de `QuestionsForm` para não ser um breakpoint.
+   */
+  ampla?: boolean;
 }
 
 /** Abre em aba nova onde há API de abas; cai para `window.open` no content
@@ -47,6 +52,7 @@ export function GeneratedDocumentResult({
   documento,
   source,
   onAtualizado,
+  ampla = false,
 }: GeneratedDocumentResultProps) {
   const [respondendo, setRespondendo] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -126,22 +132,46 @@ export function GeneratedDocumentResult({
       </div>
 
       {pendentes > 0 && !respondendo && (
+        /*
+         * A BARRA DAS PERGUNTAS — o único convite a agir deste painel, e o que
+         * estava invisível.
+         *
+         * Era `border-borderc bg-white/[0.03]`: 1,05:1 de fundo e 1,30:1 de
+         * borda contra o painel. WCAG 1.4.11 pede 3:1 para o que identifica um
+         * controle, e o texto dentro dela lia bem — daí o sintoma ser "não
+         * consigo ver que aquilo é um botão", não "não consigo ler".
+         *
+         * Subir o fundo não resolve: para o PREENCHIMENTO chegar a 3:1 sobre
+         * este fundo seria preciso branco a ~0,34 de alpha, uma caixa cinza
+         * clara que não pertence a esta linguagem. Quem carrega o contraste é a
+         * BORDA, e ela passa a ser do acento: `primary/50` dá 3,14:1 sobre a
+         * página e 3,11:1 sobre o painel flutuante. O tint verde por trás não
+         * entra pela luminância — entra pelo MATIZ, que é o que faz o olho achar
+         * a coisa numa tela escura. Os dois juntos dizem "isto é uma ação", que
+         * é o que a barra é.
+         */
         <button
           type="button"
           onClick={() => setRespondendo(true)}
-          className="mb-4 flex w-full items-center justify-between gap-2 rounded-panel border border-borderc bg-white/[0.03] px-3 py-2.5 text-left transition-colors duration-200 ease-flow hover:bg-white/[0.06]"
+          className={`mb-4 flex w-full items-center justify-between gap-3 rounded-panel border border-primary/50 bg-primary/[0.12] text-left shadow-sm transition-colors duration-200 ease-flow hover:bg-primary/[0.18] ${
+            ampla ? 'px-5 py-4' : 'px-3 py-2.5'
+          }`}
         >
           <span>
-            <span className="block text-body font-semibold text-foreground">
+            <span className={`block font-semibold text-foreground ${ampla ? 'text-title' : 'text-body'}`}>
               {pendentes === 1
                 ? '1 informação não estava na reunião'
                 : `${pendentes} informações não estavam na reunião`}
             </span>
-            <span className="mt-0.5 block text-caption text-muted">
+            <span className={`mt-0.5 block text-muted ${ampla ? 'text-body' : 'text-caption'}`}>
               Elas aparecem marcadas no documento. Responder atualiza o arquivo.
             </span>
           </span>
-          <Icon name="chevron" size={14} className="-rotate-90 shrink-0 text-muted" />
+          <Icon
+            name="chevron"
+            size={ampla ? 16 : 14}
+            className="-rotate-90 shrink-0 text-primary"
+          />
         </button>
       )}
 
@@ -156,6 +186,7 @@ export function GeneratedDocumentResult({
             onConfirmar={responder}
             onPular={() => setRespondendo(false)}
             inline
+            ampla={ampla}
           />
         </div>
       )}

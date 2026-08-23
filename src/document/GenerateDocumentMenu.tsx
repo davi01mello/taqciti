@@ -69,6 +69,15 @@ interface GenerateDocumentMenuProps {
    */
   onGenerated: (documento: DocumentoPronto) => void;
   className?: string;
+  /**
+   * `true` = a página larga de 760px; `false` (padrão) = o painel de 396px.
+   *
+   * Só chega ao `QuestionsForm` flutuante: o menu em si continua estreito nos
+   * dois lugares (a lista de tipos esticada por 760px fica ilegível, ver
+   * DocumentPage), mas o formulário de perguntas que abre no mesmo lugar tem
+   * campos de texto e precisa de largura.
+   */
+  ampla?: boolean;
 }
 
 /** A geração crua vira o estado que o painel de resultado consome. */
@@ -91,6 +100,7 @@ export function GenerateDocumentMenu({
   source,
   onGenerated,
   className = '',
+  ampla = false,
 }: GenerateDocumentMenuProps) {
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState<Generating>({ status: 'idle' });
@@ -265,6 +275,7 @@ export function GenerateDocumentMenu({
         <QuestionsForm
           perguntas={generating.generation.questions}
           salvando={generating.salvando}
+          ampla={ampla}
           onConfirmar={(respostas) =>
             responder(generating.documentType, generating.generation, respostas)
           }
