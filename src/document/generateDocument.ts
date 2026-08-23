@@ -220,10 +220,25 @@ export async function requestGeneration(
       gaps: data.gaps ?? [],
     };
   } catch {
+    /*
+     * `fetch` lança por DOIS motivos que se parecem daqui e não se parecem em
+     * nada na hora de arrumar: o servidor não respondeu, ou o navegador
+     * bloqueou a chamada antes de sair (preflight de CORS recusado). A causa
+     * exata é deliberadamente opaca para o script — o navegador não conta.
+     *
+     * A mensagem antiga afirmava a primeira ("Ele está no ar?") e custou uma
+     * investigação inteira contra um servidor que estava de pé o tempo todo,
+     * respondendo 401 para quem chamava de fora do navegador. Enquanto não dá
+     * para saber qual dos dois é, dizer os dois é o honesto — e o console é
+     * onde a resposta está.
+     */
     return {
       status: 'error',
       documentType,
-      message: `Não foi possível falar com o servidor (${SERVER_BASE_URL}). Ele está no ar?`,
+      message:
+        `Não foi possível falar com o servidor (${SERVER_BASE_URL}). ` +
+        'Ele pode estar fora do ar, ou o navegador pode ter bloqueado a chamada — ' +
+        'o console desta página (F12) diz qual dos dois.',
     };
   }
 }

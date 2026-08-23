@@ -86,10 +86,12 @@ $env:VITE_DOCCITI_SHARED_KEY = '<o mesmo valor de DOCCITI_SHARED_KEY no host>'
 npm run build
 ```
 
-O CORS (`lib/apiGuard.ts`) já reflete qualquer origem `chrome-extension://`
-— vale tanto para a extensão carregada no Chrome quanto no Edge (os dois
-usam o mesmo esquema de URL pra extensão, o Edge não inventou um
-`edge-extension://` próprio), sem configuração adicional por navegador.
+O CORS (`lib/apiGuard.ts`) reflete **qualquer** origem, sem configuração por
+navegador nem por site. Não é desleixo: o painel é um content script
+declarado para `<all_urls>`, e um `fetch` de content script carrega a origem
+da PÁGINA — uma lista de origens permitidas precisaria conter a internet
+inteira. A justificativa completa, e por que isso não afrouxa nada, está no
+bloco de `corsHeaders`.
 
 ## Rotas
 
@@ -175,9 +177,13 @@ Falha **fechada**: sem `DOCCITI_SHARED_KEY` definida a rota devolve 500. Com
 dinheiro atrás dela, "sem segredo configurado" não pode significar "aberto
 pra todo mundo".
 
-O CORS continua refletindo qualquer origem `chrome-extension://` — o id da
-extensão muda entre dev (unpacked) e produção (Web Store), não dá pra fixar
-um valor só. O que segura o abuso agora é o header, não o CORS.
+O CORS reflete qualquer origem e **não segura abuso nenhum** — quem segura é
+o header. Vale dizer por extenso, porque a tentação de "trancar pelo CORS"
+já custou dois bugs: CORS é regra que o NAVEGADOR aplica a páginas, e `curl`
+ou um script de servidor ignoram o cabeçalho por completo. Um POST sem
+`Origin` nenhum chega ao handler e é recusado pelo segredo. O único ataque
+que uma lista de origens impediria é uma página web usando o navegador de
+quem a visita, com uma chave que já viaja pública dentro do bundle.
 
 Há também um teto por requisição: transcrição acima de
 `DOCCITI_MAX_TRANSCRIPT_CHARS` (padrão 400.000 caracteres) é recusada com

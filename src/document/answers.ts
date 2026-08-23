@@ -80,9 +80,13 @@ export async function aplicarRespostas(input: {
     >;
     return { status: 'success', ...data };
   } catch {
+    // Mesmos dois motivos de `requestGeneration` — ver a nota lá.
     return {
       status: 'error',
-      message: 'Não foi possível falar com o servidor para salvar as respostas.',
+      message:
+        'Não foi possível falar com o servidor para salvar as respostas. ' +
+        'Ele pode estar fora do ar, ou o navegador pode ter bloqueado a chamada — ' +
+        'o console desta página (F12) diz qual dos dois.',
     };
   }
 }

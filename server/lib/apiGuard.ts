@@ -5,9 +5,10 @@
  * Enquanto /api/generate devolvia stub, o CORS permissivo era risco aceito e
  * documentado. A partir do momento em que existe uma chave de API atrás da
  * rota, cada requisição custa dinheiro e qualquer um que descubra a URL
- * gasta a cota de outra pessoa. O CORS continua refletindo qualquer origem
- * `chrome-extension://` (o id muda entre dev e Web Store, não dá pra fixar);
- * o que mudou é que agora refletir a origem não basta pra ser atendido.
+ * gasta a cota de outra pessoa. O que atende ou recusa é o SEGREDO
+ * COMPARTILHADO (`rejectIfUnauthorized`), somado ao teto de
+ * `maxTranscriptChars` — nunca o CORS, pelo motivo detalhado em
+ * `corsHeaders`.
  *
  * Limite honesto: o segredo viaja dentro do bundle da extensão, então quem
  * abrir o pacote acha. Isso é aceitável para o que ele defende — impedir que
@@ -47,27 +48,48 @@ function secretsMatch(provided: string, expected: string): boolean {
 }
 
 /**
- * Origens de PÁGINA (não `chrome-extension://`) que também têm permissão.
+ * Reflete QUALQUER origem — e isto não afrouxa a tranca.
  *
- * O botão "Gerar Documento" do painel flutuante roda dentro do content
- * script injetado em `meet.google.com` (ver `src/content/ui/PanelApp.tsx` →
- * `GenerateDocumentMenu` → `requestGeneration`), e um `fetch` disparado de
- * dentro de um content script carrega a origem da PÁGINA para fins de CORS,
- * não a da extensão — `chrome-extension://` só é a origem de chamadas feitas
- * de dentro de uma página própria da extensão (ex.: `document/index.html`).
- * Sem esta lista, o preflight do painel flutuante volta sem
- * `Access-Control-Allow-Origin`, o navegador bloqueia o POST antes de sair, e
- * a extensão nunca vê um 401/200 — só um erro de rede genérico.
+ * Um `fetch` disparado de dentro de um content script carrega a origem da
+ * PÁGINA para fins de CORS, não a da extensão (`chrome-extension://` só é a
+ * origem de chamadas feitas de dentro de uma página própria da extensão, tipo
+ * `document/index.html`). Sem `Access-Control-Allow-Origin` de volta, o
+ * navegador bloqueia o POST antes de sair, e a extensão nunca vê um 401/200 —
+ * só um `fetch` que lança.
+ *
+ * A tentação, daí, é listar as origens permitidas. Ela não funciona aqui, por
+ * duas razões independentes:
+ *
+ *   1. **O painel roda em toda página.** O content script é declarado para
+ *      `<all_urls>` (ver `manifest.config.ts`), e o "Gerar Documento" do
+ *      `MeetingScreen` é alcançável pelo histórico em QUALQUER aba, não só na
+ *      do Meet — é literalmente o que `src/content/standalone.tsx` existe para
+ *      fazer. A lista precisaria conter a internet inteira. Com
+ *      `https://meet.google.com` sozinho, gerar documento funcionava na aba do
+ *      Meet e falhava em todas as outras, com a MESMA mensagem de "servidor
+ *      fora do ar" — que manda quem for investigar para o lugar errado.
+ *
+ *   2. **CORS não defende esta rota de nada.** É uma regra que o NAVEGADOR
+ *      aplica a páginas. `curl`, um script de servidor ou um bot ignoram o
+ *      cabeçalho por completo — verificado: um POST sem `Origin` nenhum chega
+ *      ao handler e é recusado pelo segredo, não pelo CORS. O único ataque que
+ *      uma lista de origens impediria é uma página web usando o navegador de
+ *      quem a visita, com uma chave que já viaja pública dentro do bundle.
+ *
+ * Quem segura o abuso é `rejectIfUnauthorized` e o teto de
+ * `maxTranscriptChars`. O cabeçalho deste arquivo já dizia isso; o código é
+ * que tinha parado de admitir.
+ *
+ * Sem `Access-Control-Allow-Credentials` de propósito: não há cookie nem
+ * sessão nesta rota, e refletir a origem COM credenciais seria outra conversa.
  */
-const ALLOWED_PAGE_ORIGINS = ['https://meet.google.com'];
-
 export function corsHeaders(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': `Content-Type, ${SHARED_KEY_HEADER}`,
     Vary: 'Origin',
   };
-  if (origin && (origin.startsWith('chrome-extension://') || ALLOWED_PAGE_ORIGINS.includes(origin))) {
+  if (origin) {
     headers['Access-Control-Allow-Origin'] = origin;
   }
   return headers;
