@@ -212,11 +212,23 @@ function Entregue({
   entrega: DocumentoPronto['entrega'];
   onAbrir: (url: string) => void;
 }) {
+  /*
+   * As quatro tarjas ficam em superfície de verdade, e as duas neutras saem do
+   * `bg-white/[0.03]` inventado para o `.glass-subtle` da escala — o degrau
+   * "item de lista, controle secundário", que é o papel delas. `tokens.css` já
+   * pedia isso ("nenhum componente inventa o seu `rgba()`"), e 0,03 ficava
+   * ABAIXO do degrau mais baixo do sistema.
+   *
+   * Elas continuam mais quietas que a barra das perguntas, e isso é de
+   * propósito: aqui é ESTADO, ali é AÇÃO. Uniformizar as duas coisas resolveria
+   * a visibilidade destruindo a hierarquia — o que o olho precisa achar nesta
+   * tela é o que ainda falta responder, não o aviso de que o arquivo baixou.
+   */
   const base = 'mb-3 flex items-start gap-2 rounded-panel px-3 py-2 text-caption';
 
   if (!entrega) {
     return (
-      <p className={`${base} bg-white/[0.03] text-muted`}>
+      <p className={`${base} glass-subtle text-muted`}>
         <Icon name="chevron" size={13} className="mt-0.5 shrink-0 animate-spin-slow" />
         Preparando a entrega...
       </p>
@@ -244,7 +256,7 @@ function Entregue({
   if (entrega.via === 'download') {
     const ehPdf = entrega.arquivo.endsWith('.pdf');
     return (
-      <p className={`${base} bg-white/[0.03] text-foreground`}>
+      <p className={`${base} glass-subtle text-foreground`}>
         <Icon name="check" size={13} className="mt-0.5 shrink-0 text-primary" />
         <span>
           Baixado como <span className="font-semibold">{entrega.arquivo}</span>.
