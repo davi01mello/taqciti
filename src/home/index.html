@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaqCiti</title>
+    <!--
+      Inter vem do pacote da própria extensão, não do Google Fonts: uma página
+      de extensão que busca fonte na internet falha offline, vaza a visita para
+      um terceiro e ainda esbarra na CSP de `extension_pages`. O fallback é a
+      fonte do sistema, que é sóbria o bastante para o desenho não quebrar.
+    -->
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+      }
+      html {
+        overflow-x: hidden;
+        overscroll-behavior: none;
+        background: rgb(15 18 19);
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

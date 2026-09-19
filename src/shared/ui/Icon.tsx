@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from 'react';
 
-type IconName =
+export type IconName =
   | 'search'
   | 'play'
   | 'pause'
@@ -18,7 +18,17 @@ type IconName =
   | 'close'
   | 'minimize'
   | 'expand'
-  | 'compress';
+  | 'compress'
+  // Acrescentados para a HOME em aba inteira (src/home). Ficam aqui, e não
+  // num conjunto próprio, porque ícone é vocabulário do design system: um
+  // segundo conjunto divergiria em traço e tamanho no primeiro ajuste.
+  | 'sparkles'
+  | 'history'
+  | 'doc'
+  | 'link'
+  | 'image'
+  | 'arrowUp'
+  | 'arrowUpRight';
 
 interface IconProps {
   name: IconName;
@@ -91,6 +101,51 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M8.5 6.5L12 10l3.5-3.5" />
       <path d="M8.5 17.5L12 14l3.5 3.5" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M12 4.2l1.5 4.1 4.1 1.5-4.1 1.5L12 15.4l-1.5-4.1-4.1-1.5 4.1-1.5z" />
+      <path d="M18.2 15.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3.6 12a8.4 8.4 0 1 0 2.5-6" />
+      <path d="M3.4 4.4V9h4.6" />
+      <path d="M12 7.8V12l3 1.8" />
+    </>
+  ),
+  doc: (
+    <>
+      <path d="M14 3.4H7.4A1.6 1.6 0 0 0 5.8 5v14a1.6 1.6 0 0 0 1.6 1.6h9.2a1.6 1.6 0 0 0 1.6-1.6V7.4z" />
+      <path d="M14 3.4V7.4h4.2" />
+      <path d="M8.9 12.6h6.2M8.9 16h4.4" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M10.3 13.7a3.6 3.6 0 0 0 5.1 0l2.6-2.6a3.6 3.6 0 0 0-5.1-5.1l-1.2 1.2" />
+      <path d="M13.7 10.3a3.6 3.6 0 0 0-5.1 0L6 12.9a3.6 3.6 0 0 0 5.1 5.1l1.2-1.2" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3.6" y="5" width="16.8" height="14" rx="2.2" />
+      <circle cx="9" cy="10.2" r="1.5" />
+      <path d="M4.4 17.2l4.4-4.1a1.7 1.7 0 0 1 2.3 0l5.1 4.8" />
+    </>
+  ),
+  arrowUp: (
+    <>
+      <path d="M12 19V5.6" />
+      <path d="M6.6 11L12 5.6 17.4 11" />
+    </>
+  ),
+  arrowUpRight: (
+    <>
+      <path d="M8 16.2L16.2 8" />
+      <path d="M9.4 8h6.8v6.8" />
     </>
   ),
 };

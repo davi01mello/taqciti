@@ -1,0 +1,861 @@
+/*
+ * Estilo da HOME em aba inteira.
+ *
+ * CSS próprio, e não Tailwind, pelo mesmo motivo de `src/content/ui/panel.css`:
+ * o que existe aqui é composição de camadas (canvas de fundo, navegação
+ * translúcida, cursor), com estados que se cruzam. Em utilitário isso vira uma
+ * fila de colchetes ilegível. As CORES continuam vindo de `tokens.css` — este
+ * arquivo não inventa nenhuma.
+ *
+ * A regra que organiza o resto: NADA opaco por cima da onda. O conteúdo vive
+ * numa coluna transparente; só a navegação escurece o que está atrás, e mesmo
+ * ela é um gradiente que termina em zero.
+ */
+
+.tq-home {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  /* Grafite quase preto: mais escuro que o --color-background do painel,
+     porque aqui a tela inteira é fundo e o mesmo tom lê mais claro em área
+     grande. */
+  background: rgb(15 18 19);
+  color: rgb(238 240 239);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+.tq-home *,
+.tq-home *::before,
+.tq-home *::after {
+  box-sizing: border-box;
+}
+
+.tq-home button {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.tq-home button:focus-visible,
+.tq-home textarea:focus-visible,
+.tq-home summary:focus-visible,
+.tq-home [tabindex]:focus-visible {
+  outline: 2px solid rgb(var(--c-primary));
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ---------------------------------------------------------------- o fundo */
+
+.tq-wave {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Vinheta sutil: encosta o olho no centro sem tapar a onda. Para em 55% de
+   altura justamente para não passar por cima dela. */
+.tq-home::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(15 18 19 / 0.42), transparent 42%);
+}
+
+/* --------------------------------------------------------------- cabeçalho */
+
+.tq-topo {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 40px;
+}
+
+.tq-brand {
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -1.1px;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: rgb(246 248 247);
+}
+
+.tq-brand span {
+  color: rgb(var(--c-primary));
+  font-style: italic;
+}
+
+.tq-topo-direita {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tq-captando {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: rgb(var(--c-glow));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tq-captando::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+  animation: tq-pulsar 1.8s ease-in-out infinite;
+}
+
+@keyframes tq-pulsar {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.tq-motion {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: rgb(147 155 150);
+}
+
+.tq-motion:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(238 240 239);
+}
+
+.tq-motion:disabled {
+  opacity: 0.4;
+}
+
+/* -------------------------------------------------------------- navegação */
+
+.tq-edge {
+  position: fixed;
+  left: 0;
+  top: 96px;
+  bottom: 48px;
+  width: 30px;
+  z-index: 12;
+}
+
+/* A faixa clara: a dica visual de que há algo ali. Cresce quando a barra
+   abre, para o gesto ter resposta imediata. */
+.tq-edge::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 38%;
+  height: 62px;
+  width: 3px;
+  border-radius: 4px;
+  background: rgb(171 179 174 / 0.53);
+  box-shadow: 0 0 18px rgb(255 255 255 / 0.07);
+  transition:
+    height 0.3s,
+    background 0.3s;
+}
+
+.tq-home.nav-aberta .tq-edge::after {
+  background: rgb(200 209 203);
+  height: 92px;
+}
+
+.tq-nav {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 268px;
+  max-width: 85%;
+  z-index: 11;
+  /* Topo alinhado abaixo do cabecalho: a marca dele fica visivel e a barra
+     comeca nos links. */
+  padding: 96px 26px 30px 42px;
+  /* Transparência gradual: opaco o bastante para o texto se ler, e terminando
+     em zero para o fundo continuar visível através da borda. */
+  background: linear-gradient(
+    90deg,
+    rgb(32 36 37 / 0.93) 0%,
+    rgb(32 36 37 / 0.77) 58%,
+    rgb(32 36 37 / 0.3) 84%,
+    rgb(32 36 37 / 0) 100%
+  );
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  mask-image: linear-gradient(90deg, #000 0%, #000 81%, transparent 100%);
+  transform: translateX(-102%);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.4s,
+    visibility 0.4s;
+}
+
+.tq-home.nav-aberta .tq-nav {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.tq-navlinks {
+  display: grid;
+  gap: 6px;
+  padding-right: 16px;
+}
+
+.tq-navlinks button {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 11px;
+  border-radius: 10px;
+  text-align: left;
+  color: rgb(193 199 195);
+  min-height: 44px;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+
+.tq-navlinks button:hover {
+  background: rgb(255 255 255 / 0.05);
+  color: rgb(241 244 242);
+}
+
+.tq-navlinks button[aria-current='page'] {
+  background: rgb(var(--c-primary) / 0.08);
+  color: rgb(var(--c-glow));
+}
+
+.tq-navfoot {
+  position: absolute;
+  bottom: 32px;
+  font-size: 11px;
+  color: rgb(144 155 148);
+}
+
+/* ---------------------------------------------------------------- miolo */
+
+.tq-main {
+  position: relative;
+  z-index: 2;
+  width: min(820px, calc(100% - 128px));
+  margin: 0 auto;
+  padding: 18px 0 120px;
+}
+
+@media (max-width: 720px) {
+  .tq-main {
+    width: calc(100% - 72px);
+  }
+  .tq-topo {
+    padding: 22px 24px;
+  }
+}
+
+/* --------------------------------------------------------- conversa */
+
+.tq-abertura {
+  text-align: center;
+  margin: 12vh 0 40px;
+}
+
+.tq-abertura h1 {
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: -1.1px;
+  color: rgb(227 231 228);
+  margin: 0;
+}
+
+.tq-abertura p {
+  font-size: 12.5px;
+  color: rgb(165 175 168);
+  margin: 10px 0 0;
+}
+
+.tq-fluxo-topo {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.tq-linkish {
+  font-size: 11.5px;
+  color: rgb(137 148 140);
+  padding: 4px 2px;
+  cursor: pointer;
+}
+
+.tq-linkish:hover {
+  color: rgb(var(--c-primary));
+}
+
+.tq-fluxo-wrap {
+  position: relative;
+}
+
+.tq-fluxo {
+  /* Altura fixa em vh: o fluxo rola dentro de si, e o campo de escrita fica
+     sempre visível. Numa aba inteira, empurrar o campo para fora da tela ao
+     crescer o histórico é o pior resultado possível. */
+  height: 46vh;
+  min-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 26px 34px 12px 8px;
+  /* Esmaece as bordas em vez de cortar: dá a sensação de continuidade. */
+  mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 8px), transparent);
+  scroll-behavior: smooth;
+}
+
+.tq-fluxo::-webkit-scrollbar {
+  display: none;
+}
+
+.tq-turno {
+  margin: 0 0 42px;
+}
+
+.tq-turno:last-child {
+  margin-bottom: 0;
+}
+
+/* A mensagem de quem escreve: menor e recuada. Ela é contexto; a resposta é
+   o assunto. */
+.tq-voce {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: rgb(163 175 167);
+  max-width: 420px;
+  margin: 0 0 22px 44px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tq-anexos-msg {
+  font-size: 11px;
+  color: rgb(140 152 144);
+  margin: -14px 0 22px 44px;
+}
+
+/* Sem cartão, sem borda, sem caixa: só a marca do agente e o texto. */
+.tq-resposta {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 560px;
+}
+
+.tq-agent {
+  flex: 0 0 auto;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+
+.tq-resposta-texto {
+  min-width: 0;
+}
+
+.tq-agente-nome {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: rgb(145 165 151);
+  margin-bottom: 5px;
+}
+
+.tq-indisponivel {
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: rgb(208 218 211);
+  margin: 0;
+}
+
+.tq-indisponivel-dica {
+  font-size: 12px;
+  line-height: 1.8;
+  color: rgb(150 162 154);
+  margin: 10px 0 0;
+}
+
+.tq-indisponivel-dica strong {
+  color: rgb(var(--c-glow));
+  font-weight: 500;
+}
+
+/* Trilha de posição: tracinhos, um por mensagem real. */
+.tq-trilha {
+  position: absolute;
+  right: -22px;
+  top: 30px;
+  bottom: 16px;
+  width: 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+}
+
+.tq-tick {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 20px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tq-tick::after {
+  content: '';
+  height: 1px;
+  width: 7px;
+  background: rgb(135 146 139 / 0.45);
+  transition:
+    width 0.25s,
+    background 0.25s;
+}
+
+.tq-tick[aria-pressed='true']::after {
+  width: 17px;
+  background: rgb(187 213 197);
+}
+
+.tq-tick:hover::after {
+  width: 17px;
+  background: rgb(var(--c-primary));
+}
+
+/* ------------------------------------------------------- campo de escrita */
+
+.tq-compositor {
+  position: relative;
+  margin-top: 18px;
+  padding: 16px 12px 4px 52px;
+}
+
+/* Uma linha, não uma caixa. */
+.tq-compositor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 52px;
+  right: 20px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgb(180 197 183 / 0.05),
+    rgb(180 197 183 / 0.11),
+    transparent
+  );
+}
+
+.tq-compositor textarea {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  resize: none;
+  min-height: 34px;
+  max-height: 190px;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: rgb(238 240 239);
+  /* Cursor de inserção quase invisível, mas presente — é o que se pediu:
+     sutil sem deixar de ser utilizável. */
+  caret-color: rgb(var(--c-glow) / 0.45);
+}
+
+.tq-compositor textarea::placeholder {
+  color: rgb(138 151 142);
+}
+
+.tq-anexos {
+  font-size: 11px;
+  color: rgb(172 189 177);
+  margin: 8px 0 0;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.tq-compositor-pe {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  opacity: 0.4;
+  transition: opacity 0.3s;
+}
+
+.tq-compositor:focus-within .tq-compositor-pe,
+.tq-compositor:hover .tq-compositor-pe {
+  opacity: 1;
+}
+
+.tq-compositor-pe span {
+  font-size: 10px;
+  color: rgb(153 165 157);
+}
+
+.tq-enviar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: rgb(196 210 200);
+  cursor: pointer;
+}
+
+.tq-enviar:not(:disabled):hover {
+  background: rgb(var(--c-primary) / 0.12);
+  color: rgb(var(--c-glow));
+}
+
+.tq-enviar:disabled {
+  opacity: 0.4;
+}
+
+/* ------------------------------------------------------------ o "+" */
+
+.tq-rodape-acoes {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.tq-mais {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: rgb(166 178 170);
+  background: rgb(41 48 43 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.05);
+  cursor: pointer;
+  transition:
+    transform 0.4s,
+    background 0.4s,
+    color 0.4s;
+}
+
+.tq-mais:hover,
+.tq-mais[aria-expanded='true'] {
+  background: rgb(52 76 59);
+  color: rgb(161 234 185);
+}
+
+.tq-mais[aria-expanded='true'] {
+  transform: rotate(45deg);
+}
+
+.tq-anexo-menu {
+  background: rgb(39 44 41 / 0.96);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 14px;
+  padding: 7px;
+  min-width: 230px;
+  box-shadow: 0 10px 35px rgb(0 0 0 / 0.33);
+}
+
+.tq-anexo-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tq-anexo-menu button:hover {
+  background: rgb(52 71 57);
+}
+
+.tq-anexo-menu p {
+  font-size: 10.5px;
+  color: rgb(158 172 162);
+  margin: 6px 9px 4px;
+  line-height: 1.55;
+}
+
+/* ------------------------------------------------------------- páginas */
+
+.tq-pagina h1 {
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.8px;
+  margin: 8px 0 0;
+}
+
+.tq-pagina-topo {
+  margin-bottom: 26px;
+}
+
+.tq-pagina-topo p {
+  font-size: 13px;
+  color: rgb(167 176 170);
+  margin: 6px 0 0;
+}
+
+.tq-lista {
+  display: grid;
+  gap: 10px;
+}
+
+.tq-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  padding: 18px 21px;
+  border: 1px solid rgb(255 255 255 / 0.05);
+  border-radius: 14px;
+  /* Translúcido: a onda continua visível atrás da lista. */
+  background: rgb(40 46 43 / 0.78);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition:
+    background 0.3s,
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+
+.tq-item:hover {
+  background: rgb(41 54 45 / 0.72);
+  border-color: rgb(var(--c-primary) / 0.28);
+  box-shadow: 0 0 26px rgb(var(--c-primary) / 0.06);
+}
+
+.tq-item strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tq-item small {
+  display: block;
+  font-size: 11px;
+  color: rgb(160 173 164);
+  margin-top: 5px;
+}
+
+.tq-lista-densa .tq-item {
+  padding: 13px 16px;
+}
+
+.tq-vazio {
+  font-size: 13px;
+  color: rgb(160 173 164);
+  line-height: 1.8;
+  margin: 18px 0;
+  max-width: 62ch;
+}
+
+.tq-aviso {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: rgb(186 198 190);
+  background: rgb(var(--c-primary) / 0.05);
+  border: 1px solid rgb(var(--c-primary) / 0.16);
+  border-radius: 13px;
+  padding: 14px 17px;
+  margin-bottom: 22px;
+  max-width: 68ch;
+}
+
+.tq-aviso strong {
+  color: rgb(var(--c-glow));
+  font-weight: 500;
+}
+
+.tq-guia {
+  display: grid;
+  gap: 11px;
+}
+
+.tq-guia details {
+  background: rgb(40 46 43 / 0.78);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.tq-guia details[open] {
+  border-color: rgb(var(--c-primary) / 0.22);
+}
+
+.tq-guia summary {
+  font-size: 13.5px;
+  color: rgb(226 232 228);
+  cursor: pointer;
+}
+
+.tq-guia details p {
+  font-size: 12.5px;
+  color: rgb(175 186 178);
+  line-height: 1.85;
+  margin: 10px 0 0 16px;
+}
+
+.tq-nota-movimento {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  color: rgb(150 162 154);
+  z-index: 8;
+  margin: 0;
+}
+
+/* -------------------------------------------------------------- cursor */
+
+.tq-dot,
+.tq-halo {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+body.tq-pointer-in .tq-dot,
+body.tq-pointer-in .tq-halo {
+  opacity: 1;
+}
+
+.tq-dot {
+  width: 5px;
+  height: 5px;
+  margin: -2.5px;
+  border-radius: 50%;
+  background: rgb(var(--c-glow));
+}
+
+.tq-halo {
+  width: 40px;
+  height: 40px;
+  margin: -20px;
+}
+
+.tq-rotor {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 40deg,
+    rgb(209 221 212 / 0.13),
+    rgb(209 221 212 / 0.6) 75deg,
+    rgb(209 221 212 / 0.1) 120deg,
+    rgb(209 221 212 / 0.07) 210deg,
+    rgb(209 221 212 / 0.53) 285deg,
+    rgb(209 221 212 / 0.13)
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 100%);
+  transition:
+    transform 0.45s,
+    background 0.3s;
+}
+
+.tq-halo.over-control .tq-rotor {
+  background: conic-gradient(
+    from 40deg,
+    rgb(var(--c-primary) / 0.13),
+    rgb(var(--c-primary) / 0.67) 75deg,
+    rgb(var(--c-primary) / 0.13) 180deg,
+    rgb(var(--c-primary) / 0.67) 280deg,
+    rgb(var(--c-primary) / 0.13)
+  );
+}
+
+/* O cursor do sistema só some onde há um ponteiro fino de verdade. */
+@media (pointer: fine) {
+  .tq-home,
+  .tq-home button,
+  .tq-home textarea,
+  .tq-home summary {
+    cursor: none;
+  }
+  /* Exceção deliberada: sobre texto selecionável o cursor nativo volta, senão
+     selecionar e copiar vira adivinhação. */
+  .tq-home p,
+  .tq-home .tq-fluxo {
+    cursor: auto;
+  }
+}
+
+@media (pointer: coarse) {
+  .tq-dot,
+  .tq-halo {
+    display: none;
+  }
+  .tq-enviar,
+  .tq-mais,
+  .tq-motion {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .tq-tick {
+    width: 44px;
+    min-height: 24px;
+  }
+  .tq-trilha {
+    width: 44px;
+    right: -30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-home *,
+  .tq-home *::before,
+  .tq-home *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .tq-fluxo {
+    scroll-behavior: auto;
+  }
+}

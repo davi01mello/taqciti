@@ -16,6 +16,8 @@ export const STORAGE_KEYS = {
   prefs: 'taq:prefs',
   /** chrome.storage.session — abas com o painel injetado, para endereçar o broadcast. */
   panelTabs: 'taq:panelTabs',
+  /** chrome.storage.local — conversas do Assistente (a HOME em aba inteira). */
+  conversations: 'taq:conversations',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */
