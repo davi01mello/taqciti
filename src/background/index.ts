@@ -175,6 +175,16 @@ onMessage((message, sender) => {
             recordId: message.recordId ?? null,
           }),
         };
+      case 'ui/openHome':
+        // A tela inicial em aba própria. `chrome.tabs.create` aqui, e não no
+        // chamador, porque o pedido pode vir do painel injetado — content
+        // script não abre aba, e um `window.open` de lá sairia no contexto da
+        // página, onde o bloqueador de pop-up do site manda.
+        await chrome.tabs.create({
+          url: chrome.runtime.getURL('src/home/index.html'),
+          windowId: sender.tab?.windowId,
+        });
+        return { ok: true };
       // ---- UIs (painel lateral / painel injetado) ----
       case 'panel/mounted': {
         // Um painel nasceu nesta aba: a partir de agora o estado ao vivo tem

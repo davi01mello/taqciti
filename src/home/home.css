@@ -84,6 +84,9 @@
 }
 
 .tq-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   font-size: 23px;
   font-weight: 700;
   letter-spacing: -1.1px;
@@ -92,7 +95,13 @@
   color: rgb(246 248 247);
 }
 
-.tq-brand span {
+.tq-brand img {
+  height: 25px;
+  width: auto;
+  display: block;
+}
+
+.tq-brand em {
   color: rgb(var(--c-primary));
   font-style: italic;
 }

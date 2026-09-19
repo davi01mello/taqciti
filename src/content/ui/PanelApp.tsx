@@ -94,6 +94,9 @@ export interface PanelCallbacks {
   onRename(title: string): void;
   /** Abre a saída larga — a tela cheia do histórico, numa aba. */
   onOpenSidePanel(target?: WideViewTarget): void;
+  /** Abre a HOME numa aba. Atalho discreto: o painel continua sendo o produto
+   *  no meio da reuniao; a HOME e onde o resto mora. */
+  onOpenHome(): void;
   onResumeCapture(): void;
   onCloseEnded(): void;
   onEnableCaptions(): void;
@@ -427,6 +430,7 @@ export function PanelApp({ state, ctx, prefs, callbacks }: PanelAppProps) {
             setRoute({ kind: 'history' });
             setQuery('');
           }}
+          onOpenHome={callbacks.onOpenHome}
           onGrow={() => resize(1)}
           onShrink={() => resize(-1)}
           onMinimize={minimize}
@@ -919,6 +923,7 @@ function PanelHeader({
   dragHandlers,
   onToggleSearch,
   onHistory,
+  onOpenHome,
   onGrow,
   onShrink,
   onMinimize,
@@ -942,6 +947,7 @@ function PanelHeader({
   };
   onToggleSearch: () => void;
   onHistory: () => void;
+  onOpenHome: () => void;
   onGrow: () => void;
   onShrink: () => void;
   onMinimize: () => void;
@@ -970,6 +976,13 @@ function PanelHeader({
             <span className="mr-1 truncate rounded-full bg-white/[0.06] px-2.5 py-1 text-micro font-semibold tabular-nums text-muted">
               {status}
             </span>
+
+            {/* Entrada para a HOME. Sempre visível, ao contrário do botão de
+                histórico: é o único caminho até a tela nova, e uma entrada
+                condicional seria uma tela que ninguém encontra. */}
+            <HeaderButton label="Abrir o TaqCiti numa aba" onClick={onOpenHome}>
+              <Icon name="sparkles" size={14} />
+            </HeaderButton>
 
             {showHistory && (
               <HeaderButton label="Ver o histórico" onClick={onHistory}>

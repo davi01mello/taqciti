@@ -74,6 +74,7 @@ function StandalonePanel({ initialPrefs }: { initialPrefs: PanelPrefs }) {
           view: 'history',
           ...(target?.recordId !== undefined ? { recordId: target.recordId } : {}),
         }),
+      onOpenHome: () => void platform.send({ type: 'ui/openHome' }),
       onCloseEnded: () => void platform.send({ type: 'ui/reset' }),
       onDismissLanguageWarning: () =>
         void platform.send({ type: 'ui/dismissLanguageWarning' }),

@@ -80,6 +80,7 @@ export class ContentController {
         ...(target?.recordId !== undefined ? { recordId: target.recordId } : {}),
       }),
     onResumeCapture: () => this.redetect(),
+    onOpenHome: () => void sendMessage({ type: 'ui/openHome' }),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
     onEnableCaptions: () => this.attemptEnableCaptions(),
     onDismissLanguageWarning: () =>

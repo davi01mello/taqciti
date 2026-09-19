@@ -53,9 +53,20 @@ export function App() {
         <>
           <header className="flex items-center gap-3 px-4 pb-3 pt-4">
             <Wordmark height={23} />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-caption text-muted">{subtitleFor(state.phase)}</p>
             </div>
+            {/* O popup é pequeno e fecha ao perder o foco; a HOME é onde o
+                histórico e as conversas cabem. Daí o atalho aqui. */}
+            <button
+              type="button"
+              aria-label="Abrir o TaqCiti numa aba"
+              title="Abrir o TaqCiti numa aba"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-white/[0.06] hover:text-foreground"
+              onClick={() => void platform.send({ type: 'ui/openHome' })}
+            >
+              <Icon name="sparkles" size={15} />
+            </button>
           </header>
 
           {state.session && state.phase !== 'idle' && (

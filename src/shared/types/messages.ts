@@ -159,6 +159,20 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
     recordId: z.string().max(200).optional(),
   }),
   /**
+   * Abre a HOME (`src/home/index.html`) numa aba.
+   *
+   * Comando próprio, e não um campo de `panel/openRequest`, porque o destino é
+   * OUTRA página: aquele abre a saída larga e sabe posicioná-la num registro
+   * do histórico; este abre a tela inicial, que não tem esse conceito. Juntar
+   * os dois faria um comando com dois conjuntos de campos mutuamente
+   * exclusivos.
+   *
+   * Passa pelo background porque quem pede pode ser o painel injetado, e um
+   * content script não abre aba — `window.open` de lá sai no contexto da
+   * página, sujeito ao bloqueador de pop-up do site.
+   */
+  z.object({ type: z.literal('ui/openHome') }),
+  /**
    * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
    * vivo o encontra.
    *

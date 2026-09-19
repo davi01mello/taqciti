@@ -111,8 +111,11 @@ export function HomePage() {
       />
 
       <header className="tq-topo">
-        <div className="tq-brand">
-          Taq<span>Citi</span>
+        <div className="tq-brand" aria-label="TaqCiti">
+          <img src={chrome.runtime.getURL('brand/taqciti-mark.png')} alt="" draggable={false} />
+          <span aria-hidden="true">
+            Taq<em>Citi</em>
+          </span>
         </div>
         <div className="tq-topo-direita">
           {meeting.phase === 'recording' && (
