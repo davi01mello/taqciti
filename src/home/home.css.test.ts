@@ -59,6 +59,23 @@ describe('a animação é fundo, e só fundo', () => {
   });
 });
 
+describe('o cursor nativo e o desenhado nunca coexistem', () => {
+  /*
+   * A causa do cursor aparecendo onde não devia: `cursor: none` era
+   * incondicional, e a camada desenhada era ligada por JavaScript. Amarradas à
+   * mesma classe, ou há um ou há o outro — nunca os dois, nunca nenhum.
+   */
+  it('esconder o cursor do sistema depende da camada estar acesa', () => {
+    expect(css).toMatch(/body\.tq-pointer-in \.tq-home,\s*body\.tq-pointer-in \.tq-home \*\s*\{[^}]*cursor:\s*none/);
+  });
+
+  it('não existe `cursor: none` fora dessa condição', () => {
+    const regras = css.match(/[^{}]+\{[^}]*cursor:\s*none[^}]*\}/g) ?? [];
+    expect(regras).toHaveLength(1);
+    expect(regras[0]).toContain('tq-pointer-in');
+  });
+});
+
 describe('o texto exibido não é selecionável, o rascunho é', () => {
   it('a tela inteira bloqueia a seleção', () => {
     expect(bloco('.tq-home')).toMatch(/user-select:\s*none/);

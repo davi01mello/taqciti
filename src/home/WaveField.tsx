@@ -135,14 +135,18 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
 
       // --- 1. Dobras neutras: profundidade, sem cor. Elas atravessam a camada
       // inteira e é sobre elas que a navegação translúcida se lê.
+      //
+      // Cinza puro, e não o cinza levemente esverdeado de antes: era uma das
+      // fontes do verde espalhado pela página. Aqui o trabalho é profundidade,
+      // e profundidade não tem matiz.
       const centro = altura * 0.42 + Math.sin(fase) * 22;
       const halo = ctx.createRadialGradient(
         largura * 0.5, centro, 0,
         largura * 0.5, centro, Math.max(largura, altura) * 0.72,
       );
-      halo.addColorStop(0, 'rgba(62, 70, 66, 0.22)');
-      halo.addColorStop(0.5, 'rgba(36, 43, 41, 0.14)');
-      halo.addColorStop(1, 'rgba(21, 24, 25, 0)');
+      halo.addColorStop(0, 'rgba(66, 69, 73, 0.2)');
+      halo.addColorStop(0.5, 'rgba(38, 40, 43, 0.12)');
+      halo.addColorStop(1, 'rgba(22, 23, 25, 0)');
       ctx.fillStyle = halo;
       ctx.fillRect(0, 0, largura, altura);
 
@@ -172,16 +176,26 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
        *
        * Era um `fillRect` de 60% da altura, e a borda desse retângulo era o
        * corte horizontal. Pintando tudo, quem decide onde a luz acaba é o
-       * próprio gradiente — e ele chega a zero dentro do canvas, então não há
-       * aresta para aparecer. O custo é o mesmo: um `fillRect` é um `fillRect`.
+       * próprio gradiente — e ele cai muito antes da borda do canvas, então não
+       * há aresta para aparecer. O custo é o mesmo: um `fillRect` é um
+       * `fillRect`.
+       *
+       * ── Por que ele quase sumiu ──────────────────────────────────────────
+       *
+       * Esta era a principal fonte de verde da interface: um halo com 8,5% de
+       * alfa sobre meia tela não é um detalhe da onda, é um filtro verde na
+       * página inteira — e é o que fazia o grafite do fundo, o texto e as
+       * superfícies puxarem para o verde. O alfa caiu para um terço e a luz
+       * ficou colada na onda. Quem carrega o verde agora são as partículas
+       * abaixo, que é onde ele significa alguma coisa.
        */
-      const alcance = Math.max(largura * 0.55, altura * 0.9);
+      const alcance = Math.max(largura * 0.36, altura * 0.52);
       const clarao = ctx.createRadialGradient(
         largura * 0.5, eixo, 2,
         largura * 0.5, eixo, alcance,
       );
-      clarao.addColorStop(0, `rgba(${verde}, ${0.085 * recuo})`);
-      clarao.addColorStop(0.55, `rgba(${verde}, ${0.03 * recuo})`);
+      clarao.addColorStop(0, `rgba(${verde}, ${0.03 * recuo})`);
+      clarao.addColorStop(0.5, `rgba(${verde}, ${0.011 * recuo})`);
       clarao.addColorStop(1, `rgba(${verde}, 0)`);
       ctx.fillStyle = clarao;
       ctx.fillRect(0, 0, largura, altura);
