@@ -101,14 +101,35 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 
 ## Estado da validação
 
-O `.pkg` é **compilado** pelo job `build-macos` (runner `macos-latest`), mas
-até aqui **nunca foi executado num Mac** — build bem-sucedido não é instalação
-testada. Windows e Linux já foram instalados e conferidos de verdade.
+Nada aqui foi validado ainda. Três coisas diferentes, e nenhuma delas implica a
+seguinte:
 
-Para fechar essa lacuna existe **`roteiro-de-teste.md`**, nesta mesma pasta:
-um roteiro de ~10 minutos para alguém com Mac, que cobre o bloqueio do
-Gatekeeper, a instalação, a abertura do guia, o caminho exibido e copiado, o
-carregamento no Chrome e uma captura no Meet.
+| | Situação |
+| --- | --- |
+| Runner configurado | ✅ `build-macos` roda em `macos-latest` e chama `pkgbuild` |
+| Build desta revisão executado | ❌ **não executado** — nenhuma run compilou este `.pkg` |
+| `.pkg` instalado num Mac | ❌ **não executado** |
+
+**Runner configurado não é build executado, e build verde não é instalação
+testada.** Windows e Linux já foram compilados *e* instalados de verdade; o
+macOS não passou por nenhuma das duas etapas nesta revisão. Toda a parte
+específica deste sistema — Gatekeeper, `launchctl asuser`, `dscl`,
+`stat -f /dev/console` — segue sem execução real.
+
+### Como fechar, na ordem
+
+1. **Compilar.** Actions → Release → Run workflow, com `publicar`
+   **desmarcado**. Baixe o artefato `macos-installer`. Isso só compila: não
+   publica Release nem toca no Drive. Atualize a linha "Build desta revisão"
+   acima com o link da run.
+2. **Instalar e usar.** Siga o **`roteiro-de-teste.md`** desta pasta — ~10
+   minutos, para alguém com Mac, cobrindo o bloqueio do Gatekeeper, a
+   instalação, a abertura do guia, o caminho exibido e copiado, o carregamento
+   no Chrome e uma captura no Meet. Atualize a linha "`.pkg` instalado" com a
+   versão do macOS testada e o que foi observado.
+
+Enquanto as duas linhas estiverem ❌, o instalador do macOS deve ser tratado
+como não verificado — inclusive na hora de anunciar uma release para o time.
 
 ## Testar localmente
 

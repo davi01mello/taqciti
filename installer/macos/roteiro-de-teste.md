@@ -2,9 +2,12 @@
 
 Leva uns 10 minutos. Não precisa saber nada do projeto.
 
-Este é o único teste que falta: o instalador do macOS foi **compilado**, mas
-nunca foi **executado** num Mac. Se algo não bater com o que está escrito aqui,
-é um defeito — anote e devolva.
+Este é o teste que falta. O instalador do macOS **nunca foi executado num
+Mac** — e, nesta revisão, nem sequer chegou a ser compilado ainda: existe um
+runner macOS configurado no CI, mas nenhuma run passou por ele. Windows e Linux
+já foram compilados e instalados de verdade; o macOS, nenhum dos dois.
+
+Se algo não bater com o que está escrito aqui, é um defeito — anote e devolva.
 
 ---
 

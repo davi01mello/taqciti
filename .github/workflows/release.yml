@@ -145,14 +145,25 @@ jobs:
 
   # Publicar é a exceção, não o padrão.
   #
-  # Uma tag `vX.Y.Z` sempre publica — é o que a tag significa. Uma run
-  # disparada à mão só publica se alguém marcar "publicar" explicitamente; sem
-  # isso este job é pulado, e `distribute-gdrive` vai junto por depender dele.
-  # É o que permite compilar os três instaladores (inclusive o .pkg do macOS,
-  # que exige runner macOS) e baixá-los como artefatos, sem gastar uma release
-  # nem mexer no arquivo que o time tem no Drive.
+  # Uma tag de release publica — é o que a tag significa. Uma run disparada à
+  # mão só publica se alguém marcar "publicar"; sem isso este job é pulado, e
+  # `distribute-gdrive` vai junto. É o que permite compilar os três
+  # instaladores (inclusive o .pkg do macOS, que exige runner macOS) e
+  # baixá-los como artefatos, sem gastar uma release nem mexer no arquivo que o
+  # time tem no Drive.
+  #
+  # A condição não diz só "é um push": diz "é um push DE TAG, e a tag começa
+  # com v". Hoje isso é redundante — o gatilho lá em cima filtra `tags: v*.*.*`
+  # e nenhum `branches:`, então push de branch não cria run nenhuma. A
+  # redundância é de propósito: no dia em que alguém acrescentar um `branches:`
+  # ao gatilho (para rodar os builds a cada push, por exemplo), um "push" puro
+  # passaria a incluir branch — e publicaria sozinho, no Drive, a cada commit.
+  # Escrita assim, essa mudança de gatilho não consegue causar publicação.
   release:
-    if: github.event_name == 'push' || inputs.publicar
+    if: >-
+      (github.event_name == 'push' && github.ref_type == 'tag'
+        && startsWith(github.ref_name, 'v'))
+      || inputs.publicar
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
@@ -239,8 +250,13 @@ jobs:
     # O `needs: [release]` já bastaria — job pulado pula quem depende dele.
     # A condição está repetida assim mesmo porque este é o job que sobrescreve
     # o arquivo que o time baixa: se um dia alguém mexer no `needs`, a trava
-    # que importa continua escrita aqui, ao lado do que ela protege.
-    if: github.event_name == 'push' || inputs.publicar
+    # que importa continua escrita aqui, ao lado do que ela protege. Mesma
+    # leitura do job acima: push DE TAG começando com v, ou "publicar" marcado
+    # à mão. Push de branch não publica, nem se o gatilho mudar.
+    if: >-
+      (github.event_name == 'push' && github.ref_type == 'tag'
+        && startsWith(github.ref_name, 'v'))
+      || inputs.publicar
     needs: [release]
     runs-on: ubuntu-latest
     steps:
