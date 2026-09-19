@@ -1,13 +1,17 @@
 /**
- * Monta o pacote único de distribuição do TaqCITi: um ZIP com o guia
- * "COMECE AQUI.html" e os três instaladores nativos, na estrutura que a pessoa
+ * Monta o pacote único de distribuição do TaqCiti: um ZIP com o guia
+ * "COMECE_AQUI.html" e os três instaladores nativos, na estrutura que a pessoa
  * encontra depois de extrair.
  *
- *     TaqCITi/
- *       COMECE AQUI.html
- *       Instaladores/Windows/taqciti-instalador-windows-<versão>.exe
- *       Instaladores/macOS/taqciti-instalador-mac-<versão>.pkg
- *       Instaladores/Linux/taqciti-instalador-linux-<versão>.run
+ *     TaqCiti/
+ *       COMECE_AQUI.html
+ *       Instaladores/taqciti-instalador-windows-<versão>.exe
+ *       Instaladores/taqciti-instalador-mac-<versão>.pkg
+ *       Instaladores/taqciti-instalador-linux-<versão>.run
+ *
+ * Os três ficam SOLTOS em `Instaladores/`, sem subpasta por sistema: a
+ * extensão do arquivo já diz de quem ele é, e o guia manda abrir o nome exato.
+ * Uma pasta a mais era um clique a mais para chegar no mesmo lugar.
  *
  * POR QUE ESTE SCRIPT EXISTE. Antes, o job de distribuição publicava os três
  * instaladores soltos na pasta do Drive. Como o nome carrega a versão, cada
@@ -84,15 +88,11 @@ const NOME_GUIA = 'COMECE_AQUI.html';
  */
 const NOME_ZIP = `${PASTA_RAIZ}.zip`;
 
-/**
- * Como cada instalador é reconhecido, e onde ele vai parar dentro do pacote.
- * Os padrões saem direto de quem gera os arquivos:
- * `installer/windows/taqciti.iss` (OutputBaseFilename),
- * `installer/macos/build-installer.sh` e `installer/linux/build-installer.sh`.
- */
 /*
  * Cada instalador é reconhecido por DOIS critérios: o nome do arquivo e a cara
- * do conteúdo.
+ * do conteúdo. Os padrões de nome saem direto de quem gera os arquivos:
+ * `installer/windows/taqciti.iss` (OutputBaseFilename),
+ * `installer/macos/build-installer.sh` e `installer/linux/build-installer.sh`.
  *
  * O nome sozinho não basta. Durante o desenvolvimento deste pacote, os testes
  * usaram arquivos substitutos — um zip qualquer renomeado para
@@ -110,7 +110,6 @@ const INSTALADORES = [
   {
     chave: 'windows',
     rotulo: 'Windows',
-    pasta: 'Windows',
     padrao: /^taqciti-instalador-windows-(.+)\.exe$/i,
     origem: 'installer/windows/taqciti.iss (compilado pelo Inno Setup)',
     modo: 0o644,
@@ -124,7 +123,6 @@ const INSTALADORES = [
   {
     chave: 'macos',
     rotulo: 'macOS',
-    pasta: 'macOS',
     padrao: /^taqciti-instalador-mac-(.+)\.pkg$/i,
     origem: 'installer/macos/build-installer.sh',
     modo: 0o644,
@@ -134,7 +132,6 @@ const INSTALADORES = [
   {
     chave: 'linux',
     rotulo: 'Linux',
-    pasta: 'Linux',
     padrao: /^taqciti-instalador-linux-(.+)\.run$/i,
     origem: 'installer/linux/build-installer.sh',
     // O .run é autoextraível: sem bit de execução ele não roda. Vários
@@ -521,26 +518,41 @@ function conferirPacotePronto(caminhoZip) {
     ok = false;
   }
 
-  for (const instalador of INSTALADORES) {
-    const prefixo = `${PASTA_RAIZ}/Instaladores/${instalador.pasta}/`;
-    const dentro = entradas.filter((e) => e.name.startsWith(prefixo));
+  // Os três convivem na MESMA pasta, então não dá para conferir "o que tem
+  // dentro da pasta do Windows": confere-se quem casa com cada padrão de nome,
+  // e depois que ninguém sobrou sem dono.
+  const prefixo = `${PASTA_RAIZ}/Instaladores/`;
+  const naPasta = entradas.filter((e) => e.name.startsWith(prefixo));
+  const reconhecidos = new Set();
 
-    if (dentro.length !== 1) {
+  for (const instalador of INSTALADORES) {
+    const casaram = naPasta.filter((e) => instalador.padrao.test(e.name.slice(prefixo.length)));
+
+    if (casaram.length !== 1) {
       anotar(
-        `esperava exatamente 1 arquivo em "${prefixo}", encontrei ${dentro.length}` +
-          (dentro.length ? ` (${dentro.map((e) => e.name).join(', ')})` : ''),
+        `esperava exatamente 1 instalador de ${instalador.rotulo} em "${prefixo}", ` +
+          `encontrei ${casaram.length}` +
+          (casaram.length ? ` (${casaram.map((e) => e.name).join(', ')})` : ''),
       );
       ok = false;
       continue;
     }
-    if (!instalador.padrao.test(dentro[0].name.slice(prefixo.length))) {
-      anotar(`"${dentro[0].name}" não parece um instalador de ${instalador.rotulo}`);
+    if (casaram[0].size === 0) {
+      anotar(`"${casaram[0].name}" está vazio dentro do pacote`);
       ok = false;
     }
-    if (dentro[0].size === 0) {
-      anotar(`"${dentro[0].name}" está vazio dentro do pacote`);
-      ok = false;
-    }
+    reconhecidos.add(casaram[0].name);
+  }
+
+  // Sem subpasta por sistema, "arquivo a mais em Instaladores/" deixa de ser
+  // impossível por construção e passa a precisar de checagem — inclusive
+  // subpasta, que um `startsWith` sozinho deixaria passar.
+  const intrusos = naPasta.filter((e) => !reconhecidos.has(e.name));
+  if (intrusos.length) {
+    anotar(
+      `há arquivo não reconhecido em "${prefixo}": ${intrusos.map((e) => e.name).join(', ')}`,
+    );
+    ok = false;
   }
 
   const forasteiras = entradas.filter((e) => !e.name.startsWith(`${PASTA_RAIZ}/`));
@@ -614,7 +626,7 @@ function main() {
   const entradas = [
     { name: `${PASTA_RAIZ}/${NOME_GUIA}`, data: guia, mode: 0o644 },
     ...achados.map((achado) => ({
-      name: `${PASTA_RAIZ}/Instaladores/${achado.pasta}/${achado.nome}`,
+      name: `${PASTA_RAIZ}/Instaladores/${achado.nome}`,
       data: readFileSync(achado.caminho),
       mode: achado.modo,
     })),

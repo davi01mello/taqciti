@@ -166,9 +166,9 @@ O que o time baixa do Drive é **um arquivo só**: `TaqCiti.zip`. Dentro dele:
 ```
 TaqCiti/
   COMECE_AQUI.html
-  Instaladores/Windows/taqciti-instalador-windows-X.Y.Z.exe
-  Instaladores/macOS/taqciti-instalador-mac-X.Y.Z.pkg
-  Instaladores/Linux/taqciti-instalador-linux-X.Y.Z.run
+  Instaladores/taqciti-instalador-windows-X.Y.Z.exe
+  Instaladores/taqciti-instalador-mac-X.Y.Z.pkg
+  Instaladores/taqciti-instalador-linux-X.Y.Z.run
 ```
 
 A pessoa extrai, abre a pasta e dá dois cliques em `COMECE_AQUI.html`. O guia
