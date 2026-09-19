@@ -49,9 +49,32 @@ instalador vai abrir esta mesma página já preenchida. Nenhum caminho é
 inventado em momento algum.
 
 ```js
-// o que o instalador grava
+// o que o instalador do Windows grava (tudo em ASCII, ver abaixo)
 window.TAQCITI_INSTALACAO = { sistema: "windows", pasta: "C:\u005cUsers\u005c..." };
+
+// o que os instaladores de macOS e Linux gravam (UTF-8 cru)
+window.TAQCITI_INSTALACAO = { sistema: "linux", pasta: "/home/voce/TaqCITi (não apagar)" };
 ```
+
+`sistema` é informativo. Quem manda na etapa da pasta é `pasta`: ela vem do
+instalador que rodou **nesta** máquina, então vale mais do que o cartão de
+sistema que a pessoa clicou, e é consultada antes dele.
+
+## Os três percursos
+
+O guia tem um cartão por sistema, e os três primeiros passos são **próprios de
+cada um** — não é o mesmo texto com o nome trocado, porque os instaladores não
+se parecem:
+
+| | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| Como abre | dois cliques no `.exe` | dois cliques no `.pkg` | Terminal |
+| Aviso do sistema | SmartScreen | Gatekeeper | **nenhum** |
+| Conclusão | janela do instalador | tela do Instalador | linha no terminal |
+
+O percurso do Linux é `extrair → Terminal → chmod +x → ./instalador`, e pula a
+etapa de "o instalador abriu?" porque não há aviso de sistema para passar.
+A partir de "Localize a pasta preparada", os três seguem juntos.
 
 ## Codificação: por que o caminho já apareceu torto
 

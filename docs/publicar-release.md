@@ -181,6 +181,15 @@ nada** — o ZIP anterior no disco (e, no job, a última entrega no Drive)
 continua intacto. Depois de gravar, ele reabre o ZIP e confere nome, tamanho,
 CRC e permissão de cada entrada antes de dar por bom.
 
+**Nome certo não basta: ele olha dentro.** Cada instalador precisa ter a cara
+do formato que promete — `MZ` mais a marca `Inno Setup Setup Data` no `.exe`,
+`xar!` no `.pkg`, shebang mais a marca `Makeself` no `.run`. Isso existe porque
+durante o desenvolvimento os testes usaram arquivos substitutos (um zip
+renomeado) e eles passavam por todas as outras conferências. Um substituto
+publicado no Drive seria pior do que uma release falhando: o time baixaria,
+daria dois cliques e nada aconteceria. Não é assinatura e não prova
+procedência — prova que o artefato é do formato que as etapas de build geram.
+
 Para conferir um pacote que já existe:
 
 ```bash

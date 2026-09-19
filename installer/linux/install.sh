@@ -117,9 +117,20 @@ open_target() {
   fi
 }
 
-if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ]; then
+# A mensagem final acompanha o que REALMENTE aconteceu. Antes ela dizia sempre
+# "siga as instruções na aba do guia que acabou de abrir" — inclusive quando
+# nenhuma aba abriu, que é o caso comum de servidor, container ou WSL, onde não
+# existe `xdg-open` nem sessão gráfica. Mandar a pessoa procurar uma aba que
+# nunca vai aparecer transforma uma instalação bem-sucedida em confusão.
+#
+# O sinal de sucesso da instalação continua sendo o "TaqCITi instalado em:"
+# impresso acima; esta linha só diz por onde continuar.
+if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ] && command -v xdg-open >/dev/null 2>&1; then
   open_target "$GUIDE_DEST"
+  echo "Pronto. Siga as instruções na aba do guia que acabou de abrir."
+else
+  echo "Pronto. A instalação terminou."
+  echo "Não consegui abrir o guia sozinho aqui (sem 'xdg-open' ou sem sessão gráfica)."
+  echo "Continue pelo guia que você já tem aberto — ele pede este caminho no passo do navegador."
 fi
-
-echo "Pronto. Siga as instruções na aba do guia que acabou de abrir."
 exit 0

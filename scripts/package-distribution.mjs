@@ -90,6 +90,22 @@ const NOME_ZIP = `${PASTA_RAIZ}.zip`;
  * `installer/windows/taqciti.iss` (OutputBaseFilename),
  * `installer/macos/build-installer.sh` e `installer/linux/build-installer.sh`.
  */
+/*
+ * Cada instalador é reconhecido por DOIS critérios: o nome do arquivo e a cara
+ * do conteúdo.
+ *
+ * O nome sozinho não basta. Durante o desenvolvimento deste pacote, os testes
+ * usaram arquivos substitutos — um zip qualquer renomeado para
+ * "taqciti-instalador-windows-2.1.2.exe" — e eles passavam por todas as
+ * conferências, porque nada olhava para dentro. Um substituto publicado no
+ * Drive seria pior do que uma release falhando: o time baixaria, daria dois
+ * cliques e nada aconteceria.
+ *
+ * `assinatura` é o que o formato de verdade tem nos primeiros bytes. Não é
+ * criptografia e não prova procedência — prova que o arquivo é do formato que
+ * diz ser, que é exatamente o que separa um artefato real de um substituto de
+ * teste.
+ */
 const INSTALADORES = [
   {
     chave: 'windows',
@@ -98,6 +114,12 @@ const INSTALADORES = [
     padrao: /^taqciti-instalador-windows-(.+)\.exe$/i,
     origem: 'installer/windows/taqciti.iss (compilado pelo Inno Setup)',
     modo: 0o644,
+    // Todo executável do Windows começa com o cabeçalho DOS "MZ".
+    assinatura: { bytes: [0x4d, 0x5a], formato: 'executável do Windows (cabeçalho MZ)' },
+    // Marca que o Inno grava junto do bloco de dados do setup. Ela fica bem
+    // fundo no arquivo (centenas de KB) e a posição depende do tamanho do
+    // payload — por isso a busca varre o arquivo inteiro, sem janela fixa.
+    contem: { texto: 'Inno Setup Setup Data', onde: 'marca do compilador Inno Setup' },
   },
   {
     chave: 'macos',
@@ -106,6 +128,8 @@ const INSTALADORES = [
     padrao: /^taqciti-instalador-mac-(.+)\.pkg$/i,
     origem: 'installer/macos/build-installer.sh',
     modo: 0o644,
+    // .pkg de instalador é um arquivo xar; "xar!" é a assinatura do formato.
+    assinatura: { bytes: [0x78, 0x61, 0x72, 0x21], formato: 'pacote xar do macOS (.pkg)' },
   },
   {
     chave: 'linux',
@@ -118,6 +142,11 @@ const INSTALADORES = [
     // guia continua ensinando o `chmod +x` — isto aqui é o caminho feliz, não
     // uma garantia.
     modo: 0o755,
+    // O .run do makeself é um shell script com o payload colado no fim. A
+    // segunda linha do cabeçalho é "# This script was generated using
+    // Makeself <versão>".
+    assinatura: { bytes: [0x23, 0x21], formato: 'script de shell (shebang "#!")' },
+    contem: { texto: 'Makeself', onde: 'marca do gerador Makeself' },
   },
 ];
 
@@ -228,6 +257,8 @@ function acharInstaladores(origemDir) {
       continue;
     }
 
+    if (!pareceAutentico(instalador, caminho, nome)) continue;
+
     achados.push({
       ...instalador,
       nome,
@@ -238,6 +269,47 @@ function acharInstaladores(origemDir) {
   }
 
   return achados.length === INSTALADORES.length ? achados : null;
+}
+
+/**
+ * Confere que o arquivo é do formato que o nome promete.
+ *
+ * Existe para que um arquivo substituto de teste não consiga se passar por
+ * instalador de produção só por ter o nome certo. Lê apenas o começo do
+ * arquivo: a assinatura mora nos primeiros bytes, e as marcas do Inno e do
+ * makeself vivem no cabeçalho, antes do payload.
+ */
+function pareceAutentico(instalador, caminho, nome) {
+  // Lê o arquivo inteiro: a marca do Inno mora a centenas de KB do início, e a
+  // posição depende do tamanho do payload, então não existe janela fixa que
+  // sirva. O custo é irrelevante — o empacotador já lê o arquivo todo adiante
+  // para colocá-lo no ZIP.
+  const conteudo = readFileSync(caminho);
+
+  const { bytes, formato } = instalador.assinatura;
+  if (!bytes.every((b, i) => conteudo[i] === b)) {
+    anotar(
+      `"${nome}" não é um ${formato} — os primeiros bytes são ` +
+        `${[...conteudo.subarray(0, bytes.length)].map((b) => '0x' + b.toString(16).padStart(2, '0')).join(' ')}. ` +
+        'Isso costuma ser um arquivo de teste renomeado; o pacote só aceita o ' +
+        `artefato real gerado por ${instalador.origem}`,
+    );
+    return false;
+  }
+
+  if (instalador.contem) {
+    // latin1 para varrer bytes como caracteres sem risco de erro de
+    // decodificação num arquivo binário.
+    if (!conteudo.toString('latin1').includes(instalador.contem.texto)) {
+      anotar(
+        `"${nome}" tem a assinatura de ${formato}, mas não traz a ${instalador.contem.onde} — ` +
+          `não parece o instalador gerado por ${instalador.origem}`,
+      );
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function exemploDeNome(instalador) {
@@ -321,6 +393,7 @@ function gerarGuia({ versao, achados }) {
   const substituicoes = {
     __ARQUIVO_WINDOWS__: porChave.windows ?? '',
     __ARQUIVO_MACOS__: porChave.macos ?? '',
+    __ARQUIVO_LINUX__: porChave.linux ?? '',
   };
 
   let html = readFileSync(origem, 'utf8');

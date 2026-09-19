@@ -42,6 +42,10 @@ baixados como executáveis sem confirmação explícita):
    `~/.local/share/taqciti/guide/`, grava ao lado um `install-path.js` com o
    caminho real, e abre essa cópia (via `xdg-open`). O HTML nunca é reescrito
    — ver `assetsingestion/README.md`.
+4. A mensagem final diz o que de fato aconteceu. Sem `xdg-open` ou sem sessão
+   gráfica — servidor, container, WSL — nenhuma aba abre, e o script diz isso
+   em vez de mandar a pessoa procurar uma aba que não existe. O sinal de
+   sucesso da instalação é o `TaqCITi instalado em:` impresso antes.
 
 > **Não abre a página de extensões do navegador sozinho** (essa etapa
 > existia aqui antes, tentando `chrome://extensions`). Em testes reais isso
