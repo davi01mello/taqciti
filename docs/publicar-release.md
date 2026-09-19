@@ -123,6 +123,40 @@ Os três builds rodam o check em paralelo: se a configuração estiver errada, o
 três morrem juntos em ~35s e `release`/`distribute-gdrive` são pulados. Nada
 sai pela metade.
 
+### Compilar sem publicar
+
+**Actions → Release → Run workflow**, com **`publicar` desmarcado** (o padrão):
+os três instaladores são compilados e ficam como artefatos da run — e nada é
+publicado. `release` e `distribute-gdrive` são pulados pela condição
+`github.event_name == 'push' || inputs.publicar`, que os dois carregam.
+
+É o caminho para pôr a mão num instalador de verdade sem gastar uma release nem
+tocar no arquivo que o time tem no Drive. Serve principalmente para o
+**`.pkg` do macOS**: ele exige um runner macOS, e `build-macos` já roda em
+`macos-latest` — não dá para compilá-lo em Windows nem em Linux.
+
+| Artefato da run | O que é |
+| --- | --- |
+| `windows-installer` | `taqciti-instalador-windows-<versão>.exe` |
+| `linux-installer` | `taqciti-instalador-linux-<versão>.run` |
+| `macos-installer` | `taqciti-instalador-mac-<versão>.pkg` |
+
+Baixe os três para uma pasta e monte o ZIP localmente:
+
+```bash
+node scripts/package-distribution.mjs --origem <a pasta> --saida release/pacote
+```
+
+O campo **`versao`** existe porque numa run disparada de um branch não há tag
+de onde tirar o número: sem ele, os artefatos sairiam nomeados com o nome do
+branch. Vazio, o número vem do `package.json`. Ver
+`.github/scripts/resolve-version.sh`.
+
+> **Publicar continua sendo o que a tag faz.** Empurrar `vX.Y.Z` publica
+> sozinho, como sempre. Marcar `publicar` num disparo manual é a exceção —
+> existe para reprocessar uma release que falhou depois dos builds, não para o
+> dia a dia.
+
 ---
 
 ## O pacote de distribuição

@@ -4,7 +4,26 @@ on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch: {}
+
+  # Disparo à mão. O padrão é BUILD SÓ: os três instaladores são compilados e
+  # ficam como artefatos da run, e nada é publicado — nem GitHub Release, nem
+  # Drive. É esse o caminho para obter um instalador de verdade (em especial o
+  # .pkg do macOS, que só um runner macOS consegue gerar) sem gastar uma
+  # release nem tocar no que o time já tem no Drive.
+  #
+  # Publicar de verdade continua sendo o que acontece sozinho ao empurrar uma
+  # tag `vX.Y.Z`. Marcar "publicar" aqui é a exceção, não o caminho normal.
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão para o nome dos instaladores (ex.: 2.1.2). Vazio = a do package.json."
+        required: false
+        type: string
+      publicar:
+        description: "Publicar a GitHub Release e enviar ao Drive. Deixe desmarcado para só compilar."
+        required: false
+        default: false
+        type: boolean
 
 # O endereço do servidor e o segredo compartilhado entram NO BUNDLE da
 # extensão, na hora da build — não são lidos em runtime. Uma build sem eles
@@ -46,10 +65,10 @@ jobs:
       - name: Instalar Inno Setup
         run: choco install innosetup --no-progress -y
 
-      - name: Extrair versão da tag
+      - name: Resolver versão
         id: version
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/resolve-version.sh "${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
 
       - name: Compilar instalador Windows
         shell: cmd
@@ -80,9 +99,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y makeself
 
-      - name: Extrair versão da tag
+      - name: Resolver versão
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/resolve-version.sh "${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
 
       - name: Compilar instalador Linux
         env:
@@ -109,9 +128,9 @@ jobs:
       - name: Conferir configuração de release
         run: bash .github/scripts/check-release-env.sh
 
-      - name: Extrair versão da tag
+      - name: Resolver versão
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/resolve-version.sh "${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
 
       - name: Compilar instalador macOS
         env:
@@ -124,7 +143,16 @@ jobs:
           path: release/*.pkg
           if-no-files-found: error
 
+  # Publicar é a exceção, não o padrão.
+  #
+  # Uma tag `vX.Y.Z` sempre publica — é o que a tag significa. Uma run
+  # disparada à mão só publica se alguém marcar "publicar" explicitamente; sem
+  # isso este job é pulado, e `distribute-gdrive` vai junto por depender dele.
+  # É o que permite compilar os três instaladores (inclusive o .pkg do macOS,
+  # que exige runner macOS) e baixá-los como artefatos, sem gastar uma release
+  # nem mexer no arquivo que o time tem no Drive.
   release:
+    if: github.event_name == 'push' || inputs.publicar
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
@@ -159,12 +187,16 @@ jobs:
       # publicada pela metade e sem nada enviado ao Drive. O passo também
       # confere o ZIP que acabou de gravar (relendo do disco) antes de dar por
       # bom. Ver scripts/package-distribution.mjs.
+      - name: Resolver versão
+        id: version
+        run: bash .github/scripts/resolve-version.sh "${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
+
       - name: Montar e conferir o pacote de distribuição
         run: >
           node scripts/package-distribution.mjs
           --origem release-assets
           --saida dist-package
-          --versao "${GITHUB_REF_NAME#v}"
+          --versao "${{ steps.version.outputs.version }}"
 
       - name: Publicar GitHub Release
         uses: softprops/action-gh-release@v3
@@ -204,6 +236,11 @@ jobs:
   # disputando o clique. A versão vive dentro do pacote, no guia e no nome dos
   # três instaladores.
   distribute-gdrive:
+    # O `needs: [release]` já bastaria — job pulado pula quem depende dele.
+    # A condição está repetida assim mesmo porque este é o job que sobrescreve
+    # o arquivo que o time baixa: se um dia alguém mexer no `needs`, a trava
+    # que importa continua escrita aqui, ao lado do que ela protege.
+    if: github.event_name == 'push' || inputs.publicar
     needs: [release]
     runs-on: ubuntu-latest
     steps:

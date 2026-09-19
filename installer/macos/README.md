@@ -99,6 +99,17 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 > uma aba nova e colar o endereço certo (já copiado por um botão dedicado
 > nele).
 
+## Estado da validação
+
+O `.pkg` é **compilado** pelo job `build-macos` (runner `macos-latest`), mas
+até aqui **nunca foi executado num Mac** — build bem-sucedido não é instalação
+testada. Windows e Linux já foram instalados e conferidos de verdade.
+
+Para fechar essa lacuna existe **`roteiro-de-teste.md`**, nesta mesma pasta:
+um roteiro de ~10 minutos para alguém com Mac, que cobre o bloqueio do
+Gatekeeper, a instalação, a abertura do guia, o caminho exibido e copiado, o
+carregamento no Chrome e uma captura no Meet.
+
 ## Testar localmente
 
 ```bash
