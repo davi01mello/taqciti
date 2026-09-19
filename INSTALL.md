@@ -20,9 +20,16 @@ instalador automático faz por você.
 
 ## 1. Instalador automático (recomendado)
 
-Pegue o arquivo certo pro seu sistema — `taqciti-instalador-windows-*.exe`,
-`taqciti-instalador-mac-*.pkg` ou `taqciti-instalador-linux-*.run` — com
-quem te enviou o link (GitHub Release ou pasta do Drive do time).
+O caminho normal é o **`TaqCiti.zip`** da pasta do Drive do time: baixe,
+extraia, abra a pasta `TaqCiti` e dê dois cliques em **`COMECE_AQUI.html`**. O
+guia abre no navegador, pergunta o seu sistema e conduz tudo — achar o
+instalador certo, passar pelo aviso do sistema, e os passos finais no
+navegador. Se você for por ali, não precisa do resto desta seção.
+
+O passo a passo abaixo é o mesmo conteúdo em forma de texto, para quem já sabe
+o que está fazendo ou pegou o instalador solto pela GitHub Release
+(`taqciti-instalador-windows-*.exe`, `taqciti-instalador-mac-*.pkg`,
+`taqciti-instalador-linux-*.run`).
 
 ### Windows
 
@@ -47,13 +54,24 @@ quem te enviou o link (GitHub Release ou pasta do Drive do time).
    `"TaqCITi.pkg" não pode ser aberto porque é de um desenvolvedor não
    identificado` — não é um problema com o arquivo, é só a ausência de uma
    assinatura de desenvolvedor Apple (conta paga, fora do escopo atual).
-   Para contornar:
-   1. Clique com o **botão direito** (ou Control+clique) no arquivo `.pkg`.
-   2. Escolha **Abrir**.
-   3. Na janela de aviso que aparece, clique em **Abrir** de novo.
+   O caminho que a Apple documenta hoje, depois do aviso aparecer:
+   1. Abra **Ajustes do Sistema** → **Privacidade e Segurança** e role até o
+      fim.
+   2. Clique em **Abrir Mesmo Assim** (o botão traz o nome do arquivo que
+      acabou de ser bloqueado; ele some depois de um tempo, então se não
+      estiver lá, dê dois cliques no `.pkg` de novo).
+   3. No aviso que volta, clique em **Abrir**.
    4. Só precisa fazer isso na primeira vez que abrir *esse* arquivo
       específico — versões futuras do instalador vão pedir de novo, porque
       cada arquivo é avaliado à parte.
+
+   > Em **macOS 14 ou anterior** também funciona clicar no `.pkg` com
+   > Control pressionado e escolher **Abrir**. A partir do **macOS 15
+   > (Sequoia)** esse atalho deixou de liberar software sem assinatura, e
+   > só o caminho pelos Ajustes funciona.
+   >
+   > Libere só este arquivo. Não desligue a proteção do Mac inteiro por
+   > Terminal — não é necessário, e vale para tudo que você abrir depois.
 3. O instalador vai pedir a senha do seu usuário (padrão de qualquer
    `.pkg`, assinado ou não) e depois abre o guia visual com o passo a
    passo preenchido, no navegador que já é o padrão do seu Mac.

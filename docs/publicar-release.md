@@ -116,12 +116,134 @@ nenhuma run, só silêncio. Tem que ser `v2.1.0`.
 | Job | O que faz |
 | --- | --- |
 | `build-windows` / `build-linux` / `build-macos` | `npm ci` → **check-release-env** → build → compila o instalador nativo → sobe como artefato |
-| `release` | espera os três, baixa os artefatos e publica a **GitHub Release** da tag |
-| `distribute-gdrive` | espera a Release e sobe os mesmos arquivos na **pasta do Drive do time** |
+| `release` | espera os três, baixa os artefatos, **monta e confere o pacote** (`TaqCiti.zip`) e publica a **GitHub Release** da tag |
+| `distribute-gdrive` | espera a Release, **reconfere o pacote** e sobe só ele na **pasta do Drive do time** |
 
 Os três builds rodam o check em paralelo: se a configuração estiver errada, os
 três morrem juntos em ~35s e `release`/`distribute-gdrive` são pulados. Nada
 sai pela metade.
+
+### Compilar sem publicar
+
+**Actions → Release → Run workflow**, com **`publicar` desmarcado** (o padrão):
+os três instaladores são compilados e ficam como artefatos da run — e nada é
+publicado. `release` e `distribute-gdrive` são pulados pela condição
+`github.event_name == 'push' || inputs.publicar`, que os dois carregam.
+
+É o caminho para pôr a mão num instalador de verdade sem gastar uma release nem
+tocar no arquivo que o time tem no Drive. Serve principalmente para o
+**`.pkg` do macOS**: ele exige um runner macOS, e `build-macos` já roda em
+`macos-latest` — não dá para compilá-lo em Windows nem em Linux.
+
+| Artefato da run | O que é |
+| --- | --- |
+| `windows-installer` | `taqciti-instalador-windows-<versão>.exe` |
+| `linux-installer` | `taqciti-instalador-linux-<versão>.run` |
+| `macos-installer` | `taqciti-instalador-mac-<versão>.pkg` |
+
+Baixe os três para uma pasta e monte o ZIP localmente:
+
+```bash
+node scripts/package-distribution.mjs --origem <a pasta> --saida release/pacote
+```
+
+O campo **`versao`** existe porque numa run disparada de um branch não há tag
+de onde tirar o número: sem ele, os artefatos sairiam nomeados com o nome do
+branch. Vazio, o número vem do `package.json`. Ver
+`.github/scripts/resolve-version.sh`.
+
+> **Publicar continua sendo o que a tag faz.** Empurrar `vX.Y.Z` publica
+> sozinho, como sempre. Marcar `publicar` num disparo manual é a exceção —
+> existe para reprocessar uma release que falhou depois dos builds, não para o
+> dia a dia.
+
+---
+
+## O pacote de distribuição
+
+O que o time baixa do Drive é **um arquivo só**: `TaqCiti.zip`. Dentro dele:
+
+```
+TaqCiti/
+  COMECE_AQUI.html
+  Instaladores/Windows/taqciti-instalador-windows-X.Y.Z.exe
+  Instaladores/macOS/taqciti-instalador-mac-X.Y.Z.pkg
+  Instaladores/Linux/taqciti-instalador-linux-X.Y.Z.run
+```
+
+A pessoa extrai, abre a pasta e dá dois cliques em `COMECE_AQUI.html`. O guia
+abre no navegador, pergunta o sistema e conduz as quatro fases (preparar,
+instalar, Chrome, conferir) até a extensão estar funcionando — inclusive os
+avisos do Windows e do macOS, que assustam quem não sabe que são esperados. A
+origem do guia é `assetsingestion/`; ver o README de lá.
+
+**O nome do ZIP não tem versão, e isso é de propósito.**
+`upload-to-gdrive.sh` procura por nome e sobrescreve o que achar, então um nome
+fixo faz cada release substituir a anterior no mesmo arquivo do Drive: o link
+compartilhado com o time nunca muda, e nunca existem duas versões lado a lado
+esperando alguém baixar a errada. A versão vive **dentro** do pacote — no nome
+dos três instaladores, que o guia também exibe.
+
+**A pasta da extensão não vem do pacote.** Ela só existe depois que o
+instalador roda, na máquina de quem instala. Por isso o guia dentro do ZIP não
+mostra caminho nenhum: o instalador copia esse mesmo guia para uma pasta por
+usuário, grava um `install-path.js` ao lado com o caminho real e abre essa
+cópia — é ali que aparece o endereço e o botão "Copiar caminho". Nenhum caminho
+da máquina de build entra no pacote.
+
+> **Na primeira release com o pacote, limpe a pasta do Drive.** Os instaladores
+> soltos das versões anteriores continuam lá (nada é apagado automaticamente, e
+> os links antigos seguem válidos apontando para arquivos que não serão mais
+> atualizados). Depois de confirmar que o `TaqCiti.zip` novo está bom, apague os
+> `taqciti-instalador-*` antigos à mão — inclusive os quebrados da `v2.0.0`.
+
+### Gerar e revisar o pacote na sua máquina
+
+```bash
+# com os três instaladores numa pasta (ex.: baixados dos artefatos da run)
+node scripts/package-distribution.mjs --origem release --saida release/pacote
+```
+
+O script monta `release/pacote/TaqCiti.zip` **e** a mesma estrutura em pasta,
+em `release/pacote/TaqCiti/` — dá para abrir o guia com dois cliques e navegar
+os arquivos exatamente como quem baixar vai ver.
+
+Ele recusa gerar um pacote incompleto: se faltar um dos três instaladores, se
+houver mais de um do mesmo sistema, se algum estiver vazio ou se os três não
+forem da mesma versão, ele explica o que houve, sai com erro e **não grava
+nada** — o ZIP anterior no disco (e, no job, a última entrega no Drive)
+continua intacto. Depois de gravar, ele reabre o ZIP e confere nome, tamanho,
+CRC e permissão de cada entrada antes de dar por bom.
+
+**Nome certo não basta: ele olha dentro.** Cada instalador precisa ter a cara
+do formato que promete — `MZ` mais a marca `Inno Setup Setup Data` no `.exe`,
+`xar!` no `.pkg`, shebang mais a marca `Makeself` no `.run`. Isso existe porque
+durante o desenvolvimento os testes usaram arquivos substitutos (um zip
+renomeado) e eles passavam por todas as outras conferências. Um substituto
+publicado no Drive seria pior do que uma release falhando: o time baixaria,
+daria dois cliques e nada aconteceria. Não é assinatura e não prova
+procedência — prova que o artefato é do formato que as etapas de build geram.
+
+Para conferir um pacote que já existe:
+
+```bash
+node scripts/package-distribution.mjs --conferir release/pacote/TaqCiti.zip
+```
+
+Para revisar só o guia, sem ter instalador nenhum em mãos:
+
+```bash
+node scripts/package-distribution.mjs --somente-guia --saida release/preview-guia
+```
+
+### O texto que acompanha o link
+
+Para colar junto do link do Drive:
+
+> **TaqCITi X.Y.Z** — baixe o `TaqCiti.zip`, **extraia** (não abra o arquivo
+> compactado direto) e, dentro da pasta `TaqCiti`, dê dois cliques em
+> **`COMECE_AQUI.html`**. O guia abre no navegador e conduz o resto — serve
+> para Windows, Mac e Linux.
 
 Acompanhar:
 
@@ -136,10 +258,13 @@ gh run view --log-failed              # só o passo que falhou
 
 Release verde não prova instalador bom — a `v2.0.0` ficou verde.
 
-1. **Os nomes carregam a versão.** Confira na Release e no Drive:
-   `taqciti-instalador-windows-X.Y.Z.exe`, `-linux-X.Y.Z.run`,
-   `-mac-X.Y.Z.pkg`. Se o nome ainda for o da versão anterior, a run não
-   publicou nada — vá ver a run, não o arquivo.
+1. **Baixe o `TaqCiti.zip` do Drive e abra.** Como o nome do arquivo é fixo, a
+   data de modificação no Drive é o que diz se a run publicou: se for a de
+   antes, vá ver a run, não o arquivo. Dentro do ZIP, os três instaladores têm
+   que carregar a versão nova no nome (`-X.Y.Z.exe`, `-X.Y.Z.pkg`,
+   `-X.Y.Z.run`), e o `COMECE_AQUI.html`, na etapa "Abra o instalador", tem que
+   citar exatamente esse nome. O job recusa publicar um pacote onde isso não
+   bata — mas conferir com o olho custa dez segundos.
 
 2. **Instale de verdade e procure `localhost` no bundle.** O instalador copia
    a extensão descompactada para a Área de Trabalho, em `TaqCITi (não
@@ -190,15 +315,22 @@ Ou "Re-run all jobs" na página da run.
 
 ## Onde os arquivos aparecem
 
-- **GitHub Release da tag** — canal técnico e de auditoria; fica versionado
+- **GitHub Release da tag** — canal técnico e de auditoria. Leva os **três
+  instaladores soltos** (útil para baixar um só) **e** o `TaqCiti.zip`, para
+  ficar registrado exatamente o arquivo que o time recebeu. Fica versionado
   para sempre, com o changelog gerado.
 - **Pasta do Drive do time** — canal oficial de distribuição, porque nem todo
-  mundo tem acesso ao GitHub.
+  mundo tem acesso ao GitHub. Leva **só o `TaqCiti.zip`**.
 
 O `.github/scripts/upload-to-gdrive.sh` procura por **nome** e sobrescreve o
-que achar, em vez de duplicar. Como o nome carrega a versão, uma release nova
-**não substitui** a anterior no Drive: os arquivos convivem na mesma pasta.
+que achar, em vez de duplicar. Como o nome do pacote é fixo, cada release
+substitui a anterior **no mesmo arquivo**: o link compartilhado com o time vale
+para sempre e aponta sempre para a versão mais nova.
 
-Isso importa: os instaladores quebrados da `v2.0.0` continuam lá ao lado dos
-novos, e quem abrir a pasta vê os dois. **Apague as versões antigas do Drive
-depois de confirmar a nova**, ou alguém vai baixar a errada.
+> **Resíduo das releases antigas.** Antes do pacote, o Drive recebia os três
+> instaladores soltos, com a versão no nome — então eles se acumulavam em vez
+> de se substituir. Esses arquivos continuam lá (nada é apagado
+> automaticamente) e, a partir de agora, **param de ser atualizados**: quem
+> abrir um link antigo vai baixar um instalador congelado na última versão
+> publicada por aquele caminho. Apague-os do Drive assim que confirmar o
+> primeiro `TaqCiti.zip` bom — inclusive os quebrados da `v2.0.0`.

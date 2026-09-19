@@ -11,7 +11,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist"
-GUIDE_TEMPLATE="$SCRIPT_DIR/guide/index.html"
+GUIDE_ORIGEM="$SCRIPT_DIR/guide/COMECE_AQUI.html"
 FOLDER_NAME="TaqCITi (não apagar)"
 
 if [ ! -d "$DIST_DIR" ]; then
@@ -59,22 +59,37 @@ else
 fi
 echo ""
 
-# --- Gera a cópia do guia com o caminho já preenchido ---
+# --- Copia o guia e grava o caminho real ao lado dele ---
+#
+# O guia é copiado INTOCADO. O caminho entra por um arquivo separado
+# (install-path.js), que o guia carrega se existir — mesmo mecanismo dos três
+# instaladores. Antes o HTML era reescrito por sed; isso deixou de valer a pena
+# quando o guia passou de 4 MB (quase tudo arte em base64) e, mais importante,
+# reescrever a página é justamente por onde um acento se perde.
 GUIDE_DIR="$HOME/.local/share/taqciti/guide"
-GUIDE_DEST="$GUIDE_DIR/index.html"
+GUIDE_DEST="$GUIDE_DIR/COMECE_AQUI.html"
 
-if [ -f "$GUIDE_TEMPLATE" ]; then
+# Os bytes UTF-8 do caminho vão crus: o guia declara <meta charset="utf-8">, e
+# um <script src> sem charset próprio herda a codificação do documento — então
+# UTF-8 é lido como UTF-8.
+#
+# LC_ALL=C faz o sed trabalhar em bytes. Os três caracteres escapados são
+# ASCII, e em UTF-8 nenhum byte de continuação colide com ASCII, então acentos
+# e espaços do caminho atravessam intactos.
+escrever_caminho_js() {
+  local destino="$1" caminho="$2" escapado
+  escapado=$(printf '%s' "$caminho" | LC_ALL=C sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/</\\u003c/g')
+  printf 'window.TAQCITI_INSTALACAO = { sistema: "linux", pasta: "%s" };\n' "$escapado" > "$destino"
+}
+
+if [ -f "$GUIDE_ORIGEM" ]; then
   mkdir -p "$GUIDE_DIR" 2>/dev/null
 
-  # Escapa para caber numa string JS (aspas/barras invertidas), depois
-  # escapa de novo para servir de texto de substituição do sed (& e \).
-  JS_ESCAPED=$(printf '%s' "$INSTALL_DIR" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
-  SED_SAFE=$(printf '%s' "$JS_ESCAPED" | sed -e 's/[\&|]/\\&/g')
-
-  if sed "s|__INSTALL_PATH__|$SED_SAFE|g" "$GUIDE_TEMPLATE" > "$GUIDE_DEST" 2>/dev/null; then
+  if cp "$GUIDE_ORIGEM" "$GUIDE_DEST" 2>/dev/null &&
+     escrever_caminho_js "$GUIDE_DIR/install-path.js" "$INSTALL_DIR" 2>/dev/null; then
     :
   else
-    echo "Aviso: não consegui gerar o guia em $GUIDE_DEST." >&2
+    echo "Aviso: não consegui preparar o guia em $GUIDE_DEST." >&2
     GUIDE_DEST=""
   fi
 else
@@ -102,9 +117,20 @@ open_target() {
   fi
 }
 
-if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ]; then
+# A mensagem final acompanha o que REALMENTE aconteceu. Antes ela dizia sempre
+# "siga as instruções na aba do guia que acabou de abrir" — inclusive quando
+# nenhuma aba abriu, que é o caso comum de servidor, container ou WSL, onde não
+# existe `xdg-open` nem sessão gráfica. Mandar a pessoa procurar uma aba que
+# nunca vai aparecer transforma uma instalação bem-sucedida em confusão.
+#
+# O sinal de sucesso da instalação continua sendo o "TaqCITi instalado em:"
+# impresso acima; esta linha só diz por onde continuar.
+if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ] && command -v xdg-open >/dev/null 2>&1; then
   open_target "$GUIDE_DEST"
+  echo "Pronto. Siga as instruções na aba do guia que acabou de abrir."
+else
+  echo "Pronto. A instalação terminou."
+  echo "Não consegui abrir o guia sozinho aqui (sem 'xdg-open' ou sem sessão gráfica)."
+  echo "Continue pelo guia que você já tem aberto — ele pede este caminho no passo do navegador."
 fi
-
-echo "Pronto. Siga as instruções na aba do guia que acabou de abrir."
 exit 0

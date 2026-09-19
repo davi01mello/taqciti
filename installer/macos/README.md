@@ -38,18 +38,33 @@ duplo-clique nele, o Gatekeeper vai bloquear com algo como:
 > identificado.
 
 **Isso é esperado.** Não tentamos contornar via assinatura de código por
-enquanto. A instrução para quem for instalar:
+enquanto. A instrução para quem for instalar, que é a que a Apple documenta
+hoje ([Abrir apps com segurança no
+Mac](https://support.apple.com/pt-br/102445)):
 
-1. Clique com o **botão direito** (ou Control+clique) no arquivo `.pkg`.
-2. Escolha **Abrir**.
-3. Na janela de aviso que aparece, clique em **Abrir** de novo.
+1. Dê dois cliques no `.pkg` e deixe o aviso aparecer.
+2. Abra **Ajustes do Sistema** → **Privacidade e Segurança**, role até o fim.
+3. Clique em **Abrir Mesmo Assim** — o botão traz o nome do arquivo bloqueado,
+   e só existe por um tempo depois da tentativa.
+4. No aviso que volta, clique em **Abrir**.
+
+> ⚠️ **O Control+clique não serve mais como instrução principal.** Era o
+> caminho antigo (clicar no arquivo segurando Control → **Abrir**), e continua
+> funcionando em **macOS 14 ou anterior**. A partir do **macOS 15 (Sequoia)**
+> a Apple removeu esse atalho como forma de liberar software sem assinatura —
+> ver [Updates to runtime protection in macOS
+> Sequoia](https://developer.apple.com/news/?id=saqachfa). Documentar só o
+> Control+clique hoje mandaria metade do time para um caminho que não
+> funciona.
 
 Só precisa fazer isso na primeira vez que abrir aquele arquivo específico.
 Depois disso o instalador roda normalmente (ainda vai pedir a senha de admin —
 isso é padrão de qualquer `.pkg`, assinado ou não).
 
-Essa mesma instrução também aparece no guia visual (`installer/guide/index.html`)
-quando ele detecta que está rodando num Mac.
+Essa mesma instrução aparece no guia de pré-instalação
+(`assetsingestion/COMECE_AQUI.html`), num passo dedicado, que também
+separa esse bloqueio de outros erros (`"está danificado"`, falha de instalação)
+— porque para esses o caminho dos Ajustes não resolve nada.
 
 ## O que o instalador faz
 
@@ -69,9 +84,10 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 3. Copia esse caminho para a área de transferência via `pbcopy`, rodado no
    contexto do usuário. Se falhar, só avisa e imprime o caminho — não derruba
    a instalação.
-4. Abre o guia visual (`installer/guide/index.html`) com o caminho já
-   preenchido, numa cópia salva em
-   `~/Library/Application Support/TaqCITi/guide/`, no contexto do usuário.
+4. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+   `~/Library/Application Support/TaqCITi/guide/`, grava ao lado um
+   `install-path.js` com o caminho real, e abre essa cópia no contexto do
+   usuário. O HTML nunca é reescrito — ver `assetsingestion/README.md`.
 
 > **Não abre a página de extensões do navegador sozinho** (essa etapa
 > existia aqui antes, via `open -a "Google Chrome" chrome://extensions`).
@@ -82,6 +98,38 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 > usuário, detectado por `navigator.userAgent`) orienta a pessoa a abrir
 > uma aba nova e colar o endereço certo (já copiado por um botão dedicado
 > nele).
+
+## Estado da validação
+
+Nada aqui foi validado ainda. Três coisas diferentes, e nenhuma delas implica a
+seguinte:
+
+| | Situação |
+| --- | --- |
+| Runner configurado | ✅ `build-macos` roda em `macos-latest` e chama `pkgbuild` |
+| Build desta revisão executado | ❌ **não executado** — nenhuma run compilou este `.pkg` |
+| `.pkg` instalado num Mac | ❌ **não executado** |
+
+**Runner configurado não é build executado, e build verde não é instalação
+testada.** Windows e Linux já foram compilados *e* instalados de verdade; o
+macOS não passou por nenhuma das duas etapas nesta revisão. Toda a parte
+específica deste sistema — Gatekeeper, `launchctl asuser`, `dscl`,
+`stat -f /dev/console` — segue sem execução real.
+
+### Como fechar, na ordem
+
+1. **Compilar.** Actions → Release → Run workflow, com `publicar`
+   **desmarcado**. Baixe o artefato `macos-installer`. Isso só compila: não
+   publica Release nem toca no Drive. Atualize a linha "Build desta revisão"
+   acima com o link da run.
+2. **Instalar e usar.** Siga o **`roteiro-de-teste.md`** desta pasta — ~10
+   minutos, para alguém com Mac, cobrindo o bloqueio do Gatekeeper, a
+   instalação, a abertura do guia, o caminho exibido e copiado, o carregamento
+   no Chrome e uma captura no Meet. Atualize a linha "`.pkg` instalado" com a
+   versão do macOS testada e o que foi observado.
+
+Enquanto as duas linhas estiverem ❌, o instalador do macOS deve ser tratado
+como não verificado — inclusive na hora de anunciar uma release para o time.
 
 ## Testar localmente
 

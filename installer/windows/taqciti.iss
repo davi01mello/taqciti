@@ -56,13 +56,16 @@ OutputBaseFilename=taqciti-instalador-windows-{#AppVersion}
 ; idêntica ao que o Chrome espera em "Carregar sem compactação".
 Source: "..\..\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Guia visual — copiado bytes-a-bytes pelo próprio instalador do Inno (sem
-; passar pelo Pascal Script) para uma pasta separada e persistente, fora da
-; pasta "não apagar" da extensão. Fica intocado: o caminho de instalação é
-; injetado à parte, num arquivo install-path.js escrito do zero pelo
-; [Code] abaixo — assim o HTML (com acentos e emoji em UTF-8) nunca
-; precisa ser lido de volta e regravado em Pascal Script.
-Source: "..\guide\index.html"; DestDir: "{localappdata}\TaqCITi\guide"; Flags: ignoreversion
+; Guia visual — o MESMO arquivo que vai na raiz do pacote baixado
+; (assetsingestion/COMECE_AQUI.html), copiado bytes-a-bytes pelo próprio
+; instalador do Inno, sem passar pelo Pascal Script, para uma pasta separada e
+; persistente, fora da pasta "não apagar" da extensão.
+;
+; Fica INTOCADO: o caminho de instalação é injetado à parte, num arquivo
+; install-path.js escrito do zero pelo [Code] abaixo. Assim o HTML — 4 MB, com
+; acentos e a arte de fundo em base64 — nunca precisa ser lido de volta e
+; regravado em Pascal Script, que é justamente por onde acentos se perdem.
+Source: "..\..\assetsingestion\COMECE_AQUI.html"; DestDir: "{localappdata}\TaqCITi\guide"; Flags: ignoreversion
 
 [Code]
 var
@@ -76,10 +79,6 @@ var
     (ssPostInstall) usa pra abrir o guia, no lugar do antigo ChromeExePath
     fixo. }
   BrowserExePath: String;
-  { 'chrome' ou 'edge' — grava em window.TAQCITI_BROWSER (via
-    WriteInstallPathScript) pra o guia saber com certeza qual navegador foi
-    escolhido, sem precisar adivinhar pela navigator.userAgent. }
-  BrowserKind: String;
   BrowserChoicePage: TWizardPage;
   ChromeRadio: TNewRadioButton;
   EdgeRadio: TNewRadioButton;
@@ -274,48 +273,76 @@ begin
     Result := (ChromeExePath = '') or (EdgeExePath = '');
 end;
 
-function JsEscape(const S: String): String;
-var
-  R: String;
+function HexDigit(Value: Integer): Char;
 begin
-  R := S;
-  StringChangeEx(R, '\', '\\', True);
-  StringChangeEx(R, '"', '\"', True);
-  Result := R;
+  if Value < 10 then
+    Result := Chr(Ord('0') + Value)
+  else
+    Result := Chr(Ord('a') + Value - 10);
 end;
 
-{ Escreve, do zero, um arquivinho JS com o caminho real de instalação —
-  não lê nem reescreve o guia (index.html), que é copiado bytes-a-bytes
+{ Escapa uma string para caber dentro de aspas duplas em JavaScript,
+  devolvendo SOMENTE caracteres ASCII imprimíveis.
+
+  Por que \uXXXX e não UTF-8. O jeito anterior era Utf8Encode(...) concatenado
+  com literais e guardado num AnsiString. O problema é que os literais do Inno
+  Unicode são String (UTF-16): numa expressão misturada, os bytes UTF-8 do
+  AnsiString são ALARGADOS pela code page ANSI ativa e depois estreitados de
+  volta na atribuição. Em CP-1252 isso por acaso sobrevive; em qualquer outra
+  code page, e para os bytes que a CP-1252 não define (0x81, 0x8d, 0x8f, 0x90,
+  0x9d), não sobrevive — vira "?" ou caractere trocado. Era esse o caminho
+  exato pelo qual "TaqCITi (não apagar)" chegava torto na tela.
+
+  Escrevendo \uXXXX, todo byte gravado é < 0x80. ASCII é idêntico em TODA code
+  page ANSI, então nenhuma conversão pode estragá-lo — o problema deixa de
+  existir em vez de ser contornado. E como o Inno Unicode guarda String em
+  UTF-16, Ord() devolve exatamente a unidade de código que o JavaScript espera
+  (inclusive pares substitutos, que saem como dois \uXXXX e o JS remonta).
+
+  '<', '>' e '&' também são escapados: o arquivo é JS, mas um caminho não tem
+  por que conseguir fechar um <script> nem ser lido como HTML em lugar nenhum. }
+function EscapeParaJs(const S: String): String;
+var
+  I, Code: Integer;
+  Ch: Char;
+begin
+  Result := '';
+  for I := 1 to Length(S) do
+  begin
+    Ch := S[I];
+    Code := Ord(Ch);
+    if (Code < 32) or (Code > 126) or (Ch = '"') or (Ch = '\') or
+       (Ch = '<') or (Ch = '>') or (Ch = '&') then
+      Result := Result + '\u' +
+        HexDigit((Code shr 12) and 15) + HexDigit((Code shr 8) and 15) +
+        HexDigit((Code shr 4) and 15) + HexDigit(Code and 15)
+    else
+      Result := Result + Ch;
+  end;
+end;
+
+{ Escreve, do zero, um arquivinho JS com o caminho real de instalação, ao lado
+  da cópia do guia — não lê nem reescreve o guia, que é copiado bytes-a-bytes
   pelo [Files] acima, fora do Pascal Script.
 
-  Por que não reaproveitar StringChangeEx/Copy/Pos para editar o HTML
-  direto: a assinatura real de StringChangeEx é "function StringChangeEx
-  (var S: String; const FromStr, ToStr: String; ...)" — "var S: String"
-  exige o tipo IDÊNTICO no chamador (parâmetro var não tem conversão
-  implícita), então passar um "Content: AnsiString" ali era exatamente o
-  "Type mismatch" que o ISCC acusou. Isso por si só teria um conserto
-  simples (usar um Content: String). O problema mais sério é que, mesmo
-  corrigindo isso, tanto StringChangeEx quanto a própria doc de Copy
-  ("function Copy(S: AnyString...): String") sugerem que o resultado pode
-  passar por String (Unicode) mesmo quando a entrada é AnsiString — o que
-  reintroduziria a conversão via code page do Windows que o uso de
-  AnsiString em LoadStringFromFile/SaveStringToFile existe justamente para
-  evitar, corrompendo acentos e o emoji de aviso (⚠️) do guia. Escrever um
-  arquivo novo, pequeno, só com bytes ASCII + o caminho já em UTF-8
-  (concatenados com "+", que em AnsiString é anexação de bytes crua, sem
-  Copy/Pos no meio) evita esse risco por completo. }
-procedure WriteInstallPathScript(const DestDir, InstallPath, BrowserKindValue: String);
+  Editar o HTML direto continua fora de questão, e agora por dois motivos. O
+  primeiro é de tipo: a assinatura real é "StringChangeEx(var S: String; ...)",
+  e um parâmetro var exige o tipo IDÊNTICO no chamador, então um
+  "Content: AnsiString" ali dá "Type mismatch"; trocar para String resolveria a
+  compilação e reintroduziria a conversão por code page que corrompe os
+  acentos. O segundo é de tamanho: o guia passa de 4 MB, quase tudo arte em
+  base64, e carregá-lo inteiro para a memória do Pascal Script só para inserir
+  uma linha é desperdício puro.
+
+  O conteúdo gravado aqui é 100% ASCII (ver EscapeParaJs), então a conversão
+  String/AnsiString da concatenação abaixo é uma operação de identidade em
+  qualquer code page — o guia lê o arquivo como UTF-8, e ASCII é UTF-8 válido. }
+procedure WriteInstallPathScript(const DestDir, InstallPath: String);
 var
   ScriptContent: AnsiString;
 begin
-  ScriptContent := 'window.TAQCITI_INSTALL_PATH = "' +
-    Utf8Encode(JsEscape(InstallPath)) + '";' + #13#10 +
-    { O guia (installer/guide/index.html) usa isto pra saber com certeza
-      qual navegador vai abrir — mais confiável que adivinhar pela
-      navigator.userAgent, porque é exatamente o navegador que o Exec
-      abaixo está prestes a abrir, escolhido pelo usuário ou resolvido
-      sozinho quando só um existia. }
-    'window.TAQCITI_BROWSER = "' + Utf8Encode(JsEscape(BrowserKindValue)) + '";';
+  ScriptContent := 'window.TAQCITI_INSTALACAO = { sistema: "windows", pasta: "' +
+    EscapeParaJs(InstallPath) + '" };' + #13#10;
   SaveStringToFile(DestDir + '\install-path.js', ScriptContent, False);
 end;
 
@@ -352,26 +379,14 @@ begin
     if (ChromeExePath <> '') and (EdgeExePath <> '') then
     begin
       if EdgeRadio.Checked then
-      begin
-        BrowserExePath := EdgeExePath;
-        BrowserKind := 'edge';
-      end
+        BrowserExePath := EdgeExePath
       else
-      begin
         BrowserExePath := ChromeExePath;
-        BrowserKind := 'chrome';
-      end;
     end
     else if EdgeExePath <> '' then
-    begin
-      BrowserExePath := EdgeExePath;
-      BrowserKind := 'edge';
-    end
+      BrowserExePath := EdgeExePath
     else
-    begin
       BrowserExePath := ChromeExePath;
-      BrowserKind := 'chrome';
-    end;
   end;
 
   if CurStep = ssPostInstall then
@@ -381,10 +396,10 @@ begin
     CopyPathToClipboard(InstallPath);
 
     { A pasta LocalAppData\TaqCITi\guide já existe neste ponto: o [Files]
-      acima instala index.html ali durante a etapa de cópia de arquivos,
-      que roda antes de ssPostInstall. }
+      acima instala COMECE_AQUI.html ali durante a etapa de cópia de
+      arquivos, que roda antes de ssPostInstall. }
     GuideDir := ExpandConstant('{localappdata}\TaqCITi\guide');
-    WriteInstallPathScript(GuideDir, InstallPath, BrowserKind);
+    WriteInstallPathScript(GuideDir, InstallPath);
 
     { BrowserExePath já foi resolvido em ssInstall, a partir de caminhos
       validados em InitializeSetup — não precisa checar de novo.
@@ -399,6 +414,6 @@ begin
       instrui a pessoa a abrir uma aba nova e colar o endereço (já
       copiado por um botão dedicado), em vez de prometer que a aba abre
       sozinha. }
-    Exec(BrowserExePath, '"' + GuideDir + '\index.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+    Exec(BrowserExePath, '"' + GuideDir + '\COMECE_AQUI.html"', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;
