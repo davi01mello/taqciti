@@ -254,6 +254,32 @@ gh run view --log-failed              # só o passo que falhou
 
 ---
 
+## Pendências anteriores à distribuição
+
+Duas coisas para resolver **antes** de distribuir amplamente. Nenhuma bloqueia
+um teste interno; as duas bloqueiam abrir o instalador para muita gente.
+
+1. **Limites efetivos de consumo.** `VITE_DOCCITI_SHARED_KEY` entra no bundle e
+   fica legível na pasta que o Chrome carrega — está escrito assim mesmo em
+   `src/shared/config/serverConfig.ts` e em `server/lib/apiGuard.ts`: é tranca
+   contra varredura, não autenticação. Ela é o **único** portão de
+   `/api/generate`, `/api/ai/secao`, `/api/ai/bench` e `/api/ai/smoke`, que
+   gastam cota paga, e não há limite por chamador no servidor (não existe
+   `middleware.ts`; o código de *rate limit* em `server/lib/ai/providers/` trata
+   429 **do provedor**). O teto é só `maxTranscriptChars`. Confira teto de gasto
+   nas contas dos provedores antes de distribuir — rotacionar essa chave é caro,
+   porque ela está compilada dentro dos instaladores já entregues.
+
+2. **Restringir `bench` e `smoke` em produção.** São rotas de desenvolvimento, e
+   `/api/ai/bench` chama **vários modelos** por requisição. Distribuir um
+   instalador cuja chave destrava um endpoint de benchmark é pior do que um que
+   destrava só `/api/generate`.
+
+Autenticação por usuário, com rotação, continua sendo a fase futura que o
+próprio `apiGuard.ts` descreve — não é o que estas duas pendências pedem.
+
+---
+
 ## Conferir antes de avisar o time
 
 Release verde não prova instalador bom — a `v2.0.0` ficou verde.

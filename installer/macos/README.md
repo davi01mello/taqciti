@@ -107,29 +107,29 @@ seguinte:
 | | Situação |
 | --- | --- |
 | Runner configurado | ✅ `build-macos` roda em `macos-latest` e chama `pkgbuild` |
-| Build desta revisão executado | ❌ **não executado** — nenhuma run compilou este `.pkg` |
+| Build desta revisão executado | ✅ run [35456225457](https://github.com/davi01mello/taqciti/actions/runs/35456225457), commit `6c863e1`, artefato `macos-installer` (3,2 MB, assinatura `xar!`) |
 | `.pkg` instalado num Mac | ❌ **não executado** |
 
-**Runner configurado não é build executado, e build verde não é instalação
-testada.** Windows e Linux já foram compilados *e* instalados de verdade; o
-macOS não passou por nenhuma das duas etapas nesta revisão. Toda a parte
-específica deste sistema — Gatekeeper, `launchctl asuser`, `dscl`,
-`stat -f /dev/console` — segue sem execução real.
+**Build verde não é instalação testada.** O `.pkg` desta revisão existe e é um
+pacote `xar` de verdade, gerado por `pkgbuild` num runner macOS — mas nunca foi
+aberto num Mac. Toda a parte específica deste sistema — Gatekeeper,
+`launchctl asuser`, `dscl`, `stat -f /dev/console` — segue sem execução real.
+Windows e Linux já foram compilados *e* instalados.
 
-### Como fechar, na ordem
+### Como fechar
 
-1. **Compilar.** Actions → Release → Run workflow, com `publicar`
-   **desmarcado**. Baixe o artefato `macos-installer`. Isso só compila: não
-   publica Release nem toca no Drive. Atualize a linha "Build desta revisão"
-   acima com o link da run.
-2. **Instalar e usar.** Siga o **`roteiro-de-teste.md`** desta pasta — ~10
-   minutos, para alguém com Mac, cobrindo o bloqueio do Gatekeeper, a
-   instalação, a abertura do guia, o caminho exibido e copiado, o carregamento
-   no Chrome e uma captura no Meet. Atualize a linha "`.pkg` instalado" com a
-   versão do macOS testada e o que foi observado.
+Siga o **`roteiro-de-teste.md`** desta pasta: ~10 minutos, para alguém com Mac,
+cobrindo o bloqueio do Gatekeeper, a instalação, a abertura do guia, o caminho
+exibido e copiado, o carregamento no Chrome e uma captura no Meet. Depois,
+atualize a linha "`.pkg` instalado" acima com a versão do macOS testada e o que
+foi observado.
 
-Enquanto as duas linhas estiverem ❌, o instalador do macOS deve ser tratado
-como não verificado — inclusive na hora de anunciar uma release para o time.
+Enquanto essa linha estiver ❌, o instalador do macOS deve ser tratado como não
+verificado — inclusive na hora de anunciar uma release para o time.
+
+Para gerar um `.pkg` novo sem publicar nada: Actions → Release → Run workflow
+com `publicar` desmarcado, e baixe o artefato `macos-installer`. Ver
+`docs/publicar-release.md`, "Compilar sem publicar".
 
 ## Testar localmente
 
