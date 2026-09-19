@@ -38,18 +38,33 @@ duplo-clique nele, o Gatekeeper vai bloquear com algo como:
 > identificado.
 
 **Isso é esperado.** Não tentamos contornar via assinatura de código por
-enquanto. A instrução para quem for instalar:
+enquanto. A instrução para quem for instalar, que é a que a Apple documenta
+hoje ([Abrir apps com segurança no
+Mac](https://support.apple.com/pt-br/102445)):
 
-1. Clique com o **botão direito** (ou Control+clique) no arquivo `.pkg`.
-2. Escolha **Abrir**.
-3. Na janela de aviso que aparece, clique em **Abrir** de novo.
+1. Dê dois cliques no `.pkg` e deixe o aviso aparecer.
+2. Abra **Ajustes do Sistema** → **Privacidade e Segurança**, role até o fim.
+3. Clique em **Abrir Mesmo Assim** — o botão traz o nome do arquivo bloqueado,
+   e só existe por um tempo depois da tentativa.
+4. No aviso que volta, clique em **Abrir**.
+
+> ⚠️ **O Control+clique não serve mais como instrução principal.** Era o
+> caminho antigo (clicar no arquivo segurando Control → **Abrir**), e continua
+> funcionando em **macOS 14 ou anterior**. A partir do **macOS 15 (Sequoia)**
+> a Apple removeu esse atalho como forma de liberar software sem assinatura —
+> ver [Updates to runtime protection in macOS
+> Sequoia](https://developer.apple.com/news/?id=saqachfa). Documentar só o
+> Control+clique hoje mandaria metade do time para um caminho que não
+> funciona.
 
 Só precisa fazer isso na primeira vez que abrir aquele arquivo específico.
 Depois disso o instalador roda normalmente (ainda vai pedir a senha de admin —
 isso é padrão de qualquer `.pkg`, assinado ou não).
 
-Essa mesma instrução também aparece no guia visual (`installer/guide/index.html`)
-quando ele detecta que está rodando num Mac.
+Essa mesma instrução aparece no guia de pré-instalação
+(`installer/guide/comece-aqui.template.html`), num passo dedicado, que também
+separa esse bloqueio de outros erros (`"está danificado"`, falha de instalação)
+— porque para esses o caminho dos Ajustes não resolve nada.
 
 ## O que o instalador faz
 

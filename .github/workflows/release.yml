@@ -130,6 +130,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      # O checkout e o Node entraram aqui quando este job passou a montar o
+      # pacote de distribuição — antes ele só baixava artefatos e publicava.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
       - uses: actions/download-artifact@v8
         with:
           name: windows-installer
@@ -145,13 +153,38 @@ jobs:
           name: macos-installer
           path: release-assets
 
+      # O pacote é montado ANTES de qualquer publicação, de propósito: se
+      # faltar um dos três instaladores, ou se eles forem de versões
+      # diferentes, o script sai com erro e o job morre aqui — sem Release
+      # publicada pela metade e sem nada enviado ao Drive. O passo também
+      # confere o ZIP que acabou de gravar (relendo do disco) antes de dar por
+      # bom. Ver scripts/package-distribution.mjs.
+      - name: Montar e conferir o pacote de distribuição
+        run: >
+          node scripts/package-distribution.mjs
+          --origem release-assets
+          --saida dist-package
+          --versao "${GITHUB_REF_NAME#v}"
+
       - name: Publicar GitHub Release
         uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: release-assets/*
+          # Os três instaladores soltos continuam na Release: ela é o canal
+          # técnico e de auditoria, onde é útil baixar um instalador só. O ZIP
+          # vai junto para a Release ter exatamente o mesmo arquivo que o time
+          # recebe pelo Drive.
+          files: |
+            release-assets/*
+            dist-package/TaqCITi.zip
           generate_release_notes: true
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distribution-package
+          path: dist-package/TaqCITi.zip
+          if-no-files-found: error
 
   # Canal de distribuição adicional pro time que ainda não tem acesso ao
   # GitHub — a Release acima continua existindo e é o canal técnico/de
@@ -159,25 +192,36 @@ jobs:
   # substitui. Só roda depois que os 3 builds E a Release já tiverem
   # terminado com sucesso ("needs: [release]" cobre isso transitivamente,
   # já que o job release também depende dos 3 builds).
+  #
+  # O QUE VAI PRO DRIVE MUDOU: antes eram os três instaladores soltos, um
+  # arquivo por sistema, com a versão no nome. Como o nome carregava a versão,
+  # cada release SOMAVA três arquivos na pasta em vez de substituir os
+  # anteriores, e quem abria o Drive tinha que saber qual era o seu sistema e
+  # qual era a versão nova — inclusive com os instaladores quebrados da v2.0.0
+  # ali do lado. Agora vai um arquivo só, "TaqCITi.zip", com nome fixo: ele
+  # sobrescreve o anterior (upload-to-gdrive.sh procura por nome), então o
+  # link compartilhado com o time nunca muda e nunca há duas versões
+  # disputando o clique. A versão vive dentro do pacote, no guia e no nome dos
+  # três instaladores.
   distribute-gdrive:
     needs: [release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v8
+      # Node explícito porque a conferência abaixo roda um script do repo.
+      # A imagem do runner já traz um Node, mas depender da versão que vier
+      # por acaso é o tipo de coisa que quebra sozinha num dia qualquer.
+      - uses: actions/setup-node@v7
         with:
-          name: windows-installer
-          path: gdrive-assets
+          node-version: 20
 
+      # Só o pacote, e nada mais: upload-to-gdrive.sh publica TUDO que
+      # encontrar nesta pasta, então qualquer arquivo a mais aqui viraria um
+      # arquivo a mais no Drive do time.
       - uses: actions/download-artifact@v8
         with:
-          name: linux-installer
-          path: gdrive-assets
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: macos-installer
+          name: distribution-package
           path: gdrive-assets
 
       # Autentica como a Service Account (sem fluxo OAuth interativo) e
@@ -202,7 +246,28 @@ jobs:
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/drive
 
-      - name: Publicar instaladores no Google Drive
+      # Última trava antes de sobrescrever a entrega boa que está no Drive.
+      # Duas perguntas: a pasta tem exatamente o arquivo esperado (porque o
+      # script de upload publica tudo que encontrar nela), e o conteúdo desse
+      # arquivo é mesmo o pacote completo.
+      - name: Conferir o que será publicado
+        run: |
+          set -euo pipefail
+          encontrados="$(find gdrive-assets -type f | sort)"
+          if [ "$encontrados" != "gdrive-assets/TaqCITi.zip" ]; then
+            echo "Esperava só 'gdrive-assets/TaqCITi.zip'. Encontrei:" >&2
+            echo "$encontrados" >&2
+            echo "Nada foi publicado — o Drive continua com a última entrega válida." >&2
+            exit 1
+          fi
+          echo "Pacote a publicar: TaqCITi.zip ($(stat -c%s gdrive-assets/TaqCITi.zip) bytes)"
+          # Abre o ZIP e confere a estrutura por dentro. O pacote foi montado
+          # em OUTRO job e chegou aqui por um artefato — esta é a única
+          # conferência que acontece depois dessa viagem, já com o arquivo na
+          # mão de quem vai sobrescrever o do Drive.
+          node scripts/package-distribution.mjs --conferir gdrive-assets/TaqCITi.zip
+
+      - name: Publicar o pacote no Google Drive
         env:
           GDRIVE_ACCESS_TOKEN: ${{ steps.gdrive-auth.outputs.access_token }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_TAQCITI_FOLDER_ID }}
