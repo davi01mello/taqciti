@@ -20,10 +20,20 @@ on:
         required: false
         type: string
       publicar:
-        description: "Publicar a GitHub Release e enviar ao Drive. Deixe desmarcado para só compilar."
+        description: "O que fazer com o pacote depois de compilar."
         required: false
-        default: false
-        type: boolean
+        default: nao
+        type: choice
+        options:
+          # Só compila. Os instaladores ficam como artefatos da run.
+          - nao
+          # Sobe ao Drive com nome SEPARADO (TaqCiti-teste.zip), sem GitHub
+          # Release. O TaqCiti.zip que o time baixa não é tocado, e desfazer é
+          # apagar um arquivo.
+          - teste
+          # O caminho de sempre: GitHub Release + sobrescrever o TaqCiti.zip
+          # oficial no Drive.
+          - oficial
 
 # O endereço do servidor e o segredo compartilhado entram NO BUNDLE da
 # extensão, na hora da build — não são lidos em runtime. Uma build sem eles
@@ -163,7 +173,7 @@ jobs:
     if: >-
       (github.event_name == 'push' && github.ref_type == 'tag'
         && startsWith(github.ref_name, 'v'))
-      || inputs.publicar
+      || inputs.publicar == 'oficial'
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
@@ -256,7 +266,7 @@ jobs:
     if: >-
       (github.event_name == 'push' && github.ref_type == 'tag'
         && startsWith(github.ref_name, 'v'))
-      || inputs.publicar
+      || inputs.publicar == 'oficial'
     needs: [release]
     runs-on: ubuntu-latest
     steps:
@@ -321,6 +331,92 @@ jobs:
           node scripts/package-distribution.mjs --conferir gdrive-assets/TaqCiti.zip
 
       - name: Publicar o pacote no Google Drive
+        env:
+          GDRIVE_ACCESS_TOKEN: ${{ steps.gdrive-auth.outputs.access_token }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_TAQCITI_FOLDER_ID }}
+        run: bash .github/scripts/upload-to-gdrive.sh gdrive-assets
+
+  # ---------------------------------------------------------------------------
+  # Canal de TESTE: mesmo Drive, arquivo com outro nome.
+  # ---------------------------------------------------------------------------
+  #
+  # Existe porque "publicar uma versão temporária" não cabia no desenho
+  # anterior: o pacote tem nome fixo e SOBRESCREVE, então qualquer publicação
+  # trocava a entrega que o time baixa. Aqui o arquivo se chama
+  # `TaqCiti-teste.zip` — nome diferente, registro diferente no Drive, então o
+  # `TaqCiti.zip` oficial não é tocado e desfazer é apagar um arquivo.
+  #
+  # Este job NÃO depende de `release` e não cria GitHub Release nenhuma: um
+  # pacote de teste não é uma release, e registrar um no histórico de versões
+  # confundiria a auditoria. Ele pendura nos três builds direto, e é por isso
+  # que monta o pacote por conta própria em vez de reaproveitar o artefato do
+  # job oficial (que nem roda neste modo).
+  distribuir-teste:
+    if: inputs.publicar == 'teste'
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-installer
+          path: release-assets
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-installer
+          path: release-assets
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-installer
+          path: release-assets
+
+      - name: Resolver versão
+        id: version
+        run: bash .github/scripts/resolve-version.sh "${{ inputs.versao }}" >> "$GITHUB_OUTPUT"
+
+      # Mesmas travas do caminho oficial: os três instaladores têm que existir,
+      # ser do formato certo e da mesma versão. Um pacote de teste incompleto
+      # desperdiça o teste de quem for instalar.
+      - name: Montar e conferir o pacote
+        run: >
+          node scripts/package-distribution.mjs
+          --origem release-assets
+          --saida dist-package
+          --versao "${{ steps.version.outputs.version }}"
+
+      - name: Preparar o envio com o nome de teste
+        run: |
+          set -euo pipefail
+          mkdir -p gdrive-assets
+          # O script de upload usa o BASENAME como nome no Drive, então o
+          # rename aqui é o que separa este arquivo do oficial.
+          cp dist-package/TaqCiti.zip gdrive-assets/TaqCiti-teste.zip
+          node scripts/package-distribution.mjs --conferir gdrive-assets/TaqCiti-teste.zip
+          encontrados="$(find gdrive-assets -type f | sort)"
+          if [ "$encontrados" != "gdrive-assets/TaqCiti-teste.zip" ]; then
+            echo "Esperava só 'gdrive-assets/TaqCiti-teste.zip'. Encontrei:" >&2
+            echo "$encontrados" >&2
+            exit 1
+          fi
+          echo "A publicar: TaqCiti-teste.zip ($(stat -c%s gdrive-assets/TaqCiti-teste.zip) bytes)"
+          echo "O TaqCiti.zip oficial NÃO é tocado por este job."
+
+      - name: Autenticar no Google Drive
+        id: gdrive-auth
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GDRIVE_SA_KEY }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/drive
+
+      - name: Publicar o pacote de teste no Google Drive
         env:
           GDRIVE_ACCESS_TOKEN: ${{ steps.gdrive-auth.outputs.access_token }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_TAQCITI_FOLDER_ID }}

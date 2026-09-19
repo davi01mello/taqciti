@@ -152,8 +152,28 @@ de onde tirar o número: sem ele, os artefatos sairiam nomeados com o nome do
 branch. Vazio, o número vem do `package.json`. Ver
 `.github/scripts/resolve-version.sh`.
 
+### Publicar uma versão de teste sem tocar na oficial
+
+O campo `publicar` tem três valores:
+
+| Valor | O que acontece |
+| --- | --- |
+| `nao` (padrão) | só compila; os instaladores ficam como artefatos da run |
+| `teste` | sobe ao Drive como **`TaqCiti-teste.zip`**, sem GitHub Release |
+| `oficial` | GitHub Release + sobrescreve o **`TaqCiti.zip`** que o time baixa |
+
+O modo `teste` existe porque o pacote oficial tem **nome fixo e sobrescreve**:
+qualquer publicação trocava a entrega que o time já tem. Com um nome diferente,
+o registro no Drive é outro — o `TaqCiti.zip` fica intacto e desfazer é apagar
+um arquivo.
+
+Use junto o campo `versao` com um rótulo que ninguém confunda com release
+(`2.2.0-teste`, por exemplo). Os três instaladores saem com esse nome, e o
+empacotador exige que os três batam. A versão **dentro** da extensão continua
+sendo a do `manifest.config.ts` — o rótulo temporário vive no nome do arquivo.
+
 > **Publicar continua sendo o que a tag faz.** Empurrar `vX.Y.Z` publica
-> sozinho, como sempre. Marcar `publicar` num disparo manual é a exceção —
+> sozinho, como sempre. `publicar=oficial` num disparo manual é a exceção —
 > existe para reprocessar uma release que falhou depois dos builds, não para o
 > dia a dia.
 
