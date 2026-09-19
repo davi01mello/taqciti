@@ -2,7 +2,7 @@
  * As camadas de vidro do Liquid Glass — a receita, num arquivo só.
  *
  * Antes esta receita existia DUAS vezes, copiada byte a byte entre
- * `global.css` (janela principal e popup) e `panel.css` (painel injetado no
+ * `global.css` (páginas da extensão) e `panel.css` (a sidebar injetada no
  * Meet). Duas cópias de um efeito visual divergem sempre: foi assim que os
  * vidros das telas passaram a ter opacidades diferentes. Agora os dois lados
  * importam este arquivo, e a única diferença entre eles continua sendo onde

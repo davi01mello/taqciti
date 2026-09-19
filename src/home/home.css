@@ -1,5 +1,5 @@
 /*
- * Estilo da HOME em aba inteira.
+ * Estilo da HOME — a página principal do TaqCiti.
  *
  * CSS próprio, e não Tailwind, pelo mesmo motivo de `src/content/ui/panel.css`:
  * o que existe aqui é composição de camadas (canvas de fundo, navegação
@@ -7,24 +7,60 @@
  * fila de colchetes ilegível. As CORES continuam vindo de `tokens.css` — este
  * arquivo não inventa nenhuma.
  *
- * A regra que organiza o resto: NADA opaco por cima da onda. O conteúdo vive
- * numa coluna transparente; só a navegação escurece o que está atrás, e mesmo
- * ela é um gradiente que termina em zero.
+ * Três regras organizam o resto:
+ *
+ *   1. UMA superfície. O fundo é o mesmo do `html` ao canvas; nada aqui pinta
+ *      um retângulo com outra cor, e a animação se dissolve por máscara em vez
+ *      de terminar numa aresta.
+ *   2. UM fluxo. Conversa, escrita e onda rolam juntas, com a página. Nada de
+ *      `position: fixed` ou `sticky` nelas — quem é fixo é só a navegação, que
+ *      é moldura, não conteúdo.
+ *   3. Nada opaco por cima da onda. O conteúdo vive numa coluna transparente.
  */
+
+/* ------------------------------------------------- a superfície contínua */
+
+/*
+ * Um tom só, do documento ao canvas. Antes o `body` trazia a aurora do
+ * `global.css` e a `.tq-home` pintava um grafite por cima: dois fundos
+ * diferentes empilhados, e qualquer camada que não cobrisse a tela inteira
+ * mostrava a costura entre eles.
+ */
+html,
+body {
+  background: rgb(15 18 19);
+}
 
 .tq-home {
   position: relative;
   isolation: isolate;
   min-height: 100vh;
-  /* Grafite quase preto: mais escuro que o --color-background do painel,
-     porque aqui a tela inteira é fundo e o mesmo tom lê mais claro em área
-     grande. */
-  background: rgb(15 18 19);
+  display: flex;
+  flex-direction: column;
+  background: transparent;
   color: rgb(238 240 239);
   font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.6;
-  overflow-x: hidden;
+  overflow-x: clip;
+
+  /*
+   * O texto EXIBIDO não é selecionável — a imersão é o ponto, e um realce azul
+   * arrastado sobre a conversa quebra a superfície contínua. Isto é interação
+   * visual, não proteção: exportar e copiar continuam existindo, nos lugares
+   * que são deles (a reunião tem "Copiar" e "Baixar .txt"). Leitor de tela não
+   * é afetado: `user-select` não toca a árvore de acessibilidade.
+   */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A exceção, e a única: o que a pessoa está ESCREVENDO. Caret, seleção,
+   correção, colagem e atalhos de edição continuam inteiros. */
+.tq-home textarea,
+.tq-home input {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .tq-home *,
@@ -42,33 +78,12 @@
 
 .tq-home button:focus-visible,
 .tq-home textarea:focus-visible,
+.tq-home input:focus-visible,
 .tq-home summary:focus-visible,
 .tq-home [tabindex]:focus-visible {
   outline: 2px solid rgb(var(--c-primary));
   outline-offset: 3px;
   border-radius: 6px;
-}
-
-/* ---------------------------------------------------------------- o fundo */
-
-.tq-wave {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Vinheta sutil: encosta o olho no centro sem tapar a onda. Para em 55% de
-   altura justamente para não passar por cima dela. */
-.tq-home::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgb(15 18 19 / 0.42), transparent 42%);
 }
 
 /* --------------------------------------------------------------- cabeçalho */
@@ -80,7 +95,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 26px 40px;
+  padding: 24px 40px 10px;
 }
 
 .tq-brand {
@@ -109,7 +124,7 @@
 .tq-topo-direita {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
 }
 
 .tq-captando {
@@ -119,6 +134,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  margin-right: 6px;
 }
 
 .tq-captando::before {
@@ -140,16 +156,23 @@
   }
 }
 
-.tq-motion {
+.tq-motion,
+.tq-conversas-botao {
   width: 32px;
   height: 32px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   color: rgb(147 155 150);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    color 0.25s;
 }
 
-.tq-motion:hover:not(:disabled) {
+.tq-motion:hover:not(:disabled),
+.tq-conversas-botao:hover,
+.tq-conversas-botao[aria-expanded='true'] {
   background: rgb(255 255 255 / 0.06);
   color: rgb(238 240 239);
 }
@@ -158,15 +181,108 @@
   opacity: 0.4;
 }
 
+/* ------------------------------------------------------- menu de conversas */
+
+.tq-conversas {
+  position: relative;
+}
+
+.tq-conversas-lista {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: 296px;
+  max-height: min(62vh, 460px);
+  overflow-y: auto;
+  padding: 7px;
+  border-radius: 14px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(31 36 34 / 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 44px rgb(0 0 0 / 0.42);
+}
+
+.tq-conversas-nova {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 11px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 13px;
+  color: rgb(var(--c-glow));
+  cursor: pointer;
+}
+
+.tq-conversas-nova:hover {
+  background: rgb(var(--c-primary) / 0.1);
+}
+
+.tq-conversas-lista ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+  padding-top: 4px;
+}
+
+.tq-conversas-lista li button {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tq-conversas-lista li button:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+
+.tq-conversas-lista li button.atual {
+  background: rgb(var(--c-primary) / 0.09);
+}
+
+.tq-conversas-titulo {
+  display: block;
+  font-size: 12.5px;
+  color: rgb(226 232 228);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-conversas-lista li button.atual .tq-conversas-titulo {
+  color: rgb(var(--c-glow));
+}
+
+.tq-conversas-data {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: rgb(150 162 154);
+}
+
+.tq-conversas-vazio {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(155 167 159);
+  margin: 8px 10px 6px;
+}
+
 /* -------------------------------------------------------------- navegação */
 
 .tq-edge {
   position: fixed;
   left: 0;
-  top: 96px;
-  bottom: 48px;
-  width: 30px;
+  top: 0;
+  bottom: 0;
+  width: 34px;
   z-index: 12;
+  cursor: pointer;
 }
 
 /* A faixa clara: a dica visual de que há algo ali. Cresce quando a barra
@@ -174,8 +290,8 @@
 .tq-edge::after {
   content: '';
   position: absolute;
-  left: 11px;
-  top: 38%;
+  left: 13px;
+  top: 44%;
   height: 62px;
   width: 3px;
   border-radius: 4px;
@@ -199,17 +315,15 @@
   width: 268px;
   max-width: 85%;
   z-index: 11;
-  /* Topo alinhado abaixo do cabecalho: a marca dele fica visivel e a barra
-     comeca nos links. */
-  padding: 96px 26px 30px 42px;
+  padding: 92px 26px 30px 42px;
   /* Transparência gradual: opaco o bastante para o texto se ler, e terminando
      em zero para o fundo continuar visível através da borda. */
   background: linear-gradient(
     90deg,
-    rgb(32 36 37 / 0.93) 0%,
-    rgb(32 36 37 / 0.77) 58%,
-    rgb(32 36 37 / 0.3) 84%,
-    rgb(32 36 37 / 0) 100%
+    rgb(22 26 27 / 0.94) 0%,
+    rgb(22 26 27 / 0.8) 58%,
+    rgb(22 26 27 / 0.32) 84%,
+    rgb(22 26 27 / 0) 100%
   );
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
@@ -244,6 +358,7 @@
   text-align: left;
   color: rgb(193 199 195);
   min-height: 44px;
+  cursor: pointer;
   transition:
     background 0.25s,
     color 0.25s;
@@ -268,28 +383,68 @@
 
 /* ---------------------------------------------------------------- miolo */
 
+/*
+ * A coluna do conteúdo E o palco da animação. `position: relative` porque é
+ * contra ela que o canvas se ancora: a onda fica no FIM do fluxo, não presa na
+ * janela, e é isso que a faz sair da tela quando se rola para reler.
+ */
 .tq-main {
   position: relative;
   z-index: 2;
+  flex: 1;
   width: min(820px, calc(100% - 128px));
   margin: 0 auto;
-  padding: 18px 0 120px;
+  padding: 8px 0 40px;
 }
 
-@media (max-width: 720px) {
-  .tq-main {
-    width: calc(100% - 72px);
-  }
-  .tq-topo {
-    padding: 22px 24px;
-  }
+/* ---------------------------------------------------------------- o fundo */
+
+/*
+ * A animação, dissolvida no fundo.
+ *
+ * `100vw` centrado: a onda atravessa a tela inteira, e não só a coluna de
+ * leitura. A máscara apaga o topo do canvas num gradiente longo — é ela que
+ * impede a borda retangular da camada de aparecer como uma linha cruzando a
+ * página. As laterais caem fora da viewport, então não têm aresta para mostrar.
+ *
+ * `pointer-events: none`: é fundo. Clique, seleção e rolagem passam direto.
+ */
+.tq-wave {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  height: min(68vh, 620px);
+  z-index: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 42%, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 42%, #000 100%);
 }
 
-/* --------------------------------------------------------- conversa */
+/* --------------------------------------------------------- a conversa */
+
+/*
+ * Conversa em cima, escrita embaixo, um fluxo só. A altura mínima segura o
+ * campo na região inferior mesmo com a conversa curta — sem ela, numa conversa
+ * de duas mensagens o campo subiria para o meio da tela e a onda ficaria órfã
+ * lá embaixo.
+ */
+.tq-palco {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 130px);
+}
+
+.tq-conversa {
+  flex: 1;
+}
 
 .tq-abertura {
   text-align: center;
-  margin: 12vh 0 40px;
+  margin: 13vh 0 40px;
 }
 
 .tq-abertura h1 {
@@ -306,84 +461,51 @@
   margin: 10px 0 0;
 }
 
-.tq-fluxo-topo {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 6px;
-}
-
-.tq-linkish {
-  font-size: 11.5px;
-  color: rgb(137 148 140);
-  padding: 4px 2px;
-  cursor: pointer;
-}
-
-.tq-linkish:hover {
-  color: rgb(var(--c-primary));
-}
-
-.tq-fluxo-wrap {
-  position: relative;
-}
-
-.tq-fluxo {
-  /* Altura fixa em vh: o fluxo rola dentro de si, e o campo de escrita fica
-     sempre visível. Numa aba inteira, empurrar o campo para fora da tela ao
-     crescer o histórico é o pior resultado possível. */
-  height: 46vh;
-  min-height: 260px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: 26px 34px 12px 8px;
-  /* Esmaece as bordas em vez de cortar: dá a sensação de continuidade. */
-  mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 8px), transparent);
-  scroll-behavior: smooth;
-}
-
-.tq-fluxo::-webkit-scrollbar {
-  display: none;
+.tq-turnos {
+  list-style: none;
+  margin: 0;
+  /* Coluna de leitura confortável: o texto não se espalha até as bordas da
+     tela numa janela larga. */
+  padding: 24px 0 0;
+  max-width: 720px;
+  margin-inline: auto;
 }
 
 .tq-turno {
-  margin: 0 0 42px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 38px;
 }
 
-.tq-turno:last-child {
-  margin-bottom: 0;
-}
-
-/* A mensagem de quem escreve: menor e recuada. Ela é contexto; a resposta é
-   o assunto. */
-.tq-voce {
-  font-size: 12.5px;
-  line-height: 1.8;
-  color: rgb(163 175 167);
-  max-width: 420px;
-  margin: 0 0 22px 44px;
+/* Quem escreve fica à DIREITA. Sem balão e sem caixa: o que diferencia os
+   autores é o alinhamento, o recuo e o tom — não uma moldura. */
+.tq-bolha {
+  align-self: flex-end;
+  max-width: 76%;
+  margin: 0;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: rgb(199 209 202);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .tq-anexos-msg {
+  align-self: flex-end;
+  max-width: 76%;
   font-size: 11px;
   color: rgb(140 152 144);
-  margin: -14px 0 22px 44px;
+  margin: 6px 0 0;
 }
 
-/* Sem cartão, sem borda, sem caixa: só a marca do agente e o texto. */
-.tq-resposta {
+/* A IA fica à ESQUERDA, com a marca ao lado do texto. */
+.tq-turno-agente {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  max-width: 560px;
-}
-
-.tq-agent {
-  flex: 0 0 auto;
-  opacity: 0.9;
-  margin-top: 2px;
+  max-width: 88%;
+  margin: 24px auto 0 0;
 }
 
 .tq-resposta-texto {
@@ -402,6 +524,11 @@
   line-height: 1.9;
   color: rgb(208 218 211);
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tq-falhou {
+  color: rgb(240 205 160);
 }
 
 .tq-indisponivel-dica {
@@ -416,186 +543,179 @@
   font-weight: 500;
 }
 
-/* Trilha de posição: tracinhos, um por mensagem real. */
-.tq-trilha {
+/* --------------------------------------------- a marca da resposta da IA */
+
+/*
+ * As duas camadas empilhadas: a animação por baixo, o ícone oficial por cima.
+ * Trocar de elemento faria a marca sumir por um quadro; com as duas montadas,
+ * a conclusão é uma transição de opacidade — e o ícone estático é o que diz
+ * "esta resposta terminou".
+ */
+.tq-marca {
+  position: relative;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-top: 2px;
+}
+
+.tq-marca canvas,
+.tq-marca img {
   position: absolute;
-  right: -22px;
-  top: 30px;
-  bottom: 16px;
-  width: 34px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 2px;
+  inset: 0;
+  width: 32px;
+  height: 32px;
+  transition: opacity 0.45s ease;
 }
 
-.tq-tick {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  min-height: 20px;
-  padding: 0;
-  cursor: pointer;
+.tq-marca canvas {
+  opacity: 0;
 }
 
-.tq-tick::after {
-  content: '';
-  height: 1px;
-  width: 7px;
-  background: rgb(135 146 139 / 0.45);
-  transition:
-    width 0.25s,
-    background 0.25s;
+.tq-marca img {
+  opacity: 0.92;
+  object-fit: contain;
 }
 
-.tq-tick[aria-pressed='true']::after {
-  width: 17px;
-  background: rgb(187 213 197);
+.tq-marca.processando canvas {
+  opacity: 1;
 }
 
-.tq-tick:hover::after {
-  width: 17px;
-  background: rgb(var(--c-primary));
+.tq-marca.processando img {
+  opacity: 0;
 }
 
 /* ------------------------------------------------------- campo de escrita */
 
-.tq-compositor {
+/*
+ * Escrita direto sobre o ambiente: sem barra, sem caixa, sem linha divisória,
+ * sem fundo retangular. O que delimita a área de interação é o próprio bloco
+ * do campo — previsível, e não "a página inteira vira campo".
+ */
+.tq-escrita {
   position: relative;
-  margin-top: 18px;
-  padding: 16px 12px 4px 52px;
+  z-index: 1;
+  margin: 26px auto 0;
+  width: 100%;
+  max-width: 720px;
+  /* O respiro que põe a escrita sobre a onda e ainda a mantém longe da borda
+     de baixo. */
+  padding-bottom: 104px;
 }
 
-/* Uma linha, não uma caixa. */
-.tq-compositor::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 52px;
-  right: 20px;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    rgb(180 197 183 / 0.05),
-    rgb(180 197 183 / 0.11),
-    transparent
-  );
+.tq-campo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
 }
 
-.tq-compositor textarea {
+.tq-campo textarea {
   display: block;
   width: 100%;
   background: none;
   border: 0;
   resize: none;
   min-height: 34px;
-  max-height: 190px;
+  /* Cresce até aqui e passa a rolar por dentro: um texto longo não pode
+     empurrar a conversa inteira para fora da tela. */
+  max-height: 168px;
+  overflow-y: auto;
   padding: 4px 0;
   font: inherit;
-  font-size: 14.5px;
+  font-size: 15px;
   line-height: 1.7;
-  color: rgb(238 240 239);
-  /* Cursor de inserção quase invisível, mas presente — é o que se pediu:
-     sutil sem deixar de ser utilizável. */
-  caret-color: rgb(var(--c-glow) / 0.45);
+  color: rgb(240 243 241);
+  scrollbar-width: thin;
+  /* Presente, mas sóbrio: é o que mostra onde o texto está sendo inserido. */
+  caret-color: rgb(var(--c-glow));
 }
 
-.tq-compositor textarea::placeholder {
-  color: rgb(138 151 142);
+.tq-campo textarea::placeholder {
+  color: rgb(132 145 137);
+}
+
+.tq-campo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 2px;
+}
+
+.tq-mais,
+.tq-enviar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: rgb(163 176 168);
+  cursor: pointer;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    transform 0.3s,
+    opacity 0.3s;
+}
+
+.tq-mais:hover,
+.tq-enviar:not(:disabled):hover {
+  background: rgb(var(--c-primary) / 0.13);
+  color: rgb(var(--c-glow));
+}
+
+.tq-mais[aria-expanded='true'] {
+  transform: rotate(45deg);
+  color: rgb(var(--c-glow));
+}
+
+.tq-enviar:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.tq-dica-teclas {
+  margin: 10px 0 0;
+  font-size: 10px;
+  color: rgb(126 138 131);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.tq-escrita:focus-within .tq-dica-teclas,
+.tq-escrita:hover .tq-dica-teclas {
+  opacity: 1;
 }
 
 .tq-anexos {
   font-size: 11px;
   color: rgb(172 189 177);
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   display: flex;
   gap: 10px;
   align-items: baseline;
   flex-wrap: wrap;
 }
 
-.tq-compositor-pe {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  opacity: 0.4;
-  transition: opacity 0.3s;
-}
-
-.tq-compositor:focus-within .tq-compositor-pe,
-.tq-compositor:hover .tq-compositor-pe {
-  opacity: 1;
-}
-
-.tq-compositor-pe span {
-  font-size: 10px;
-  color: rgb(153 165 157);
-}
-
-.tq-enviar {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  color: rgb(196 210 200);
+.tq-linkish {
+  font-size: 11.5px;
+  color: rgb(137 148 140);
+  padding: 4px 2px;
   cursor: pointer;
 }
 
-.tq-enviar:not(:disabled):hover {
-  background: rgb(var(--c-primary) / 0.12);
-  color: rgb(var(--c-glow));
-}
-
-.tq-enviar:disabled {
-  opacity: 0.4;
-}
-
-/* ------------------------------------------------------------ o "+" */
-
-.tq-rodape-acoes {
-  position: fixed;
-  bottom: 26px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 8;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.tq-mais {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: rgb(166 178 170);
-  background: rgb(41 48 43 / 0.3);
-  border: 1px solid rgb(255 255 255 / 0.05);
-  cursor: pointer;
-  transition:
-    transform 0.4s,
-    background 0.4s,
-    color 0.4s;
-}
-
-.tq-mais:hover,
-.tq-mais[aria-expanded='true'] {
-  background: rgb(52 76 59);
-  color: rgb(161 234 185);
-}
-
-.tq-mais[aria-expanded='true'] {
-  transform: rotate(45deg);
+.tq-linkish:hover {
+  color: rgb(var(--c-primary));
 }
 
 .tq-anexo-menu {
-  background: rgb(39 44 41 / 0.96);
+  position: absolute;
+  right: 0;
+  bottom: 74px;
+  z-index: 6;
+  background: rgb(31 36 34 / 0.96);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgb(255 255 255 / 0.08);
   border-radius: 14px;
   padding: 7px;
@@ -626,6 +746,12 @@
 }
 
 /* ------------------------------------------------------------- páginas */
+
+.tq-pagina {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 96px;
+}
 
 .tq-pagina h1 {
   font-size: 27px;
@@ -660,8 +786,9 @@
   border: 1px solid rgb(255 255 255 / 0.05);
   border-radius: 14px;
   /* Translúcido: a onda continua visível atrás da lista. */
-  background: rgb(40 46 43 / 0.78);
+  background: rgb(31 37 34 / 0.72);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   cursor: pointer;
   transition:
     background 0.3s,
@@ -670,7 +797,7 @@
 }
 
 .tq-item:hover {
-  background: rgb(41 54 45 / 0.72);
+  background: rgb(34 46 38 / 0.74);
   border-color: rgb(var(--c-primary) / 0.28);
   box-shadow: 0 0 26px rgb(var(--c-primary) / 0.06);
 }
@@ -723,8 +850,9 @@
 }
 
 .tq-guia details {
-  background: rgb(40 46 43 / 0.78);
+  background: rgb(31 37 34 / 0.72);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgb(255 255 255 / 0.06);
   border-radius: 14px;
   padding: 16px 20px;
@@ -745,6 +873,120 @@
   color: rgb(175 186 178);
   line-height: 1.85;
   margin: 10px 0 0 16px;
+}
+
+/* ------------------------------------------------- detalhe de uma reunião */
+
+.tq-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: rgb(155 167 159);
+  padding: 6px 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.tq-voltar:hover {
+  color: rgb(var(--c-glow));
+}
+
+.tq-girado {
+  transform: rotate(90deg);
+}
+
+.tq-titulo-editavel {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.7px;
+  color: rgb(238 240 239);
+  cursor: text;
+  transition: background 0.25s;
+}
+
+.tq-titulo-editavel:hover,
+.tq-titulo-editavel:focus {
+  background: rgb(255 255 255 / 0.04);
+  outline: none;
+}
+
+.tq-meta {
+  font-size: 11.5px;
+  color: rgb(158 170 162);
+  margin: 6px 0 16px;
+  line-height: 1.7;
+}
+
+.tq-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tq-acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  font-size: 12.5px;
+  color: rgb(207 216 210);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.tq-acao:hover {
+  background: rgb(var(--c-primary) / 0.1);
+  border-color: rgb(var(--c-primary) / 0.3);
+  color: rgb(var(--c-glow));
+}
+
+.tq-acao-perigo {
+  color: rgb(224 150 145);
+}
+
+.tq-acao-perigo:hover {
+  background: rgb(224 110 105 / 0.12);
+  border-color: rgb(224 110 105 / 0.32);
+  color: rgb(240 178 172);
+}
+
+.tq-aviso-curto {
+  font-size: 11.5px;
+  color: rgb(var(--c-glow));
+  margin: 10px 0 0;
+}
+
+.tq-confirma {
+  margin-top: 14px;
+  padding: 14px 17px;
+  border-radius: 13px;
+  border: 1px solid rgb(224 110 105 / 0.28);
+  background: rgb(224 110 105 / 0.07);
+}
+
+.tq-confirma p {
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: rgb(224 231 226);
+  margin: 0 0 12px;
+}
+
+.tq-transcricao {
+  margin-top: 26px;
 }
 
 .tq-nota-movimento {
@@ -784,10 +1026,15 @@ body.tq-pointer-in .tq-halo {
   background: rgb(var(--c-glow));
 }
 
+/*
+ * 30px de lado, e não 40: o halo era do tamanho de uma lente e cobria palavras
+ * inteiras. O `scale` do JS só o move entre 22 e 38px — grande o bastante para
+ * ter peso, pequeno o bastante para não dominar a composição.
+ */
 .tq-halo {
-  width: 40px;
-  height: 40px;
-  margin: -20px;
+  width: 30px;
+  height: 30px;
+  margin: -15px;
 }
 
 .tq-rotor {
@@ -797,42 +1044,58 @@ body.tq-pointer-in .tq-halo {
   background: conic-gradient(
     from 40deg,
     rgb(209 221 212 / 0.13),
-    rgb(209 221 212 / 0.6) 75deg,
+    rgb(209 221 212 / 0.5) 75deg,
     rgb(209 221 212 / 0.1) 120deg,
     rgb(209 221 212 / 0.07) 210deg,
-    rgb(209 221 212 / 0.53) 285deg,
+    rgb(209 221 212 / 0.45) 285deg,
     rgb(209 221 212 / 0.13)
   );
   mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 100%);
   transition:
-    transform 0.45s,
-    background 0.3s;
+    transform 0.4s,
+    background 0.3s,
+    box-shadow 0.3s;
 }
 
-.tq-halo.over-control .tq-rotor {
+/* Sobre um controle: só a forma reage, sem cor. O verde é reservado. */
+.tq-halo.sobre-controle .tq-rotor {
   background: conic-gradient(
     from 40deg,
-    rgb(var(--c-primary) / 0.13),
-    rgb(var(--c-primary) / 0.67) 75deg,
-    rgb(var(--c-primary) / 0.13) 180deg,
-    rgb(var(--c-primary) / 0.67) 280deg,
-    rgb(var(--c-primary) / 0.13)
+    rgb(232 240 234 / 0.2),
+    rgb(232 240 234 / 0.72) 75deg,
+    rgb(232 240 234 / 0.2) 180deg,
+    rgb(232 240 234 / 0.72) 280deg,
+    rgb(232 240 234 / 0.2)
   );
 }
 
-/* O cursor do sistema só some onde há um ponteiro fino de verdade. */
+/*
+ * O ÚNICO brilho verde: sobre a área editável, e em nenhum outro lugar. É ele
+ * que responde "dá para escrever aqui" — e por isso não pode acender no texto
+ * da conversa, no fundo, na navegação ou nos botões.
+ */
+.tq-halo.sobre-escrita .tq-rotor {
+  background: conic-gradient(
+    from 40deg,
+    rgb(var(--c-primary) / 0.18),
+    rgb(var(--c-glow) / 0.85) 75deg,
+    rgb(var(--c-primary) / 0.18) 180deg,
+    rgb(var(--c-glow) / 0.85) 280deg,
+    rgb(var(--c-primary) / 0.18)
+  );
+  box-shadow: 0 0 12px rgb(var(--c-primary) / 0.35);
+}
+
+/* O cursor do sistema só some onde há um ponteiro fino de verdade. O ponto
+   desenhado fica no lugar EXATO do mouse, então a mira e a seleção dentro do
+   campo continuam precisas. */
 @media (pointer: fine) {
   .tq-home,
   .tq-home button,
   .tq-home textarea,
+  .tq-home input,
   .tq-home summary {
     cursor: none;
-  }
-  /* Exceção deliberada: sobre texto selecionável o cursor nativo volta, senão
-     selecionar e copiar vira adivinhação. */
-  .tq-home p,
-  .tq-home .tq-fluxo {
-    cursor: auto;
   }
 }
 
@@ -843,17 +1106,46 @@ body.tq-pointer-in .tq-halo {
   }
   .tq-enviar,
   .tq-mais,
-  .tq-motion {
+  .tq-motion,
+  .tq-conversas-botao {
     min-width: 44px;
     min-height: 44px;
   }
-  .tq-tick {
-    width: 44px;
-    min-height: 24px;
+}
+
+/* ------------------------------------------------------------- estreito */
+
+@media (max-width: 860px) {
+  .tq-main {
+    width: calc(100% - 64px);
   }
-  .tq-trilha {
-    width: 44px;
-    right: -30px;
+  .tq-topo {
+    padding: 20px 22px 8px;
+  }
+  .tq-captando {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .tq-main {
+    width: calc(100% - 44px);
+  }
+  /* Em tela estreita os recuos encolhem, mas a distinção entre os autores
+     continua: quem escreve permanece à direita, a IA à esquerda. */
+  .tq-bolha,
+  .tq-anexos-msg {
+    max-width: 90%;
+  }
+  .tq-turno-agente {
+    max-width: 100%;
+    gap: 10px;
+  }
+  .tq-escrita {
+    padding-bottom: 76px;
+  }
+  .tq-conversas-lista {
+    width: min(280px, calc(100vw - 32px));
   }
 }
 
@@ -863,8 +1155,5 @@ body.tq-pointer-in .tq-halo {
   .tq-home *::after {
     animation: none !important;
     transition: none !important;
-  }
-  .tq-fluxo {
-    scroll-behavior: auto;
   }
 }

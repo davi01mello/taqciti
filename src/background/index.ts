@@ -20,7 +20,7 @@ import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { backfillOpenTabs, canInject, ensurePanelInTab } from './injectPanel';
-import { openWideView } from './sidePanel';
+import { openHome } from './homeTab';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
 import { ensurePanelPrefs, patchPanelPrefs } from '@/features/panel/prefsStore';
 
@@ -66,27 +66,38 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 /*
- * O clique no ícone: o TaqCITi VOLTA.
+ * O clique no ícone: a HOME, salvo dentro da reunião.
  *
- * É uma gravação no storage, e nada mais. O painel já está montado em toda
- * página aberta, assinando essa chave — então `presence: 'open'` chega até ele
- * pelo mesmo caminho por onde chegam as mudanças feitas em qualquer outra aba.
- * Não há injeção, nem mensagem endereçada, nem "clicar duas vezes porque a
- * primeira não pegou": este é o gesto que desfaz o X.
+ * A HOME é a página principal do produto, então é ela que o ícone abre — e uma
+ * só, porque `openHome` foca a aba que já existir em vez de empilhar cópias.
  *
- * Páginas internas do Chrome (chrome://, a Web Store, a aba nova) não aceitam
- * extensão nenhuma: não há onde desenhar o painel. Ali a saída é o TaqCITi
- * inteiro numa aba — a mesma tela larga do botão "Abrir numa aba", e não uma
- * superfície diferente só porque o ponto de partida era diferente.
+ * A exceção é estreita e é o único lugar onde a sidebar de reunião faz sentido:
+ * clicar no ícone ESTANDO na aba da reunião em curso traz a sidebar de volta,
+ * que é o gesto que desfaz o X. Fora disso não há painel de reunião para abrir
+ * — ele não existe mais fora do Meet, e mostrar um painel de reunião vazio numa
+ * página qualquer era justamente a terceira experiência concorrente.
  */
 chrome.action.onClicked.addListener((tab) => {
-  if (!canInject(tab.url)) {
-    void openWideView(tab);
-    return;
-  }
-  // A gravação primeiro: se a rede de segurança abaixo precisar mesmo montar um
-  // painel, ele já nasce lendo `open` em vez de aparecer recolhido.
-  void patchPanelPrefs({ presence: 'open' }).then(() => ensurePanelInTab(tab));
+  void (async () => {
+    await ready;
+    const current = getState();
+    const naReuniaoDesteTab =
+      current.session !== null &&
+      current.phase !== 'idle' &&
+      tab.id !== undefined &&
+      current.session.tabId === tab.id;
+
+    if (naReuniaoDesteTab && canInject(tab.url)) {
+      // A gravação primeiro: se a rede de segurança abaixo precisar mesmo
+      // montar a sidebar, ela já nasce lendo `open` em vez de aparecer
+      // recolhida.
+      await patchPanelPrefs({ presence: 'open' });
+      await ensurePanelInTab(tab);
+      return;
+    }
+
+    await openHome(tab);
+  })();
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -164,30 +175,21 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
-      case 'panel/openRequest':
-        // "Abrir numa aba", clicado dentro do painel. Abre a mesma tela do
-        // painel lateral numa aba, que é o caminho que não depende de um gesto
-        // do usuário — ver src/background/sidePanel.ts para o porquê. O alvo
-        // vem do painel porque só ele sabe de qual tela o clique partiu.
+      case 'ui/openHome':
+        // A página principal em aba própria — e SEMPRE a mesma aba, se ela já
+        // existir. A abertura mora em `homeTab.ts`, e não aqui, porque o pedido
+        // pode vir da sidebar de reunião: content script não abre aba, e um
+        // `window.open` de lá sairia no contexto da página, onde o bloqueador
+        // de pop-up do site manda.
         return {
-          ok: await openWideView(sender.tab, {
-            history: message.view === 'history',
+          ok: await openHome(sender.tab, {
+            ...(message.secao ? { secao: message.secao } : {}),
             recordId: message.recordId ?? null,
           }),
         };
-      case 'ui/openHome':
-        // A tela inicial em aba própria. `chrome.tabs.create` aqui, e não no
-        // chamador, porque o pedido pode vir do painel injetado — content
-        // script não abre aba, e um `window.open` de lá sairia no contexto da
-        // página, onde o bloqueador de pop-up do site manda.
-        await chrome.tabs.create({
-          url: chrome.runtime.getURL('src/home/index.html'),
-          windowId: sender.tab?.windowId,
-        });
-        return { ok: true };
-      // ---- UIs (painel lateral / painel injetado) ----
+      // ---- UIs (HOME / sidebar de reunião) ----
       case 'panel/mounted': {
-        // Um painel nasceu nesta aba: a partir de agora o estado ao vivo tem
+        // Uma sidebar nasceu nesta aba: a partir de agora o estado ao vivo tem
         // para onde ir. Ver a nota de `panel/mounted` em types/messages.ts.
         if (sender.tab?.id !== undefined) await rememberPanelTab(sender.tab.id);
         return getState();

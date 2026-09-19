@@ -30,7 +30,7 @@ export async function removeSession(key: string): Promise<void> {
   await chrome.storage.session.remove(key);
 }
 
-/** Observa mudanças de uma chave no storage local (usado pelo histórico do popup). */
+/** Observa mudanças de uma chave no storage local (histórico e conversas). */
 export function onLocalChange<T>(key: string, cb: (value: T | null) => void): () => void {
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,

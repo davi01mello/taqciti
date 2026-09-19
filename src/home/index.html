@@ -11,14 +11,22 @@
       fonte do sistema, que é sóbria o bastante para o desenho não quebrar.
     -->
     <style>
+      /*
+       * `min-height`, e NÃO `height`. Quem rola aqui é a página inteira — a
+       * conversa, a escrita e a onda são um fluxo só, e ele passa da altura da
+       * janela assim que a conversa cresce. Com `height: 100%` o `#root` ficaria
+       * travado na janela e o conteúdo transbordaria dele.
+       */
       html,
       body,
       #root {
-        height: 100%;
+        min-height: 100%;
       }
       html {
         overflow-x: hidden;
         overscroll-behavior: none;
+        /* O mesmo tom do resto da superfície: sem isto, o instante entre a
+           janela abrir e o React montar pisca com outra cor. */
         background: rgb(15 18 19);
       }
       body {

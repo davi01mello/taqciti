@@ -1,26 +1,35 @@
 /**
  * O fundo vivo da HOME: dobras neutras ao alto e a onda sonora verde embaixo.
  *
- * ── Por que a onda fica VISÍVEL, e não decorativa ──────────────────────────
+ * ── O corte horizontal, e por que ele existia ──────────────────────────────
  *
- * O jeito fácil de resolver "fundo animado que não atrapalha a leitura" é
- * afogar a onda: baixar a opacidade até ela virar textura, ou cobri-la com um
- * painel opaco. Os dois apagam justamente o que dá identidade à tela. O que
- * separa as duas coisas aqui não é opacidade, é GEOMETRIA: a onda mora na
- * faixa de baixo (≈78% da altura), onde não há texto, e o conteúdo vive numa
- * coluna centrada com fundo transparente. Ninguém precisa sumir para o outro
- * aparecer.
+ * O clarão da onda é um gradiente RADIAL. Ele era pintado dentro de um
+ * retângulo mais baixo do que o próprio raio do gradiente — `fillRect(0, eixo -
+ * 0.3h, w, 0.6h)` com raio `0.5w`. Numa janela larga, `0.5w` é muito maior que
+ * `0.3h`: nas bordas de cima e de baixo do retângulo o gradiente ainda estava
+ * bem longe de zero, e a pintura simplesmente PARAVA ali. O resultado é uma
+ * linha reta atravessando a tela — a "divisão horizontal" que separava a região
+ * da animação do resto da página.
  *
- * O envelope `sin(πu)` é o que mantém isso verdadeiro quando a janela é larga:
- * a onda nasce e morre nas bordas em vez de bater na lateral, então numa tela
- * ampla ela continua sendo uma forma, e não uma listra de ponta a ponta.
+ * A correção não é apagar a onda: é pintar o clarão na tela inteira e deixar o
+ * gradiente morrer sozinho. Um gradiente radial que chega a alpha 0 dentro do
+ * canvas não tem borda para revelar. O canvas ainda ganha uma máscara suave no
+ * topo (ver `home.css`), para a camada inteira se dissolver no fundo em vez de
+ * terminar num retângulo.
+ *
+ * ── Por que a onda mora no FLUXO, e não presa na janela ────────────────────
+ *
+ * Este canvas é posicionado dentro do palco da conversa, logo atrás do campo de
+ * escrita, e rola com a página. Subir para reler o histórico tira a escrita E a
+ * onda da área visível, como numa página de verdade. Uma cópia fixa
+ * acompanhando a leitura era a mentira mais visível da versão anterior.
  *
  * ── Os estados são os do produto, não do enfeite ───────────────────────────
  *
- * `captando` só existe quando há captura de legenda ACONTECENDO — vem de
- * `MeetingState.phase === 'recording'`, não de um timer. Sem reunião ao vivo a
- * onda respira devagar, porque é isso que está acontecendo. Uma onda que
- * "escuta" com o microfone desligado seria uma mentira animada.
+ * `captando` só existe quando há captura de legenda ACONTECENDO. `escrita` é o
+ * campo em foco: a onda sobe enquanto se escreve e volta ao repouso no envio.
+ * A troca entre eles é INTERPOLADA no laço de desenho, não um salto de valor —
+ * um degrau de amplitude lê como falha de renderização, não como reação.
  *
  * ── Custo ──────────────────────────────────────────────────────────────────
  *
@@ -31,13 +40,12 @@
  */
 import { useEffect, useRef } from 'react';
 
-export type EstadoDaOnda = 'repouso' | 'captando' | 'processando';
+export type EstadoDaOnda = 'repouso' | 'escrita' | 'captando';
 
 interface Props {
   estado: EstadoDaOnda;
   animando: boolean;
-  /** Empurrão momentâneo de energia — um gesto real da pessoa (enviar uma
-   *  mensagem, digitar). Decai sozinho; não é um estado. */
+  /** Empurrão momentâneo de energia — um gesto real da pessoa. Decai sozinho. */
   pulso: number;
   /** A onda recua quando a leitura é o assunto da tela (listas, tutoriais). */
   discreta: boolean;
@@ -45,13 +53,12 @@ interface Props {
 
 /** Intensidade por estado: amplitude base e velocidade do tempo. */
 const PERFIL: Record<EstadoDaOnda, { amplitude: number; velocidade: number }> = {
-  repouso: { amplitude: 46, velocidade: 0.00019 },
-  captando: { amplitude: 78, velocidade: 0.00042 },
-  processando: { amplitude: 62, velocidade: 0.0009 },
+  repouso: { amplitude: 38, velocidade: 0.00019 },
+  escrita: { amplitude: 76, velocidade: 0.00052 },
+  captando: { amplitude: 88, velocidade: 0.00042 },
 };
 
-/** Lê uma cor do tema como `r, g, b` para o canvas montar rgba() sozinho.
- *  Mantém canvas e CSS na mesma fonte (tokens.css) em vez de duplicar hex. */
+/** Lê uma cor do tema como `r, g, b` para o canvas montar rgba() sozinho. */
 function canais(nome: string, reserva: string): string {
   const valor = getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
   return valor || reserva;
@@ -64,9 +71,6 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
   const discretaRef = useRef(discreta);
   const pulsoRef = useRef(0);
   const animandoRef = useRef(animando);
-  /** Reagenda o laço depois de ele ter se encerrado sozinho (pausa, aba
-   *  oculta). Preenchido pelo efeito principal; chamado pelo efeito de
-   *  retomada abaixo. */
   const retomarRef = useRef<(() => void) | null>(null);
 
   estadoRef.current = estado;
@@ -84,9 +88,6 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // "92 203 133" (formato dos tokens) -> "92, 203, 133" (formato do rgba).
-    // Convertido uma vez: dentro do laço isto rodaria milhares de vezes por
-    // quadro.
     const verde = canais('--c-primary', '92 203 133').replace(/\s+/g, ', ');
     const brilho = canais('--c-glow', '144 223 173').replace(/\s+/g, ', ');
 
@@ -95,6 +96,15 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
     let fase = 0;
     let anterior = 0;
     let quadro = 0;
+
+    /*
+     * Os valores DESENHADOS, que perseguem os do perfil. A subida ao começar a
+     * escrever e a volta ao repouso depois do envio são esta perseguição — e é
+     * por isso que elas não deslocam nada: o que muda é a forma pintada no
+     * canvas, nunca o layout.
+     */
+    let amplitudeAtual = PERFIL.repouso.amplitude;
+    let recuoAtual = 1;
 
     const medir = () => {
       const r = canvas.getBoundingClientRect();
@@ -115,18 +125,23 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
       if (animandoRef.current) fase += dt * perfil.velocidade;
       pulsoRef.current *= 0.972;
 
-      const recuo = discretaRef.current ? 0.42 : 1;
+      // Interpolação exponencial: mesma suavidade a 60Hz e a 144Hz.
+      const k = 1 - Math.exp(-dt / 260);
+      amplitudeAtual += (perfil.amplitude - amplitudeAtual) * k;
+      recuoAtual += ((discretaRef.current ? 0.4 : 1) - recuoAtual) * k;
+      const recuo = recuoAtual;
+
       ctx.clearRect(0, 0, largura, altura);
 
-      // --- 1. Dobras neutras: profundidade, sem cor. Elas atravessam a tela
+      // --- 1. Dobras neutras: profundidade, sem cor. Elas atravessam a camada
       // inteira e é sobre elas que a navegação translúcida se lê.
-      const centro = altura * 0.5 + Math.sin(fase) * 22;
+      const centro = altura * 0.42 + Math.sin(fase) * 22;
       const halo = ctx.createRadialGradient(
         largura * 0.5, centro, 0,
         largura * 0.5, centro, Math.max(largura, altura) * 0.72,
       );
-      halo.addColorStop(0, 'rgba(62, 70, 66, 0.26)');
-      halo.addColorStop(0.5, 'rgba(36, 43, 41, 0.18)');
+      halo.addColorStop(0, 'rgba(62, 70, 66, 0.22)');
+      halo.addColorStop(0.5, 'rgba(36, 43, 41, 0.14)');
       halo.addColorStop(1, 'rgba(21, 24, 25, 0)');
       ctx.fillStyle = halo;
       ctx.fillRect(0, 0, largura, altura);
@@ -143,23 +158,33 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
           if (x === -10) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         }
-        ctx.strokeStyle = `rgba(179, 190, 184, ${(0.012 + Math.sin((linha / linhas) * Math.PI) * 0.034) * recuo})`;
+        ctx.strokeStyle = `rgba(179, 190, 184, ${(0.01 + Math.sin((linha / linhas) * Math.PI) * 0.028) * recuo})`;
         ctx.lineWidth = linha % 4 === 0 ? 1.1 : 0.65;
         ctx.stroke();
       }
 
       // --- 2. A onda verde. É ela que carrega o estado do produto.
-      const amplitude = (perfil.amplitude + pulsoRef.current * 26) * recuo;
-      const eixo = altura * 0.78 + Math.sin(fase * 1.4) * 12;
+      const amplitude = (amplitudeAtual + pulsoRef.current * 26) * recuo;
+      const eixo = altura * 0.74 + Math.sin(fase * 1.4) * 12;
 
+      /*
+       * O clarão, pintado na TELA INTEIRA.
+       *
+       * Era um `fillRect` de 60% da altura, e a borda desse retângulo era o
+       * corte horizontal. Pintando tudo, quem decide onde a luz acaba é o
+       * próprio gradiente — e ele chega a zero dentro do canvas, então não há
+       * aresta para aparecer. O custo é o mesmo: um `fillRect` é um `fillRect`.
+       */
+      const alcance = Math.max(largura * 0.55, altura * 0.9);
       const clarao = ctx.createRadialGradient(
         largura * 0.5, eixo, 2,
-        largura * 0.5, eixo, largura * 0.5,
+        largura * 0.5, eixo, alcance,
       );
-      clarao.addColorStop(0, `rgba(${verde}, ${0.075 * recuo})`);
+      clarao.addColorStop(0, `rgba(${verde}, ${0.085 * recuo})`);
+      clarao.addColorStop(0.55, `rgba(${verde}, ${0.03 * recuo})`);
       clarao.addColorStop(1, `rgba(${verde}, 0)`);
       ctx.fillStyle = clarao;
-      ctx.fillRect(0, eixo - altura * 0.3, largura, altura * 0.6);
+      ctx.fillRect(0, 0, largura, altura);
 
       const camadas = 19;
       const meio = (camadas - 1) / 2;
@@ -202,16 +227,20 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
         }
       }
 
-      // Continua o laço só enquanto houver o que mudar. Parado com pulso
-      // residual ainda desenha, para a energia terminar de decair na tela.
-      if (animandoRef.current || pulsoRef.current > 0.01) {
+      /*
+       * Continua o laço enquanto houver o que mudar. "Parado" inclui ainda estar
+       * chegando ao alvo: sem a comparação de amplitude, pausar o movimento no
+       * meio de uma subida congelaria a onda a meio caminho.
+       */
+      const chegando =
+        Math.abs(perfil.amplitude - amplitudeAtual) > 0.4 ||
+        Math.abs((discretaRef.current ? 0.4 : 1) - recuoAtual) > 0.005;
+      if (animandoRef.current || pulsoRef.current > 0.01 || chegando) {
         quadro = requestAnimationFrame(desenhar);
       }
     };
 
-    /** Reacende o laço, se ele não estiver rodando. `anterior = 0` zera o
-     *  delta: sem isso, voltar de uma aba oculta por dez minutos entregaria um
-     *  `dt` gigante e a onda daria um salto. */
+    /** Reacende o laço, se ele não estiver rodando. */
     const retomar = () => {
       if (quadro) return;
       anterior = 0;
@@ -224,9 +253,6 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
 
     const observador = new ResizeObserver(() => {
       medir();
-      // Redesenha já: sem isto, redimensionar com a animação pausada deixaria
-      // o canvas limpo — a onda sumiria justamente para quem pediu menos
-      // movimento.
       retomar();
     });
     observador.observe(canvas);
@@ -238,16 +264,20 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
     };
   }, []);
 
-  // A animação voltou (aba visível de novo, pausa desfeita): o laço já se
-  // encerrou sozinho, então precisa ser reaceso de fora.
+  // A animação voltou, ou o alvo mudou: o laço pode ter se encerrado sozinho.
   useEffect(() => {
-    if (animando) retomarRef.current?.();
-  }, [animando]);
+    retomarRef.current?.();
+  }, [animando, estado, discreta]);
 
-  // Um pulso também precisa reacender o laço — é ele que desenha o decaimento.
   useEffect(() => {
     if (pulso > 0) retomarRef.current?.();
   }, [pulso]);
 
-  return <canvas ref={ref} className="tq-wave" aria-hidden="true" />;
+  /*
+   * `data-estado` no elemento não é decoração: o que a onda está fazendo é um
+   * comportamento do produto ("a onda sobe ao escrever, e volta ao repouso no
+   * envio"), e sem isto ele só seria verificável olhando pixels. Com o atributo
+   * o teste pergunta à árvore, e a regressão aparece antes do navegador.
+   */
+  return <canvas ref={ref} className="tq-wave" data-estado={estado} aria-hidden="true" />;
 }

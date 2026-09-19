@@ -24,17 +24,22 @@
  * não reexecuta, e só o `onExecute` roda outra vez. Código de inicialização no
  * topo simplesmente não veria a segunda entrada.
  *
- * ── Os dois papéis ─────────────────────────────────────────────────────────
+ * ── Um papel só: o Meet ────────────────────────────────────────────────────
  *
- * No Meet, o controller completo: legendas, captura, painel. Fora dele, só o
- * painel — histórico e comando à distância de uma reunião que roda noutra aba.
- * Um bundle só porque o loader é descoberto pelo manifesto em tempo de
- * execução; um segundo entry precisaria de um nome de arquivo fixo, brigando
- * com o hash que o @crxjs gera.
+ * Havia dois. No Meet, o controller completo — legendas, captura, sidebar. Fora
+ * dele, uma cópia do mesmo painel, com histórico e comando à distância. Essa
+ * segunda cópia saiu: o painel de REUNIÃO só faz sentido durante uma reunião, e
+ * numa aba qualquer ele era um painel de reunião vazio, competindo com a HOME
+ * pelo papel de "o TaqCiti". O histórico e o resto moram na HOME agora, e o
+ * clique no ícone leva até lá.
+ *
+ * O script continua declarado para toda página, e sai cedo fora do Meet. O
+ * `matches` não foi estreitado de propósito: ele é o que o @crxjs copia para o
+ * `web_accessible_resources` dos chunks, e mexer nisso é o tipo de mudança cujo
+ * sintoma (o bundle não carregar em algum domínio) só aparece no navegador.
  */
 import { GoogleMeetProvider } from './providers/googleMeet/GoogleMeetProvider';
 import { ContentController } from './controller';
-import { startStandalonePanel } from './standalone';
 import { sendMessage } from '@/shared/services/messaging';
 import { PANEL_OPEN_EVENT } from './ui/mount';
 
@@ -44,6 +49,7 @@ let started = false;
 
 export function onExecute(): void {
   if (window.top !== window) return;
+  if (window.location.hostname !== MEET_HOST) return;
 
   if (started) {
     document.dispatchEvent(new CustomEvent(PANEL_OPEN_EVENT));
@@ -52,19 +58,15 @@ export function onExecute(): void {
   started = true;
 
   /*
-   * O painel se anuncia ao background ANTES de montar qualquer coisa.
+   * A sidebar se anuncia ao background ANTES de montar qualquer coisa.
    *
    * É o que faz o estado ao vivo alcançar esta aba: o background só consegue
    * endereçar content script por `chrome.tabs.sendMessage(tabId, …)`, e é este
    * recado que lhe diz qual é o tabId. Um documento novo a cada navegação
-   * significa um painel novo a cada navegação — e um anúncio novo, sem ninguém
-   * precisar manter lista de aba nenhuma sincronizada por fora.
+   * significa uma sidebar nova a cada navegação — e um anúncio novo, sem
+   * ninguém precisar manter lista de aba nenhuma sincronizada por fora.
    */
   void sendMessage({ type: 'panel/mounted' });
 
-  if (window.location.hostname === MEET_HOST) {
-    new ContentController(new GoogleMeetProvider()).start();
-  } else {
-    startStandalonePanel();
-  }
+  new ContentController(new GoogleMeetProvider()).start();
 }

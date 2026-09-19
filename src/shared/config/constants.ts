@@ -18,6 +18,17 @@ export const STORAGE_KEYS = {
   panelTabs: 'taq:panelTabs',
   /** chrome.storage.local — conversas do Assistente (a HOME em aba inteira). */
   conversations: 'taq:conversations',
+  /**
+   * chrome.storage.session — a resposta à pergunta "registrar esta reunião?",
+   * por código de sala.
+   *
+   * `session`, e não `local`, de propósito: a decisão vale para ESTA reunião.
+   * Guardá-la para sempre faria um "não" de terça-feira silenciar a pergunta
+   * numa sala recorrente meses depois, sem ninguém entender por quê. Sobreviver
+   * ao service worker dormir e à aba recarregar é exatamente o alcance certo —
+   * é isso que impede a pergunta de voltar a cada re-render ou reconexão curta.
+   */
+  meetingConsent: 'taq:meetingConsent',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

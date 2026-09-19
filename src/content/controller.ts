@@ -28,8 +28,14 @@ import { setNativeCaptionsHidden } from './captionsVisibility';
 import { patchPanelPrefs, subscribePanelPrefs } from '@/features/panel/prefsStore';
 import { PlatformProvider } from '@/shared/platform/context';
 import { extensionPlatform } from '@/shared/platform/extension';
-import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
+import {
+  MeetingSidebar,
+  type PanelCallbacks,
+  type PanelContext,
+} from './ui/MeetingSidebar';
 import { getMountPoint, unmountHost } from './ui/mount';
+import { decisaoDe, guardarDecisao, type DecisaoDeRegistro } from './consent';
+import type { MeetingSession } from '@/features/meeting/provider';
 
 const PARTICIPANTS_POLL_MS = 5000;
 
@@ -57,6 +63,21 @@ export class ContentController {
   /** false = há legenda na tela que a captura não está conseguindo ler. */
   private captureHealthy = true;
 
+  /*
+   * O PORTÃO DA CAPTURA.
+   *
+   * Detectar uma reunião não é mais o mesmo que começar a registrá-la: entre as
+   * duas coisas existe uma pergunta. Estes três campos são a resposta a ela.
+   *
+   * `salaPerguntada` é a sala cuja decisão já está resolvida (aceita, recusada,
+   * ou com a pergunta na tela). É ela que impede a pergunta de voltar a cada
+   * re-render do Meet — que reemite `onMeetingStart` com frequência — e a cada
+   * reconexão curta.
+   */
+  private salaPerguntada: string | null = null;
+  private decisao: DecisaoDeRegistro | null = null;
+  private perguntaPendente: MeetingSession | null = null;
+
   private readonly callbacks: PanelCallbacks = {
     // Pausa OTIMISTA: desliga a captura no mesmo tique do clique, sem esperar
     // o round-trip com o background. O que for dito nesse intervalo é
@@ -71,17 +92,17 @@ export class ContentController {
     },
     onFinish: () => void sendMessage({ type: 'ui/finish' }),
     onRename: (title) => void sendMessage({ type: 'ui/rename', title }),
-    // `view: 'history'` sempre: o pedido nasce no histórico do painel, e sem
-    // ele a aba abriria na reunião ao vivo — ver src/sidepanel/route.ts.
-    onOpenSidePanel: (target) =>
+    onResumeCapture: () => this.redetect(),
+    // Sem alvo, a HOME abre onde estava: renavegar uma aba já aberta a troco de
+    // nada recarregaria a página e jogaria fora o rascunho do compositor.
+    onOpenHome: (target) =>
       void sendMessage({
-        type: 'panel/openRequest',
-        view: 'history',
+        type: 'ui/openHome',
         ...(target?.recordId !== undefined ? { recordId: target.recordId } : {}),
       }),
-    onResumeCapture: () => this.redetect(),
-    onOpenHome: () => void sendMessage({ type: 'ui/openHome' }),
     onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
+    onAceitarRegistro: () => void this.responder('aceito'),
+    onRecusarRegistro: () => void this.responder('recusado'),
     onEnableCaptions: () => this.attemptEnableCaptions(),
     onDismissLanguageWarning: () =>
       void sendMessage({ type: 'ui/dismissLanguageWarning' }),
@@ -108,19 +129,13 @@ export class ContentController {
     this.provider.start();
 
     this.subscriptions.push(
-      this.provider.onMeetingStart((session) => {
-        void sendMessage<MeetingState>({
-          type: 'meet/detected',
-          meetingCode: session.meetingCode,
-          title: session.title,
-          captionsEnabled: this.provider.areCaptionsEnabled(),
-        }).then((state) => {
-          this.applyState(state);
-          this.pushAccountContext(true);
-        });
-      }),
+      this.provider.onMeetingStart((session) => void this.considerarReuniao(session)),
 
       this.provider.onMeetingEnd(() => {
+        // A sala acabou: a próxima pergunta é uma pergunta nova.
+        this.salaPerguntada = null;
+        this.decisao = null;
+        this.perguntaPendente = null;
         void sendMessage<MeetingState>({ type: 'meet/ended' }).then((state) =>
           this.applyState(state),
         );
@@ -205,17 +220,77 @@ export class ContentController {
 
     // Script pode ser injetado com a reunião já em andamento (reload da aba).
     const existing = this.provider.detectMeeting();
-    if (existing) {
-      void sendMessage<MeetingState>({
-        type: 'meet/detected',
-        meetingCode: existing.meetingCode,
-        title: existing.title,
-        captionsEnabled: this.provider.areCaptionsEnabled(),
-      }).then((state) => {
-        this.applyState(state);
-        this.pushAccountContext(true);
-      });
+    if (existing) void this.considerarReuniao(existing);
+  }
+
+  // ---------- o portão: registrar esta reunião? ----------
+
+  /**
+   * Uma reunião apareceu. Registrar ou não é decisão de quem está nela.
+   *
+   * Três caminhos, e o que os separa é o que já foi decidido ANTES:
+   *
+   *   - decisão guardada `aceito`  → a captura recomeça sem perguntar de novo
+   *     (é o caso do reload da aba no meio de uma reunião já aceita);
+   *   - decisão guardada `recusado` → nada é enviado, e a sidebar mostra que
+   *     não há captura, com o caminho de ligar;
+   *   - nada guardado → a pergunta aparece, e é só ela que aparece.
+   *
+   * O guarda do começo é o que impede a pergunta de piscar: o Meet reemite
+   * `onMeetingStart` a cada re-render pesado da sala, e sem ele cada um desses
+   * eventos reabriria uma pergunta já respondida.
+   */
+  private async considerarReuniao(session: MeetingSession): Promise<void> {
+    if (this.salaPerguntada === session.meetingCode) return;
+    this.salaPerguntada = session.meetingCode;
+
+    const previa = await decisaoDe(session.meetingCode);
+    if (previa === 'aceito') {
+      this.decisao = 'aceito';
+      this.iniciarCaptura(session);
+      return;
     }
+    if (previa === 'recusado') {
+      this.decisao = 'recusado';
+      this.rerender();
+      return;
+    }
+
+    this.decisao = null;
+    this.perguntaPendente = session;
+    this.rerender();
+  }
+
+  /** A resposta da pessoa, vinda da sidebar. */
+  private async responder(decisao: DecisaoDeRegistro): Promise<void> {
+    const session = this.perguntaPendente ?? this.provider.detectMeeting();
+    if (!session) return;
+
+    this.salaPerguntada = session.meetingCode;
+    this.decisao = decisao;
+    this.perguntaPendente = null;
+    await guardarDecisao(session.meetingCode, decisao);
+
+    if (decisao === 'aceito') this.iniciarCaptura(session);
+    else this.rerender();
+  }
+
+  /** O único lugar que conta ao background que existe uma reunião a registrar. */
+  private iniciarCaptura(session: MeetingSession): void {
+    void sendMessage<MeetingState>({
+      type: 'meet/detected',
+      meetingCode: session.meetingCode,
+      title: session.title,
+      captionsEnabled: this.provider.areCaptionsEnabled(),
+    }).then((state) => {
+      this.applyState(state);
+      this.pushAccountContext(true);
+    });
+  }
+
+  /** Repinta com o último estado conhecido — o que mudou foi só o daqui. */
+  private rerender(): void {
+    this.applyState(this.lastState ?? { phase: 'idle', session: null });
   }
 
   stop(): void {
@@ -230,19 +305,14 @@ export class ContentController {
     unmountHost();
   }
 
-  /** Reenvia a detecção atual (usado pelo "Retomar captura" pós-finalização). */
+  /**
+   * "Tentar capturar de novo", depois de uma reunião que não rendeu fala
+   * nenhuma. É um gesto explícito de quem está na sala, então vale como um sim:
+   * passa pelo mesmo caminho da resposta, e não por uma detecção paralela que
+   * driblaria o portão.
+   */
   private redetect(): void {
-    const session = this.provider.detectMeeting();
-    if (!session) return;
-    void sendMessage<MeetingState>({
-      type: 'meet/detected',
-      meetingCode: session.meetingCode,
-      title: session.title,
-      captionsEnabled: this.provider.areCaptionsEnabled(),
-    }).then((state) => {
-      this.applyState(state);
-      this.pushAccountContext(true);
-    });
+    void this.responder('aceito');
   }
 
   private pushParticipants(): void {
@@ -302,8 +372,8 @@ export class ContentController {
    * sempre — o painel continua "gravando" e nada mais entra.
    */
   private recutIfNeeded(prev: MeetingState | null, next: MeetingState): void {
-    // A pausa vale para QUALQUER origem: o botão do painel injetado já pausou
-    // otimista, mas a janela principal e o popup chegam só por aqui.
+    // A pausa vale para QUALQUER origem: o botão da sidebar já pausou
+    // otimista, mas uma pausa vinda de outra superfície chega só por aqui.
     if (next.phase === 'paused') {
       this.provider.setCapturePaused(true);
       return;
@@ -366,24 +436,27 @@ export class ContentController {
         this.captionRetryTimer === null,
       nativeCaptionsHidden: this.prefs.hideMeetCaptions,
       captureHealthy: this.captureHealthy,
+      aguardandoResposta: this.perguntaPendente
+        ? { title: this.perguntaPendente.title }
+        : null,
+      registroRecusado: this.decisao === 'recusado',
     };
 
     this.render(state, ctx);
   }
 
   /**
-   * O painel precisa da camada de plataforma porque agora ele lê o HISTÓRICO
-   * (`useHistory`), e não só o estado que o controller já lhe entrega por
-   * props. Dentro de um content script `chrome.storage` e `chrome.runtime`
-   * existem, então é a mesma `extensionPlatform` das outras superfícies —
-   * nenhuma implementação nova.
+   * A sidebar recebe a camada de plataforma porque alguns componentes que ela
+   * reaproveita falam com o background por ela. Dentro de um content script
+   * `chrome.storage` e `chrome.runtime` existem, então é a mesma
+   * `extensionPlatform` das outras superfícies — nenhuma implementação nova.
    */
   private render(state: MeetingState, ctx: PanelContext): void {
     if (this.root === null) this.root = createRoot(getMountPoint());
     this.root.render(
       createElement(PlatformProvider, {
         platform: extensionPlatform,
-        children: createElement(PanelApp, {
+        children: createElement(MeetingSidebar, {
           state,
           ctx,
           prefs: this.prefs,

@@ -74,9 +74,8 @@ export default defineManifest({
   },
 
   // Sem `default_popup` de propósito: com ele o Chrome abre o popup e
-  // `chrome.action.onClicked` NUNCA dispara. O clique no ícone agora injeta o
-  // painel flutuante na aba ativa — é ele o produto, não uma caixinha presa
-  // embaixo da barra do navegador.
+  // `chrome.action.onClicked` NUNCA dispara. O clique no ícone abre a HOME —
+  // é ela o produto, não uma caixinha presa embaixo da barra do navegador.
   action: {
     default_icon: {
       '16': 'icons/icon-16.png',
@@ -89,13 +88,21 @@ export default defineManifest({
     type: 'module',
   },
 
-  // A saída larga, para ler uma transcrição inteira sem a página por baixo —
-  // secundária ao painel injetado, que é o produto. Declarar `default_path`
-  // também põe o TaqCITi no menu de painel lateral do próprio Chrome, que é o
-  // caminho de abertura que nunca depende de gesto (ver background/sidePanel).
-  side_panel: {
-    default_path: 'src/sidepanel/index.html',
-  },
+  /*
+   * Sem `side_panel`.
+   *
+   * Havia aqui uma "saída larga" — o histórico antigo em tela cheia, também
+   * pendurado no menu de painel lateral do Chrome. Ela era a terceira
+   * experiência do produto, ao lado do popup e da HOME, e as três mostravam o
+   * mesmo histórico com telas diferentes. A HOME passou a ser a página
+   * principal e absorveu o que aquela tela fazia (ver `src/home/Reunioes`),
+   * então ela saiu inteira, e com ela o caminho do menu lateral — que levaria
+   * de volta à tela que deixou de existir.
+   *
+   * A sidebar de REUNIÃO é outra coisa e não mora aqui: ela é desenhada na
+   * página do Meet pelo content script, porque `chrome.sidePanel.open()` exige
+   * um gesto no contexto da extensão e o clique na cápsula acontece na página.
+   */
 
   /*
    * O content script é DECLARADO, para todo site, e é isto que dá ao TaqCITi um
@@ -148,7 +155,11 @@ export default defineManifest({
   // do usuário é obtido DENTRO do Chrome e usado para criar a ata no Drive
   // dele. O servidor nunca vê esse token — é a razão de a extensão criar o
   // documento em vez de o servidor criar.
-  permissions: ['storage', 'sidePanel', 'scripting', 'identity'],
+  //
+  // `sidePanel` saiu junto com a saída larga: sem `side_panel` no manifesto a
+  // permissão não habilitava nada, e permissão que não é usada é permissão que
+  // não deve ser pedida.
+  permissions: ['storage', 'scripting', 'identity'],
 
   /*
    * O preço honesto da persistência.

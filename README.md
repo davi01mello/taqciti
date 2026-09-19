@@ -52,12 +52,20 @@ substituída pelo Drive; o Drive é só um destino adicional.
 
 ## Estrutura
 
-- `src/content/` — captura das legendas do Meet e o painel injetado na página.
+- `src/home/` — **a HOME**: a página principal, em aba inteira. É o que o ícone
+  da extensão abre. Assistente, Reuniões, Documentos e Conexões.
+- `src/content/` — captura das legendas do Meet e a **sidebar de reunião**, que
+  só existe dentro do Meet (`src/content/ui/MeetingSidebar.tsx`).
 - `src/features/transcription/` — agregação e limpeza da transcrição (puro, sem I/O).
 - `src/features/meeting/` — máquina de estados da reunião, nomeação, detecção de próxima reunião.
 - `src/features/history/` — histórico local (chrome.storage.local).
-- `src/background/` — service worker: roteia mensagens, persiste o histórico.
-- `src/popup/`, `src/sidepanel/` — UI da extensão.
+- `src/background/` — service worker: roteia mensagens, persiste o histórico,
+  abre (ou foca) a aba da HOME.
+- `src/document/` — a página de geração de documento a partir de uma reunião.
+
+Duas superfícies, e só duas. O popup e o histórico em tela cheia (o antigo
+`src/sidepanel/`) foram removidos: as três telas mostravam o mesmo histórico de
+jeitos diferentes, e o que elas faziam mora na navegação interna da HOME.
 
 ## Próximos passos
 

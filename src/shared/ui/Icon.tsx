@@ -28,7 +28,11 @@ export type IconName =
   | 'link'
   | 'image'
   | 'arrowUp'
-  | 'arrowUpRight';
+  | 'arrowUpRight'
+  // O menu de conversas da HOME. Duas bolhas, e não um relógio: o que o botão
+  // abre são CONVERSAS, e um ícone de histórico já quer dizer "Reuniões" na
+  // navegação lateral — dois lugares diferentes não podem ter o mesmo desenho.
+  | 'chats';
 
 interface IconProps {
   name: IconName;
@@ -146,6 +150,12 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M8 16.2L16.2 8" />
       <path d="M9.4 8h6.8v6.8" />
+    </>
+  ),
+  chats: (
+    <>
+      <path d="M8.2 14.6H6.4L3.6 17v-9.4a1.8 1.8 0 0 1 1.8-1.8h8.4a1.8 1.8 0 0 1 1.8 1.8v1.2" />
+      <path d="M10.4 10.6h8.2a1.8 1.8 0 0 1 1.8 1.8v4.4a1.8 1.8 0 0 1-1.8 1.8h-1.4L14.4 21v-2.4h-4a1.8 1.8 0 0 1-1.8-1.8v-4.4a1.8 1.8 0 0 1 1.8-1.8z" />
     </>
   ),
 };

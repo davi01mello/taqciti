@@ -132,7 +132,7 @@ const contentMessages = z.discriminatedUnion('type', [
 ]);
 
 /**
- * Mensagens das UIs (painel injetado / painel lateral) → background.
+ * Mensagens das UIs (HOME / sidebar de reunião) → background.
  *
  * Exportado porque é exatamente a fronteira que a camada de plataforma
  * atravessa: é o conjunto de comandos que uma UI pode emitir, seja ela a
@@ -140,38 +140,35 @@ const contentMessages = z.discriminatedUnion('type', [
  * schema de pé permite VALIDAR o que chega pelo socket com a mesma regra que
  * já valida o que chega por `chrome.runtime` — a ponte não afrouxa nada.
  */
+export const homeSectionSchema = z.enum([
+  'assistente',
+  'reunioes',
+  'documentos',
+  'conexoes',
+]);
+
 export const uiMessageSchema = z.discriminatedUnion('type', [
-  /** Abre a saída larga — o TaqCITi inteiro numa aba, pedido de dentro do
-   *  painel. Não passa por `chrome.sidePanel.open`, que exige um gesto do
-   *  usuário que este clique não tem. Ver src/background/sidePanel.ts. */
+  /**
+   * Abre a HOME (`src/home/index.html`) — a página principal do TaqCiti.
+   *
+   * É o ÚNICO destino em aba do produto. Antes havia dois (`panel/openRequest`
+   * abria a saída larga com o histórico antigo, este abria a tela nova), e
+   * eram duas experiências concorrentes: o mesmo botão "Abrir numa aba"
+   * levava a lugares diferentes conforme de onde saísse o clique. A saída
+   * larga foi removida e o que ela fazia mora na navegação interna da HOME.
+   *
+   * Passa pelo background porque quem pede pode ser a sidebar de reunião, que
+   * vive num content script — `window.open` de lá sai no contexto da página,
+   * sujeito ao bloqueador de pop-up do site. E porque só o background sabe se
+   * já existe uma aba da HOME para focar em vez de abrir outra.
+   */
   z.object({
-    type: z.literal('panel/openRequest'),
-    /**
-     * O que a aba deve mostrar. AUSENTE = a tela da fase atual, que é o que o
-     * clique no ícone da extensão quer.
-     *
-     * O painel manda sempre `'history'`: quem clica ali está olhando o
-     * histórico, e sem este campo a aba abria na reunião ao vivo — o botão
-     * prometia uma coisa e entregava outra, sem caminho de volta.
-     */
-    view: z.literal('history').optional(),
-    /** Abre já nesta reunião do histórico, em vez da lista. */
+    type: z.literal('ui/openHome'),
+    /** Seção em que a HOME deve abrir. Ausente = a que ela já mostrava. */
+    secao: homeSectionSchema.optional(),
+    /** Abre já nesta reunião do histórico, dentro de "Reuniões". */
     recordId: z.string().max(200).optional(),
   }),
-  /**
-   * Abre a HOME (`src/home/index.html`) numa aba.
-   *
-   * Comando próprio, e não um campo de `panel/openRequest`, porque o destino é
-   * OUTRA página: aquele abre a saída larga e sabe posicioná-la num registro
-   * do histórico; este abre a tela inicial, que não tem esse conceito. Juntar
-   * os dois faria um comando com dois conjuntos de campos mutuamente
-   * exclusivos.
-   *
-   * Passa pelo background porque quem pede pode ser o painel injetado, e um
-   * content script não abre aba — `window.open` de lá sai no contexto da
-   * página, sujeito ao bloqueador de pop-up do site.
-   */
-  z.object({ type: z.literal('ui/openHome') }),
   /**
    * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
    * vivo o encontra.

@@ -1,6 +1,6 @@
 /**
  * A implementação para quando a UI roda DENTRO do Chrome — a janela do
- * navegador, o popup e a página de documento.
+ * navegador, a HOME e a página de documento.
  *
  * É a tradução do vocabulário da UI (ver `types.ts`) para as duas APIs da
  * extensão, e o único lugar do lado da interface que sabe que `chrome.*`

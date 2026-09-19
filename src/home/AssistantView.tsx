@@ -1,5 +1,5 @@
 /**
- * A conversa do Assistente.
+ * A conversa do Assistente — e o campo de escrita, no MESMO fluxo dela.
  *
  * ── O que é real aqui, e o que não é ───────────────────────────────────────
  *
@@ -7,129 +7,133 @@
  * (ver `conversations.ts`) e sobrevivem ao recarregar. **As respostas não
  * existem** — o servidor do TaqCiti gera documento a partir de transcrição, e
  * não tem rota de conversa. Então, no lugar onde a resposta apareceria, esta
- * tela mostra um aviso de estado, com a identidade do agente ao lado, dizendo
- * exatamente isso e apontando para o que de fato funciona.
+ * tela mostra um estado honesto, com a identidade do agente ao lado.
  *
  * A alternativa — inventar uma resposta plausível — foi recusada de propósito.
  * Uma frase genérica ("posso ajudar a organizar as decisões…") é indistinguível
  * de um produto funcionando, e quem testar vai embora achando que conversou.
  *
+ * ── Por que não há caixa de rolagem aqui dentro ────────────────────────────
+ *
+ * Havia: o histórico rolava numa caixa de 46vh e o compositor ficava preso
+ * embaixo dela, sempre visível. Isso faz o compositor e a onda parecerem
+ * colados na janela, e não parte da página — subir para reler deixava os dois
+ * plantados no mesmo lugar, como um rodapé.
+ *
+ * Agora conversa, escrita e onda são um fluxo só, e quem rola é a PÁGINA.
+ * Subir tira a escrita e a onda da área visível, como em qualquer página;
+ * voltar ao fim as encontra de novo. Nada aqui usa `position: fixed` nem
+ * `sticky`, e não existe segunda cópia da animação acompanhando a leitura.
+ *
  * ── A rolagem que não atrapalha ────────────────────────────────────────────
  *
  * Mensagem nova só puxa a rolagem se você já estiver no fim. Lendo algo lá em
- * cima, nada se move — a única coisa que muda é a trilha lateral, que passa a
- * marcar que existe conteúdo novo abaixo. Interromper a leitura para mostrar o
- * que acabou de chegar é o comportamento que mais irrita em interface de chat.
+ * cima, nada se move. Interromper a leitura para mostrar o que acabou de
+ * chegar é o comportamento que mais irrita em interface de chat. A exceção é
+ * quem ACABOU de enviar: aí a rolagem acompanha, porque ver o que se enviou é
+ * o motivo de ter enviado.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { AgentMark } from './AgentMark';
 import type { Conversation } from './conversations';
 
-/** Distância do fim, em px, dentro da qual ainda consideramos "no fim". Um
- *  número, e não zero: rolagem suave e subpixel raramente param em 0 exato. */
-const MARGEM_DO_FIM = 48;
+/** Distância do fim, em px, dentro da qual ainda consideramos "no fim". */
+const MARGEM_DO_FIM = 96;
+/** Altura máxima do campo antes de ele passar a rolar por dentro. */
+const ALTURA_MAXIMA = 168;
 
 interface Props {
   conversa: Conversation | null;
-  /** `true` enquanto a mensagem está sendo gravada. */
+  /** `true` enquanto a mensagem está sendo gravada — é o estado real. */
   gravando: boolean;
-  onEnviar: (texto: string, anexos: string[]) => void;
-  onNova: () => void;
+  /** `null` quando o último envio deu certo; a mensagem do erro, quando não. */
+  erro: string | null;
+  /** Rascunho da conversa atual, preservado ao trocar de conversa. */
+  rascunho: string;
+  onRascunho: (texto: string) => void;
+  /** Resolve `true` se a mensagem foi mesmo gravada. */
+  onEnviar: (texto: string, anexos: string[]) => Promise<boolean>;
+  /** O campo ganhou ou perdeu a atenção — é o que faz a onda subir e descer. */
+  onEscrevendo: (escrevendo: boolean) => void;
   /** Sinaliza gesto real da pessoa para a onda do fundo reagir. */
   onPulso: (forca: number) => void;
 }
 
-export function AssistantView({ conversa, gravando, onEnviar, onNova, onPulso }: Props) {
-  const fluxoRef = useRef<HTMLDivElement | null>(null);
+export function AssistantView({
+  conversa,
+  gravando,
+  erro,
+  rascunho,
+  onRascunho,
+  onEnviar,
+  onEscrevendo,
+  onPulso,
+}: Props) {
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
   const arquivoRef = useRef<HTMLInputElement | null>(null);
-  const itensRef = useRef<Array<HTMLElement | null>>([]);
   const noFimRef = useRef(true);
 
-  const [texto, setTexto] = useState('');
   const [anexos, setAnexos] = useState<string[]>([]);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [ativo, setAtivo] = useState(0);
 
   const mensagens = conversa?.messages ?? [];
   const total = mensagens.length;
+  const vazia = total === 0;
 
-  /** Qual mensagem está no alto da área visível — é isso que a trilha marca. */
-  const recalcular = useCallback(() => {
-    const fluxo = fluxoRef.current;
-    if (!fluxo) return;
-    noFimRef.current =
-      fluxo.scrollHeight - fluxo.scrollTop - fluxo.clientHeight <= MARGEM_DO_FIM;
-
-    const limite = fluxo.scrollTop + fluxo.clientHeight * 0.4;
-    let indice = 0;
-    itensRef.current.forEach((el, i) => {
-      if (el && el.offsetTop <= limite) indice = i;
-    });
-    setAtivo(indice);
-  }, []);
-
-  // `total` nas dependências não é decoração: na primeira renderização a
-  // conversa ainda não chegou do storage, `.tq-fluxo` não existe, e o efeito
-  // saía sem assinar nada. Sem `total`, ele nunca mais rodava — a trilha
-  // ficava congelada na posição calculada uma única vez, com `scrollTop`
-  // ainda em zero. Foi o que a medição no navegador mostrou: 18 mensagens,
-  // rolagem no fim, e o tracinho ativo marcando a segunda.
+  // Onde a página está. Lido do documento, porque é ele que rola agora.
   useEffect(() => {
-    const fluxo = fluxoRef.current;
-    if (!fluxo) return;
-    fluxo.addEventListener('scroll', recalcular, { passive: true });
-    return () => fluxo.removeEventListener('scroll', recalcular);
-  }, [recalcular, total]);
+    const aoRolar = () => {
+      const doc = document.documentElement;
+      noFimRef.current =
+        window.innerHeight + window.scrollY >= doc.scrollHeight - MARGEM_DO_FIM;
+    };
+    aoRolar();
+    window.addEventListener('scroll', aoRolar, { passive: true });
+    return () => window.removeEventListener('scroll', aoRolar);
+  }, []);
 
   // Depois de pintar, decide se acompanha. `useLayoutEffect` porque medir
   // altura depois do paint entregaria a posição do quadro anterior.
   useLayoutEffect(() => {
-    const fluxo = fluxoRef.current;
-    if (!fluxo) return;
-    if (noFimRef.current) {
-      // `behavior: 'auto'` explícito porque o CSS do fluxo pede rolagem suave,
-      // e ela vale também para `scrollTop = …`. Com suavidade, abrir a tela num
-      // histórico longo mostra o MEIO da conversa enquanto a animação corre —
-      // foi o que apareceu na verificação em janela estreita. Suave continua
-      // valendo para o gesto da pessoa (os cliques na trilha pedem 'smooth').
-      fluxo.scrollTo({ top: fluxo.scrollHeight, behavior: 'auto' });
-    }
-    recalcular();
-
-    // Segunda passada no quadro seguinte: a marca do agente é um `<canvas>` e
-    // o texto pode reflow, então a altura final às vezes só existe depois do
+    if (!noFimRef.current) return;
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' });
+    // Segunda passada no quadro seguinte: a marca do agente é um `<canvas>` e o
+    // texto pode refluir, então a altura final às vezes só existe depois do
     // paint. Sem isso, o fim da conversa fica ~50px acima do fim de verdade.
     const id = requestAnimationFrame(() => {
-      if (noFimRef.current) fluxo.scrollTo({ top: fluxo.scrollHeight, behavior: 'auto' });
-      recalcular();
+      if (noFimRef.current) {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' });
+      }
     });
     return () => cancelAnimationFrame(id);
-  }, [total, recalcular]);
+  }, [total, gravando]);
 
-  const enviar = () => {
-    const limpo = texto.trim();
-    if (!limpo || gravando) return;
-    // Quem envia quer ver o que enviou: forçamos o acompanhamento da rolagem
-    // neste caso específico, mesmo que a pessoa estivesse lendo acima.
-    noFimRef.current = true;
-    onEnviar(limpo, anexos);
-    setTexto('');
-    setAnexos([]);
-    onPulso(1);
-    const campo = campoRef.current;
-    if (campo) {
-      campo.style.height = 'auto';
-      campo.focus();
-    }
+  /** Mantém a altura do campo colada no conteúdo, até o teto. */
+  const ajustarAltura = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, ALTURA_MAXIMA)}px`;
   };
 
-  const irPara = (indice: number) => {
-    const el = itensRef.current[indice];
-    const fluxo = fluxoRef.current;
-    if (!el || !fluxo) return;
-    fluxo.scrollTo({ top: Math.max(0, el.offsetTop - 24), behavior: 'smooth' });
+  useLayoutEffect(() => {
+    const campo = campoRef.current;
+    if (campo) ajustarAltura(campo);
+  }, [rascunho]);
+
+  const enviar = async () => {
+    const limpo = rascunho.trim();
+    // Mensagem vazia não vai. Nem espaço, nem quebra de linha sozinha.
+    if (!limpo || gravando) return;
+
+    noFimRef.current = true;
+    onPulso(1);
+    const ok = await onEnviar(limpo, anexos);
+    // Em falha, o texto FICA: perder o que se escreveu por causa de uma
+    // gravação que não deu certo é o pior desfecho possível aqui.
+    if (!ok) return;
+    onRascunho('');
+    setAnexos([]);
+    campoRef.current?.focus();
   };
 
   const escolherArquivos = (aceita: string) => {
@@ -140,121 +144,125 @@ export function AssistantView({ conversa, gravando, onEnviar, onNova, onPulso }:
     setMenuAberto(false);
   };
 
-  const vazia = total === 0;
-
   return (
-    <section className="tq-assistente" aria-label="Conversa com o assistente">
-      {vazia ? (
-        <div className="tq-abertura">
-          <h1>O que vamos organizar?</h1>
-          <p>Suas mensagens ficam salvas neste computador.</p>
-        </div>
-      ) : (
-        <div className="tq-fluxo-topo">
-          <button type="button" className="tq-linkish" onClick={onNova}>
-            Nova conversa
-          </button>
-        </div>
-      )}
-
-      {!vazia && (
-        <div className="tq-fluxo-wrap">
-          <div
-            className="tq-fluxo"
-            ref={fluxoRef}
-            role="log"
-            aria-label="Histórico da conversa"
-            tabIndex={0}
-          >
-            {mensagens.map((m, i) => {
-              const ultima = i === total - 1;
-              return (
-                <article
-                  key={m.id}
-                  className={`tq-turno${ultima ? ' tq-turno-ultimo' : ''}`}
-                  ref={(el) => {
-                    itensRef.current[i] = el;
-                  }}
-                >
-                  <p className="tq-voce">{m.text}</p>
-                  {m.attachments?.length ? (
-                    <p className="tq-anexos-msg">
-                      {m.attachments.join(' · ')} — guardado só o nome; o arquivo
-                      não foi enviado a lugar nenhum.
-                    </p>
-                  ) : null}
-
-                  {/* O lugar da resposta. Enquanto não há assistente conectado,
-                      ele carrega o estado real em vez de um texto inventado. */}
-                  {ultima && (
-                    <div className="tq-resposta">
-                      <AgentMark animada={ultima} processando={gravando} tamanho={34} />
-                      <div className="tq-resposta-texto">
-                        <div className="tq-agente-nome">TaqCiti</div>
-                        <p className="tq-indisponivel">
-                          Ainda não há um assistente de conversa ligado a esta
-                          extensão — o servidor do TaqCiti gera documentos a
-                          partir das transcrições, e não responde mensagens.
-                          Sua mensagem ficou salva aqui.
-                        </p>
-                        <p className="tq-indisponivel-dica">
-                          O que já funciona de verdade: <strong>Reuniões</strong>{' '}
-                          com as transcrições capturadas e <strong>Documentos</strong>{' '}
-                          para gerar a ata a partir delas.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+    <section className="tq-palco" aria-label="Conversa com o assistente">
+      <div className="tq-conversa">
+        {vazia ? (
+          <div className="tq-abertura">
+            <h1>O que vamos organizar?</h1>
+            <p>Suas mensagens ficam salvas neste computador.</p>
           </div>
-
-          {/* Trilha: um tracinho por mensagem real, não por porcentagem. */}
-          <div className="tq-trilha" role="group" aria-label="Posição na conversa">
+        ) : (
+          <ol className="tq-turnos" aria-label="Histórico da conversa">
             {mensagens.map((m, i) => (
-              <button
-                key={m.id}
-                type="button"
-                className="tq-tick"
-                aria-label={`Ir para a mensagem ${i + 1} de ${total}`}
-                aria-pressed={i === ativo}
-                onClick={() => irPara(i)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+              <li key={m.id} className="tq-turno tq-turno-voce">
+                <p className="tq-bolha">{m.text}</p>
+                {m.attachments?.length ? (
+                  <p className="tq-anexos-msg">
+                    {m.attachments.join(' · ')} — guardado só o nome; o arquivo não
+                    foi enviado a lugar nenhum.
+                  </p>
+                ) : null}
 
+                {/* A resposta pertence ao ÚLTIMO turno: é dela que se está à
+                    espera. Repetir o mesmo aviso sob cada mensagem encheria a
+                    conversa de uma frase que não muda. */}
+                {i === total - 1 && (
+                  <div className="tq-turno-agente">
+                    <MarcaDaResposta processando={gravando} />
+                    <div className="tq-resposta-texto">
+                      <div className="tq-agente-nome">TaqCiti</div>
+                      {gravando ? (
+                        <p className="tq-indisponivel">Guardando sua mensagem…</p>
+                      ) : erro ? (
+                        <p className="tq-indisponivel tq-falhou">
+                          {erro} Seu texto continua no campo abaixo — dá para tentar
+                          de novo.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="tq-indisponivel">
+                            Ainda não há um assistente de conversa ligado a esta
+                            extensão — o servidor do TaqCiti gera documentos a partir
+                            das transcrições, e não responde mensagens. Sua mensagem
+                            ficou salva aqui.
+                          </p>
+                          <p className="tq-indisponivel-dica">
+                            O que já funciona de verdade: <strong>Reuniões</strong>{' '}
+                            com as transcrições capturadas e <strong>Documentos</strong>{' '}
+                            para gerar a ata a partir delas.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+
+      {/*
+       * A ESCRITA. Sem barra, sem caixa, sem linha divisória: só o texto sobre o
+       * ambiente, com a onda atrás. `data-tq-escrita` marca a área onde o cursor
+       * personalizado acende verde — e só ela, para o brilho continuar
+       * significando "aqui se escreve".
+       */}
       <form
-        className="tq-compositor"
+        className="tq-escrita"
+        data-tq-escrita
         onSubmit={(e) => {
           e.preventDefault();
-          enviar();
+          void enviar();
         }}
       >
-        <textarea
-          ref={campoRef}
-          rows={1}
-          value={texto}
-          aria-label="Mensagem para o assistente"
-          placeholder={vazia ? 'Escreva aqui…' : 'Continue a conversa…'}
-          onChange={(e) => {
-            setTexto(e.target.value);
-            const el = e.target;
-            el.style.height = 'auto';
-            el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
-            onPulso(0.45);
-          }}
-          onKeyDown={(e) => {
-            // `isComposing`: em teclado com IME o Enter confirma o candidato,
-            // e enviar aí engoliria a palavra pela metade.
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              enviar();
-            }
-          }}
-        />
+        <div className="tq-campo">
+          <textarea
+            ref={campoRef}
+            rows={1}
+            value={rascunho}
+            aria-label="Mensagem para o assistente"
+            placeholder={vazia ? 'Escreva aqui…' : 'Continue a conversa…'}
+            onFocus={() => onEscrevendo(true)}
+            onBlur={() => onEscrevendo(false)}
+            onChange={(e) => {
+              onRascunho(e.target.value);
+              ajustarAltura(e.target);
+              onEscrevendo(true);
+              onPulso(0.4);
+            }}
+            onKeyDown={(e) => {
+              // `isComposing`: em teclado com IME o Enter confirma o candidato,
+              // e enviar aí engoliria a palavra pela metade.
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void enviar();
+              }
+            }}
+          />
+
+          <div className="tq-campo-acoes">
+            <button
+              type="button"
+              className="tq-mais"
+              aria-label="Anexar imagem ou documento"
+              aria-expanded={menuAberto}
+              aria-controls="tq-anexo-menu"
+              onClick={() => setMenuAberto((v) => !v)}
+            >
+              <Icon name="plus" size={17} />
+            </button>
+            <button
+              type="submit"
+              className="tq-enviar"
+              aria-label="Enviar mensagem"
+              disabled={!rascunho.trim() || gravando}
+            >
+              <Icon name="arrowUp" size={16} />
+            </button>
+          </div>
+        </div>
 
         {anexos.length > 0 && (
           <p className="tq-anexos" role="status">
@@ -265,20 +273,6 @@ export function AssistantView({ conversa, gravando, onEnviar, onNova, onPulso }:
           </p>
         )}
 
-        <div className="tq-compositor-pe">
-          <span>Enter envia · Shift+Enter quebra linha</span>
-          <button
-            type="submit"
-            className="tq-enviar"
-            aria-label="Enviar mensagem"
-            disabled={!texto.trim() || gravando}
-          >
-            <Icon name="arrowUp" size={16} />
-          </button>
-        </div>
-      </form>
-
-      <div className="tq-rodape-acoes">
         {menuAberto && (
           <div className="tq-anexo-menu" id="tq-anexo-menu">
             <button type="button" onClick={() => escolherArquivos('image/*')}>
@@ -293,17 +287,9 @@ export function AssistantView({ conversa, gravando, onEnviar, onNova, onPulso }:
             <p>Os arquivos ficam neste computador. Não há para onde enviá-los ainda.</p>
           </div>
         )}
-        <button
-          type="button"
-          className="tq-mais"
-          aria-label="Anexar imagem ou documento"
-          aria-expanded={menuAberto}
-          aria-controls="tq-anexo-menu"
-          onClick={() => setMenuAberto((v) => !v)}
-        >
-          <Icon name="plus" size={18} />
-        </button>
-      </div>
+
+        <p className="tq-dica-teclas">Enter envia · Shift+Enter quebra linha</p>
+      </form>
 
       <input
         ref={arquivoRef}
@@ -317,5 +303,28 @@ export function AssistantView({ conversa, gravando, onEnviar, onNova, onPulso }:
         }}
       />
     </section>
+  );
+}
+
+/**
+ * O indicador da mensagem da IA, amarrado ao que está ACONTECENDO.
+ *
+ * Enquanto a operação real corre, a marca animada — ondas girando. Quando ela
+ * termina, o ícone oficial do TaqCiti entra por cima, com uma transição de
+ * opacidade. Os dois ficam montados e empilhados de propósito: trocar de
+ * elemento faria a marca sumir por um quadro antes de o ícone aparecer.
+ *
+ * Nenhum temporizador participa disso. O que decide é `processando`, que vem do
+ * estado real da gravação — não de um `setTimeout` fingindo latência.
+ */
+function MarcaDaResposta({ processando }: { processando: boolean }) {
+  return (
+    <span
+      className={`tq-marca${processando ? ' processando' : ''}`}
+      aria-hidden="true"
+    >
+      <AgentMark animada={processando} processando={processando} tamanho={32} />
+      <img src={chrome.runtime.getURL('brand/taqciti-mark.png')} alt="" draggable={false} />
+    </span>
   );
 }
