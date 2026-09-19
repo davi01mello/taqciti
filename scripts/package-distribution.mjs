@@ -53,13 +53,25 @@ import { fileURLToPath } from 'node:url';
 import { crcDe, lerZip, montarZip } from './lib/zip.mjs';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const TEMPLATE = join(ROOT, 'installer', 'guide', 'comece-aqui.template.html');
-const MARCA = join(ROOT, 'public', 'brand', 'taqciti-wordmark.png');
-const ICONE = join(ROOT, 'public', 'icons', 'icon-128.png');
+
+/*
+ * A ORIGEM DO GUIA NO PROJETO é `assetsingestion/`, e é de lá que ele entra no
+ * pacote. O HTML é autossuficiente — CSS, arte de fundo e script já vivem
+ * dentro dele — então "incorporar" aqui é copiar o arquivo para a raiz de
+ * TaqCiti/ preenchendo os dois marcadores de nome de instalador, e nada mais.
+ *
+ * O arquivo é procurado por padrão (`COMECE_AQUI*.html`) em vez de por nome
+ * exato porque é assim que ele chega: baixado do navegador, às vezes com o
+ * sufixo "(1)". Mais de um arquivo casando é erro, não escolha automática —
+ * publicar a versão errada do guia por ordem alfabética seria pior do que
+ * falhar.
+ */
+const PASTA_GUIA = join(ROOT, 'assetsingestion');
+const PADRAO_GUIA = /^COMECE_AQUI.*\.html$/i;
 
 /** Nome da pasta raiz dentro do ZIP, e base do nome do próprio ZIP. */
-const PASTA_RAIZ = 'TaqCITi';
-const NOME_GUIA = 'COMECE AQUI.html';
+const PASTA_RAIZ = 'TaqCiti';
+const NOME_GUIA = 'COMECE_AQUI.html';
 
 /*
  * O ZIP tem nome FIXO, sem versão — de propósito.
@@ -267,53 +279,74 @@ function paraJs(texto) {
   return texto.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
 }
 
-function dataUri(caminho, tipo) {
-  return `data:${tipo};base64,${readFileSync(caminho).toString('base64')}`;
+/** Localiza o guia em assetsingestion/. Zero ou mais de um é erro. */
+function acharGuia() {
+  if (!existsSync(PASTA_GUIA)) {
+    anotar(`a pasta de origem do guia não existe: ${PASTA_GUIA}`);
+    return null;
+  }
+
+  const casaram = readdirSync(PASTA_GUIA).filter((nome) => PADRAO_GUIA.test(nome));
+
+  if (casaram.length === 0) {
+    anotar(`nenhum guia encontrado em ${PASTA_GUIA} (esperado um "COMECE_AQUI*.html")`);
+    return null;
+  }
+  if (casaram.length > 1) {
+    anotar(
+      `há ${casaram.length} guias em ${PASTA_GUIA} (${casaram.join(', ')}) — ` +
+        'não dá para adivinhar qual publicar; deixe só um',
+    );
+    return null;
+  }
+
+  return join(PASTA_GUIA, casaram[0]);
 }
 
 /**
- * Preenche o template do guia. Os recursos entram como data URI porque o guia
- * precisa abrir por `file://`, sem servidor e sem internet — um `<img src>`
- * relativo funcionaria, mas custaria arquivos soltos ao lado do guia, e a
- * estrutura do pacote pede um HTML só.
+ * Prepara o guia para entrar no pacote.
+ *
+ * A única coisa que muda no HTML é o nome dos dois instaladores — o que é
+ * seguro de fixar aqui, porque são os arquivos que estão entrando neste mesmo
+ * ZIP. **Nenhum caminho da máquina de build entra**: a pasta da extensão só
+ * existe depois que o instalador roda, e quem preenche aquilo é o
+ * install-path.js que o instalador grava na máquina de quem instala.
  */
 function gerarGuia({ versao, achados }) {
-  if (!existsSync(TEMPLATE)) {
-    anotar(`template do guia não encontrado: ${TEMPLATE}`);
-    return null;
-  }
+  const origem = acharGuia();
+  if (!origem) return null;
 
   const porChave = Object.fromEntries(achados.map((a) => [a.chave, a.nome]));
 
   const substituicoes = {
-    __APP_VERSION__: versao,
     __ARQUIVO_WINDOWS__: porChave.windows ?? '',
     __ARQUIVO_MACOS__: porChave.macos ?? '',
-    __ARQUIVO_LINUX__: porChave.linux ?? '',
-    __ASSET_MARCA__: existsSync(MARCA) ? dataUri(MARCA, 'image/png') : '',
-    __ASSET_ICONE__: existsSync(ICONE) ? dataUri(ICONE, 'image/png') : '',
   };
 
-  let html = readFileSync(TEMPLATE, 'utf8');
+  let html = readFileSync(origem, 'utf8');
   for (const [marcador, valor] of Object.entries(substituicoes)) {
     html = html.split(marcador).join(paraJs(valor));
   }
 
   // O guia tem um mecanismo de reserva para marcador não substituído, para o
-  // template cru continuar abrindo durante o desenvolvimento. Num pacote de
+  // arquivo cru continuar abrindo durante o desenvolvimento. Num pacote de
   // verdade isso seria um defeito silencioso: a página abriria "funcionando",
-  // só que sem versão e com nome de arquivo genérico.
+  // só que sem saber o nome do instalador que ela manda abrir.
   const sobraram = html.match(/__[A-Z][A-Z0-9_]*__/g);
   if (sobraram) {
     anotar(`o guia ficou com marcador não substituído: ${[...new Set(sobraram)].join(', ')}`);
     return null;
   }
 
+  // A versão não aparece em prosa no guia; ela chega pelo nome dos
+  // instaladores que acabaram de ser injetados. Se não estiver ali, a
+  // substituição não pegou.
   if (!html.includes(versao)) {
-    anotar('o guia gerado não menciona a versão do pacote');
+    anotar('o guia gerado não menciona a versão do pacote em nenhum nome de instalador');
     return null;
   }
 
+  console.log(`[pacote] Guia: ${origem}`);
   return Buffer.from(html, 'utf8');
 }
 

@@ -38,9 +38,10 @@ baixados como executáveis sem confirmação explícita):
 2. Copia esse caminho para a área de transferência via `xclip` ou `xsel`, se
    algum dos dois estiver instalado. Se nenhum estiver, só imprime o caminho
    no terminal — não falha a instalação.
-3. Abre o guia visual (`installer/guide/index.html`) com o caminho já
-   preenchido, numa cópia salva em `~/.local/share/taqciti/guide/` (via
-   `xdg-open`).
+3. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+   `~/.local/share/taqciti/guide/`, grava ao lado um `install-path.js` com o
+   caminho real, e abre essa cópia (via `xdg-open`). O HTML nunca é reescrito
+   — ver `assetsingestion/README.md`.
 
 > **Não abre a página de extensões do navegador sozinho** (essa etapa
 > existia aqui antes, tentando `chrome://extensions`). Em testes reais isso

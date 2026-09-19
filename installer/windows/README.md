@@ -44,9 +44,15 @@ real do `package.json` (ou de uma tag), passe `/D`:
 1. Instala silenciosamente (sem tela de licença, sem escolha de pasta) em
    `%USERPROFILE%\Desktop\TaqCITi (não apagar)\`.
 2. Copia esse caminho para a área de transferência.
-3. Abre o guia visual (`installer/guide/index.html`) com o caminho já
-   preenchido, numa cópia salva em `%LOCALAPPDATA%\TaqCITi\guide\`, no
-   Chrome (o mesmo executável encontrado no passo 0).
+3. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+   `%LOCALAPPDATA%\TaqCITi\guide\`, grava ao lado um `install-path.js` com o
+   caminho real, e abre essa cópia no navegador escolhido no passo 0.
+
+   O `install-path.js` sai **100% em ASCII** (`\uXXXX` para tudo acima de
+   0x7e). É o que conserta os caracteres estranhos no caminho: o jeito
+   anterior guardava bytes UTF-8 num `AnsiString` concatenado com literais
+   `String`, e a conversão por code page do Pascal Script os estragava. Ver
+   `EscapeParaJs` no `.iss` e `assetsingestion/README.md`.
 
 > **Não abre `chrome://extensions` sozinho.** Chegamos a tentar (passando
 > a URL como argumento pro Chrome), mas em testes reais isso nunca

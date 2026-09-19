@@ -42,7 +42,10 @@ VERSION="${APP_VERSION:-$(node -p "require('$ROOT_DIR/package.json').version")}"
 echo "[build-installer] Preparando pacote..."
 mkdir -p "$STAGING_DIR/dist" "$STAGING_DIR/guide"
 cp -R "$ROOT_DIR/dist"/. "$STAGING_DIR/dist"/
-cp "$ROOT_DIR/installer/guide/index.html" "$STAGING_DIR/guide/index.html"
+# O MESMO guia que vai na raiz do pacote baixado. O install.sh o copia byte a
+# byte e grava o caminho real num install-path.js ao lado — nunca reescreve o
+# HTML. Ver assetsingestion/README.md.
+cp "$ROOT_DIR/assetsingestion/COMECE_AQUI.html" "$STAGING_DIR/guide/COMECE_AQUI.html"
 cp "$SCRIPT_DIR/install.sh" "$STAGING_DIR/install.sh"
 chmod +x "$STAGING_DIR/install.sh"
 

@@ -20,8 +20,8 @@ instalador automático faz por você.
 
 ## 1. Instalador automático (recomendado)
 
-O caminho normal é o **`TaqCITi.zip`** da pasta do Drive do time: baixe,
-extraia, abra a pasta `TaqCITi` e dê dois cliques em **`COMECE AQUI.html`**. O
+O caminho normal é o **`TaqCiti.zip`** da pasta do Drive do time: baixe,
+extraia, abra a pasta `TaqCiti` e dê dois cliques em **`COMECE_AQUI.html`**. O
 guia abre no navegador, pergunta o seu sistema e conduz tudo — achar o
 instalador certo, passar pelo aviso do sistema, e os passos finais no
 navegador. Se você for por ali, não precisa do resto desta seção.

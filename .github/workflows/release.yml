@@ -177,13 +177,13 @@ jobs:
           # recebe pelo Drive.
           files: |
             release-assets/*
-            dist-package/TaqCITi.zip
+            dist-package/TaqCiti.zip
           generate_release_notes: true
 
       - uses: actions/upload-artifact@v7
         with:
           name: distribution-package
-          path: dist-package/TaqCITi.zip
+          path: dist-package/TaqCiti.zip
           if-no-files-found: error
 
   # Canal de distribuição adicional pro time que ainda não tem acesso ao
@@ -198,7 +198,7 @@ jobs:
   # cada release SOMAVA três arquivos na pasta em vez de substituir os
   # anteriores, e quem abria o Drive tinha que saber qual era o seu sistema e
   # qual era a versão nova — inclusive com os instaladores quebrados da v2.0.0
-  # ali do lado. Agora vai um arquivo só, "TaqCITi.zip", com nome fixo: ele
+  # ali do lado. Agora vai um arquivo só, "TaqCiti.zip", com nome fixo: ele
   # sobrescreve o anterior (upload-to-gdrive.sh procura por nome), então o
   # link compartilhado com o time nunca muda e nunca há duas versões
   # disputando o clique. A versão vive dentro do pacote, no guia e no nome dos
@@ -254,18 +254,18 @@ jobs:
         run: |
           set -euo pipefail
           encontrados="$(find gdrive-assets -type f | sort)"
-          if [ "$encontrados" != "gdrive-assets/TaqCITi.zip" ]; then
-            echo "Esperava só 'gdrive-assets/TaqCITi.zip'. Encontrei:" >&2
+          if [ "$encontrados" != "gdrive-assets/TaqCiti.zip" ]; then
+            echo "Esperava só 'gdrive-assets/TaqCiti.zip'. Encontrei:" >&2
             echo "$encontrados" >&2
             echo "Nada foi publicado — o Drive continua com a última entrega válida." >&2
             exit 1
           fi
-          echo "Pacote a publicar: TaqCITi.zip ($(stat -c%s gdrive-assets/TaqCITi.zip) bytes)"
+          echo "Pacote a publicar: TaqCiti.zip ($(stat -c%s gdrive-assets/TaqCiti.zip) bytes)"
           # Abre o ZIP e confere a estrutura por dentro. O pacote foi montado
           # em OUTRO job e chegou aqui por um artefato — esta é a única
           # conferência que acontece depois dessa viagem, já com o arquivo na
           # mão de quem vai sobrescrever o do Drive.
-          node scripts/package-distribution.mjs --conferir gdrive-assets/TaqCITi.zip
+          node scripts/package-distribution.mjs --conferir gdrive-assets/TaqCiti.zip
 
       - name: Publicar o pacote no Google Drive
         env:

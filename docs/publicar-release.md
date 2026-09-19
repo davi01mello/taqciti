@@ -116,7 +116,7 @@ nenhuma run, só silêncio. Tem que ser `v2.1.0`.
 | Job | O que faz |
 | --- | --- |
 | `build-windows` / `build-linux` / `build-macos` | `npm ci` → **check-release-env** → build → compila o instalador nativo → sobe como artefato |
-| `release` | espera os três, baixa os artefatos, **monta e confere o pacote** (`TaqCITi.zip`) e publica a **GitHub Release** da tag |
+| `release` | espera os três, baixa os artefatos, **monta e confere o pacote** (`TaqCiti.zip`) e publica a **GitHub Release** da tag |
 | `distribute-gdrive` | espera a Release, **reconfere o pacote** e sobe só ele na **pasta do Drive do time** |
 
 Os três builds rodam o check em paralelo: se a configuração estiver errada, os
@@ -127,32 +127,40 @@ sai pela metade.
 
 ## O pacote de distribuição
 
-O que o time baixa do Drive é **um arquivo só**: `TaqCITi.zip`. Dentro dele:
+O que o time baixa do Drive é **um arquivo só**: `TaqCiti.zip`. Dentro dele:
 
 ```
-TaqCITi/
-  COMECE AQUI.html
+TaqCiti/
+  COMECE_AQUI.html
   Instaladores/Windows/taqciti-instalador-windows-X.Y.Z.exe
   Instaladores/macOS/taqciti-instalador-mac-X.Y.Z.pkg
   Instaladores/Linux/taqciti-instalador-linux-X.Y.Z.run
 ```
 
-A pessoa extrai, abre a pasta e dá dois cliques em `COMECE AQUI.html`. O guia
-abre no navegador, pergunta o sistema e conduz os cinco passos até a extensão
-estar funcionando — inclusive os avisos do Windows e do macOS, que assustam
-quem não sabe que são esperados. Ver `installer/guide/README.md`.
+A pessoa extrai, abre a pasta e dá dois cliques em `COMECE_AQUI.html`. O guia
+abre no navegador, pergunta o sistema e conduz as quatro fases (preparar,
+instalar, Chrome, conferir) até a extensão estar funcionando — inclusive os
+avisos do Windows e do macOS, que assustam quem não sabe que são esperados. A
+origem do guia é `assetsingestion/`; ver o README de lá.
 
 **O nome do ZIP não tem versão, e isso é de propósito.**
 `upload-to-gdrive.sh` procura por nome e sobrescreve o que achar, então um nome
 fixo faz cada release substituir a anterior no mesmo arquivo do Drive: o link
 compartilhado com o time nunca muda, e nunca existem duas versões lado a lado
-esperando alguém baixar a errada. A versão vive **dentro** do pacote — no guia
-e no nome dos três instaladores.
+esperando alguém baixar a errada. A versão vive **dentro** do pacote — no nome
+dos três instaladores, que o guia também exibe.
+
+**A pasta da extensão não vem do pacote.** Ela só existe depois que o
+instalador roda, na máquina de quem instala. Por isso o guia dentro do ZIP não
+mostra caminho nenhum: o instalador copia esse mesmo guia para uma pasta por
+usuário, grava um `install-path.js` ao lado com o caminho real e abre essa
+cópia — é ali que aparece o endereço e o botão "Copiar caminho". Nenhum caminho
+da máquina de build entra no pacote.
 
 > **Na primeira release com o pacote, limpe a pasta do Drive.** Os instaladores
 > soltos das versões anteriores continuam lá (nada é apagado automaticamente, e
 > os links antigos seguem válidos apontando para arquivos que não serão mais
-> atualizados). Depois de confirmar que o `TaqCITi.zip` novo está bom, apague os
+> atualizados). Depois de confirmar que o `TaqCiti.zip` novo está bom, apague os
 > `taqciti-instalador-*` antigos à mão — inclusive os quebrados da `v2.0.0`.
 
 ### Gerar e revisar o pacote na sua máquina
@@ -162,8 +170,8 @@ e no nome dos três instaladores.
 node scripts/package-distribution.mjs --origem release --saida release/pacote
 ```
 
-O script monta `release/pacote/TaqCITi.zip` **e** a mesma estrutura em pasta,
-em `release/pacote/TaqCITi/` — dá para abrir o guia com dois cliques e navegar
+O script monta `release/pacote/TaqCiti.zip` **e** a mesma estrutura em pasta,
+em `release/pacote/TaqCiti/` — dá para abrir o guia com dois cliques e navegar
 os arquivos exatamente como quem baixar vai ver.
 
 Ele recusa gerar um pacote incompleto: se faltar um dos três instaladores, se
@@ -176,7 +184,7 @@ CRC e permissão de cada entrada antes de dar por bom.
 Para conferir um pacote que já existe:
 
 ```bash
-node scripts/package-distribution.mjs --conferir release/pacote/TaqCITi.zip
+node scripts/package-distribution.mjs --conferir release/pacote/TaqCiti.zip
 ```
 
 Para revisar só o guia, sem ter instalador nenhum em mãos:
@@ -189,9 +197,9 @@ node scripts/package-distribution.mjs --somente-guia --saida release/preview-gui
 
 Para colar junto do link do Drive:
 
-> **TaqCITi X.Y.Z** — baixe o `TaqCITi.zip`, **extraia** (não abra o arquivo
-> compactado direto) e, dentro da pasta `TaqCITi`, dê dois cliques em
-> **`COMECE AQUI.html`**. O guia abre no navegador e conduz o resto — serve
+> **TaqCITi X.Y.Z** — baixe o `TaqCiti.zip`, **extraia** (não abra o arquivo
+> compactado direto) e, dentro da pasta `TaqCiti`, dê dois cliques em
+> **`COMECE_AQUI.html`**. O guia abre no navegador e conduz o resto — serve
 > para Windows, Mac e Linux.
 
 Acompanhar:
@@ -207,13 +215,13 @@ gh run view --log-failed              # só o passo que falhou
 
 Release verde não prova instalador bom — a `v2.0.0` ficou verde.
 
-1. **Baixe o `TaqCITi.zip` do Drive e abra.** Como o nome do arquivo é fixo, a
+1. **Baixe o `TaqCiti.zip` do Drive e abra.** Como o nome do arquivo é fixo, a
    data de modificação no Drive é o que diz se a run publicou: se for a de
    antes, vá ver a run, não o arquivo. Dentro do ZIP, os três instaladores têm
    que carregar a versão nova no nome (`-X.Y.Z.exe`, `-X.Y.Z.pkg`,
-   `-X.Y.Z.run`), e o `COMECE AQUI.html` tem que mostrar a mesma versão no
-   alto. O job recusa publicar um pacote onde isso não bata — mas conferir com
-   o olho custa dez segundos.
+   `-X.Y.Z.run`), e o `COMECE_AQUI.html`, na etapa "Abra o instalador", tem que
+   citar exatamente esse nome. O job recusa publicar um pacote onde isso não
+   bata — mas conferir com o olho custa dez segundos.
 
 2. **Instale de verdade e procure `localhost` no bundle.** O instalador copia
    a extensão descompactada para a Área de Trabalho, em `TaqCITi (não
@@ -265,11 +273,11 @@ Ou "Re-run all jobs" na página da run.
 ## Onde os arquivos aparecem
 
 - **GitHub Release da tag** — canal técnico e de auditoria. Leva os **três
-  instaladores soltos** (útil para baixar um só) **e** o `TaqCITi.zip`, para
+  instaladores soltos** (útil para baixar um só) **e** o `TaqCiti.zip`, para
   ficar registrado exatamente o arquivo que o time recebeu. Fica versionado
   para sempre, com o changelog gerado.
 - **Pasta do Drive do time** — canal oficial de distribuição, porque nem todo
-  mundo tem acesso ao GitHub. Leva **só o `TaqCITi.zip`**.
+  mundo tem acesso ao GitHub. Leva **só o `TaqCiti.zip`**.
 
 O `.github/scripts/upload-to-gdrive.sh` procura por **nome** e sobrescreve o
 que achar, em vez de duplicar. Como o nome do pacote é fixo, cada release
@@ -282,4 +290,4 @@ para sempre e aponta sempre para a versão mais nova.
 > automaticamente) e, a partir de agora, **param de ser atualizados**: quem
 > abrir um link antigo vai baixar um instalador congelado na última versão
 > publicada por aquele caminho. Apague-os do Drive assim que confirmar o
-> primeiro `TaqCITi.zip` bom — inclusive os quebrados da `v2.0.0`.
+> primeiro `TaqCiti.zip` bom — inclusive os quebrados da `v2.0.0`.
