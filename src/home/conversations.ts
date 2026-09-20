@@ -28,6 +28,34 @@ import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage'
 
 export type MessageRole = 'user' | 'assistant';
 
+/**
+ * O CONTEXTO que a pessoa anexou explicitamente a uma pergunta.
+ *
+ * Explicitamente é a palavra: nada entra aqui por conta própria. A transcrição
+ * da reunião, as notas e os prints só acompanham a pergunta se a pessoa os
+ * tiver acrescentado — mandar o que estava por perto seria enviar a tela e os
+ * rascunhos de alguém junto de "como assim?".
+ *
+ * Guardado NA MENSAGEM, e não na conversa, porque muda por pergunta: a primeira
+ * pode partir de um trecho, a seguinte da reunião inteira.
+ */
+export interface ContextoDaPergunta {
+  /** A reunião de onde o contexto veio. */
+  meetingId: string;
+  /** Título no instante da pergunta — a reunião pode ser renomeada depois. */
+  meetingTitle: string;
+  /** O trecho selecionado, quando a pergunta partiu de um. */
+  excerpt?: string;
+  /** `captionId` do trecho: liga a pergunta ao lugar exato da transcrição. */
+  captionId?: string;
+  /** A transcrição capturada até o momento acompanhou a pergunta. */
+  comTranscricao?: boolean;
+  /** As notas da reunião acompanharam a pergunta. */
+  comNotas?: boolean;
+  /** Quantos prints acompanharam. */
+  prints?: number;
+}
+
 export interface ConversationMessage {
   id: string;
   role: MessageRole;
@@ -35,6 +63,8 @@ export interface ConversationMessage {
   at: number;
   /** Nomes dos arquivos que a pessoa anexou a esta mensagem, se houve. */
   attachments?: string[];
+  /** O que a pessoa juntou à pergunta. Ausente = pergunta solta. */
+  contexto?: ContextoDaPergunta;
 }
 
 export interface Conversation {
@@ -98,6 +128,7 @@ export interface NovaMensagem {
   texto: string;
   attachments?: string[];
   meetingId?: string;
+  contexto?: ContextoDaPergunta;
 }
 
 /**
@@ -106,7 +137,7 @@ export interface NovaMensagem {
  */
 export async function acrescentarMensagem(
   conversaId: string | null,
-  { texto, attachments, meetingId }: NovaMensagem,
+  { texto, attachments, meetingId, contexto }: NovaMensagem,
 ): Promise<string> {
   const conversas = await lerConversas();
   const agora = Date.now();
@@ -121,6 +152,7 @@ export async function acrescentarMensagem(
     text: limpo,
     at: agora,
     ...(attachments?.length ? { attachments } : {}),
+    ...(contexto ? { contexto } : {}),
   };
 
   const existente = conversaId ? conversas.find((c) => c.id === conversaId) : undefined;
@@ -128,6 +160,13 @@ export async function acrescentarMensagem(
   if (existente) {
     existente.messages = [...existente.messages, mensagem];
     existente.updatedAt = agora;
+    /*
+     * A reunião da conversa é gravada na PRIMEIRA vez que um contexto aparece,
+     * e não é trocada depois. Navegar por outras conversas, ou perguntar sobre
+     * outra reunião numa conversa antiga, não pode mudar em silêncio a reunião
+     * que ela representa — o requisito é explícito sobre isso.
+     */
+    if (meetingId && !existente.meetingId) existente.meetingId = meetingId;
     // Reordena para o topo: a lista é "mais recente primeiro" em toda a HOME.
     await gravar([existente, ...conversas.filter((c) => c.id !== existente.id)]);
     return existente.id;

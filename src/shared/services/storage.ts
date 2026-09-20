@@ -30,16 +30,39 @@ export async function removeSession(key: string): Promise<void> {
   await chrome.storage.session.remove(key);
 }
 
-/** Observa mudanças de uma chave no storage local (histórico e conversas). */
-export function onLocalChange<T>(key: string, cb: (value: T | null) => void): () => void {
+function onChange<T>(
+  area: 'local' | 'session',
+  key: string,
+  cb: (value: T | null) => void,
+): () => void {
   const listener = (
     changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
+    changedArea: string,
   ) => {
-    if (area === 'local' && key in changes) {
+    if (changedArea === area && key in changes) {
       cb((changes[key]?.newValue as T | undefined) ?? null);
     }
   };
   chrome.storage.onChanged.addListener(listener);
   return () => chrome.storage.onChanged.removeListener(listener);
+}
+
+/** Observa mudanças de uma chave no storage local (histórico, conversas, anotações). */
+export function onLocalChange<T>(key: string, cb: (value: T | null) => void): () => void {
+  return onChange('local', key, cb);
+}
+
+/**
+ * Observa uma chave do storage de SESSÃO.
+ *
+ * É o canal entre o content script e o painel lateral para o que é estado de
+ * sessão e não registro: a reunião detectada esperando resposta, e a resposta
+ * em si. Os dois vivem em contextos que não se alcançam por `sendMessage`
+ * direto — o painel é página da extensão, o content script precisa de
+ * `tabs.sendMessage` endereçado —, e o storage é o único lugar onde os dois já
+ * olham. Uma gravação de um lado vira um evento do outro, sem ninguém precisar
+ * saber o id da aba do outro.
+ */
+export function onSessionChange<T>(key: string, cb: (value: T | null) => void): () => void {
+  return onChange('session', key, cb);
 }

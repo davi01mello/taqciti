@@ -73,9 +73,9 @@ export default defineManifest({
     '128': 'icons/icon-128.png',
   },
 
-  // Sem `default_popup` de propósito: com ele o Chrome abre o popup e
-  // `chrome.action.onClicked` NUNCA dispara. O clique no ícone abre a HOME —
-  // é ela o produto, não uma caixinha presa embaixo da barra do navegador.
+  // Sem `default_popup` de propósito. O clique no ícone abre a SIDEBAR, e quem
+  // faz isso é `setPanelBehavior({ openPanelOnActionClick: true })` — um popup
+  // aqui interceptaria o clique antes disso.
   action: {
     default_icon: {
       '16': 'icons/icon-16.png',
@@ -89,20 +89,30 @@ export default defineManifest({
   },
 
   /*
-   * Sem `side_panel`.
+   * A SIDEBAR — agora o painel lateral NATIVO do Chrome.
    *
-   * Havia aqui uma "saída larga" — o histórico antigo em tela cheia, também
-   * pendurado no menu de painel lateral do Chrome. Ela era a terceira
-   * experiência do produto, ao lado do popup e da HOME, e as três mostravam o
-   * mesmo histórico com telas diferentes. A HOME passou a ser a página
-   * principal e absorveu o que aquela tela fazia (ver `src/home/Reunioes`),
-   * então ela saiu inteira, e com ela o caminho do menu lateral — que levaria
-   * de volta à tela que deixou de existir.
+   * Houve três tentativas antes desta, e vale registrar por que as duas
+   * primeiras saíram:
    *
-   * A sidebar de REUNIÃO é outra coisa e não mora aqui: ela é desenhada na
-   * página do Meet pelo content script, porque `chrome.sidePanel.open()` exige
-   * um gesto no contexto da extensão e o clique na cápsula acontece na página.
+   *   1. uma "saída larga" pendurada aqui, que era o histórico antigo em tela
+   *      cheia. Competia com a HOME mostrando os mesmos dados;
+   *   2. um painel flutuante desenhado na página pelo content script. Resolvia
+   *      a abertura pela cápsula, mas disputava o centro da tela com a chamada
+   *      e vivia dentro de um shadow root, com a folha de estilo, o ciclo de
+   *      vida e as limitações de tudo que mora numa página de terceiro.
+   *
+   * O painel nativo não tem nenhum desses problemas: é página da extensão (API
+   * completa, `chrome.tabs`, `chrome.storage`, sem shadow root), o Chrome cuida
+   * da moldura e do redimensionamento, e ele não some quando o Meet navega.
+   *
+   * `default_path` sozinho NÃO o abre em lugar nenhum — ele só diz o que
+   * mostrar quando alguém abrir. Quem abre é o clique no ícone, via
+   * `sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` no
+   * background. Ver `src/background/sidePanel.ts`.
    */
+  side_panel: {
+    default_path: 'src/sidepanel/index.html',
+  },
 
   /*
    * O content script é DECLARADO, para todo site, e é isto que dá ao TaqCITi um
@@ -156,10 +166,11 @@ export default defineManifest({
   // dele. O servidor nunca vê esse token — é a razão de a extensão criar o
   // documento em vez de o servidor criar.
   //
-  // `sidePanel` saiu junto com a saída larga: sem `side_panel` no manifesto a
-  // permissão não habilitava nada, e permissão que não é usada é permissão que
-  // não deve ser pedida.
-  permissions: ['storage', 'scripting', 'identity'],
+  // `sidePanel` voltou porque o painel nativo voltou — e agora como a sidebar
+  // do produto, não como uma segunda tela de histórico. Nenhuma destas aparece
+  // na tela de instalação: o aviso que o usuário vê vem do `<all_urls>`
+  // explicado abaixo.
+  permissions: ['storage', 'sidePanel', 'scripting', 'identity'],
 
   /*
    * O preço honesto da persistência.

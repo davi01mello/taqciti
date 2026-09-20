@@ -52,20 +52,33 @@ substituída pelo Drive; o Drive é só um destino adicional.
 
 ## Estrutura
 
-- `src/home/` — **a HOME**: a página principal, em aba inteira. É o que o ícone
-  da extensão abre. Assistente, Reuniões, Documentos e Conexões.
-- `src/content/` — captura das legendas do Meet e a **sidebar de reunião**, que
-  só existe dentro do Meet (`src/content/ui/MeetingSidebar.tsx`).
+- `src/sidepanel/` — **a SIDEBAR**, no painel lateral nativo do Chrome. É o que
+  o ícone da extensão abre. Fora da reunião: conversa e histórico; dentro:
+  transcrição, notas, prints e a conversa com o contexto da reunião.
+- `src/home/` — **a HOME**: a página principal, em aba inteira. Assistente,
+  Reuniões, Documentos e Conexões.
+- `src/content/` — captura das legendas do Meet e a **cápsula**, o único
+  desenho do TaqCiti dentro da página (`src/content/ui/Capsula.tsx`).
+- `src/features/annotations/` — o que a PESSOA acrescenta a uma reunião: notas,
+  marcações de trecho, prints e o aviso no chat. Chaves separadas da
+  transcrição, de propósito.
 - `src/features/transcription/` — agregação e limpeza da transcrição (puro, sem I/O).
-- `src/features/meeting/` — máquina de estados da reunião, nomeação, detecção de próxima reunião.
+- `src/features/meeting/` — máquina de estados da reunião, consentimento de
+  captura, nomeação, detecção de próxima reunião.
 - `src/features/history/` — histórico local (chrome.storage.local).
 - `src/background/` — service worker: roteia mensagens, persiste o histórico,
-  abre (ou foca) a aba da HOME.
+  abre o painel lateral e a aba da HOME, e faz o print da aba da reunião.
 - `src/document/` — a página de geração de documento a partir de uma reunião.
 
-Duas superfícies, e só duas. O popup e o histórico em tela cheia (o antigo
-`src/sidepanel/`) foram removidos: as três telas mostravam o mesmo histórico de
-jeitos diferentes, e o que elas faziam mora na navegação interna da HOME.
+Duas superfícies de produto — a sidebar e a HOME — e uma cápsula. O popup e o
+histórico em tela cheia foram removidos numa etapa anterior; o painel flutuante
+injetado na página foi removido nesta, quando a sidebar virou o painel nativo.
+
+**Limitação conhecida:** a cápsula não consegue abrir o painel lateral sozinha.
+`chrome.sidePanel.open()` exige um gesto do usuário medido no contexto da
+extensão, e um clique na página vira mensagem, perdendo o gesto no caminho — o
+Chrome responde ``sidePanel.open() may only be called in response to a user
+gesture``. A cápsula tenta e, ao ser recusada, diz para clicar no ícone.
 
 ## Próximos passos
 

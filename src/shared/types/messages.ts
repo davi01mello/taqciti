@@ -132,6 +132,22 @@ const contentMessages = z.discriminatedUnion('type', [
 ]);
 
 /**
+ * Mensagens do background → content script, endereçadas à aba da reunião.
+ *
+ * Separadas do broadcast porque só fazem sentido para UMA aba: quem as pede é o
+ * painel lateral, que não alcança content script, e o background é quem sabe
+ * qual é a aba da sessão.
+ */
+const paraAbaDaReuniao = z.discriminatedUnion('type', [
+  /**
+   * Escreve o aviso no chat do Meet. A resposta é `{ ok }` — e um `false` NÃO
+   * pode virar confirmação na tela: o requisito é explícito sobre falha não
+   * parecer sucesso.
+   */
+  z.object({ type: z.literal('meet/sendChatNotice'), text: z.string().min(1).max(300) }),
+]);
+
+/**
  * Mensagens das UIs (HOME / sidebar de reunião) → background.
  *
  * Exportado porque é exatamente a fronteira que a camada de plataforma
@@ -186,6 +202,22 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
    * efeito visível, a transcrição travada na primeira fala.
    */
   z.object({ type: z.literal('panel/mounted') }),
+  /**
+   * Abre o painel lateral nativo.
+   *
+   * Pedido pela cápsula dentro do Meet. Pode FALHAR por regra do Chrome —
+   * `sidePanel.open()` exige gesto do usuário no contexto da extensão, e um
+   * clique na página vira mensagem, perdendo o gesto no caminho. A resposta diz
+   * o motivo para a cápsula poder explicar em vez de não fazer nada.
+   */
+  z.object({ type: z.literal('ui/openSidePanel') }),
+  /**
+   * Captura a aba da reunião. O background confere que a aba da sessão é a que
+   * está à vista antes de capturar — ver src/background/captura.ts.
+   */
+  z.object({ type: z.literal('ui/print') }),
+  /** Manda o aviso para o chat do Meet da reunião em andamento. */
+  z.object({ type: z.literal('ui/chatNotice'), text: z.string().min(1).max(300) }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),
   z.object({ type: z.literal('ui/resume') }),
@@ -207,7 +239,12 @@ const broadcastMessages = z.discriminatedUnion('type', [
   z.object({ type: z.literal('state/updated'), state: meetingStateSchema }),
 ]);
 
-export const messageSchema = z.union([contentMessages, uiMessageSchema, broadcastMessages]);
+export const messageSchema = z.union([
+  contentMessages,
+  uiMessageSchema,
+  broadcastMessages,
+  paraAbaDaReuniao,
+]);
 
 export type ExtensionMessage = z.infer<typeof messageSchema>;
 /** Um comando emitido por uma UI — o vocabulário da camada de plataforma. */

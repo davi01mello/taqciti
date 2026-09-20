@@ -19,10 +19,12 @@ import {
 import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
-import { backfillOpenTabs, canInject, ensurePanelInTab } from './injectPanel';
+import { backfillOpenTabs } from './injectPanel';
 import { openHome } from './homeTab';
+import { abrirPainel, ligarAberturaPeloIcone } from './sidePanel';
+import { capturarAbaDaReuniao } from './captura';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
-import { ensurePanelPrefs, patchPanelPrefs } from '@/features/panel/prefsStore';
+import { ensurePanelPrefs } from '@/features/panel/prefsStore';
 
 /**
  * A inicialização, e o que ela garante ANTES de a primeira mensagem chegar.
@@ -43,6 +45,15 @@ const ready: Promise<void> = migrateLocalStorage()
   .then(() => ensurePanelPrefs())
   .then(() => undefined)
   .catch((error) => logger.error('falha na inicialização', error));
+
+/*
+ * O clique no ícone abre a SIDEBAR, e quem o faz é o próprio Chrome.
+ *
+ * Fora do `ready` e fora do `onInstalled` de propósito: não depende de estado
+ * nenhum, e precisa valer a cada boot do worker — o comportamento é por perfil,
+ * e o `onInstalled` dispara uma única vez na vida da instalação.
+ */
+void ligarAberturaPeloIcone();
 
 /**
  * Primeira execução depois de instalar (ou atualizar).
@@ -66,37 +77,19 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 /*
- * O clique no ícone: a HOME, salvo dentro da reunião.
+ * Rede de segurança do clique no ícone.
  *
- * A HOME é a página principal do produto, então é ela que o ícone abre — e uma
- * só, porque `openHome` foca a aba que já existir em vez de empilhar cópias.
- *
- * A exceção é estreita e é o único lugar onde a sidebar de reunião faz sentido:
- * clicar no ícone ESTANDO na aba da reunião em curso traz a sidebar de volta,
- * que é o gesto que desfaz o X. Fora disso não há painel de reunião para abrir
- * — ele não existe mais fora do Meet, e mostrar um painel de reunião vazio numa
- * página qualquer era justamente a terceira experiência concorrente.
+ * Com `openPanelOnActionClick` ligado, o Chrome abre o painel sozinho e ESTE
+ * listener nunca dispara — é o caminho normal. Ele existe para o caso de aquela
+ * chamada ter falhado (Chrome antigo, política de perfil): aí o clique volta a
+ * chegar aqui, e aqui ainda há gesto do usuário, que é o que
+ * `sidePanel.open()` exige. Se nem isso funcionar, a HOME é o destino — melhor
+ * abrir o produto do que não abrir nada.
  */
 chrome.action.onClicked.addListener((tab) => {
   void (async () => {
-    await ready;
-    const current = getState();
-    const naReuniaoDesteTab =
-      current.session !== null &&
-      current.phase !== 'idle' &&
-      tab.id !== undefined &&
-      current.session.tabId === tab.id;
-
-    if (naReuniaoDesteTab && canInject(tab.url)) {
-      // A gravação primeiro: se a rede de segurança abaixo precisar mesmo
-      // montar a sidebar, ela já nasce lendo `open` em vez de aparecer
-      // recolhida.
-      await patchPanelPrefs({ presence: 'open' });
-      await ensurePanelInTab(tab);
-      return;
-    }
-
-    await openHome(tab);
+    const aberto = await abrirPainel(tab.id);
+    if (!aberto.ok) await openHome(tab);
   })();
 });
 
@@ -175,6 +168,42 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
+      case 'ui/openSidePanel': {
+        // Quase sempre recusado: o pedido nasce de um clique na PÁGINA (a
+        // cápsula), e o gesto não atravessa a mensageria. A resposta leva o
+        // motivo para a cápsula poder dizer o que fazer. Ver ./sidePanel.ts.
+        const resultado = await abrirPainel(sender.tab?.id);
+        return resultado;
+      }
+
+      case 'ui/print': {
+        const sessao = getState().session;
+        const captura = await capturarAbaDaReuniao(sessao?.tabId);
+        // A imagem sobe para quem pediu; quem GRAVA é o painel, que conhece o
+        // `meetingId` e trata a cota. O background não guarda print.
+        return captura.ok
+          ? { ok: true as const, dataUrl: captura.dataUrl, meetingId: sessao?.meetingId ?? null }
+          : { ok: false as const, motivo: captura.motivo };
+      }
+
+      case 'ui/chatNotice': {
+        // Só a aba da reunião consegue escrever no chat do Meet. O painel não
+        // alcança content script; o background sabe qual é a aba.
+        const tabId = getState().session?.tabId;
+        if (tabId === null || tabId === undefined) return { ok: false as const };
+        try {
+          const resposta = (await chrome.tabs.sendMessage(tabId, {
+            type: 'meet/sendChatNotice',
+            text: message.text,
+          })) as { ok?: boolean } | undefined;
+          return { ok: resposta?.ok === true };
+        } catch {
+          // Aba fechada ou sem content script: falhou, e falha não vira
+          // confirmação.
+          return { ok: false as const };
+        }
+      }
+
       case 'ui/openHome':
         // A página principal em aba própria — e SEMPRE a mesma aba, se ela já
         // existir. A abertura mora em `homeTab.ts`, e não aqui, porque o pedido

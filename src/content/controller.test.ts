@@ -1,4 +1,4 @@
-/**
+﻿/**
  * O PORTÃO DA CAPTURA: nada é registrado antes de a pessoa dizer que sim.
  *
  * Este é o teste que impede a regressão mais cara do produto — a extensão
@@ -123,7 +123,7 @@ describe('detectar uma reunião não é começar a registrá-la', () => {
     await Promise.resolve();
 
     const { STORAGE_KEYS } = await import('@/shared/config/constants');
-    const { guardarDecisao } = await import('./consent');
+    const { guardarDecisao } = await import('@/features/meeting/consent');
     await guardarDecisao(SALA.meetingCode, 'recusado');
 
     // Re-render do Meet: o mesmo evento, de novo.
@@ -141,7 +141,7 @@ describe('detectar uma reunião não é começar a registrá-la', () => {
   /* Reload da aba no meio de uma reunião JÁ aceita: a captura recomeça sem
      perguntar de novo, porque a decisão vale para a sessão do navegador. */
   it('um aceite anterior dispensa a pergunta e religa a captura', async () => {
-    const { guardarDecisao } = await import('./consent');
+    const { guardarDecisao } = await import('@/features/meeting/consent');
     await guardarDecisao(SALA.meetingCode, 'aceito');
 
     const fake = fakeProvider();

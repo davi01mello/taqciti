@@ -1,4 +1,4 @@
-/**
+﻿/**
  * A decisão sobre registrar a reunião. O que se testa é o que a pessoa nota:
  * a pergunta não volta depois de respondida.
  */
@@ -49,3 +49,4 @@ describe('consentimento de registro', () => {
     await expect(decisaoDe('sala')).resolves.toBeNull();
   });
 });
+

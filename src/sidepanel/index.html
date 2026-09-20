@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaqCiti</title>
+    <style>
+      /*
+       * O painel lateral tem altura da JANELA e largura que a pessoa arrasta.
+       * Os três elos precisam de altura definida para a coluna interna poder
+       * dizer "o corpo rola, o cabeçalho não" — com altura automática o
+       * `min-height: 0` do miolo não tem contra o que medir e a rolagem vaza
+       * para o documento inteiro.
+       */
+      html,
+      body,
+      #root {
+        height: 100%;
+      }
+      html {
+        overflow: hidden;
+        overscroll-behavior: none;
+        /* O mesmo grafite da HOME: o instante entre o painel abrir e o React
+           montar não pode piscar branco. */
+        background: rgb(17 18 19);
+      }
+      body {
+        margin: 0;
+        /* O Chrome deixa arrastar o painel até uns 240px. Abaixo disto o
+           conteúdo rola na horizontal em vez de se espremer. */
+        min-width: 240px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
