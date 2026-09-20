@@ -59,6 +59,20 @@ describe('a animação é fundo, e só fundo', () => {
   });
 });
 
+describe('a seção escolhida na navegação', () => {
+  it('tem contorno verde e uma animação própria', () => {
+    const regra = bloco(`.tq-navlinks button[aria-current='page']`);
+    expect(regra).toMatch(/border-color:\s*rgb\(var\(--c-primary\)/);
+    expect(regra).toMatch(/animation:\s*tq-selecao/);
+    expect(css).toMatch(/@keyframes tq-selecao/);
+  });
+
+  /* O contorno não pode empurrar o rótulo ao aparecer. */
+  it('todos os itens reservam a borda, não só o escolhido', () => {
+    expect(bloco('.tq-navlinks button')).toMatch(/border:\s*1px solid transparent/);
+  });
+});
+
 describe('o compositor não ganha moldura ao ser focado', () => {
   /*
    * `:focus-visible` casa num campo de texto sempre que ele recebe foco,

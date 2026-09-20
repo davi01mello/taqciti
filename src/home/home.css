@@ -410,12 +410,22 @@ body {
   gap: 13px;
   padding: 12px 11px;
   border-radius: 10px;
+  /*
+   * Borda transparente em TODOS os itens, e não só no escolhido.
+   *
+   * Sem ela, o contorno da seção atual acrescentaria 1px de cada lado no
+   * instante em que aparece, e o rótulo saltaria — o item selecionado ficaria
+   * meio pixel fora de alinhamento com os outros. Com a borda sempre presente,
+   * o que muda é só a cor.
+   */
+  border: 1px solid transparent;
   text-align: left;
   color: rgb(191 194 197);
   min-height: 44px;
   cursor: pointer;
   transition:
     background 0.25s,
+    border-color 0.25s,
     color 0.25s;
 }
 
@@ -424,23 +434,51 @@ body {
   color: rgb(242 243 244);
 }
 
-/* A seção atual: branca sobre um degrau de luz. O único verde é o fio de 2px
-   na borda — um detalhe, não um fundo tingido. */
+/*
+ * A SEÇÃO ESCOLHIDA: contorno verde, respirando.
+ *
+ * É o estado mais pontual que existe na navegação — exatamente um item de cada
+ * vez — e por isso ele pode carregar o acento sem devolver o verde à tela
+ * inteira. O fundo continua quase neutro: quem marca é o contorno, não uma
+ * mancha de cor atrás do texto.
+ *
+ * O ritmo é o mesmo do resto do produto: 3,4s, lento, sem pico agudo. Uma
+ * navegação fica aberta enquanto se lê a tela, e um pulso rápido ali vira
+ * aquele ponto que rouba o olho a cada poucos segundos.
+ */
 .tq-navlinks button[aria-current='page'] {
-  background: rgb(255 255 255 / 0.07);
-  color: rgb(249 250 251);
+  background: rgb(var(--c-primary) / 0.07);
+  border-color: rgb(var(--c-primary) / 0.5);
+  color: rgb(246 249 247);
+  animation: tq-selecao 3.4s ease-in-out infinite;
 }
 
-.tq-navlinks button[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  left: -10px;
-  top: 12px;
-  bottom: 12px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgb(var(--c-primary));
+/* O ícone assume o verde claro; o rótulo fica branco, que é o que se lê. */
+.tq-navlinks button[aria-current='page'] svg {
+  color: rgb(var(--c-glow));
 }
+
+@keyframes tq-selecao {
+  0%,
+  100% {
+    border-color: rgb(var(--c-primary) / 0.32);
+    box-shadow:
+      0 0 0 0 rgb(var(--c-primary) / 0),
+      inset 0 0 12px rgb(var(--c-primary) / 0.02);
+  }
+  50% {
+    border-color: rgb(var(--c-primary) / 0.75);
+    box-shadow:
+      0 0 15px -3px rgb(var(--c-primary) / 0.32),
+      inset 0 0 14px rgb(var(--c-primary) / 0.07);
+  }
+}
+
+/*
+ * Com movimento reduzido a animação some (a regra geral no fim do arquivo
+ * zera tudo), e o que fica de pé é o contorno da regra acima — 0.5 de alfa,
+ * verde, parado. A seção escolhida continua identificável sem nada se mexer.
+ */
 
 .tq-navfoot {
   position: absolute;
