@@ -59,6 +59,25 @@ describe('a animação é fundo, e só fundo', () => {
   });
 });
 
+describe('o compositor não ganha moldura ao ser focado', () => {
+  /*
+   * `:focus-visible` casa num campo de texto sempre que ele recebe foco,
+   * inclusive por clique — então a regra genérica de foco desenhava um
+   * retângulo verde de 2px em volta do campo no instante em que se clicava
+   * para escrever. Era a caixa que este compositor existe para não ter, e só
+   * aparecia no estado focado.
+   */
+  it('o campo de escrita cancela o contorno de foco', () => {
+    expect(css).toMatch(/\.tq-campo textarea:focus-visible\s*\{[^}]*outline:\s*none/);
+  });
+
+  /* O foco precisa continuar anunciado — sem moldura, por revelação. */
+  it('o foco revela os controles e a dica de teclas', () => {
+    expect(css).toMatch(/\.tq-escrita:focus-within \.tq-campo-acoes/);
+    expect(css).toMatch(/\.tq-escrita:focus-within \.tq-dica-teclas/);
+  });
+});
+
 describe('o cursor nativo e o desenhado nunca coexistem', () => {
   /*
    * A causa do cursor aparecendo onde não devia: `cursor: none` era

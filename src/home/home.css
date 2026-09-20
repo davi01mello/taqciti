@@ -105,11 +105,38 @@ body {
   border-radius: 6px;
 }
 
+/*
+ * O compositor é a exceção — e é a exceção mais importante desta tela.
+ *
+ * `:focus-visible` casa num campo de texto SEMPRE que ele recebe foco,
+ * inclusive por clique. Então bastava clicar para escrever e um retângulo
+ * verde de 2px envolvia o campo: exatamente a caixa que este compositor existe
+ * para não ter, e a mancha de verde mais visível da tela. Era invisível na
+ * leitura do CSS porque a regra mora lá em cima, genérica, e o defeito só
+ * aparece no estado focado.
+ *
+ * O foco continua anunciado, por três sinais que não são moldura: o caret
+ * aparece, o "+"/enviar e a dica de teclas saem da transparência
+ * (`:focus-within`, abaixo) e a onda sobe. Para um campo de texto, o caret
+ * visível é o indicador de foco que o próprio sistema usa.
+ */
+.tq-campo textarea:focus-visible {
+  outline: none;
+}
+
 /* --------------------------------------------------------------- cabeçalho */
 
+/*
+ * Acima da navegação (z-index 11) e da faixa (12), de propósito.
+ *
+ * A barra lateral abre por cima do cabeçalho e o `backdrop-filter` dela
+ * borrava a marca — a palavra "TaqCiti" virava uma mancha sempre que a
+ * navegação aparecia. Os links começam em 92px, bem abaixo do cabeçalho, então
+ * não há conteúdo disputando o mesmo espaço: é só a ordem de pintura.
+ */
 .tq-topo {
   position: relative;
-  z-index: 3;
+  z-index: 13;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -306,8 +333,9 @@ body {
   cursor: pointer;
 }
 
-/* A faixa clara: a dica visual de que há algo ali. Cresce quando a barra
-   abre, para o gesto ter resposta imediata. */
+/* A faixa clara: a dica visual de que há algo ali. Some quando a barra abre —
+   ela é a dica de uma coisa que já aconteceu, e por dentro do painel aberto
+   virava um risco claro atravessando os links. */
 .tq-edge::after {
   content: '';
   position: absolute;
@@ -320,12 +348,17 @@ body {
   box-shadow: 0 0 18px rgb(255 255 255 / 0.07);
   transition:
     height 0.3s,
+    opacity 0.3s,
     background 0.3s;
 }
 
-.tq-home.nav-aberta .tq-edge::after {
+.tq-edge:hover::after {
   background: rgb(204 207 210);
   height: 92px;
+}
+
+.tq-home.nav-aberta .tq-edge::after {
+  opacity: 0;
 }
 
 .tq-nav {
@@ -678,11 +711,20 @@ body {
   color: rgb(131 134 138);
 }
 
+/* Os controles saem da penumbra quando o campo é a atenção da tela. É metade
+   do sinal de foco que substituiu a moldura verde. */
 .tq-campo-acoes {
   display: flex;
   align-items: center;
   gap: 4px;
   padding-bottom: 2px;
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.tq-escrita:focus-within .tq-campo-acoes,
+.tq-escrita:hover .tq-campo-acoes {
+  opacity: 1;
 }
 
 .tq-mais,
