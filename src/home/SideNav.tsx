@@ -26,14 +26,30 @@
  * atravessa costuras entre elementos, some por um quadro ao cruzar o gradiente
  * da borda, e cada solavanco desses vira um fecha-abre. O adiamento absorve a
  * travessia: a barra só fecha se o ponteiro ficar fora durante todo esse tempo.
- * Qualquer retorno no meio cancela o temporizador.
  *
- * ── Por que também fecha por foco, e não só por mouse ──────────────────────
+ * ── Por que a decisão é tomada na HORA DE FECHAR ───────────────────────────
  *
- * Quem navega por teclado não tem `pointerleave`. O `focusout` faz o papel
- * equivalente, e o `focus` na faixa abre. O `inert` quando fechada tira os
- * botões da ordem de tabulação: uma barra escondida não pode capturar o Tab de
- * quem está tentando chegar no campo de escrita.
+ * Havia um guarda para o teclado: não fechar se o foco estivesse dentro da
+ * barra. Ele parecia inofensivo e desligava a barra inteira do mouse — porque
+ * CLICAR num link também dá foco a ele. Depois do primeiro clique numa seção,
+ * `nav.contains(document.activeElement)` era sempre verdadeiro, o temporizador
+ * sempre desistia, e a barra ficava presa aberta para sempre, sem responder
+ * mais ao ponteiro. Do lado de fora, isso é "a barra não acompanha o mouse".
+ *
+ * A correção é perguntar no instante do fechamento, e sobre o que importa:
+ *
+ *   - o ponteiro está, AGORA, na faixa ou sobre a barra? (posição, não evento)
+ *   - existe foco de TECLADO lá dentro? (`:focus-visible`, que um clique de
+ *     mouse não satisfaz — é exatamente a distinção que faltava)
+ *
+ * Decidir por posição, e não por uma sequência de eventos de entrada e saída,
+ * também imuniza a barra contra elementos desenhados por cima dela (o
+ * cabeçalho, por exemplo): atravessá-los dispara `pointerleave` na barra, mas
+ * na hora de fechar o ponteiro continua onde estava.
+ *
+ * O `inert` quando fechada tira os botões da ordem de tabulação: uma barra
+ * escondida não pode capturar o Tab de quem está tentando chegar no campo de
+ * escrita.
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { Icon, type IconName } from '@/shared/ui/Icon';
@@ -55,6 +71,24 @@ const FAIXA = 34;
 const LIMITE_FECHAR = 316;
 const ATRASO_FECHAR = 340;
 
+/**
+ * `:focus-visible` existe neste motor?
+ *
+ * É a pergunta que separa "chegou aqui pelo teclado" de "clicou com o mouse".
+ * Onde ela não existe (jsdom, motores antigos), `querySelector` lança em vez de
+ * devolver `null` — e aí o guarda de teclado simplesmente não entra, que é o
+ * padrão certo: sem ele, quem manda é a posição do ponteiro, e nenhuma barra
+ * fica presa aberta.
+ */
+const SUPORTA_FOCUS_VISIBLE = (() => {
+  try {
+    document.querySelector(':focus-visible');
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
 interface Props {
   ativa: Secao;
   aberta: boolean;
@@ -67,6 +101,8 @@ export function SideNav({ ativa, aberta, onAbrir, onIr }: Props) {
   const timerRef = useRef<number | null>(null);
   const abertaRef = useRef(aberta);
   abertaRef.current = aberta;
+  /** Onde o ponteiro está de verdade. Começa longe: sem mouse, nada segura. */
+  const xRef = useRef(Number.POSITIVE_INFINITY);
 
   const cancelar = useCallback(() => {
     if (timerRef.current !== null) {
@@ -79,9 +115,12 @@ export function SideNav({ ativa, aberta, onAbrir, onIr }: Props) {
     cancelar();
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
-      // Não fecha embaixo do teclado: se o foco está dentro, a pessoa está lá.
+      // O ponteiro ainda está na faixa ou sobre a barra: a pessoa está aqui.
+      if (xRef.current <= LIMITE_FECHAR) return;
+      // Foco de TECLADO lá dentro: idem. Um clique de mouse não conta — foi
+      // contá-lo que deixava a barra presa aberta depois de cada navegação.
       const nav = navRef.current;
-      if (nav && nav.contains(document.activeElement)) return;
+      if (SUPORTA_FOCUS_VISIBLE && nav?.querySelector(':focus-visible')) return;
       onAbrir(false);
     }, ATRASO_FECHAR);
   }, [cancelar, onAbrir]);
@@ -91,6 +130,7 @@ export function SideNav({ ativa, aberta, onAbrir, onIr }: Props) {
   useEffect(() => {
     const aoMover = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
+      xRef.current = e.clientX;
       if (e.clientX <= FAIXA) {
         cancelar();
         if (!abertaRef.current) onAbrir(true);

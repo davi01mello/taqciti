@@ -129,6 +129,75 @@ describe('a barra lateral não recolhe ao navegar', () => {
     expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
     expect(reunioes.getAttribute('aria-current')).toBe('page');
   });
+
+  /*
+   * O outro extremo, e o defeito relatado: depois de clicar numa seção a barra
+   * parava de responder ao mouse e ficava presa aberta. O clique dá foco ao
+   * botão, e o guarda de teclado (`contains(activeElement)`) passava a
+   * bloquear TODO fechamento a partir dali.
+   */
+  it('depois de navegar, ainda fecha quando o ponteiro se afasta', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await montar();
+      await act(async () => q<HTMLButtonElement>('.tq-edge').click());
+
+      const reunioes = Array.from(host.querySelectorAll('.tq-navlinks button')).find(
+        (b) => b.textContent?.includes('Reuniões'),
+      ) as HTMLButtonElement;
+      await act(async () => {
+        reunioes.click();
+        reunioes.focus();
+      });
+      expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
+      expect(document.activeElement).toBe(reunioes);
+
+      // O ponteiro vai embora, bem além da barra.
+      await act(async () => {
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { clientX: 900, clientY: 400, pointerType: 'mouse' }),
+        );
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(600);
+      });
+
+      expect(q('.tq-home').classList.contains('nav-aberta')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /* E o contrário continua valendo: o ponteiro parado sobre a barra a segura,
+     mesmo que algo desenhado por cima dispare um `pointerleave` nela. */
+  it('não fecha enquanto o ponteiro está sobre a barra', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await montar();
+      await act(async () => {
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { clientX: 10, clientY: 400, pointerType: 'mouse' }),
+        );
+      });
+      expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
+
+      // O ponteiro segue dentro da barra; o cabeçalho, desenhado por cima,
+      // rouba o alvo e a barra recebe um `pointerleave`.
+      await act(async () => {
+        window.dispatchEvent(
+          new PointerEvent('pointermove', { clientX: 120, clientY: 40, pointerType: 'mouse' }),
+        );
+        q('#tq-nav').dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(600);
+      });
+
+      expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('a onda responde à escrita, e a mais nada', () => {
