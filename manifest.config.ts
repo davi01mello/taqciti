@@ -73,10 +73,9 @@ export default defineManifest({
     '128': 'icons/icon-128.png',
   },
 
-  // Sem `default_popup` de propósito: com ele o Chrome abre o popup e
-  // `chrome.action.onClicked` NUNCA dispara. O clique no ícone agora injeta o
-  // painel flutuante na aba ativa — é ele o produto, não uma caixinha presa
-  // embaixo da barra do navegador.
+  // Sem `default_popup` de propósito. O clique no ícone abre a SIDEBAR, e quem
+  // faz isso é `setPanelBehavior({ openPanelOnActionClick: true })` — um popup
+  // aqui interceptaria o clique antes disso.
   action: {
     default_icon: {
       '16': 'icons/icon-16.png',
@@ -89,10 +88,28 @@ export default defineManifest({
     type: 'module',
   },
 
-  // A saída larga, para ler uma transcrição inteira sem a página por baixo —
-  // secundária ao painel injetado, que é o produto. Declarar `default_path`
-  // também põe o TaqCITi no menu de painel lateral do próprio Chrome, que é o
-  // caminho de abertura que nunca depende de gesto (ver background/sidePanel).
+  /*
+   * A SIDEBAR — agora o painel lateral NATIVO do Chrome.
+   *
+   * Houve três tentativas antes desta, e vale registrar por que as duas
+   * primeiras saíram:
+   *
+   *   1. uma "saída larga" pendurada aqui, que era o histórico antigo em tela
+   *      cheia. Competia com a HOME mostrando os mesmos dados;
+   *   2. um painel flutuante desenhado na página pelo content script. Resolvia
+   *      a abertura pela cápsula, mas disputava o centro da tela com a chamada
+   *      e vivia dentro de um shadow root, com a folha de estilo, o ciclo de
+   *      vida e as limitações de tudo que mora numa página de terceiro.
+   *
+   * O painel nativo não tem nenhum desses problemas: é página da extensão (API
+   * completa, `chrome.tabs`, `chrome.storage`, sem shadow root), o Chrome cuida
+   * da moldura e do redimensionamento, e ele não some quando o Meet navega.
+   *
+   * `default_path` sozinho NÃO o abre em lugar nenhum — ele só diz o que
+   * mostrar quando alguém abrir. Quem abre é o clique no ícone, via
+   * `sidePanel.setPanelBehavior({ openPanelOnActionClick: true })` no
+   * background. Ver `src/background/sidePanel.ts`.
+   */
   side_panel: {
     default_path: 'src/sidepanel/index.html',
   },
@@ -148,6 +165,11 @@ export default defineManifest({
   // do usuário é obtido DENTRO do Chrome e usado para criar a ata no Drive
   // dele. O servidor nunca vê esse token — é a razão de a extensão criar o
   // documento em vez de o servidor criar.
+  //
+  // `sidePanel` voltou porque o painel nativo voltou — e agora como a sidebar
+  // do produto, não como uma segunda tela de histórico. Nenhuma destas aparece
+  // na tela de instalação: o aviso que o usuário vê vem do `<all_urls>`
+  // explicado abaixo.
   permissions: ['storage', 'sidePanel', 'scripting', 'identity'],
 
   /*

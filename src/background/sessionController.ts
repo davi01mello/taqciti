@@ -1,7 +1,7 @@
 /**
  * Dono do estado da reunião no service worker: aplica eventos na máquina de
- * estados, persiste e faz broadcast do estado novo para o painel lateral e
- * para todo painel injetado que estiver aberto.
+ * estados, persiste e faz broadcast do estado novo para a HOME e para a
+ * sidebar de reunião que estiver aberta.
  *
  * Persistência em duas camadas:
  * - chrome.storage.session: estado vivo, sobrevive a restart do service worker.
@@ -69,7 +69,7 @@ async function saveLiveRecord(force: boolean, now: number): Promise<void> {
 function broadcast(): void {
   const message = { type: 'state/updated' as const, state };
 
-  // Páginas da extensão (painel lateral, página de documento):
+  // Páginas da extensão (a HOME, a página de documento):
   chrome.runtime.sendMessage(message).catch(() => {
     /* nenhum contexto aberto — esperado */
   });

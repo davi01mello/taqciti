@@ -1,0 +1,1307 @@
+/*
+ * Estilo da HOME — a página principal do TaqCiti.
+ *
+ * CSS próprio, e não Tailwind, pelo mesmo motivo de `src/content/ui/panel.css`:
+ * o que existe aqui é composição de camadas (canvas de fundo, navegação
+ * translúcida, cursor), com estados que se cruzam. Em utilitário isso vira uma
+ * fila de colchetes ilegível. As CORES continuam vindo de `tokens.css` — este
+ * arquivo não inventa nenhuma.
+ *
+ * Três regras organizam o resto:
+ *
+ *   1. UMA superfície. O fundo é o mesmo do `html` ao canvas; nada aqui pinta
+ *      um retângulo com outra cor, e a animação se dissolve por máscara em vez
+ *      de terminar numa aresta.
+ *   2. UM fluxo. Conversa, escrita e onda rolam juntas, com a página. Nada de
+ *      `position: fixed` ou `sticky` nelas — quem é fixo é só a navegação, que
+ *      é moldura, não conteúdo.
+ *   3. Nada opaco por cima da onda. O conteúdo vive numa coluna transparente.
+ *
+ * ── O verde tem lugar, e o lugar é pequeno ─────────────────────────────────
+ *
+ * A tela é de grafite, preto suave, branco e cinzas NEUTROS. O verde aparece
+ * em cinco lugares, e em nenhum outro:
+ *
+ *   - a marca (o "Citi" do cabeçalho e o ícone);
+ *   - a onda e o caret, que são a mesma ideia — onde a voz entra;
+ *   - o selo de captura acontecendo;
+ *   - o anel do cursor quando ele está sobre a área de escrita;
+ *   - o foco visível e o hover do botão de enviar.
+ *
+ * Fundo, superfícies, bordas, hover de lista e texto de apoio são cinzas sem
+ * matiz. Antes quase todos tinham uma gota de verde — cada uma discreta, todas
+ * somadas tingindo a página. Um acento que aparece em tudo deixa de ser acento.
+ */
+
+/* ------------------------------------------------- a superfície contínua */
+
+/*
+ * Um tom só, do documento ao canvas. Antes o `body` trazia a aurora do
+ * `global.css` e a `.tq-home` pintava um grafite por cima: dois fundos
+ * diferentes empilhados, e qualquer camada que não cobrisse a tela inteira
+ * mostrava a costura entre eles.
+ *
+ * O grafite é NEUTRO (17 18 19), e não o 15/18/19 de antes — aquele tinha mais
+ * verde e azul que vermelho, e num plano do tamanho da tela isso se lê como
+ * tom, não como neutro.
+ */
+html,
+body {
+  background: rgb(17 18 19);
+}
+
+.tq-home {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  color: rgb(237 238 239);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: clip;
+
+  /*
+   * O texto EXIBIDO não é selecionável — a imersão é o ponto, e um realce azul
+   * arrastado sobre a conversa quebra a superfície contínua. Isto é interação
+   * visual, não proteção: exportar e copiar continuam existindo, nos lugares
+   * que são deles (a reunião tem "Copiar" e "Baixar .txt"). Leitor de tela não
+   * é afetado: `user-select` não toca a árvore de acessibilidade.
+   */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A exceção, e a única: o que a pessoa está ESCREVENDO. Caret, seleção,
+   correção, colagem e atalhos de edição continuam inteiros. */
+.tq-home textarea,
+.tq-home input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.tq-home *,
+.tq-home *::before,
+.tq-home *::after {
+  box-sizing: border-box;
+}
+
+.tq-home button {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.tq-home button:focus-visible,
+.tq-home textarea:focus-visible,
+.tq-home input:focus-visible,
+.tq-home summary:focus-visible,
+.tq-home [tabindex]:focus-visible {
+  outline: 2px solid rgb(var(--c-primary));
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/*
+ * O compositor é a exceção — e é a exceção mais importante desta tela.
+ *
+ * `:focus-visible` casa num campo de texto SEMPRE que ele recebe foco,
+ * inclusive por clique. Então bastava clicar para escrever e um retângulo
+ * verde de 2px envolvia o campo: exatamente a caixa que este compositor existe
+ * para não ter, e a mancha de verde mais visível da tela. Era invisível na
+ * leitura do CSS porque a regra mora lá em cima, genérica, e o defeito só
+ * aparece no estado focado.
+ *
+ * O foco continua anunciado, por três sinais que não são moldura: o caret
+ * aparece, o "+"/enviar e a dica de teclas saem da transparência
+ * (`:focus-within`, abaixo) e a onda sobe. Para um campo de texto, o caret
+ * visível é o indicador de foco que o próprio sistema usa.
+ */
+.tq-campo textarea:focus-visible {
+  outline: none;
+}
+
+/* --------------------------------------------------------------- cabeçalho */
+
+/*
+ * Acima da navegação (z-index 11) e da faixa (12), de propósito.
+ *
+ * A barra lateral abre por cima do cabeçalho e o `backdrop-filter` dela
+ * borrava a marca — a palavra "TaqCiti" virava uma mancha sempre que a
+ * navegação aparecia. Os links começam em 92px, bem abaixo do cabeçalho, então
+ * não há conteúdo disputando o mesmo espaço: é só a ordem de pintura.
+ */
+.tq-topo {
+  position: relative;
+  z-index: 13;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 40px 10px;
+}
+
+.tq-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -1.1px;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: rgb(245 246 247);
+}
+
+.tq-brand img {
+  height: 25px;
+  width: auto;
+  display: block;
+}
+
+.tq-brand em {
+  color: rgb(var(--c-primary));
+  font-style: italic;
+}
+
+.tq-topo-direita {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tq-captando {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: rgb(var(--c-glow));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: 6px;
+}
+
+.tq-captando::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+  animation: tq-pulsar 1.8s ease-in-out infinite;
+}
+
+@keyframes tq-pulsar {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.tq-motion,
+.tq-conversas-botao {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: rgb(150 153 156);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+
+.tq-motion:hover:not(:disabled),
+.tq-conversas-botao:hover,
+.tq-conversas-botao[aria-expanded='true'] {
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(237 238 239);
+}
+
+.tq-motion:disabled {
+  opacity: 0.4;
+}
+
+/* ------------------------------------------------------- menu de conversas */
+
+.tq-conversas {
+  position: relative;
+}
+
+.tq-conversas-lista {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: 296px;
+  max-height: min(62vh, 460px);
+  overflow-y: auto;
+  padding: 7px;
+  border-radius: 14px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(33 34 36 / 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 44px rgb(0 0 0 / 0.42);
+}
+
+.tq-conversas-nova {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 11px;
+  border-radius: 9px;
+  text-align: left;
+  font-size: 13px;
+  color: rgb(226 228 230);
+  cursor: pointer;
+}
+
+.tq-conversas-nova:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.tq-conversas-lista ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+  padding-top: 4px;
+}
+
+.tq-conversas-lista li button {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tq-conversas-lista li button:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+
+/* A conversa atual se distingue por LUZ, não por cor: fundo um degrau acima e
+   texto branco. Verde aqui seria acento num estado permanente. */
+.tq-conversas-lista li button.atual {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.tq-conversas-titulo {
+  display: block;
+  font-size: 12.5px;
+  color: rgb(222 224 226);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-conversas-lista li button.atual .tq-conversas-titulo {
+  color: rgb(248 249 250);
+}
+
+.tq-conversas-data {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: rgb(149 152 155);
+}
+
+.tq-conversas-vazio {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(154 157 160);
+  margin: 8px 10px 6px;
+}
+
+/* -------------------------------------------------------------- navegação */
+
+.tq-edge {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 34px;
+  z-index: 12;
+  cursor: pointer;
+}
+
+/* A faixa clara: a dica visual de que há algo ali. Some quando a barra abre —
+   ela é a dica de uma coisa que já aconteceu, e por dentro do painel aberto
+   virava um risco claro atravessando os links. */
+.tq-edge::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 44%;
+  height: 62px;
+  width: 3px;
+  border-radius: 4px;
+  background: rgb(174 177 180 / 0.5);
+  box-shadow: 0 0 18px rgb(255 255 255 / 0.07);
+  transition:
+    height 0.3s,
+    opacity 0.3s,
+    background 0.3s;
+}
+
+.tq-edge:hover::after {
+  background: rgb(204 207 210);
+  height: 92px;
+}
+
+.tq-home.nav-aberta .tq-edge::after {
+  opacity: 0;
+}
+
+.tq-nav {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 268px;
+  max-width: 85%;
+  z-index: 11;
+  padding: 92px 26px 30px 42px;
+  /* Transparência gradual: opaco o bastante para o texto se ler, e terminando
+     em zero para o fundo continuar visível através da borda. */
+  background: linear-gradient(
+    90deg,
+    rgb(24 25 26 / 0.94) 0%,
+    rgb(24 25 26 / 0.8) 58%,
+    rgb(24 25 26 / 0.32) 84%,
+    rgb(24 25 26 / 0) 100%
+  );
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  mask-image: linear-gradient(90deg, #000 0%, #000 81%, transparent 100%);
+  transform: translateX(-102%);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.4s,
+    visibility 0.4s;
+}
+
+.tq-home.nav-aberta .tq-nav {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.tq-navlinks {
+  display: grid;
+  gap: 6px;
+  padding-right: 16px;
+}
+
+.tq-navlinks button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 11px;
+  border-radius: 10px;
+  /*
+   * Borda transparente em TODOS os itens, e não só no escolhido.
+   *
+   * Sem ela, o contorno da seção atual acrescentaria 1px de cada lado no
+   * instante em que aparece, e o rótulo saltaria — o item selecionado ficaria
+   * meio pixel fora de alinhamento com os outros. Com a borda sempre presente,
+   * o que muda é só a cor.
+   */
+  border: 1px solid transparent;
+  text-align: left;
+  color: rgb(191 194 197);
+  min-height: 44px;
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.tq-navlinks button:hover {
+  background: rgb(255 255 255 / 0.05);
+  color: rgb(242 243 244);
+}
+
+/*
+ * A SEÇÃO ESCOLHIDA: contorno verde, respirando.
+ *
+ * É o estado mais pontual que existe na navegação — exatamente um item de cada
+ * vez — e por isso ele pode carregar o acento sem devolver o verde à tela
+ * inteira. O fundo continua quase neutro: quem marca é o contorno, não uma
+ * mancha de cor atrás do texto.
+ *
+ * O ritmo é o mesmo do resto do produto: 3,4s, lento, sem pico agudo. Uma
+ * navegação fica aberta enquanto se lê a tela, e um pulso rápido ali vira
+ * aquele ponto que rouba o olho a cada poucos segundos.
+ */
+.tq-navlinks button[aria-current='page'] {
+  background: rgb(var(--c-primary) / 0.07);
+  border-color: rgb(var(--c-primary) / 0.5);
+  color: rgb(246 249 247);
+  animation: tq-selecao 3.4s ease-in-out infinite;
+}
+
+/* O ícone assume o verde claro; o rótulo fica branco, que é o que se lê. */
+.tq-navlinks button[aria-current='page'] svg {
+  color: rgb(var(--c-glow));
+}
+
+@keyframes tq-selecao {
+  0%,
+  100% {
+    border-color: rgb(var(--c-primary) / 0.32);
+    box-shadow:
+      0 0 0 0 rgb(var(--c-primary) / 0),
+      inset 0 0 12px rgb(var(--c-primary) / 0.02);
+  }
+  50% {
+    border-color: rgb(var(--c-primary) / 0.75);
+    box-shadow:
+      0 0 15px -3px rgb(var(--c-primary) / 0.32),
+      inset 0 0 14px rgb(var(--c-primary) / 0.07);
+  }
+}
+
+/*
+ * Com movimento reduzido a animação some (a regra geral no fim do arquivo
+ * zera tudo), e o que fica de pé é o contorno da regra acima — 0.5 de alfa,
+ * verde, parado. A seção escolhida continua identificável sem nada se mexer.
+ */
+
+.tq-navfoot {
+  position: absolute;
+  bottom: 32px;
+  font-size: 11px;
+  color: rgb(142 145 148);
+}
+
+/* ---------------------------------------------------------------- miolo */
+
+/*
+ * A coluna do conteúdo E o palco da animação. `position: relative` porque é
+ * contra ela que o canvas se ancora: a onda fica no FIM do fluxo, não presa na
+ * janela, e é isso que a faz sair da tela quando se rola para reler.
+ */
+.tq-main {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  width: min(820px, calc(100% - 128px));
+  margin: 0 auto;
+  padding: 8px 0 40px;
+}
+
+/* ---------------------------------------------------------------- o fundo */
+
+/*
+ * A animação, dissolvida no fundo.
+ *
+ * `100vw` centrado: a onda atravessa a tela inteira, e não só a coluna de
+ * leitura. A máscara apaga o topo do canvas num gradiente longo — é ela que
+ * impede a borda retangular da camada de aparecer como uma linha cruzando a
+ * página. As laterais caem fora da viewport, então não têm aresta para mostrar.
+ *
+ * A ALTURA é o que decide quanto tempo a onda fica à vista ao subir na
+ * conversa. Com 620px ela ainda alcançava meia tela de histórico, e a leitura
+ * acontecia sempre com a onda por perto — parecia fundo fixo mesmo sem ser.
+ * Em 460px ela pertence ao pé da página: sai de vista logo depois do campo de
+ * escrita e reaparece ao voltar ao fim.
+ *
+ * `pointer-events: none`: é fundo. Clique, seleção e rolagem passam direto.
+ */
+.tq-wave {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  height: min(54vh, 460px);
+  z-index: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 46%, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 46%, #000 100%);
+}
+
+/* --------------------------------------------------------- a conversa */
+
+/*
+ * Conversa em cima, escrita embaixo, um fluxo só. A altura mínima segura o
+ * campo na região inferior mesmo com a conversa curta — sem ela, numa conversa
+ * de duas mensagens o campo subiria para o meio da tela e a onda ficaria órfã
+ * lá embaixo.
+ */
+.tq-palco {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 130px);
+}
+
+.tq-conversa {
+  flex: 1;
+}
+
+.tq-abertura {
+  text-align: center;
+  margin: 13vh 0 40px;
+}
+
+.tq-abertura h1 {
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: -1.1px;
+  color: rgb(226 228 230);
+  margin: 0;
+}
+
+.tq-abertura p {
+  font-size: 12.5px;
+  color: rgb(163 166 169);
+  margin: 10px 0 0;
+}
+
+.tq-turnos {
+  list-style: none;
+  margin: 0;
+  /* Coluna de leitura confortável: o texto não se espalha até as bordas da
+     tela numa janela larga. */
+  padding: 24px 0 0;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.tq-turno {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 38px;
+}
+
+/* Quem escreve fica à DIREITA. Sem balão e sem caixa: o que diferencia os
+   autores é o alinhamento, o recuo e o tom — não uma moldura. */
+.tq-bolha {
+  align-self: flex-end;
+  max-width: 76%;
+  margin: 0;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: rgb(197 200 203);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tq-anexos-msg {
+  align-self: flex-end;
+  max-width: 76%;
+  font-size: 11px;
+  color: rgb(139 142 146);
+  margin: 6px 0 0;
+}
+
+/* A IA fica à ESQUERDA, com a marca ao lado do texto. */
+.tq-turno-agente {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 88%;
+  margin: 24px auto 0 0;
+}
+
+.tq-resposta-texto {
+  min-width: 0;
+}
+
+.tq-agente-nome {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: rgb(152 155 158);
+  margin-bottom: 5px;
+}
+
+.tq-indisponivel {
+  font-size: 13.5px;
+  line-height: 1.9;
+  color: rgb(207 210 213);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tq-falhou {
+  color: rgb(240 205 160);
+}
+
+.tq-indisponivel-dica {
+  font-size: 12px;
+  line-height: 1.8;
+  color: rgb(149 152 155);
+  margin: 10px 0 0;
+}
+
+/* Destaque por peso e branco, não por verde: são só nomes de seções. */
+.tq-indisponivel-dica strong {
+  color: rgb(235 237 239);
+  font-weight: 500;
+}
+
+/* --------------------------------------------- a marca da resposta da IA */
+
+/*
+ * As duas camadas empilhadas: a animação por baixo, o ícone oficial por cima.
+ * Trocar de elemento faria a marca sumir por um quadro; com as duas montadas,
+ * a conclusão é uma transição de opacidade — e o ícone estático é o que diz
+ * "esta resposta terminou".
+ */
+.tq-marca {
+  position: relative;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-top: 2px;
+}
+
+.tq-marca canvas,
+.tq-marca img {
+  position: absolute;
+  inset: 0;
+  width: 32px;
+  height: 32px;
+  transition: opacity 0.45s ease;
+}
+
+.tq-marca canvas {
+  opacity: 0;
+}
+
+.tq-marca img {
+  opacity: 0.92;
+  object-fit: contain;
+}
+
+.tq-marca.processando canvas {
+  opacity: 1;
+}
+
+.tq-marca.processando img {
+  opacity: 0;
+}
+
+/* ------------------------------------------------------- campo de escrita */
+
+/*
+ * Escrita direto sobre o ambiente: sem barra, sem caixa, sem linha divisória,
+ * sem fundo retangular. O que delimita a área de interação é o próprio bloco
+ * do campo — previsível, e não "a página inteira vira campo".
+ */
+.tq-escrita {
+  position: relative;
+  z-index: 1;
+  margin: 26px auto 0;
+  width: 100%;
+  max-width: 720px;
+  /* O respiro que põe a escrita sobre a onda e ainda a mantém longe da borda
+     de baixo. */
+  padding-bottom: 104px;
+}
+
+.tq-campo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.tq-campo textarea {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  resize: none;
+  min-height: 34px;
+  /* Cresce até aqui e passa a rolar por dentro: um texto longo não pode
+     empurrar a conversa inteira para fora da tela. */
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.7;
+  color: rgb(240 242 244);
+  scrollbar-width: thin;
+  /* Um dos poucos verdes que sobraram, e o mais justificado: é o ponto exato
+     onde a sua voz entra na tela. */
+  caret-color: rgb(var(--c-glow));
+}
+
+.tq-campo textarea::placeholder {
+  color: rgb(131 134 138);
+}
+
+/* Os controles saem da penumbra quando o campo é a atenção da tela. É metade
+   do sinal de foco que substituiu a moldura verde. */
+.tq-campo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 2px;
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.tq-escrita:focus-within .tq-campo-acoes,
+.tq-escrita:hover .tq-campo-acoes {
+  opacity: 1;
+}
+
+.tq-mais,
+.tq-enviar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: rgb(162 165 169);
+  cursor: pointer;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    transform 0.3s,
+    opacity 0.3s;
+}
+
+.tq-mais:hover,
+.tq-mais[aria-expanded='true'] {
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(240 242 244);
+}
+
+/* Enviar é a ação principal desta tela — o hover dela é um dos estados
+   pontuais que ficaram com verde. */
+.tq-enviar:not(:disabled):hover {
+  background: rgb(var(--c-primary) / 0.14);
+  color: rgb(var(--c-glow));
+}
+
+.tq-mais[aria-expanded='true'] {
+  transform: rotate(45deg);
+}
+
+.tq-enviar:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.tq-dica-teclas {
+  margin: 10px 0 0;
+  font-size: 10px;
+  color: rgb(126 129 133);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.tq-escrita:focus-within .tq-dica-teclas,
+.tq-escrita:hover .tq-dica-teclas {
+  opacity: 1;
+}
+
+/*
+ * O estado da IA. Fica SEMPRE visível — ao contrário da dica de teclas, que é
+ * conveniência e some. Isto é informação sobre o que o produto faz, e esconder
+ * até o hover seria esconder de quem está prestes a escrever.
+ *
+ * Âmbar discreto: não é erro, é uma parte que ainda não existe; e não é verde,
+ * para não se confundir com "conectado".
+ */
+.tq-sem-ia {
+  margin: 12px 0 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: rgb(196 176 152);
+}
+
+.tq-anexos {
+  font-size: 11px;
+  color: rgb(174 177 181);
+  margin: 10px 0 0;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.tq-linkish {
+  font-size: 11.5px;
+  color: rgb(137 140 144);
+  padding: 4px 2px;
+  cursor: pointer;
+}
+
+.tq-linkish:hover {
+  color: rgb(235 237 239);
+}
+
+.tq-anexo-menu {
+  position: absolute;
+  right: 0;
+  bottom: 74px;
+  z-index: 6;
+  background: rgb(33 34 36 / 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 14px;
+  padding: 7px;
+  min-width: 230px;
+  box-shadow: 0 10px 35px rgb(0 0 0 / 0.33);
+}
+
+.tq-anexo-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tq-anexo-menu button:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.tq-anexo-menu p {
+  font-size: 10.5px;
+  color: rgb(157 160 164);
+  margin: 6px 9px 4px;
+  line-height: 1.55;
+}
+
+/* ------------------------------------------------------------- páginas */
+
+.tq-pagina {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 96px;
+}
+
+.tq-pagina h1 {
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.8px;
+  margin: 8px 0 0;
+}
+
+.tq-pagina-topo {
+  margin-bottom: 26px;
+}
+
+.tq-pagina-topo p {
+  font-size: 13px;
+  color: rgb(166 169 173);
+  margin: 6px 0 0;
+}
+
+.tq-lista {
+  display: grid;
+  gap: 10px;
+}
+
+.tq-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  padding: 18px 21px;
+  border: 1px solid rgb(255 255 255 / 0.05);
+  border-radius: 14px;
+  /* Translúcido: a onda continua visível atrás da lista. */
+  background: rgb(33 34 36 / 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition:
+    background 0.3s,
+    border-color 0.3s;
+}
+
+/* Hover por luz, não por cor: uma lista inteira com halo verde era metade do
+   verde da tela. */
+.tq-item:hover {
+  background: rgb(43 45 47 / 0.78);
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+.tq-item strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tq-item small {
+  display: block;
+  font-size: 11px;
+  color: rgb(159 162 166);
+  margin-top: 5px;
+}
+
+.tq-lista-densa .tq-item {
+  padding: 13px 16px;
+}
+
+.tq-vazio {
+  font-size: 13px;
+  color: rgb(159 162 166);
+  line-height: 1.8;
+  margin: 18px 0;
+  max-width: 62ch;
+}
+
+/* Um aviso não é um estado de interação: superfície neutra, sem tinta. */
+.tq-aviso {
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: rgb(185 188 192);
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 13px;
+  padding: 14px 17px;
+  margin-bottom: 22px;
+  max-width: 68ch;
+}
+
+.tq-aviso strong {
+  color: rgb(236 238 240);
+  font-weight: 500;
+}
+
+.tq-guia {
+  display: grid;
+  gap: 11px;
+}
+
+.tq-guia details {
+  background: rgb(33 34 36 / 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgb(255 255 255 / 0.06);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.tq-guia details[open] {
+  border-color: rgb(255 255 255 / 0.13);
+}
+
+.tq-guia summary {
+  font-size: 13.5px;
+  color: rgb(225 227 230);
+  cursor: pointer;
+}
+
+.tq-guia details p {
+  font-size: 12.5px;
+  color: rgb(174 177 181);
+  line-height: 1.85;
+  margin: 10px 0 0 16px;
+}
+
+/* ------------------------------------------------- detalhe de uma reunião */
+
+.tq-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: rgb(154 157 161);
+  padding: 6px 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.tq-voltar:hover {
+  color: rgb(238 240 242);
+}
+
+.tq-girado {
+  transform: rotate(90deg);
+}
+
+.tq-titulo-editavel {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.7px;
+  color: rgb(237 238 239);
+  cursor: text;
+  transition: background 0.25s;
+}
+
+.tq-titulo-editavel:hover,
+.tq-titulo-editavel:focus {
+  background: rgb(255 255 255 / 0.04);
+  outline: none;
+}
+
+.tq-meta {
+  font-size: 11.5px;
+  color: rgb(157 160 164);
+  margin: 6px 0 16px;
+  line-height: 1.7;
+}
+
+.tq-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tq-acao {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  font-size: 12.5px;
+  color: rgb(206 209 212);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.tq-acao:hover {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.18);
+  color: rgb(243 245 247);
+}
+
+.tq-acao-perigo {
+  color: rgb(224 150 145);
+}
+
+.tq-acao-perigo:hover {
+  background: rgb(224 110 105 / 0.12);
+  border-color: rgb(224 110 105 / 0.32);
+  color: rgb(240 178 172);
+}
+
+/* Confirmação de uma ação que acabou de acontecer: é pontual, então pode ser
+   verde — e some sozinha. */
+.tq-aviso-curto {
+  font-size: 11.5px;
+  color: rgb(var(--c-glow));
+  margin: 10px 0 0;
+}
+
+.tq-confirma {
+  margin-top: 14px;
+  padding: 14px 17px;
+  border-radius: 13px;
+  border: 1px solid rgb(224 110 105 / 0.28);
+  background: rgb(224 110 105 / 0.07);
+}
+
+.tq-confirma p {
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: rgb(223 226 229);
+  margin: 0 0 12px;
+}
+
+.tq-transcricao {
+  margin-top: 26px;
+}
+
+.tq-nota-movimento {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  color: rgb(149 152 156);
+  z-index: 8;
+  margin: 0;
+}
+
+/* -------------------------------------------------------------- cursor */
+
+.tq-dot,
+.tq-halo {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+
+body.tq-pointer-in .tq-dot,
+body.tq-pointer-in .tq-halo {
+  opacity: 1;
+}
+
+/* O alvo: exatamente onde o mouse está, sem atraso. Branco frio e uma orla
+   escura, para não desaparecer sobre a onda clara nem sobre o grafite. */
+.tq-dot {
+  width: 5px;
+  height: 5px;
+  margin: -2.5px;
+  border-radius: 50%;
+  background: rgb(246 248 250);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+}
+
+/*
+ * O anel que persegue. 30px de lado; o `scale` do JS o move entre 24 e 34px —
+ * peso suficiente para o atraso ser perceptível, pequeno o bastante para não
+ * cobrir palavra nenhuma. Não há rastro: é um anel só, e ele alcança o ponto.
+ */
+.tq-halo {
+  width: 30px;
+  height: 30px;
+  margin: -15px;
+}
+
+/*
+ * Um CONTORNO, e não mais um gradiente cônico esmaecido.
+ *
+ * O cônico ia de 7% a 50% de opacidade ao longo da volta: sobre o grafite ele
+ * praticamente sumia, e o que restava era um borrão sem forma. Uma borda
+ * neutra de 1,5px tem a mesma discrição e se lê em qualquer fundo — que é o
+ * que se pede de um cursor.
+ */
+.tq-rotor {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgb(228 232 236 / 0.62);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.22);
+  transition:
+    transform 0.4s,
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+/* Sobre um controle: só a forma reage, sem cor. O verde é reservado. */
+.tq-halo.sobre-controle .tq-rotor {
+  border-color: rgb(246 249 252 / 0.9);
+}
+
+/*
+ * O ÚNICO brilho verde do cursor: sobre a área editável, e em nenhum outro
+ * lugar. É ele que responde "dá para escrever aqui" — e por isso não pode
+ * acender no texto da conversa, no fundo, na navegação ou nos botões.
+ */
+.tq-halo.sobre-escrita .tq-rotor {
+  border-color: rgb(var(--c-glow) / 0.9);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.22),
+    0 0 10px rgb(var(--c-primary) / 0.4);
+}
+
+/*
+ * O cursor do sistema some SÓ enquanto o desenhado está na tela.
+ *
+ * Esta é a correção do cursor aparecendo (e sumindo) onde não devia. Antes a
+ * regra era incondicional, e a camada desenhada era ligada por JavaScript: as
+ * duas podiam discordar. Sair da janela pela borda, ir até a barra do
+ * navegador ou trocar de aba deixava a página com `cursor: none` e sem ponto —
+ * um cursor invisível, ou um ponto congelado por cima do nativo.
+ *
+ * Amarradas à mesma classe, os dois estados são impossíveis: ou há o ponto
+ * desenhado, ou há o cursor do sistema.
+ *
+ * `.tq-home *` é deliberado. Sem o descendente, qualquer componente com
+ * `cursor: pointer` próprio (e o kit tem vários) reacende o cursor nativo
+ * exatamente sobre os controles, que é onde a duplicação mais aparece.
+ */
+@media (pointer: fine) {
+  body.tq-pointer-in .tq-home,
+  body.tq-pointer-in .tq-home * {
+    cursor: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .tq-dot,
+  .tq-halo {
+    display: none;
+  }
+  .tq-enviar,
+  .tq-mais,
+  .tq-motion,
+  .tq-conversas-botao {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ------------------------------------------------------------- estreito */
+
+@media (max-width: 860px) {
+  .tq-main {
+    width: calc(100% - 64px);
+  }
+  .tq-topo {
+    padding: 20px 22px 8px;
+  }
+  .tq-captando {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .tq-main {
+    width: calc(100% - 44px);
+  }
+  /* Em tela estreita os recuos encolhem, mas a distinção entre os autores
+     continua: quem escreve permanece à direita, a IA à esquerda. */
+  .tq-bolha,
+  .tq-anexos-msg {
+    max-width: 90%;
+  }
+  .tq-turno-agente {
+    max-width: 100%;
+    gap: 10px;
+  }
+  .tq-escrita {
+    padding-bottom: 76px;
+  }
+  .tq-conversas-lista {
+    width: min(280px, calc(100vw - 32px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-home *,
+  .tq-home *::before,
+  .tq-home *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

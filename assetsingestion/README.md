@@ -72,6 +72,10 @@ se parecem:
 | Aviso do sistema | SmartScreen | Gatekeeper | **nenhum** |
 | Conclusão | janela do instalador | tela do Instalador | linha no terminal |
 
+Os três instaladores ficam soltos em `TaqCiti/Instaladores/`, sem subpasta por
+sistema — então é o **nome do arquivo** que diz qual é o seu. Por isso, ao
+escolher o sistema, o guia mostra o nome exato a abrir, e não só a pasta.
+
 O percurso do Linux é `extrair → Terminal → chmod +x → ./instalador`, e pula a
 etapa de "o instalador abriu?" porque não há aviso de sistema para passar.
 A partir de "Localize a pasta preparada", os três seguem juntos.

@@ -132,7 +132,23 @@ const contentMessages = z.discriminatedUnion('type', [
 ]);
 
 /**
- * Mensagens das UIs (painel injetado / painel lateral) → background.
+ * Mensagens do background → content script, endereçadas à aba da reunião.
+ *
+ * Separadas do broadcast porque só fazem sentido para UMA aba: quem as pede é o
+ * painel lateral, que não alcança content script, e o background é quem sabe
+ * qual é a aba da sessão.
+ */
+const paraAbaDaReuniao = z.discriminatedUnion('type', [
+  /**
+   * Escreve o aviso no chat do Meet. A resposta é `{ ok }` — e um `false` NÃO
+   * pode virar confirmação na tela: o requisito é explícito sobre falha não
+   * parecer sucesso.
+   */
+  z.object({ type: z.literal('meet/sendChatNotice'), text: z.string().min(1).max(300) }),
+]);
+
+/**
+ * Mensagens das UIs (HOME / sidebar de reunião) → background.
  *
  * Exportado porque é exatamente a fronteira que a camada de plataforma
  * atravessa: é o conjunto de comandos que uma UI pode emitir, seja ela a
@@ -140,22 +156,33 @@ const contentMessages = z.discriminatedUnion('type', [
  * schema de pé permite VALIDAR o que chega pelo socket com a mesma regra que
  * já valida o que chega por `chrome.runtime` — a ponte não afrouxa nada.
  */
+export const homeSectionSchema = z.enum([
+  'assistente',
+  'reunioes',
+  'documentos',
+  'conexoes',
+]);
+
 export const uiMessageSchema = z.discriminatedUnion('type', [
-  /** Abre a saída larga — o TaqCITi inteiro numa aba, pedido de dentro do
-   *  painel. Não passa por `chrome.sidePanel.open`, que exige um gesto do
-   *  usuário que este clique não tem. Ver src/background/sidePanel.ts. */
+  /**
+   * Abre a HOME (`src/home/index.html`) — a página principal do TaqCiti.
+   *
+   * É o ÚNICO destino em aba do produto. Antes havia dois (`panel/openRequest`
+   * abria a saída larga com o histórico antigo, este abria a tela nova), e
+   * eram duas experiências concorrentes: o mesmo botão "Abrir numa aba"
+   * levava a lugares diferentes conforme de onde saísse o clique. A saída
+   * larga foi removida e o que ela fazia mora na navegação interna da HOME.
+   *
+   * Passa pelo background porque quem pede pode ser a sidebar de reunião, que
+   * vive num content script — `window.open` de lá sai no contexto da página,
+   * sujeito ao bloqueador de pop-up do site. E porque só o background sabe se
+   * já existe uma aba da HOME para focar em vez de abrir outra.
+   */
   z.object({
-    type: z.literal('panel/openRequest'),
-    /**
-     * O que a aba deve mostrar. AUSENTE = a tela da fase atual, que é o que o
-     * clique no ícone da extensão quer.
-     *
-     * O painel manda sempre `'history'`: quem clica ali está olhando o
-     * histórico, e sem este campo a aba abria na reunião ao vivo — o botão
-     * prometia uma coisa e entregava outra, sem caminho de volta.
-     */
-    view: z.literal('history').optional(),
-    /** Abre já nesta reunião do histórico, em vez da lista. */
+    type: z.literal('ui/openHome'),
+    /** Seção em que a HOME deve abrir. Ausente = a que ela já mostrava. */
+    secao: homeSectionSchema.optional(),
+    /** Abre já nesta reunião do histórico, dentro de "Reuniões". */
     recordId: z.string().max(200).optional(),
   }),
   /**
@@ -175,6 +202,22 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
    * efeito visível, a transcrição travada na primeira fala.
    */
   z.object({ type: z.literal('panel/mounted') }),
+  /**
+   * Abre o painel lateral nativo.
+   *
+   * Pedido pela cápsula dentro do Meet. Pode FALHAR por regra do Chrome —
+   * `sidePanel.open()` exige gesto do usuário no contexto da extensão, e um
+   * clique na página vira mensagem, perdendo o gesto no caminho. A resposta diz
+   * o motivo para a cápsula poder explicar em vez de não fazer nada.
+   */
+  z.object({ type: z.literal('ui/openSidePanel') }),
+  /**
+   * Captura a aba da reunião. O background confere que a aba da sessão é a que
+   * está à vista antes de capturar — ver src/background/captura.ts.
+   */
+  z.object({ type: z.literal('ui/print') }),
+  /** Manda o aviso para o chat do Meet da reunião em andamento. */
+  z.object({ type: z.literal('ui/chatNotice'), text: z.string().min(1).max(300) }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),
   z.object({ type: z.literal('ui/resume') }),
@@ -196,7 +239,12 @@ const broadcastMessages = z.discriminatedUnion('type', [
   z.object({ type: z.literal('state/updated'), state: meetingStateSchema }),
 ]);
 
-export const messageSchema = z.union([contentMessages, uiMessageSchema, broadcastMessages]);
+export const messageSchema = z.union([
+  contentMessages,
+  uiMessageSchema,
+  broadcastMessages,
+  paraAbaDaReuniao,
+]);
 
 export type ExtensionMessage = z.infer<typeof messageSchema>;
 /** Um comando emitido por uma UI — o vocabulário da camada de plataforma. */

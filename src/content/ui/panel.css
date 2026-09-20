@@ -1,16 +1,16 @@
 /**
- * Folha de estilo do painel injetado no Meet.
+ * Folha de estilo da sidebar de reunião, injetada no Meet.
  *
- * É o MESMO Tailwind, os MESMOS tokens e — desde agora — a MESMA folha de
- * vidro da janela principal e do popup. Este arquivo não tem paleta nem
+ * É o MESMO Tailwind, os MESMOS tokens e a MESMA folha de
+ * vidro das outras superfícies. Este arquivo não tem paleta nem
  * receita de vidro próprias: quando tinha, as duas cópias divergiram e as
  * telas passaram a ter vidros de opacidade diferente. Aqui ficou só o que é
  * de fato específico de viver dentro de um shadow root:
  *
  * - o reset do Tailwind, confinado aqui, que não vaza para o Meet;
  * - o `all: initial` no `:host`, que barra a herança de estilo da página;
- * - a barra de rolagem, mais fina que a da janela principal porque o painel
- *   é estreito e flutua sobre vídeo.
+ * - a barra de rolagem, mais fina que a da HOME porque a sidebar é estreita e
+ *   fica sobre vídeo.
  *
  * Os tokens vêm de tokens.css, que declara em `:root, :host` de uma vez só
  * (o `:root` da página não atravessa a fronteira do shadow DOM).

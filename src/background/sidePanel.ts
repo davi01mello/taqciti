@@ -1,86 +1,109 @@
 /**
- * A SAÍDA LARGA do TaqCITi — a tela cheia do histórico, sem a página por baixo.
+ * A abertura do painel lateral nativo — e o gesto do usuário, medido.
  *
- * ── Por que ela deixou de ser `chrome.sidePanel.open()` ────────────────────
+ * ── O caminho que sempre funciona: o ícone ────────────────────────────────
  *
- * `chrome.sidePanel.open()` só é aceito em resposta a um gesto do usuário no
- * contexto da EXTENSÃO. O clique em "Abrir no painel lateral" acontece dentro do
- * painel, ou seja, na PÁGINA: vira uma mensagem até aqui, e o gesto não
- * atravessa a mensageria. O Chrome recusava com "may only be called in response
- * to a user gesture" — sempre, não às vezes. O botão nunca funcionou, e cada
- * clique ainda deixava um erro vermelho no console da extensão.
+ * `setPanelBehavior({ openPanelOnActionClick: true })` faz o CHROME abrir o
+ * painel quando o ícone é clicado. Não passa por código nosso, não depende de o
+ * service worker estar acordado, e não há gesto para preservar porque quem
+ * trata o clique é o próprio navegador.
  *
- * O caminho que não depende de gesto nenhum é abrir a MESMA página numa aba.
- * Entrega o que se pede dela — a transcrição inteira, larga, sem a página por
- * baixo — e funciona em todo lugar, inclusive a partir do ícone numa página em
- * que o painel não pode ser desenhado.
+ * Chamado a cada boot, e não só no `onInstalled`: o worker do MV3 morre e
+ * renasce o tempo todo, e o comportamento é por perfil — garantir a cada
+ * inicialização faz ele deixar de depender de um evento que já passou.
  *
- * O painel lateral do Chrome continua existindo para quem o quiser: com
- * `side_panel.default_path` no manifesto, o TaqCITi aparece no menu de painel
- * lateral do próprio navegador. Aquele caminho nasce de um clique na UI do
- * Chrome, que é um gesto de verdade, e por isso sempre funcionou.
+ * ── O clique na cápsula: funciona, e quase não funcionou ──────────────────
+ *
+ * `chrome.sidePanel.open()` exige "um gesto do usuário", medido no contexto da
+ * EXTENSÃO. Durante um tempo este projeto tratou isso como impossível a partir
+ * da página: a cápsula tentava, o Chrome recusava, e a interface pedia o clique
+ * no ícone.
+ *
+ * Estava errado, e a medição no Chrome 144 mostrou onde:
+ *
+ *   clique real na cápsula → runtime.sendMessage → open({ tabId })     ABRE
+ *   o mesmo, com UM `await` qualquer antes do open()                   RECUSA
+ *
+ * O gesto ATRAVESSA a mensageria. O que ele não sobrevive é a um `await` no
+ * meio do caminho: a ativação vale para o turno síncrono do handler, e qualquer
+ * espera antes da chamada a consome. O culpado era o nosso próprio `await
+ * ready` no topo do roteador de mensagens, que rodava antes de todo caso —
+ * inclusive deste.
+ *
+ * Daí a forma destas funções: elas NÃO são `async`. Chamar `open()` é a
+ * primeira coisa que acontece, e o `then` só trata o resultado. Pôr um `await`
+ * antes de qualquer uma delas quebra a abertura pela cápsula, e o sintoma é um
+ * botão que não faz nada.
  */
 import { logger } from '@/shared/services/log';
 
-const WIDE_VIEW_PATH = 'src/sidepanel/index.html';
-
-/** Páginas que o Chrome abre "vazias" — reaproveitá-las é melhor que empilhar. */
-const BLANK_PAGES = ['chrome://newtab/', 'chrome://new-tab-page/', 'about:blank'];
-
-function isBlank(url: string | undefined): boolean {
-  if (!url) return false;
-  return BLANK_PAGES.some((blank) => url === blank || url.startsWith(blank));
-}
+export type ResultadoDeAbertura =
+  | { ok: true }
+  /** O Chrome recusou por falta de gesto. */
+  | { ok: false; motivo: 'gesto' }
+  | { ok: false; motivo: 'erro' };
 
 /**
- * O que a aba deve mostrar ao abrir.
+ * Liga a abertura pelo ícone. Devolve se o Chrome aceitou.
  *
- * Sem alvo, a saída larga mostra a tela da FASE atual — certo para o clique no
- * ícone da extensão, errado para o botão dentro do histórico do painel: com uma
- * reunião em curso ele abria uma aba com a transcrição ao vivo, e de lá não
- * havia como chegar à lista. O alvo vira query string e é lido em
- * src/sidepanel/route.ts.
+ * Um `false` aqui não é fatal: `chrome.action.onClicked` continua registrado
+ * como rede de segurança (ver background/index.ts), e com o comportamento
+ * desligado ele volta a disparar.
  */
-export interface WideViewTarget {
-  /** Mostrar o histórico, seja qual for a fase da reunião. */
-  history?: boolean;
-  /** Abrir já nesta reunião do histórico. */
-  recordId?: string | null;
-}
-
-function wideViewUrl(target?: WideViewTarget): string {
-  const base = chrome.runtime.getURL(WIDE_VIEW_PATH);
-  const recordId = target?.recordId ?? null;
-  // Sem alvo, a URL fica limpa: é a mesma que o menu de painel lateral do
-  // Chrome abre pelo manifesto, e as duas entradas não devem divergir.
-  if (!target?.history && recordId === null) return base;
-
-  const params = new URLSearchParams({ view: 'history' });
-  if (recordId !== null) params.set('record', recordId);
-  return `${base}?${params.toString()}`;
-}
-
-/**
- * Abre a saída larga. Devolve se conseguiu.
- *
- * Numa aba nova e vazia, NAVEGA essa aba em vez de criar outra: quem clicou no
- * ícone ali estava numa página em branco à espera de um destino, e abrir uma
- * segunda aba deixaria a primeira para trás, vazia.
- */
-export async function openWideView(
-  tab?: chrome.tabs.Tab,
-  target?: WideViewTarget,
-): Promise<boolean> {
-  const url = wideViewUrl(target);
+export async function ligarAberturaPeloIcone(): Promise<boolean> {
   try {
-    if (tab?.id !== undefined && isBlank(tab.url)) {
-      await chrome.tabs.update(tab.id, { url });
-    } else {
-      await chrome.tabs.create({ url, windowId: tab?.windowId });
-    }
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
     return true;
   } catch (error) {
-    logger.error('nao foi possivel abrir a saida larga', error);
+    logger.error('nao foi possivel ligar o painel no clique do icone', error);
     return false;
+  }
+}
+
+function interpretar(error: unknown): ResultadoDeAbertura {
+  const mensagem = error instanceof Error ? error.message : String(error);
+  // A mensagem do Chrome é estável o bastante para distinguir o caso que tem
+  // conserto (um `await` a mais no caminho) do que é falha de verdade.
+  if (/user gesture/i.test(mensagem)) {
+    logger.debug('painel lateral recusado por falta de gesto');
+    return { ok: false, motivo: 'gesto' };
+  }
+  logger.error('nao foi possivel abrir o painel lateral', error);
+  return { ok: false, motivo: 'erro' };
+}
+
+/**
+ * Abre o painel para uma aba.
+ *
+ * NÃO é `async` de propósito — ver o comentário do topo. A chamada precisa ser
+ * a primeira coisa a acontecer depois do clique.
+ */
+export function abrirPainel(tabId: number): Promise<ResultadoDeAbertura> {
+  try {
+    return chrome.sidePanel
+      .open({ tabId })
+      .then<ResultadoDeAbertura>(() => ({ ok: true }))
+      .catch(interpretar);
+  } catch (error) {
+    // Algumas recusas do Chrome chegam como exceção síncrona.
+    return Promise.resolve(interpretar(error));
+  }
+}
+
+/**
+ * Abre o painel sem uma aba conhecida, ancorando na janela em foco.
+ *
+ * Caminho de último recurso: descobrir a janela exige um `await`, e é
+ * exatamente isso que consome a ativação. Serve quando quem chama já não tem
+ * gesto a perder — não use para o clique da cápsula.
+ */
+export async function abrirPainelNaJanela(): Promise<ResultadoDeAbertura> {
+  try {
+    const janela = await chrome.windows.getCurrent();
+    if (janela.id === undefined) return { ok: false, motivo: 'erro' };
+    await chrome.sidePanel.open({ windowId: janela.id });
+    return { ok: true };
+  } catch (error) {
+    return interpretar(error);
   }
 }

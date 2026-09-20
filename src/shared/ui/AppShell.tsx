@@ -1,6 +1,6 @@
 /**
- * O contrato de layout das telas da TaqCITi — popup, janela principal e
- * painel do Meet montam a geometria AQUI, e não cada uma do seu jeito.
+ * O contrato de layout das páginas da TaqCITi — hoje a página de documento é
+ * quem o usa. A geometria mora AQUI, e não em cada tela do seu jeito.
  *
  * ── Por que isto existe ────────────────────────────────────────────────────
  *

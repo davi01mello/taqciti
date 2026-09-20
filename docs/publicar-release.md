@@ -152,8 +152,28 @@ de onde tirar o número: sem ele, os artefatos sairiam nomeados com o nome do
 branch. Vazio, o número vem do `package.json`. Ver
 `.github/scripts/resolve-version.sh`.
 
+### Publicar uma versão de teste sem tocar na oficial
+
+O campo `publicar` tem três valores:
+
+| Valor | O que acontece |
+| --- | --- |
+| `nao` (padrão) | só compila; os instaladores ficam como artefatos da run |
+| `teste` | sobe ao Drive como **`TaqCiti-teste.zip`**, sem GitHub Release |
+| `oficial` | GitHub Release + sobrescreve o **`TaqCiti.zip`** que o time baixa |
+
+O modo `teste` existe porque o pacote oficial tem **nome fixo e sobrescreve**:
+qualquer publicação trocava a entrega que o time já tem. Com um nome diferente,
+o registro no Drive é outro — o `TaqCiti.zip` fica intacto e desfazer é apagar
+um arquivo.
+
+Use junto o campo `versao` com um rótulo que ninguém confunda com release
+(`2.2.0-teste`, por exemplo). Os três instaladores saem com esse nome, e o
+empacotador exige que os três batam. A versão **dentro** da extensão continua
+sendo a do `manifest.config.ts` — o rótulo temporário vive no nome do arquivo.
+
 > **Publicar continua sendo o que a tag faz.** Empurrar `vX.Y.Z` publica
-> sozinho, como sempre. Marcar `publicar` num disparo manual é a exceção —
+> sozinho, como sempre. `publicar=oficial` num disparo manual é a exceção —
 > existe para reprocessar uma release que falhou depois dos builds, não para o
 > dia a dia.
 
@@ -166,9 +186,9 @@ O que o time baixa do Drive é **um arquivo só**: `TaqCiti.zip`. Dentro dele:
 ```
 TaqCiti/
   COMECE_AQUI.html
-  Instaladores/Windows/taqciti-instalador-windows-X.Y.Z.exe
-  Instaladores/macOS/taqciti-instalador-mac-X.Y.Z.pkg
-  Instaladores/Linux/taqciti-instalador-linux-X.Y.Z.run
+  Instaladores/taqciti-instalador-windows-X.Y.Z.exe
+  Instaladores/taqciti-instalador-mac-X.Y.Z.pkg
+  Instaladores/taqciti-instalador-linux-X.Y.Z.run
 ```
 
 A pessoa extrai, abre a pasta e dá dois cliques em `COMECE_AQUI.html`. O guia
@@ -251,6 +271,32 @@ Acompanhar:
 gh run watch                          # a run mais recente
 gh run view --log-failed              # só o passo que falhou
 ```
+
+---
+
+## Pendências anteriores à distribuição
+
+Duas coisas para resolver **antes** de distribuir amplamente. Nenhuma bloqueia
+um teste interno; as duas bloqueiam abrir o instalador para muita gente.
+
+1. **Limites efetivos de consumo.** `VITE_DOCCITI_SHARED_KEY` entra no bundle e
+   fica legível na pasta que o Chrome carrega — está escrito assim mesmo em
+   `src/shared/config/serverConfig.ts` e em `server/lib/apiGuard.ts`: é tranca
+   contra varredura, não autenticação. Ela é o **único** portão de
+   `/api/generate`, `/api/ai/secao`, `/api/ai/bench` e `/api/ai/smoke`, que
+   gastam cota paga, e não há limite por chamador no servidor (não existe
+   `middleware.ts`; o código de *rate limit* em `server/lib/ai/providers/` trata
+   429 **do provedor**). O teto é só `maxTranscriptChars`. Confira teto de gasto
+   nas contas dos provedores antes de distribuir — rotacionar essa chave é caro,
+   porque ela está compilada dentro dos instaladores já entregues.
+
+2. **Restringir `bench` e `smoke` em produção.** São rotas de desenvolvimento, e
+   `/api/ai/bench` chama **vários modelos** por requisição. Distribuir um
+   instalador cuja chave destrava um endpoint de benchmark é pior do que um que
+   destrava só `/api/generate`.
+
+Autenticação por usuário, com rotação, continua sendo a fase futura que o
+próprio `apiGuard.ts` descreve — não é o que estas duas pendências pedem.
 
 ---
 

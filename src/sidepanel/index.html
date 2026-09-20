@@ -3,25 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TaqCITi</title>
+    <title>TaqCiti</title>
     <style>
       /*
-       * A CADEIA DE ALTURA da janela principal — o alicerce da rolagem.
-       *
-       * Os três precisam de altura DEFINIDA, e não só o <body>: uma altura
-       * percentual só resolve contra um pai que também tem altura definida.
-       * Basta um elo da cadeia em `auto` para o `height: 100%` do shell virar
-       * `auto`, a caixa de rolagem crescer até o tamanho do conteúdo inteiro e
-       * nada mais rolar. É a mesma armadilha descrita em AppShell.tsx.
-       *
-       * `overflow: auto` no <html> (e não `hidden` no <body>, como antes) é a
-       * válvula de escape: quando a janela é encolhida abaixo do piso do
-       * shell, o documento rola e a barra de controles continua alcançável. Em
-       * tamanho normal o shell cabe exato e esta barra nunca aparece — não há
-       * rolagem dupla.
-       *
-       * `overscroll-behavior: none` corta o efeito elástico ao chegar ao fim,
-       * que num app (diferente de uma página) só denuncia o navegador.
+       * O painel lateral tem altura da JANELA e largura que a pessoa arrasta.
+       * Os três elos precisam de altura definida para a coluna interna poder
+       * dizer "o corpo rola, o cabeçalho não" — com altura automática o
+       * `min-height: 0` do miolo não tem contra o que medir e a rolagem vaza
+       * para o documento inteiro.
        */
       html,
       body,
@@ -29,15 +18,17 @@
         height: 100%;
       }
       html {
-        overflow: auto;
+        overflow: hidden;
         overscroll-behavior: none;
+        /* O mesmo grafite da HOME: o instante entre o painel abrir e o React
+           montar não pode piscar branco. */
+        background: rgb(17 18 19);
       }
       body {
         margin: 0;
-        /* Sem piso, o conteúdo comprime até ficar ilegível se o usuário
-           encolher demais a janela. O piso VERTICAL mora no AppShell, junto
-           da regra de rolagem que depende dele. */
-        min-width: 320px;
+        /* O Chrome deixa arrastar o painel até uns 240px. Abaixo disto o
+           conteúdo rola na horizontal em vez de se espremer. */
+        min-width: 240px;
       }
     </style>
   </head>

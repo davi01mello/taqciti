@@ -16,6 +16,57 @@ export const STORAGE_KEYS = {
   prefs: 'taq:prefs',
   /** chrome.storage.session — abas com o painel injetado, para endereçar o broadcast. */
   panelTabs: 'taq:panelTabs',
+  /** chrome.storage.local — conversas do Assistente (a HOME em aba inteira). */
+  conversations: 'taq:conversations',
+  /**
+   * chrome.storage.session — a resposta à pergunta "registrar esta reunião?",
+   * por PARTICIPAÇÃO (ver `participation` abaixo e features/meeting/consent.ts).
+   *
+   * `session`, e não `local`: a autorização vale para esta vez. Guardá-la para
+   * sempre faria um "sim" de hoje ligar a captura sozinha na daily de amanhã,
+   * que tem o mesmo link — captura sem ninguém ter perguntado nada.
+   */
+  meetingConsent: 'taq:meetingConsent',
+  /**
+   * chrome.storage.session — a participação atual: esta vez em que se entrou
+   * nesta sala. É a chave da autorização, e não o código da sala, porque o link
+   * do Meet é reutilizado entre reuniões diferentes.
+   */
+  participation: 'taq:participation',
+  /**
+   * chrome.storage.session — a reunião detectada nesta sessão do navegador,
+   * anunciada pelo content script para o painel lateral poder perguntar.
+   *
+   * O content script sabe que há uma reunião; quem pergunta é o painel, que
+   * vive noutro contexto. `sendMessage` não liga os dois sem alguém saber o id
+   * da aba do outro — o storage liga, e de quebra sobrevive ao painel abrir
+   * depois de a reunião já ter começado.
+   */
+  pendingMeeting: 'taq:pendingMeeting',
+
+  /*
+   * ── Os anexos de uma reunião ─────────────────────────────────────────────
+   *
+   * Três chaves separadas, e NENHUMA delas dentro do registro da reunião.
+   *
+   * A transcrição é o que a extensão capturou; nota, marcação e print são o
+   * que a PESSOA acrescentou. Misturá-los no mesmo objeto faria toda escrita de
+   * nota reescrever o registro inteiro da reunião — com a captura correndo e
+   * gravando esse mesmo registro a cada trecho, as duas escritas se
+   * atropelariam e a última a chegar apagaria a outra. Separados, cada um tem
+   * um dono e um ritmo.
+   *
+   * É também o que garante o requisito literal: o .txt exportado continua
+   * sendo o texto original, porque as marcações nunca estiveram dentro dele.
+   */
+  /** chrome.storage.local — notas escritas à mão, por reunião. */
+  notes: 'taq:notes',
+  /** chrome.storage.local — ícone associado a um trecho, por captionId. */
+  marks: 'taq:marks',
+  /** chrome.storage.local — prints da aba da reunião. */
+  shots: 'taq:shots',
+  /** chrome.storage.local — aviso no chat do Meet já enviado, por reunião. */
+  chatNotice: 'taq:chatNotice',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

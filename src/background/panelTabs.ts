@@ -3,8 +3,8 @@
  *
  * ── Por que uma lista, e não um broadcast para todo mundo ──────────────────
  *
- * `chrome.runtime.sendMessage` alcança páginas da extensão — o painel lateral,
- * a página de documento — e NÃO alcança content script. Para content script a
+ * `chrome.runtime.sendMessage` alcança páginas da extensão — a HOME, a página
+ * de documento — e NÃO alcança content script. Para content script a
  * mensagem tem que ser endereçada com `chrome.tabs.sendMessage(tabId, ...)`, e
  * daí a pergunta "quais abas?" precisa de resposta.
  *

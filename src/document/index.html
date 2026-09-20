@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TaqCITi — Transcrição</title>
     <style>
-      /* Mesma cadeia de altura da janela principal — ver o comentário longo
-         em src/sidepanel/index.html sobre por que os três elos precisam de
-         altura definida e por que a válvula de escape fica no <html>. */
+      /* Os três elos da cadeia de altura (html, body, #root) precisam de
+         altura DEFINIDA: sem isso um filho com `height: 100%` não tem contra o
+         que medir e colapsa. A válvula de escape fica no <html>, que é quem
+         rola quando o conteúdo passa da janela. */
       html,
       body,
       #root {

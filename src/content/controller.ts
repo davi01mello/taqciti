@@ -28,8 +28,20 @@ import { setNativeCaptionsHidden } from './captionsVisibility';
 import { patchPanelPrefs, subscribePanelPrefs } from '@/features/panel/prefsStore';
 import { PlatformProvider } from '@/shared/platform/context';
 import { extensionPlatform } from '@/shared/platform/extension';
-import { PanelApp, type PanelCallbacks, type PanelContext } from './ui/PanelApp';
+import { Capsula, type CapsulaCallbacks } from './ui/Capsula';
 import { getMountPoint, unmountHost } from './ui/mount';
+import {
+  abrirParticipacao,
+  anunciarReuniao,
+  decisaoDe,
+  esquecerReuniao,
+  fecharParticipacao,
+  guardarDecisao,
+  observarDecisoes,
+  type DecisaoDeRegistro,
+} from '@/features/meeting/consent';
+import { enviarNoChat } from './providers/googleMeet/chat';
+import type { MeetingSession } from '@/features/meeting/provider';
 
 const PARTICIPANTS_POLL_MS = 5000;
 
@@ -57,35 +69,44 @@ export class ContentController {
   /** false = há legenda na tela que a captura não está conseguindo ler. */
   private captureHealthy = true;
 
-  private readonly callbacks: PanelCallbacks = {
-    // Pausa OTIMISTA: desliga a captura no mesmo tique do clique, sem esperar
-    // o round-trip com o background. O que for dito nesse intervalo é
-    // justamente o que a pessoa não quer capturar.
-    onPause: () => {
-      this.provider.setCapturePaused(true);
-      void sendMessage({ type: 'ui/pause' });
-    },
-    onResume: () => {
-      this.provider.setCapturePaused(false);
-      void sendMessage({ type: 'ui/resume' });
-    },
-    onFinish: () => void sendMessage({ type: 'ui/finish' }),
-    onRename: (title) => void sendMessage({ type: 'ui/rename', title }),
-    // `view: 'history'` sempre: o pedido nasce no histórico do painel, e sem
-    // ele a aba abriria na reunião ao vivo — ver src/sidepanel/route.ts.
-    onOpenSidePanel: (target) =>
-      void sendMessage({
-        type: 'panel/openRequest',
-        view: 'history',
-        ...(target?.recordId !== undefined ? { recordId: target.recordId } : {}),
-      }),
-    onResumeCapture: () => this.redetect(),
-    onCloseEnded: () => void sendMessage({ type: 'ui/reset' }),
-    onEnableCaptions: () => this.attemptEnableCaptions(),
-    onDismissLanguageWarning: () =>
-      void sendMessage({ type: 'ui/dismissLanguageWarning' }),
-    onToggleNativeCaptions: (hidden) => this.patchPrefs({ hideMeetCaptions: hidden }),
+  /*
+   * O PORTÃO DA CAPTURA.
+   *
+   * Detectar uma reunião não é mais o mesmo que começar a registrá-la: entre as
+   * duas coisas existe uma pergunta. Estes três campos são a resposta a ela.
+   *
+   * `salaPerguntada` é a sala cuja decisão já está resolvida (aceita, recusada,
+   * ou com a pergunta na tela). É ela que impede a pergunta de voltar a cada
+   * re-render do Meet — que reemite `onMeetingStart` com frequência — e a cada
+   * reconexão curta.
+   */
+  private salaAnunciada: string | null = null;
+  private decisao: DecisaoDeRegistro | null = null;
+  private reuniaoPendente: MeetingSession | null = null;
+  /** A participação atual — a chave da autorização. Ver consent.ts. */
+  private participacaoId: string | null = null;
+
+  private readonly callbacks: CapsulaCallbacks = {
+    /*
+     * A cápsula pede a sidebar; o background tenta abrir o painel nativo. Quase
+     * sempre o Chrome recusa, porque este clique acontece na PÁGINA e o gesto
+     * não atravessa a mensageria — a cápsula então explica o caminho que
+     * funciona. Ver src/background/sidePanel.ts.
+     */
+    onAbrirSidebar: () =>
+      sendMessage<{ ok?: boolean }>({ type: 'ui/openSidePanel' }).then(
+        (r) => r?.ok === true,
+      ),
     onPrefsChange: (patch) => this.patchPrefs(patch),
+    /*
+     * A resposta dada NA PÁGINA. Grava exatamente onde a sidebar gravaria — a
+     * decisão é uma só, e por isso responder num lugar apaga a pergunta no
+     * outro, sem ninguém coordenar nada.
+     */
+    onResponder: (decisao) => {
+      const id = this.participacaoId;
+      if (id) void guardarDecisao(id, decisao);
+    },
   };
 
   /**
@@ -107,19 +128,18 @@ export class ContentController {
     this.provider.start();
 
     this.subscriptions.push(
-      this.provider.onMeetingStart((session) => {
-        void sendMessage<MeetingState>({
-          type: 'meet/detected',
-          meetingCode: session.meetingCode,
-          title: session.title,
-          captionsEnabled: this.provider.areCaptionsEnabled(),
-        }).then((state) => {
-          this.applyState(state);
-          this.pushAccountContext(true);
-        });
-      }),
+      this.provider.onMeetingStart((session) => void this.considerarReuniao(session)),
 
       this.provider.onMeetingEnd(() => {
+        // Saiu da sala. A participação é FECHADA, não apagada: voltar em
+        // seguida a retoma (queda de conexão), voltar horas depois começa uma
+        // nova — com pergunta nova. Ver consent.ts.
+        void fecharParticipacao(Date.now());
+        this.salaAnunciada = null;
+        this.decisao = null;
+        this.reuniaoPendente = null;
+        this.participacaoId = null;
+        void esquecerReuniao();
         void sendMessage<MeetingState>({ type: 'meet/ended' }).then((state) =>
           this.applyState(state),
         );
@@ -159,9 +179,47 @@ export class ContentController {
       }),
 
       onMessage((message) => {
-        if (message.type !== 'state/updated') return undefined;
-        this.applyState(message.state);
+        if (message.type === 'state/updated') {
+          this.applyState(message.state);
+          return undefined;
+        }
+        /*
+         * O aviso no chat do Meet, pedido pela sidebar. Só esta aba consegue
+         * escrever nele — a sidebar é página da extensão e não alcança o DOM
+         * da reunião. A resposta é o resultado REAL do envio: um `false` aqui
+         * vira "não deu" na tela, nunca uma confirmação.
+         */
+        if (message.type === 'meet/sendChatNotice') {
+          return enviarNoChat(message.text).then((ok) => ({ ok }));
+        }
         return undefined;
+      }),
+
+      /*
+       * A resposta da pergunta chega pelo STORAGE, não por mensagem.
+       *
+       * Quem pergunta agora é o painel lateral, que é página da extensão: ele
+       * não tem como endereçar este content script, e nós não temos como saber
+       * quando ele abriu. O storage de sessão é o lugar onde os dois já olham —
+       * o painel grava a decisão, o Chrome avisa, e a captura começa aqui.
+       */
+      observarDecisoes((registro) => {
+        // A decisão é chaveada pela PARTICIPAÇÃO, não pela sala: é o que faz um
+        // "sim" de ontem não valer para a reunião de hoje no mesmo link.
+        const id = this.participacaoId;
+        if (!id) return;
+        const sessao = this.provider.detectMeeting();
+
+        const decisao = registro[id];
+        if (!decisao || decisao === this.decisao) return;
+
+        this.decisao = decisao;
+        this.reuniaoPendente = null;
+        void esquecerReuniao();
+
+        const alvo = sessao ?? this.reuniaoPendente;
+        if (decisao === 'aceito' && alvo) this.iniciarCaptura(alvo);
+        else this.rerender();
       }),
     );
 
@@ -204,17 +262,89 @@ export class ContentController {
 
     // Script pode ser injetado com a reunião já em andamento (reload da aba).
     const existing = this.provider.detectMeeting();
-    if (existing) {
-      void sendMessage<MeetingState>({
-        type: 'meet/detected',
-        meetingCode: existing.meetingCode,
-        title: existing.title,
-        captionsEnabled: this.provider.areCaptionsEnabled(),
-      }).then((state) => {
-        this.applyState(state);
-        this.pushAccountContext(true);
-      });
+    if (existing) void this.considerarReuniao(existing);
+  }
+
+  // ---------- o portão: registrar esta reunião? ----------
+
+  /**
+   * Uma reunião apareceu. Registrar ou não é decisão de quem está nela.
+   *
+   * Três caminhos, e o que os separa é o que já foi decidido ANTES:
+   *
+   *   - decisão guardada `aceito`  → a captura recomeça sem perguntar de novo
+   *     (é o caso do reload da aba no meio de uma reunião já aceita);
+   *   - decisão guardada `recusado` → nada é enviado, e a sidebar mostra que
+   *     não há captura, com o caminho de ligar;
+   *   - nada guardado → a pergunta aparece, e é só ela que aparece.
+   *
+   * O guarda do começo é o que impede a pergunta de piscar: o Meet reemite
+   * `onMeetingStart` a cada re-render pesado da sala, e sem ele cada um desses
+   * eventos reabriria uma pergunta já respondida.
+   */
+  private async considerarReuniao(session: MeetingSession): Promise<void> {
+    if (this.salaAnunciada === session.meetingCode) return;
+    this.salaAnunciada = session.meetingCode;
+
+    /*
+     * Qual PARTICIPAÇÃO é esta? A mesma de antes se o Meet só re-renderizou ou
+     * a aba recarregou; uma nova se a pessoa entrou de novo no mesmo link
+     * horas depois. É isso que impede um "sim" de hoje de ligar a captura
+     * sozinha na reunião de amanhã, que tem o mesmo endereço. Ver consent.ts.
+     */
+    const participacao = await abrirParticipacao(session.meetingCode, Date.now());
+    this.participacaoId = participacao.id;
+
+    const previa = await decisaoDe(participacao.id);
+    if (previa === 'aceito') {
+      this.decisao = 'aceito';
+      await esquecerReuniao();
+      this.iniciarCaptura(session);
+      return;
     }
+    if (previa === 'recusado') {
+      this.decisao = 'recusado';
+      await esquecerReuniao();
+      this.rerender();
+      return;
+    }
+
+    /*
+     * Sem decisão: ANUNCIA a reunião e para por aqui. Nada é enviado ao
+     * background — o que existe é uma sala detectada, não uma captura. Quem
+     * pergunta é o painel lateral, que lê este anúncio; e ele pode abrir dez
+     * minutos depois e ainda encontrar a pergunta de pé, porque ela é um estado
+     * guardado, não um evento que passou.
+     */
+    this.decisao = null;
+    this.reuniaoPendente = session;
+    await anunciarReuniao({
+      meetingCode: session.meetingCode,
+      title: session.title,
+      participacaoId: participacao.id,
+      tabId: null,
+      at: Date.now(),
+    });
+    this.rerender();
+  }
+
+
+  /** O único lugar que conta ao background que existe uma reunião a registrar. */
+  private iniciarCaptura(session: MeetingSession): void {
+    void sendMessage<MeetingState>({
+      type: 'meet/detected',
+      meetingCode: session.meetingCode,
+      title: session.title,
+      captionsEnabled: this.provider.areCaptionsEnabled(),
+    }).then((state) => {
+      this.applyState(state);
+      this.pushAccountContext(true);
+    });
+  }
+
+  /** Repinta com o último estado conhecido — o que mudou foi só o daqui. */
+  private rerender(): void {
+    this.applyState(this.lastState ?? { phase: 'idle', session: null });
   }
 
   stop(): void {
@@ -227,21 +357,6 @@ export class ContentController {
     this.root?.unmount();
     this.root = null;
     unmountHost();
-  }
-
-  /** Reenvia a detecção atual (usado pelo "Retomar captura" pós-finalização). */
-  private redetect(): void {
-    const session = this.provider.detectMeeting();
-    if (!session) return;
-    void sendMessage<MeetingState>({
-      type: 'meet/detected',
-      meetingCode: session.meetingCode,
-      title: session.title,
-      captionsEnabled: this.provider.areCaptionsEnabled(),
-    }).then((state) => {
-      this.applyState(state);
-      this.pushAccountContext(true);
-    });
   }
 
   private pushParticipants(): void {
@@ -301,8 +416,8 @@ export class ContentController {
    * sempre — o painel continua "gravando" e nada mais entra.
    */
   private recutIfNeeded(prev: MeetingState | null, next: MeetingState): void {
-    // A pausa vale para QUALQUER origem: o botão do painel injetado já pausou
-    // otimista, mas a janela principal e o popup chegam só por aqui.
+    // A pausa vale para QUALQUER origem: o botão da sidebar já pausou
+    // otimista, mas uma pausa vinda de outra superfície chega só por aqui.
     if (next.phase === 'paused') {
       this.provider.setCapturePaused(true);
       return;
@@ -358,33 +473,36 @@ export class ContentController {
     // a assinatura das preferências pinta o primeiro quadro já correto.
     if (!this.prefsLoaded) return;
 
-    const ctx: PanelContext = {
-      inMeeting,
-      captionsAutoFailed:
-        this.captionAttempts >= AUTO_CAPTIONS_MAX_ATTEMPTS &&
-        this.captionRetryTimer === null,
-      nativeCaptionsHidden: this.prefs.hideMeetCaptions,
-      captureHealthy: this.captureHealthy,
-    };
-
-    this.render(state, ctx);
+    this.render(state);
   }
 
   /**
-   * O painel precisa da camada de plataforma porque agora ele lê o HISTÓRICO
-   * (`useHistory`), e não só o estado que o controller já lhe entrega por
-   * props. Dentro de um content script `chrome.storage` e `chrome.runtime`
-   * existem, então é a mesma `extensionPlatform` das outras superfícies —
-   * nenhuma implementação nova.
+   * O que esta aba desenha é UMA cápsula.
+   *
+   * Todo o resto — transcrição, notas, conversa, histórico — mora no painel
+   * lateral nativo, que é página da extensão. Aqui ficou só o que precisa estar
+   * por cima da reunião: o sinal de que a captura está viva e o caminho de
+   * volta para a sidebar.
+   *
+   * A camada de plataforma continua entrando porque os componentes do kit que a
+   * cápsula reaproveita falam com o background por ela.
    */
-  private render(state: MeetingState, ctx: PanelContext): void {
+  private render(state: MeetingState): void {
     if (this.root === null) this.root = createRoot(getMountPoint());
     this.root.render(
       createElement(PlatformProvider, {
         platform: extensionPlatform,
-        children: createElement(PanelApp, {
-          state,
-          ctx,
+        children: createElement(Capsula, {
+          phase: state.phase,
+          startedAt: state.session?.startedAt ?? null,
+          // O título da sala vai junto: a pergunta na página nomeia a reunião
+          // sobre a qual está perguntando.
+          perguntandoSobre: this.reuniaoPendente?.title ?? null,
+          recusado: this.decisao === 'recusado',
+          // Só esta aba enxerga a saúde da captura (é o DOM do Meet que a
+          // revela), então é a cápsula que a mostra — e é aqui que a pessoa
+          // está olhando quando a legenda para de chegar.
+          saudavel: this.captureHealthy,
           prefs: this.prefs,
           callbacks: this.callbacks,
         }),

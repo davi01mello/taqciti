@@ -1,0 +1,1050 @@
+/*
+ * Estilo da sidebar — a mesma linguagem da HOME, numa coluna estreita.
+ *
+ * ── O que se repete da HOME, e por quê ───────────────────────────────────
+ *
+ * Grafite neutro, branco e cinzas sem matiz; verde reservado à marca, ao que
+ * está ACONTECENDO e ao que está SELECIONADO. Mesma tipografia, mesmos raios,
+ * mesmos tempos de transição. As cores continuam vindo de `tokens.css` — este
+ * arquivo não inventa paleta.
+ *
+ * ── O que é diferente, e por quê ─────────────────────────────────────────
+ *
+ * A HOME é uma tela; isto é uma coluna de 260 a 500px que a pessoa arrasta.
+ * Então: nada de onda de fundo (ela precisa de largura para ser uma forma e
+ * não uma listra), nada de cursor desenhado (o painel é moldura do navegador,
+ * e um cursor próprio aqui brigaria com o resto do Chrome), e nenhuma medida
+ * fixa em px na horizontal. A altura é que manda — o cabeçalho e as abas não
+ * rolam, o corpo rola.
+ */
+
+.tq-side {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: rgb(17 18 19);
+  color: rgb(237 238 239);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tq-side *,
+.tq-side *::before,
+.tq-side *::after {
+  box-sizing: border-box;
+}
+
+.tq-side button {
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tq-side h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.tq-side h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.tq-fino {
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: rgb(150 153 157);
+  margin: 6px 0 0;
+}
+
+.tq-centrado {
+  text-align: center;
+}
+
+.tq-linkish {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: rgb(163 166 170);
+  padding: 3px 2px;
+}
+
+.tq-linkish:hover {
+  color: rgb(238 240 242);
+}
+
+/* ------------------------------------------------------------ cabeçalho */
+
+.tq-side-topo {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.tq-side-topo-direita {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tq-selo {
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: rgb(155 158 162);
+  background: rgb(255 255 255 / 0.06);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+/* O único selo verde: algo está acontecendo AGORA. */
+.tq-selo.vivo {
+  color: rgb(var(--c-glow));
+  background: rgb(var(--c-primary) / 0.12);
+}
+
+.tq-icone {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: rgb(152 155 159);
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.tq-icone:hover {
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(238 240 242);
+}
+
+/* ----------------------------------------------------------------- abas */
+
+.tq-abas {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+}
+
+.tq-abas button {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 4px 9px;
+  font-size: 11.5px;
+  color: rgb(150 153 157);
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+
+.tq-abas button:hover {
+  color: rgb(224 226 229);
+}
+
+/* A aba atual: branca, com o traço verde embaixo — o mesmo vocabulário da
+   seção escolhida na navegação da HOME. */
+.tq-abas button.atual {
+  color: rgb(246 248 250);
+  border-bottom-color: rgb(var(--c-primary));
+}
+
+/* ---------------------------------------------------------------- corpo */
+
+.tq-corpo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+.tq-rolavel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tq-vazio-centro {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 16px 4px;
+}
+
+.tq-vazio-centro p {
+  font-size: 12px;
+  color: rgb(150 153 157);
+  margin: 0;
+  max-width: 34ch;
+  line-height: 1.7;
+}
+
+.tq-marca-redonda {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.03);
+  margin-bottom: 4px;
+}
+
+.tq-girando {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgb(var(--c-primary) / 0.25);
+  border-top-color: rgb(var(--c-primary));
+  animation: tq-girar 0.9s linear infinite;
+}
+
+@keyframes tq-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* -------------------------------------------------------------- botões */
+
+.tq-botao-principal,
+.tq-botao-fantasma {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s,
+    opacity 0.2s;
+}
+
+.tq-botao-principal {
+  background: rgb(var(--c-primary) / 0.16);
+  border-color: rgb(var(--c-primary) / 0.45);
+  color: rgb(var(--c-glow));
+}
+
+.tq-botao-principal:hover:not(:disabled) {
+  background: rgb(var(--c-primary) / 0.24);
+  border-color: rgb(var(--c-primary) / 0.7);
+}
+
+.tq-botao-fantasma {
+  border-color: rgb(255 255 255 / 0.1);
+  color: rgb(206 209 213);
+}
+
+.tq-botao-fantasma:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.18);
+  color: rgb(243 245 247);
+}
+
+.tq-botao-principal:disabled,
+.tq-botao-fantasma:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tq-acoes-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ------------------------------------------------------------- pergunta */
+
+.tq-pergunta {
+  justify-content: center;
+  gap: 4px;
+}
+
+.tq-pergunta-marca {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--c-primary) / 0.3);
+  background: rgb(var(--c-primary) / 0.07);
+  margin-bottom: 10px;
+}
+
+.tq-pergunta-sala {
+  font-size: 12.5px;
+  color: rgb(232 234 237);
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.tq-pergunta-texto {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgb(186 189 193);
+  margin: 10px 0 0;
+}
+
+.tq-pergunta-fino {
+  font-size: 11px;
+  line-height: 1.65;
+  color: rgb(146 149 153);
+  margin: 10px 0 0;
+}
+
+.tq-pergunta-fino strong {
+  color: rgb(224 227 230);
+  font-weight: 500;
+}
+
+.tq-pergunta-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+/* ------------------------------------------------------------- reunião */
+
+.tq-reuniao-topo h2 {
+  overflow-wrap: anywhere;
+}
+
+.tq-aviso-caixa {
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: rgb(186 189 193);
+  background: rgb(255 255 255 / 0.035);
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 10px;
+  padding: 9px 11px;
+  margin: 0;
+}
+
+.tq-aviso-falha {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(240 198 160);
+  margin: 6px 0 0;
+}
+
+.tq-aviso-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: rgb(var(--c-glow));
+  margin: 0;
+}
+
+/* ------------------------------------------------- aviso no chat do Meet */
+
+/*
+ * A saída suave. O requisito pede que, passado o minuto, o atalho vá embora
+ * "sem deslocar bruscamente a interface" — e sumir de uma vez puxaria a
+ * transcrição inteira para cima num quadro. Encolher a altura e desbotar é o
+ * mesmo desaparecimento, em 400ms.
+ */
+.tq-aviso-chat {
+  border: 1px solid rgb(var(--c-primary) / 0.25);
+  background: rgb(var(--c-primary) / 0.05);
+  border-radius: 12px;
+  padding: 11px 12px;
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height 0.4s ease,
+    opacity 0.3s ease,
+    padding 0.4s ease,
+    border-color 0.4s ease;
+}
+
+.tq-aviso-chat.saindo {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+  opacity: 0;
+}
+
+.tq-aviso-chat-texto {
+  font-size: 12.5px;
+  color: rgb(232 234 237);
+  margin: 0;
+}
+
+.tq-contagem {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- prints */
+
+.tq-prints {
+  display: grid;
+  gap: 8px;
+}
+
+.tq-previa {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.tq-previa img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+}
+
+.tq-print-tiras {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+
+.tq-print-tiras li {
+  position: relative;
+}
+
+.tq-print-tiras img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 7px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  display: block;
+}
+
+.tq-print-tiras button {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.6);
+  color: rgb(230 232 235);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tq-print-tiras li:hover button,
+.tq-print-tiras button:focus-visible {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------- transcrição */
+
+.tq-falas {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+
+.tq-falas-estatica {
+  overflow: visible;
+  min-height: 0;
+}
+
+.tq-fala {
+  border-radius: 9px;
+  border: 1px solid transparent;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.tq-fala-corpo {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  border-radius: 9px;
+}
+
+.tq-fala:hover {
+  background: rgb(255 255 255 / 0.03);
+}
+
+/* O realce do trecho escolhido: discreto, e verde porque é uma seleção. */
+.tq-fala.selecionada {
+  background: rgb(var(--c-primary) / 0.07);
+  border-color: rgb(var(--c-primary) / 0.4);
+}
+
+.tq-fala.marcada .tq-fala-quem {
+  color: rgb(var(--c-glow));
+}
+
+.tq-fala-quem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10.5px;
+  color: rgb(146 149 153);
+  margin-bottom: 2px;
+}
+
+.tq-fala-hora {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.tq-fala-marca {
+  margin-left: auto;
+  font-size: 12px;
+  color: rgb(var(--c-glow));
+}
+
+.tq-fala-texto {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: rgb(219 222 226);
+  overflow-wrap: anywhere;
+}
+
+.tq-fala-acoes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 0 9px 8px;
+}
+
+.tq-fala-acoes .marca {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  font-size: 12px;
+  color: rgb(186 189 193);
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.tq-fala-acoes .marca:hover {
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(240 242 244);
+}
+
+.tq-fala-acoes .marca.atual {
+  background: rgb(var(--c-primary) / 0.16);
+  border-color: rgb(var(--c-primary) / 0.55);
+  color: rgb(var(--c-glow));
+}
+
+.tq-fala-acoes .tq-linkish {
+  margin-left: auto;
+}
+
+/* ---------------------------------------------------------------- notas */
+
+.tq-notas {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tq-notas-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tq-notas-topo h2,
+.tq-notas-topo h3 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-notas-estado {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: rgb(140 143 147);
+  transition: color 0.2s;
+}
+
+.tq-notas-estado.falhou {
+  color: rgb(240 198 160);
+}
+
+.tq-notas-campo {
+  flex: 1;
+  min-height: 160px;
+  width: 100%;
+  resize: none;
+  padding: 10px 11px;
+  border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.025);
+  color: rgb(232 234 237);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  caret-color: rgb(var(--c-glow));
+}
+
+.tq-notas-campo::placeholder {
+  color: rgb(128 131 135);
+}
+
+.tq-notas-campo:focus {
+  outline: none;
+  border-color: rgb(var(--c-primary) / 0.45);
+}
+
+/* ------------------------------------------------------------- conversa */
+
+.tq-conversa-col {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tq-conversa-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tq-conversa-topo .tq-linkish {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-conversa-menu {
+  display: grid;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(33 34 36 / 0.96);
+}
+
+.tq-conversa-menu button {
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.tq-conversa-menu button span {
+  font-size: 12px;
+  color: rgb(224 226 229);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-conversa-menu button small {
+  font-size: 10px;
+  color: rgb(146 149 153);
+}
+
+.tq-conversa-menu button:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+
+.tq-conversa-menu button.atual {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.tq-contexto-fixo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: rgb(var(--c-glow));
+  background: rgb(var(--c-primary) / 0.08);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * O estado da IA, dito antes de a pessoa escrever. Âmbar, e não vermelho: não
+ * é um erro, é uma parte do produto que ainda não existe. E não é verde, para
+ * não se confundir com "conectado".
+ */
+.tq-sem-ia {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgb(240 198 160 / 0.22);
+  background: rgb(240 198 160 / 0.06);
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: rgb(224 200 172);
+}
+
+.tq-sem-ia svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+.tq-fluxo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  padding-right: 2px;
+}
+
+.tq-turno {
+  display: grid;
+  gap: 6px;
+}
+
+.tq-msg-voce {
+  justify-self: end;
+  max-width: 92%;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgb(203 206 210);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tq-contexto-msg {
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  max-width: 92%;
+  margin: 0;
+  font-size: 10px;
+  color: rgb(146 149 153);
+}
+
+.tq-contexto-trecho {
+  font-style: italic;
+  color: rgb(163 166 170);
+  overflow-wrap: anywhere;
+}
+
+.tq-msg-agente {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 96%;
+}
+
+.tq-msg-agente img {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  opacity: 0.9;
+}
+
+.tq-agente-nome {
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  color: rgb(150 153 157);
+  margin-bottom: 3px;
+}
+
+.tq-msg-ia {
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: rgb(207 210 214);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tq-msg-ia.tq-falhou {
+  color: rgb(240 198 160);
+}
+
+.tq-contexto-pendente {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgb(var(--c-primary) / 0.3);
+  background: rgb(var(--c-primary) / 0.06);
+}
+
+.tq-contexto-pendente div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.tq-contexto-pendente strong {
+  color: rgb(var(--c-glow));
+  font-weight: 500;
+}
+
+.tq-contexto-pendente span {
+  color: rgb(178 181 185);
+  font-style: italic;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tq-contexto-pendente button {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: rgb(163 166 170);
+}
+
+.tq-contexto-pendente button:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(240 242 244);
+}
+
+.tq-compositor {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.tq-compositor textarea {
+  width: 100%;
+  resize: none;
+  min-height: 32px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: rgb(238 240 242);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  caret-color: rgb(var(--c-glow));
+}
+
+.tq-compositor textarea:focus {
+  outline: none;
+}
+
+.tq-compositor textarea::placeholder {
+  color: rgb(128 131 135);
+}
+
+.tq-enviar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: rgb(163 166 170);
+  transition:
+    background 0.2s,
+    color 0.2s,
+    opacity 0.2s;
+}
+
+.tq-enviar:not(:disabled):hover {
+  background: rgb(var(--c-primary) / 0.14);
+  color: rgb(var(--c-glow));
+}
+
+.tq-enviar:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------ histórico */
+
+.tq-guias {
+  display: flex;
+  gap: 4px;
+}
+
+.tq-guias button {
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: rgb(150 153 157);
+  border: 1px solid transparent;
+}
+
+.tq-guias button.atual {
+  color: rgb(240 242 244);
+  background: rgb(255 255 255 / 0.07);
+  border-color: rgb(255 255 255 / 0.1);
+}
+
+.tq-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.tq-lista button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 11px;
+  border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background: rgb(255 255 255 / 0.025);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+
+.tq-lista button:hover {
+  background: rgb(255 255 255 / 0.06);
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+.tq-lista strong {
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.tq-lista small {
+  font-size: 10.5px;
+  color: rgb(146 149 153);
+}
+
+.tq-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: start;
+  font-size: 11.5px;
+  color: rgb(154 157 161);
+  padding: 2px;
+}
+
+.tq-voltar:hover {
+  color: rgb(238 240 242);
+}
+
+.tq-girado {
+  transform: rotate(90deg);
+}
+
+/* -------------------------------------------------------------- foco */
+
+.tq-side button:focus-visible,
+.tq-side textarea:focus-visible,
+.tq-side [tabindex]:focus-visible {
+  outline: 2px solid rgb(var(--c-primary) / 0.8);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/*
+ * O compositor é a exceção, pelo mesmo motivo da HOME: `:focus-visible` casa
+ * num campo de texto SEMPRE que ele recebe foco, inclusive por clique. Bastava
+ * clicar para escrever e um retângulo verde envolvia o campo — uma moldura que
+ * este compositor não tem, e a mancha de verde mais visível da coluna.
+ *
+ * O campo de NOTAS mantém o contorno: ele já é uma caixa com borda, e ali o
+ * foco reforçar a borda que existe é coerente. São dois campos com dois papéis.
+ */
+.tq-compositor textarea:focus-visible {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-side *,
+  .tq-side *::before,
+  .tq-side *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -19,10 +19,12 @@ import {
 import { deleteRecord, patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
-import { backfillOpenTabs, canInject, ensurePanelInTab } from './injectPanel';
-import { openWideView } from './sidePanel';
+import { backfillOpenTabs } from './injectPanel';
+import { openHome } from './homeTab';
+import { abrirPainel, abrirPainelNaJanela, ligarAberturaPeloIcone } from './sidePanel';
+import { capturarAbaDaReuniao } from './captura';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
-import { ensurePanelPrefs, patchPanelPrefs } from '@/features/panel/prefsStore';
+import { ensurePanelPrefs } from '@/features/panel/prefsStore';
 
 /**
  * A inicialização, e o que ela garante ANTES de a primeira mensagem chegar.
@@ -43,6 +45,15 @@ const ready: Promise<void> = migrateLocalStorage()
   .then(() => ensurePanelPrefs())
   .then(() => undefined)
   .catch((error) => logger.error('falha na inicialização', error));
+
+/*
+ * O clique no ícone abre a SIDEBAR, e quem o faz é o próprio Chrome.
+ *
+ * Fora do `ready` e fora do `onInstalled` de propósito: não depende de estado
+ * nenhum, e precisa valer a cada boot do worker — o comportamento é por perfil,
+ * e o `onInstalled` dispara uma única vez na vida da instalação.
+ */
+void ligarAberturaPeloIcone();
 
 /**
  * Primeira execução depois de instalar (ou atualizar).
@@ -66,27 +77,22 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 /*
- * O clique no ícone: o TaqCITi VOLTA.
+ * Rede de segurança do clique no ícone.
  *
- * É uma gravação no storage, e nada mais. O painel já está montado em toda
- * página aberta, assinando essa chave — então `presence: 'open'` chega até ele
- * pelo mesmo caminho por onde chegam as mudanças feitas em qualquer outra aba.
- * Não há injeção, nem mensagem endereçada, nem "clicar duas vezes porque a
- * primeira não pegou": este é o gesto que desfaz o X.
- *
- * Páginas internas do Chrome (chrome://, a Web Store, a aba nova) não aceitam
- * extensão nenhuma: não há onde desenhar o painel. Ali a saída é o TaqCITi
- * inteiro numa aba — a mesma tela larga do botão "Abrir numa aba", e não uma
- * superfície diferente só porque o ponto de partida era diferente.
+ * Com `openPanelOnActionClick` ligado, o Chrome abre o painel sozinho e ESTE
+ * listener nunca dispara — é o caminho normal. Ele existe para o caso de aquela
+ * chamada ter falhado (Chrome antigo, política de perfil): aí o clique volta a
+ * chegar aqui, e aqui ainda há gesto do usuário, que é o que
+ * `sidePanel.open()` exige. Se nem isso funcionar, a HOME é o destino — melhor
+ * abrir o produto do que não abrir nada.
  */
 chrome.action.onClicked.addListener((tab) => {
-  if (!canInject(tab.url)) {
-    void openWideView(tab);
-    return;
-  }
-  // A gravação primeiro: se a rede de segurança abaixo precisar mesmo montar um
-  // painel, ele já nasce lendo `open` em vez de aparecer recolhido.
-  void patchPanelPrefs({ presence: 'open' }).then(() => ensurePanelInTab(tab));
+  // Sem `await` antes da abertura, pelo mesmo motivo de sempre: é aqui que o
+  // gesto do clique vive, e uma espera o consumiria.
+  const tentativa = tab.id === undefined ? abrirPainelNaJanela() : abrirPainel(tab.id);
+  void tentativa.then((r) => {
+    if (!r.ok) return openHome(tab);
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -111,6 +117,25 @@ function defaultTitle(now: Date): string {
 }
 
 onMessage((message, sender) => {
+  /*
+   * ANTES do `await ready`, e isso é o ponto inteiro deste bloco.
+   *
+   * `chrome.sidePanel.open()` exige a ativação de usuário, e ela vale só para o
+   * turno SÍNCRONO do handler: qualquer `await` antes da chamada a consome. O
+   * `await ready` logo abaixo roda antes de todo caso do `switch` — e era ele
+   * que fazia o clique na cápsula ser recusado com "may only be called in
+   * response to a user gesture". Medido no Chrome 144: com o await, recusa; sem
+   * ele, abre.
+   *
+   * Abrir o painel também não precisa do estado hidratado, então sair na frente
+   * não custa nada. Ver src/background/sidePanel.ts.
+   */
+  if (message.type === 'ui/openSidePanel') {
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return abrirPainelNaJanela();
+    return abrirPainel(tabId);
+  }
+
   return (async () => {
     await ready;
     const now = Date.now();
@@ -164,20 +189,49 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
-      case 'panel/openRequest':
-        // "Abrir numa aba", clicado dentro do painel. Abre a mesma tela do
-        // painel lateral numa aba, que é o caminho que não depende de um gesto
-        // do usuário — ver src/background/sidePanel.ts para o porquê. O alvo
-        // vem do painel porque só ele sabe de qual tela o clique partiu.
+      case 'ui/print': {
+        const sessao = getState().session;
+        const captura = await capturarAbaDaReuniao(sessao?.tabId);
+        // A imagem sobe para quem pediu; quem GRAVA é o painel, que conhece o
+        // `meetingId` e trata a cota. O background não guarda print.
+        return captura.ok
+          ? { ok: true as const, dataUrl: captura.dataUrl, meetingId: sessao?.meetingId ?? null }
+          : { ok: false as const, motivo: captura.motivo };
+      }
+
+      case 'ui/chatNotice': {
+        // Só a aba da reunião consegue escrever no chat do Meet. O painel não
+        // alcança content script; o background sabe qual é a aba.
+        const tabId = getState().session?.tabId;
+        if (tabId === null || tabId === undefined) return { ok: false as const };
+        try {
+          const resposta = (await chrome.tabs.sendMessage(tabId, {
+            type: 'meet/sendChatNotice',
+            text: message.text,
+          })) as { ok?: boolean } | undefined;
+          return { ok: resposta?.ok === true };
+        } catch {
+          // Aba fechada ou sem content script: falhou, e falha não vira
+          // confirmação.
+          return { ok: false as const };
+        }
+      }
+
+      case 'ui/openHome':
+        // A página principal em aba própria — e SEMPRE a mesma aba, se ela já
+        // existir. A abertura mora em `homeTab.ts`, e não aqui, porque o pedido
+        // pode vir da sidebar de reunião: content script não abre aba, e um
+        // `window.open` de lá sairia no contexto da página, onde o bloqueador
+        // de pop-up do site manda.
         return {
-          ok: await openWideView(sender.tab, {
-            history: message.view === 'history',
+          ok: await openHome(sender.tab, {
+            ...(message.secao ? { secao: message.secao } : {}),
             recordId: message.recordId ?? null,
           }),
         };
-      // ---- UIs (painel lateral / painel injetado) ----
+      // ---- UIs (HOME / sidebar de reunião) ----
       case 'panel/mounted': {
-        // Um painel nasceu nesta aba: a partir de agora o estado ao vivo tem
+        // Uma sidebar nasceu nesta aba: a partir de agora o estado ao vivo tem
         // para onde ir. Ver a nota de `panel/mounted` em types/messages.ts.
         if (sender.tab?.id !== undefined) await rememberPanelTab(sender.tab.id);
         return getState();

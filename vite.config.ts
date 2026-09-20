@@ -74,12 +74,13 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
-      // Entry point que nenhum campo do manifesto MV3 descobre sozinho: a
-      // página de documento é avulsa, aberta por URL, sem chave de manifesto
-      // que a aponte. O painel lateral NÃO precisa estar aqui — `side_panel`
-      // voltou ao manifesto e o @crxjs acha o HTML por ele.
+      // Entry points que nenhum campo do manifesto MV3 descobre sozinho: são
+      // páginas avulsas, abertas por URL, sem chave de manifesto que as
+      // aponte. O painel lateral NÃO precisa estar aqui — `side_panel` voltou
+      // ao manifesto e o @crxjs acha o HTML por ele.
       input: {
         document: fileURLToPath(new URL('./src/document/index.html', import.meta.url)),
+        home: fileURLToPath(new URL('./src/home/index.html', import.meta.url)),
       },
     },
   },
