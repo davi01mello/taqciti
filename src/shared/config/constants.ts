@@ -20,15 +20,19 @@ export const STORAGE_KEYS = {
   conversations: 'taq:conversations',
   /**
    * chrome.storage.session — a resposta à pergunta "registrar esta reunião?",
-   * por código de sala.
+   * por PARTICIPAÇÃO (ver `participation` abaixo e features/meeting/consent.ts).
    *
-   * `session`, e não `local`, de propósito: a decisão vale para ESTA reunião.
-   * Guardá-la para sempre faria um "não" de terça-feira silenciar a pergunta
-   * numa sala recorrente meses depois, sem ninguém entender por quê. Sobreviver
-   * ao service worker dormir e à aba recarregar é exatamente o alcance certo —
-   * é isso que impede a pergunta de voltar a cada re-render ou reconexão curta.
+   * `session`, e não `local`: a autorização vale para esta vez. Guardá-la para
+   * sempre faria um "sim" de hoje ligar a captura sozinha na daily de amanhã,
+   * que tem o mesmo link — captura sem ninguém ter perguntado nada.
    */
   meetingConsent: 'taq:meetingConsent',
+  /**
+   * chrome.storage.session — a participação atual: esta vez em que se entrou
+   * nesta sala. É a chave da autorização, e não o código da sala, porque o link
+   * do Meet é reutilizado entre reuniões diferentes.
+   */
+  participation: 'taq:participation',
   /**
    * chrome.storage.session — a reunião detectada nesta sessão do navegador,
    * anunciada pelo content script para o painel lateral poder perguntar.

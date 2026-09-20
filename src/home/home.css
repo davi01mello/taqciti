@@ -816,6 +816,21 @@ body {
   opacity: 1;
 }
 
+/*
+ * O estado da IA. Fica SEMPRE visível — ao contrário da dica de teclas, que é
+ * conveniência e some. Isto é informação sobre o que o produto faz, e esconder
+ * até o hover seria esconder de quem está prestes a escrever.
+ *
+ * Âmbar discreto: não é erro, é uma parte que ainda não existe; e não é verde,
+ * para não se confundir com "conectado".
+ */
+.tq-sem-ia {
+  margin: 12px 0 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: rgb(196 176 152);
+}
+
 .tq-anexos {
   font-size: 11px;
   color: rgb(174 177 181);

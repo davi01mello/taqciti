@@ -21,7 +21,7 @@ import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { backfillOpenTabs } from './injectPanel';
 import { openHome } from './homeTab';
-import { abrirPainel, ligarAberturaPeloIcone } from './sidePanel';
+import { abrirPainel, abrirPainelNaJanela, ligarAberturaPeloIcone } from './sidePanel';
 import { capturarAbaDaReuniao } from './captura';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
 import { ensurePanelPrefs } from '@/features/panel/prefsStore';
@@ -87,10 +87,12 @@ chrome.runtime.onInstalled.addListener(() => {
  * abrir o produto do que não abrir nada.
  */
 chrome.action.onClicked.addListener((tab) => {
-  void (async () => {
-    const aberto = await abrirPainel(tab.id);
-    if (!aberto.ok) await openHome(tab);
-  })();
+  // Sem `await` antes da abertura, pelo mesmo motivo de sempre: é aqui que o
+  // gesto do clique vive, e uma espera o consumiria.
+  const tentativa = tab.id === undefined ? abrirPainelNaJanela() : abrirPainel(tab.id);
+  void tentativa.then((r) => {
+    if (!r.ok) return openHome(tab);
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -115,6 +117,25 @@ function defaultTitle(now: Date): string {
 }
 
 onMessage((message, sender) => {
+  /*
+   * ANTES do `await ready`, e isso é o ponto inteiro deste bloco.
+   *
+   * `chrome.sidePanel.open()` exige a ativação de usuário, e ela vale só para o
+   * turno SÍNCRONO do handler: qualquer `await` antes da chamada a consome. O
+   * `await ready` logo abaixo roda antes de todo caso do `switch` — e era ele
+   * que fazia o clique na cápsula ser recusado com "may only be called in
+   * response to a user gesture". Medido no Chrome 144: com o await, recusa; sem
+   * ele, abre.
+   *
+   * Abrir o painel também não precisa do estado hidratado, então sair na frente
+   * não custa nada. Ver src/background/sidePanel.ts.
+   */
+  if (message.type === 'ui/openSidePanel') {
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) return abrirPainelNaJanela();
+    return abrirPainel(tabId);
+  }
+
   return (async () => {
     await ready;
     const now = Date.now();
@@ -168,14 +189,6 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
-      case 'ui/openSidePanel': {
-        // Quase sempre recusado: o pedido nasce de um clique na PÁGINA (a
-        // cápsula), e o gesto não atravessa a mensageria. A resposta leva o
-        // motivo para a cápsula poder dizer o que fazer. Ver ./sidePanel.ts.
-        const resultado = await abrirPainel(sender.tab?.id);
-        return resultado;
-      }
-
       case 'ui/print': {
         const sessao = getState().session;
         const captura = await capturarAbaDaReuniao(sessao?.tabId);

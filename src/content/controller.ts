@@ -31,9 +31,12 @@ import { extensionPlatform } from '@/shared/platform/extension';
 import { Capsula, type CapsulaCallbacks } from './ui/Capsula';
 import { getMountPoint, unmountHost } from './ui/mount';
 import {
+  abrirParticipacao,
   anunciarReuniao,
   decisaoDe,
   esquecerReuniao,
+  fecharParticipacao,
+  guardarDecisao,
   observarDecisoes,
   type DecisaoDeRegistro,
 } from '@/features/meeting/consent';
@@ -80,6 +83,8 @@ export class ContentController {
   private salaAnunciada: string | null = null;
   private decisao: DecisaoDeRegistro | null = null;
   private reuniaoPendente: MeetingSession | null = null;
+  /** A participação atual — a chave da autorização. Ver consent.ts. */
+  private participacaoId: string | null = null;
 
   private readonly callbacks: CapsulaCallbacks = {
     /*
@@ -88,11 +93,20 @@ export class ContentController {
      * não atravessa a mensageria — a cápsula então explica o caminho que
      * funciona. Ver src/background/sidePanel.ts.
      */
-    onAbrirSidebar: async () => {
-      const r = await sendMessage<{ ok?: boolean }>({ type: 'ui/openSidePanel' });
-      return r?.ok === true;
-    },
+    onAbrirSidebar: () =>
+      sendMessage<{ ok?: boolean }>({ type: 'ui/openSidePanel' }).then(
+        (r) => r?.ok === true,
+      ),
     onPrefsChange: (patch) => this.patchPrefs(patch),
+    /*
+     * A resposta dada NA PÁGINA. Grava exatamente onde a sidebar gravaria — a
+     * decisão é uma só, e por isso responder num lugar apaga a pergunta no
+     * outro, sem ninguém coordenar nada.
+     */
+    onResponder: (decisao) => {
+      const id = this.participacaoId;
+      if (id) void guardarDecisao(id, decisao);
+    },
   };
 
   /**
@@ -117,11 +131,14 @@ export class ContentController {
       this.provider.onMeetingStart((session) => void this.considerarReuniao(session)),
 
       this.provider.onMeetingEnd(() => {
-        // A sala acabou: a próxima pergunta é uma pergunta nova, e não há mais
-        // reunião pendente para a sidebar mostrar.
+        // Saiu da sala. A participação é FECHADA, não apagada: voltar em
+        // seguida a retoma (queda de conexão), voltar horas depois começa uma
+        // nova — com pergunta nova. Ver consent.ts.
+        void fecharParticipacao(Date.now());
         this.salaAnunciada = null;
         this.decisao = null;
         this.reuniaoPendente = null;
+        this.participacaoId = null;
         void esquecerReuniao();
         void sendMessage<MeetingState>({ type: 'meet/ended' }).then((state) =>
           this.applyState(state),
@@ -187,14 +204,13 @@ export class ContentController {
        * o painel grava a decisão, o Chrome avisa, e a captura começa aqui.
        */
       observarDecisoes((registro) => {
-        // A sala de AGORA manda: ela sobrevive a este script ter renascido,
-        // enquanto o que está em memória não. A lembrança é só o reserva, para
-        // o instante em que o Meet ainda não expõe a sala no DOM.
+        // A decisão é chaveada pela PARTICIPAÇÃO, não pela sala: é o que faz um
+        // "sim" de ontem não valer para a reunião de hoje no mesmo link.
+        const id = this.participacaoId;
+        if (!id) return;
         const sessao = this.provider.detectMeeting();
-        const sala = sessao?.meetingCode ?? this.reuniaoPendente?.meetingCode ?? this.salaAnunciada;
-        if (!sala) return;
 
-        const decisao = registro[sala];
+        const decisao = registro[id];
         if (!decisao || decisao === this.decisao) return;
 
         this.decisao = decisao;
@@ -270,7 +286,16 @@ export class ContentController {
     if (this.salaAnunciada === session.meetingCode) return;
     this.salaAnunciada = session.meetingCode;
 
-    const previa = await decisaoDe(session.meetingCode);
+    /*
+     * Qual PARTICIPAÇÃO é esta? A mesma de antes se o Meet só re-renderizou ou
+     * a aba recarregou; uma nova se a pessoa entrou de novo no mesmo link
+     * horas depois. É isso que impede um "sim" de hoje de ligar a captura
+     * sozinha na reunião de amanhã, que tem o mesmo endereço. Ver consent.ts.
+     */
+    const participacao = await abrirParticipacao(session.meetingCode, Date.now());
+    this.participacaoId = participacao.id;
+
+    const previa = await decisaoDe(participacao.id);
     if (previa === 'aceito') {
       this.decisao = 'aceito';
       await esquecerReuniao();
@@ -296,6 +321,7 @@ export class ContentController {
     await anunciarReuniao({
       meetingCode: session.meetingCode,
       title: session.title,
+      participacaoId: participacao.id,
       tabId: null,
       at: Date.now(),
     });
@@ -469,7 +495,9 @@ export class ContentController {
         children: createElement(Capsula, {
           phase: state.phase,
           startedAt: state.session?.startedAt ?? null,
-          perguntando: this.reuniaoPendente !== null,
+          // O título da sala vai junto: a pergunta na página nomeia a reunião
+          // sobre a qual está perguntando.
+          perguntandoSobre: this.reuniaoPendente?.title ?? null,
           recusado: this.decisao === 'recusado',
           // Só esta aba enxerga a saúde da captura (é o DOM do Meet que a
           // revela), então é a cápsula que a mostra — e é aqui que a pessoa

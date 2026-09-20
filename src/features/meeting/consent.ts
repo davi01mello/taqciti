@@ -2,45 +2,133 @@
  * "Quer que eu registre esta reunião?" — a pergunta que vem ANTES da captura,
  * e o canal entre quem a faz e quem a responde.
  *
+ * ── A regra: a autorização vale para uma PARTICIPAÇÃO ─────────────────────
+ *
+ * A primeira versão guardava a decisão por CÓDIGO DE SALA, e isso estava
+ * errado de um jeito perigoso: o link do Meet é reutilizado. A daily de hoje e
+ * a daily de amanhã têm o mesmo endereço, e um "sim" de hoje ligaria a captura
+ * sozinha amanhã — sem ninguém ter perguntado nada.
+ *
+ * A unidade certa não é a sala: é a PARTICIPAÇÃO, ou seja, esta vez em que se
+ * entrou nesta sala. Cada participação tem um id próprio, e a autorização é
+ * chaveada por ele. Os três casos que o requisito separa caem assim:
+ *
+ *   • re-render do Meet, recarregar a aba, a sidebar fechar e abrir
+ *       → a participação ainda está ABERTA (`saiuEm === null`). Mesma
+ *         participação, mesma autorização, nenhuma pergunta nova.
+ *
+ *   • queda curta de conexão, sair e voltar em seguida
+ *       → a participação está fechada há pouco. Dentro de
+ *         `REJOIN_RESUME_WINDOW_MS` ela é RETOMADA — a mesma, porque é também
+ *         a mesma sessão que a máquina de estados retoma (ver machine.ts). As
+ *         duas noções de "continua sendo a mesma reunião" usam a mesma janela
+ *         de propósito: divergir faria a transcrição continuar enquanto a
+ *         pergunta voltava, ou o contrário.
+ *
+ *   • entrar de novo no mesmo link horas depois, ou noutro dia
+ *       → fora da janela: participação NOVA, id novo, pergunta de novo.
+ *
+ *   • fechar e reabrir o navegador
+ *       → `storage.session` some com ele. Sem participação e sem decisão: a
+ *         pergunta volta. É o comportamento pedido, e sai de graça por a
+ *         decisão nunca ter sido `local`.
+ *
+ * O HISTÓRICO não depende disto: transcrições, notas e marcações vivem em
+ * `storage.local` e não são tocados por nada aqui. O que expira é a permissão,
+ * não o registro.
+ *
  * ── Dois contextos, um storage ────────────────────────────────────────────
  *
  * Quem DETECTA a reunião é o content script, dentro da aba do Meet. Quem
- * PERGUNTA é o painel lateral, que é página da extensão e não tem como ser
- * alcançado por `tabs.sendMessage` nem sabe o id daquela aba. Os dois olham
- * para o `chrome.storage.session`: o content script anuncia a reunião
- * pendente, o painel lê e mostra a pergunta, o painel grava a resposta, o
- * content script reage.
- *
- * Isso também resolve a ordem: o painel pode abrir dez minutos depois de a
- * reunião começar e ainda encontrar a pergunta de pé, porque ela é um ESTADO
- * guardado, não um evento que passou.
- *
- * ── Por que a decisão é guardada, e por que só na sessão ──────────────────
- *
- * A sidebar e a página do Meet morrem e renascem o tempo todo (navegação do
- * Meet, painel fechado, service worker dormindo). Se a resposta vivesse em
- * memória, a pergunta reapareceria a cada um desses momentos — e reperguntar
- * depois de um "não" é pior do que nunca ter perguntado.
- *
- * `session`, e não `local`: a decisão vale para ESTA reunião. Guardá-la para
- * sempre faria um "não" de terça-feira silenciar a pergunta numa sala
- * recorrente meses depois, sem ninguém entender por quê.
- *
- * ── O que "recusar" significa ─────────────────────────────────────────────
- *
- * Captura desligada, e nada mais. Não é um bloqueio: a sidebar continua com o
- * botão de começar, porque mudar de ideia no meio da conversa é comum e não
- * deveria exigir sair e voltar da sala.
+ * pergunta pode ser a sidebar (página da extensão, sem como ser alcançada por
+ * `tabs.sendMessage`) ou a própria cápsula. Os três olham para o
+ * `chrome.storage.session`: o content script anuncia, quem perguntou grava a
+ * resposta, o content script reage. É isso que faz a confirmação na página e a
+ * confirmação na sidebar serem a MESMA decisão, sem pergunta duplicada.
  */
-import { STORAGE_KEYS } from '@/shared/config/constants';
+import { REJOIN_RESUME_WINDOW_MS, STORAGE_KEYS } from '@/shared/config/constants';
 import { onSessionChange, readSession, writeSession } from '@/shared/services/storage';
 
 export type DecisaoDeRegistro = 'aceito' | 'recusado';
 
+// ---------- a participação ----------
+
+export interface Participacao {
+  /** A sala. Só para reconhecer que é a mesma; não é a chave da autorização. */
+  meetingCode: string;
+  /** A chave da autorização: ESTA vez em que se entrou nesta sala. */
+  id: string;
+  comecouEm: number;
+  /** `null` enquanto se está dentro; o instante da saída quando se sai. */
+  saiuEm: number | null;
+}
+
+function ehParticipacao(v: unknown): v is Participacao {
+  if (!v || typeof v !== 'object') return false;
+  const p = v as Partial<Participacao>;
+  return typeof p.meetingCode === 'string' && typeof p.id === 'string';
+}
+
+function novoId(): string {
+  return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export async function lerParticipacao(): Promise<Participacao | null> {
+  const bruto = await readSession<unknown>(STORAGE_KEYS.participation);
+  return ehParticipacao(bruto) ? bruto : null;
+}
+
+/**
+ * Entrou numa sala. Devolve a participação que vale agora — a mesma de antes,
+ * quando é a mesma; uma nova, quando não é.
+ *
+ * Pura o bastante para ser testável: recebe o instante em vez de olhar o
+ * relógio.
+ */
+export async function abrirParticipacao(
+  meetingCode: string,
+  agora: number,
+): Promise<Participacao> {
+  const atual = await lerParticipacao();
+
+  if (atual && atual.meetingCode === meetingCode) {
+    // Ainda dentro: re-render, reload da aba, sidebar reabrindo.
+    if (atual.saiuEm === null) return atual;
+    // Saiu há pouco: a mesma participação, retomada.
+    if (agora - atual.saiuEm <= REJOIN_RESUME_WINDOW_MS) {
+      const retomada: Participacao = { ...atual, saiuEm: null };
+      await writeSession(STORAGE_KEYS.participation, retomada);
+      return retomada;
+    }
+  }
+
+  const nova: Participacao = {
+    meetingCode,
+    id: novoId(),
+    comecouEm: agora,
+    saiuEm: null,
+  };
+  await writeSession(STORAGE_KEYS.participation, nova);
+  return nova;
+}
+
+/**
+ * Saiu da sala. A participação não é APAGADA — fica fechada, para uma volta em
+ * seguida poder retomá-la. Apagar aqui faria toda queda de conexão virar uma
+ * reunião nova, com pergunta nova e transcrição partida em duas.
+ */
+export async function fecharParticipacao(agora: number): Promise<void> {
+  const atual = await lerParticipacao();
+  if (!atual || atual.saiuEm !== null) return;
+  await writeSession(STORAGE_KEYS.participation, { ...atual, saiuEm: agora });
+}
+
+// ---------- a decisão, por participação ----------
+
 type Registro = Record<string, DecisaoDeRegistro>;
 
-/** Teto de salas lembradas. A sessão do navegador pode durar dias. */
-const MAX_SALAS = 40;
+/** Teto de participações lembradas. A sessão do navegador pode durar dias. */
+const MAX_LEMBRADAS = 40;
 
 async function ler(): Promise<Registro> {
   const guardado = await readSession<Registro>(STORAGE_KEYS.meetingConsent);
@@ -49,27 +137,30 @@ async function ler(): Promise<Registro> {
     : {};
 }
 
-/** O que já foi decidido para esta sala, ou `null` se ainda não perguntamos. */
-export async function decisaoDe(meetingCode: string): Promise<DecisaoDeRegistro | null> {
-  const valor = (await ler())[meetingCode];
+/** O que já foi decidido para ESTA participação, ou `null` se ninguém decidiu. */
+export async function decisaoDe(
+  participacaoId: string,
+): Promise<DecisaoDeRegistro | null> {
+  const valor = (await ler())[participacaoId];
   return valor === 'aceito' || valor === 'recusado' ? valor : null;
 }
 
 export async function guardarDecisao(
-  meetingCode: string,
+  participacaoId: string,
   decisao: DecisaoDeRegistro,
 ): Promise<void> {
   const registro = await ler();
   const chaves = Object.keys(registro);
-  // Poda pela ordem de inserção: as salas mais antigas são as que menos
-  // importam, e um objeto sem teto cresce em silêncio.
   const podado: Registro =
-    chaves.length >= MAX_SALAS
+    chaves.length >= MAX_LEMBRADAS
       ? Object.fromEntries(
-          chaves.slice(chaves.length - MAX_SALAS + 1).map((k) => [k, registro[k]!]),
+          chaves.slice(chaves.length - MAX_LEMBRADAS + 1).map((k) => [k, registro[k]!]),
         )
       : registro;
-  await writeSession(STORAGE_KEYS.meetingConsent, { ...podado, [meetingCode]: decisao });
+  await writeSession(STORAGE_KEYS.meetingConsent, {
+    ...podado,
+    [participacaoId]: decisao,
+  });
 }
 
 /** Avisa quando QUALQUER decisão muda — é assim que o content script reage. */
@@ -88,12 +179,14 @@ export function observarDecisoes(cb: (registro: Registro) => void): () => void {
   };
 }
 
-// ---------- a reunião detectada, anunciada para o painel ----------
+// ---------- a reunião detectada, anunciada para quem pergunta ----------
 
 export interface ReuniaoDetectada {
   meetingCode: string;
   title: string;
-  /** A aba do Meet. O painel usa para saber se está olhando a aba certa. */
+  /** A participação a que a pergunta se refere — e a chave da resposta. */
+  participacaoId: string;
+  /** A aba do Meet. */
   tabId: number | null;
   /** Quando a detecção aconteceu — não é o início da captura. */
   at: number;
@@ -102,14 +195,18 @@ export interface ReuniaoDetectada {
 function ehDetectada(v: unknown): v is ReuniaoDetectada {
   if (!v || typeof v !== 'object') return false;
   const r = v as Partial<ReuniaoDetectada>;
-  return typeof r.meetingCode === 'string' && typeof r.title === 'string';
+  return (
+    typeof r.meetingCode === 'string' &&
+    typeof r.title === 'string' &&
+    typeof r.participacaoId === 'string'
+  );
 }
 
 export async function anunciarReuniao(reuniao: ReuniaoDetectada): Promise<void> {
   await writeSession(STORAGE_KEYS.pendingMeeting, reuniao);
 }
 
-/** A sala acabou (ou a aba fechou): não há mais reunião para perguntar sobre. */
+/** A sala acabou (ou a decisão saiu): não há mais o que perguntar. */
 export async function esquecerReuniao(): Promise<void> {
   await writeSession(STORAGE_KEYS.pendingMeeting, null);
 }

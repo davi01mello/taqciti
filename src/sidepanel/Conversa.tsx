@@ -150,6 +150,20 @@ export function Conversa({
         </p>
       )}
 
+      {/*
+       * O aviso vem ANTES de escrever, não depois de enviar.
+       *
+       * Saber que não haverá resposta depois de ter formulado a pergunta é
+       * saber tarde demais — e a tela ficaria parecendo um chat que falhou, em
+       * vez de um chat que ainda não existe. Enquanto não houver rota de
+       * conversa no servidor, esta linha fica de pé, o tempo todo.
+       */}
+      <p className="tq-sem-ia" role="status">
+        <Icon name="close" size={11} />
+        Sem assistente conectado: nada responde por aqui ainda. Sua pergunta e o
+        contexto ficam salvos.
+      </p>
+
       <div className="tq-fluxo">
         {total === 0 ? (
           <p className="tq-fino tq-centrado">

@@ -63,14 +63,20 @@ function enviadas(mock: ReturnType<typeof vi.fn>): string[] {
 
 let sendMessage: ReturnType<typeof vi.fn>;
 
+/**
+ * Deixa as promessas de storage e de mensagem assentarem.
+ *
+ * Um tique de verdade, e não `Promise.resolve()` empilhado: o caminho até a
+ * decisão passa por duas leituras de storage encadeadas, e contar microtasks à
+ * mão é um teste que quebra sempre que alguém acrescenta um `await`.
+ */
+const assentar = (ms = 40) => new Promise((r) => setTimeout(r, ms));
+
 async function montarControlador(fake: ReturnType<typeof fakeProvider>) {
   const { ContentController } = await import('./controller');
   const controller = new ContentController(fake.provider);
   controller.start();
-  // Deixa as promessas de storage e de mensagem assentarem.
-  await Promise.resolve();
-  await Promise.resolve();
-  await Promise.resolve();
+  await assentar();
   return controller;
 }
 
@@ -95,8 +101,7 @@ describe('detectar uma reunião não é começar a registrá-la', () => {
     await montarControlador(fake);
 
     fake.entrarNaSala();
-    await Promise.resolve();
-    await Promise.resolve();
+    await assentar();
 
     expect(enviadas(sendMessage)).not.toContain('meet/detected');
   });
@@ -111,44 +116,78 @@ describe('detectar uma reunião não é começar a registrá-la', () => {
 
   /*
    * A pergunta não pode voltar: o Meet reemite `onMeetingStart` a cada
-   * re-render pesado da sala, e sem o guarda por código de sala cada um desses
-   * eventos reabriria uma pergunta já respondida.
+   * re-render pesado da sala, e sem o guarda cada um desses eventos reabriria
+   * uma pergunta já respondida.
    */
-  it('a decisão fica guardada por sala e a pergunta não se repete', async () => {
+  it('recusar não faz a pergunta voltar no re-render seguinte', async () => {
     const fake = fakeProvider();
     await montarControlador(fake);
 
     fake.entrarNaSala();
-    await Promise.resolve();
-    await Promise.resolve();
+    await assentar();
 
-    const { STORAGE_KEYS } = await import('@/shared/config/constants');
-    const { guardarDecisao } = await import('@/features/meeting/consent');
-    await guardarDecisao(SALA.meetingCode, 'recusado');
+    // A resposta é gravada pela participação anunciada — é o que a sidebar (ou
+    // a pergunta na página) faz.
+    const { lerReuniaoDetectada, guardarDecisao } = await import(
+      '@/features/meeting/consent'
+    );
+    const anunciada = await lerReuniaoDetectada();
+    expect(anunciada?.participacaoId).toBeTruthy();
+    await guardarDecisao(anunciada!.participacaoId, 'recusado');
+    await assentar();
 
     // Re-render do Meet: o mesmo evento, de novo.
     fake.entrarNaSala();
-    await Promise.resolve();
-    await Promise.resolve();
+    await assentar();
 
     expect(enviadas(sendMessage)).not.toContain('meet/detected');
-    const guardado = (await chrome.storage.session.get(STORAGE_KEYS.meetingConsent))[
-      STORAGE_KEYS.meetingConsent
-    ];
-    expect(guardado).toEqual({ [SALA.meetingCode]: 'recusado' });
   });
 
-  /* Reload da aba no meio de uma reunião JÁ aceita: a captura recomeça sem
-     perguntar de novo, porque a decisão vale para a sessão do navegador. */
-  it('um aceite anterior dispensa a pergunta e religa a captura', async () => {
-    const { guardarDecisao } = await import('@/features/meeting/consent');
-    await guardarDecisao(SALA.meetingCode, 'aceito');
+  /*
+   * Reload da aba no meio de uma reunião JÁ aceita. A participação continua
+   * ABERTA, então é a mesma — e a autorização dela vale sem perguntar de novo.
+   */
+  it('um aceite da participação em curso dispensa a pergunta e religa a captura', async () => {
+    const { abrirParticipacao, guardarDecisao } = await import(
+      '@/features/meeting/consent'
+    );
+    const participacao = await abrirParticipacao(SALA.meetingCode, Date.now());
+    await guardarDecisao(participacao.id, 'aceito');
 
     const fake = fakeProvider();
     fake.jaEstavaNaSala();
     await montarControlador(fake);
-    await Promise.resolve();
+    await assentar();
 
     expect(enviadas(sendMessage)).toContain('meet/detected');
+  });
+
+  /*
+   * O mesmo link, outra reunião. A participação anterior foi FECHADA há muito,
+   * então entrar de novo abre uma nova — e a autorização antiga não acompanha.
+   */
+  it('um aceite antigo no mesmo link NÃO religa a captura sozinho', async () => {
+    const { abrirParticipacao, fecharParticipacao, guardarDecisao } = await import(
+      '@/features/meeting/consent'
+    );
+    const { REJOIN_RESUME_WINDOW_MS } = await import('@/shared/config/constants');
+
+    const ontem = Date.now() - 24 * 60 * 60_000;
+    const anterior = await abrirParticipacao(SALA.meetingCode, ontem);
+    await guardarDecisao(anterior.id, 'aceito');
+    await fecharParticipacao(ontem + REJOIN_RESUME_WINDOW_MS + 60_000);
+
+    const fake = fakeProvider();
+    fake.jaEstavaNaSala();
+    await montarControlador(fake);
+    await assentar();
+
+    expect(enviadas(sendMessage)).not.toContain('meet/detected');
+
+    // E a pergunta está de pé, para a nova participação.
+    const { lerReuniaoDetectada } = await import('@/features/meeting/consent');
+    const anunciada = await lerReuniaoDetectada();
+    expect(anunciada?.participacaoId).toBeTruthy();
+    expect(anunciada?.participacaoId).not.toBe(anterior.id);
   });
 });

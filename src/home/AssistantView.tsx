@@ -288,6 +288,17 @@ export function AssistantView({
           </div>
         )}
 
+        {/*
+         * O estado da IA, dito ANTES de escrever.
+         *
+         * Descobrir que não haverá resposta depois de ter formulado a pergunta
+         * é descobrir tarde demais — e faz a tela parecer um chat que falhou,
+         * em vez de um chat que ainda não existe.
+         */}
+        <p className="tq-sem-ia" role="status">
+          Sem assistente conectado: nada responde por aqui ainda. Sua mensagem
+          fica salva.
+        </p>
         <p className="tq-dica-teclas">Enter envia · Shift+Enter quebra linha</p>
       </form>
 

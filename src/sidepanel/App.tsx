@@ -90,11 +90,16 @@ export function App() {
 
   const sessao = state.session;
   const emReuniao = sessao !== null && state.phase !== 'idle';
-  /** Há uma sala detectada cuja pergunta ainda não foi respondida. */
+  /*
+   * A decisão é chaveada pela PARTICIPAÇÃO — esta vez em que se entrou nesta
+   * sala —, e não pelo código dela. O link do Meet é reutilizado, e chavear
+   * pela sala faria um "sim" de hoje ligar a captura sozinha amanhã. Ver
+   * features/meeting/consent.ts.
+   */
   const perguntando =
-    detectada !== null && decisoes[detectada.meetingCode] === undefined;
+    detectada !== null && decisoes[detectada.participacaoId] === undefined;
   const recusada =
-    detectada !== null && decisoes[detectada.meetingCode] === 'recusado';
+    detectada !== null && decisoes[detectada.participacaoId] === 'recusado';
   const noContextoDeReuniao = emReuniao || detectada !== null;
 
   const [aba, setAba] = useState<Aba>('conversa');
@@ -188,7 +193,9 @@ export function App() {
   const responder = useCallback(
     async (decisao: DecisaoDeRegistro) => {
       if (!detectada) return;
-      await guardarDecisao(detectada.meetingCode, decisao);
+      // A MESMA gravação que a pergunta na página faz: uma decisão só, e por
+      // isso responder num lugar apaga a pergunta no outro.
+      await guardarDecisao(detectada.participacaoId, decisao);
     },
     [detectada],
   );
