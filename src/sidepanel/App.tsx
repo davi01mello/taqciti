@@ -1,4 +1,4 @@
-/**
+﻿/**
  * A SIDEBAR do TaqCiti — no painel lateral nativo do Chrome.
  *
  * ── Duas atividades, sempre visíveis ─────────────────────────────────────
@@ -56,7 +56,7 @@ import {
 } from '@/home/conversations';
 import type { MeetingState } from '@/shared/types/domain';
 import type { EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
-import { BarrasDoOceano } from '@/shared/ui/BarrasDoOceano';
+import { Brasas } from '@/shared/ui/Brasas';
 import { Icon } from '@/shared/ui/Icon';
 import { Wordmark } from '@/shared/ui/Wordmark';
 import { Conversa } from './Conversa';
@@ -192,12 +192,32 @@ export function App() {
   useEffect(() => {
     const atual = gravador.current;
     const aoFechar = () => void atual.descarregar();
+    const antesDeFechar = (e: BeforeUnloadEvent) => {
+      if (atual.temPendente()) {
+        e.preventDefault();
+        e.returnValue = '';
+        void atual.descarregar();
+      }
+    };
+    window.addEventListener('beforeunload', antesDeFechar);
     window.addEventListener('pagehide', aoFechar);
     return () => {
+      window.removeEventListener('beforeunload', antesDeFechar);
       window.removeEventListener('pagehide', aoFechar);
       void atual.descarregar();
     };
   }, []);
+
+  // Rascunhos confirmados deixam de ocultar as edições de outra superfície.
+  useEffect(() => {
+    setRascunhosNota((atual) => {
+      const proximo = { ...atual };
+      for (const [id, texto] of Object.entries(atual)) {
+        if ((notas[id]?.texto ?? '') === texto) delete proximo[id];
+      }
+      return proximo;
+    });
+  }, [notas]);
 
   const escreverNota = useCallback((meetingId: string, texto: string) => {
     setRascunhosNota((atual) => ({ ...atual, [meetingId]: texto }));
@@ -236,7 +256,7 @@ export function App() {
   if (perguntando && detectada) {
     return (
       <div className="tq-side">
-        <BarrasDoOceano />
+        <Brasas />
         <Cabecalho onHome={() => abrirHome()} />
         <Pergunta
           titulo={detectada.title}
@@ -252,7 +272,7 @@ export function App() {
 
   return (
     <div className="tq-side">
-      <BarrasDoOceano />
+      <Brasas />
       <Cabecalho onHome={() => abrirHome()} />
 
       <Seletores

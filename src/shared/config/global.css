@@ -97,14 +97,14 @@
 
 @layer components {
   /*
-   * As bolhas do oceano — ver o comentário em `BarrasDoOceano.tsx`.
+   * As brasas — ver o comentário em `Brasas.tsx`.
    *
-   * `overflow: hidden` recorta as bolhas exatamente na borda da janela; sem
+   * `overflow: hidden` recorta as brasas exatamente na borda da janela; sem
    * ele, a que nasce em `bottom: -6vh` vazaria uma barra de rolagem
    * horizontal/vertical fantasma. `pointer-events: none` porque é fundo:
    * clique, seleção e rolagem atravessam direto.
    */
-  .tq-barras-oceano {
+  .tq-brasas {
     position: fixed;
     inset: 0;
     z-index: 0;
@@ -112,25 +112,25 @@
     pointer-events: none;
   }
 
-  .tq-barra {
+  .tq-brasa {
     position: absolute;
     bottom: -6vh;
     border-radius: var(--radius-full);
-    animation-name: tq-subir-bolha;
+    animation-name: tq-subir-brasa;
     animation-timing-function: linear;
     animation-iteration-count: infinite;
   }
 
   /*
-   * `animation-play-state`, e não desmontar o elemento: a barra congela
+   * `animation-play-state`, e não desmontar o elemento: a brasa congela
    * exatamente onde estava, do mesmo jeito que a onda da HOME e a bolinha
    * do agente param sem sumir (ver `useAnimacao` e `AgenteOnda.tsx`).
    */
-  .tq-barras-oceano.parada .tq-barra {
+  .tq-brasas.parada .tq-brasa {
     animation-play-state: paused;
   }
 
-  @keyframes tq-subir-bolha {
+  @keyframes tq-subir-brasa {
     0% {
       transform: translateY(0);
       opacity: 0;
