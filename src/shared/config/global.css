@@ -111,6 +111,16 @@
    * cor toda para o mesmo verde e achatava o brilho branco-amarelado do
    * centro de cada fagulha — exatamente o que a imagem original tinha de
    * variado. A opacidade sozinha já entrega vívido sem distorcer a cor.
+   *
+   * `mask-image` é o que resolve "muito pequenas" E "bem escassas" ao
+   * mesmo tempo — as duas coisas que `background-size` sozinho não separa
+   * (ver `Brasas.tsx`: encolher o ladrilho encolhe a fagulha, mas também
+   * repete mais vezes). A máscara é um grid de círculos moles, bem mais
+   * espaçado que o ladrilho de baixo: só o que cai dentro de um círculo
+   * aparece, e o resto — mesmo que o ladrilho tivesse uma fagulha ali —
+   * fica encoberto. É outra grade, então gira 17° para as duas grades
+   * nunca lerem como uma só, e o `scale` cobre o que a rotação deixaria de
+   * fora nos cantos.
    */
   .tq-brasas {
     position: fixed;
@@ -119,6 +129,17 @@
     pointer-events: none;
     background-repeat: repeat;
     opacity: 0.7;
+    transform: rotate(17deg) scale(1.5);
+    mask-image: radial-gradient(circle 46px at center, #000 55%, transparent 100%);
+    mask-size: 320px 320px;
+    mask-repeat: repeat;
+    -webkit-mask-image: radial-gradient(
+      circle 46px at center,
+      #000 55%,
+      transparent 100%
+    );
+    -webkit-mask-size: 320px 320px;
+    -webkit-mask-repeat: repeat;
     animation: tq-subir-brasas 90s linear infinite;
   }
 
