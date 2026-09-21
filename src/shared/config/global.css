@@ -104,8 +104,11 @@
    * costura, e não algo desenhado na própria imagem. `pointer-events: none`
    * porque é fundo: clique, seleção e rolagem atravessam direto.
    *
-   * `opacity` mora AQUI, no contêiner — nunca na imagem: é o ajuste de
-   * "quase invisível" pedido, e fica reversível sem regravar o PNG.
+   * `opacity` e `filter: saturate` moram AQUI, no contêiner — nunca na
+   * imagem: são os dois ajustes de "mais vívidas" pedido, e ficam
+   * reversíveis sem regravar o PNG. `saturate` porque, numa opacidade baixa,
+   * é a cor que se perde primeiro — aumentar a saturação antes de misturar
+   * com o fundo é o que mantém o verde lendo como verde, e não como cinza.
    */
   .tq-brasas {
     position: fixed;
@@ -113,7 +116,8 @@
     z-index: 0;
     pointer-events: none;
     background-repeat: repeat;
-    opacity: 0.22;
+    opacity: 0.42;
+    filter: saturate(1.6);
     animation: tq-subir-brasas 90s linear infinite;
   }
 
@@ -127,16 +131,16 @@
   }
 
   /*
-   * O passo é a ALTURA NATIVA do ladrilho (768px, `ALTURA_PX` em
-   * `Brasas.tsx`) — rolar exatamente um ladrilho e resetar é sempre
-   * contínuo, porque o de cima é pixel a pixel igual ao de baixo.
+   * O passo vem de `--altura-ladrilho` (definida inline em `Brasas.tsx`,
+   * junto do `background-size`) — uma fonte só para as duas metades do
+   * laço, em vez de dois números copiados que podem parar de bater.
    */
   @keyframes tq-subir-brasas {
     from {
       background-position-y: 0;
     }
     to {
-      background-position-y: -768px;
+      background-position-y: calc(-1 * var(--altura-ladrilho));
     }
   }
 

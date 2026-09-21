@@ -25,12 +25,13 @@
  * em `WaveField`/`tq-wave`), isto é o "fundo da tela" pedido: uma cena
  * contínua atrás de tudo, igual em qualquer ponto da rolagem.
  *
- * ── Opacidade, e por que fica no CONTÊINER e não na imagem ─────────────────
+ * ── Opacidade e saturação, e por que ficam no CONTÊINER e não na imagem ────
  *
- * "Bem transparente, muito difícil de visualizar" é sobre o EFEITO na tela,
- * não sobre a arte — regravar o PNG mais fraco perderia informação sem
- * volta. `opacity` no `<div>` deixa a imagem original intacta em
- * `public/backgrounds/` e o ajuste fica reversível, num lugar só.
+ * O pedido já mudou de intensidade duas vezes (primeiro "quase invisível",
+ * depois "mais vívidas") — é sobre o EFEITO na tela, não sobre a arte, e
+ * regravar o PNG a cada volta perderia informação sem volta. `opacity` e
+ * `filter: saturate` no `<div>` (ver `global.css`) deixam a imagem original
+ * intacta em `public/backgrounds/` e o ajuste reversível, num lugar só.
  *
  * ── Movimento, e quem manda nele ───────────────────────────────────────────
  *
@@ -48,9 +49,20 @@ interface Props {
   pausado?: boolean;
 }
 
-/** Altura nativa de `brasas.png` — o passo do laço de rolagem tem que bater com isto. */
-const ALTURA_PX = 768;
-const LARGURA_PX = 2048;
+/**
+ * O ladrilho é MENOR que a imagem nativa (2048×768) de propósito — "mais
+ * vívidas, só que menores" pediu fagulhas mais miúdas, e encolher o
+ * `background-size` faz duas coisas de uma vez: cada fagulha fica pequena
+ * E o mesmo PNG se repete mais vezes na tela, lendo como "mais partículas".
+ *
+ * `--altura-ladrilho` carrega essa altura para o `@keyframes` em
+ * `global.css` — UMA fonte para os dois lados do laço (o tamanho do
+ * ladrilho aqui, o passo da rolagem lá), em vez de dois números copiados
+ * que podem parar de bater.
+ */
+const ESCALA = 0.45;
+const ALTURA_PX = Math.round(768 * ESCALA);
+const LARGURA_PX = Math.round(2048 * ESCALA);
 
 export function Brasas({ pausado = false }: Props) {
   const { animando } = useAnimacao(false);
@@ -60,10 +72,13 @@ export function Brasas({ pausado = false }: Props) {
     <div
       className={`tq-brasas${parada ? ' parada' : ''}`}
       aria-hidden="true"
-      style={{
-        backgroundImage: `url(${chrome.runtime.getURL('backgrounds/brasas.png')})`,
-        backgroundSize: `${LARGURA_PX}px ${ALTURA_PX}px`,
-      }}
+      style={
+        {
+          backgroundImage: `url(${chrome.runtime.getURL('backgrounds/brasas.png')})`,
+          backgroundSize: `${LARGURA_PX}px ${ALTURA_PX}px`,
+          '--altura-ladrilho': `${ALTURA_PX}px`,
+        } as React.CSSProperties
+      }
     />
   );
 }
