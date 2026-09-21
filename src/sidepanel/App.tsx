@@ -100,6 +100,8 @@ export function App() {
   });
   /** Preenchida apenas pelos controles de desenvolvimento. `null` em produção. */
   const [sobreposicao, setSobreposicao] = useState<Sobreposicao | null>(null);
+  /** As brasas do fundo — ver o botão no cabeçalho, ao lado do de ir para a HOME. */
+  const [brasasVisiveis, setBrasasVisiveis] = useState(true);
 
   useEffect(() => observarReuniaoDetectada(setDetectada), []);
   useEffect(() => observarDecisoes(setDecisoes), []);
@@ -256,8 +258,12 @@ export function App() {
   if (perguntando && detectada) {
     return (
       <div className="tq-side">
-        <Brasas />
-        <Cabecalho onHome={() => abrirHome()} />
+        {brasasVisiveis && <Brasas />}
+        <Cabecalho
+          onHome={() => abrirHome()}
+          brasasVisiveis={brasasVisiveis}
+          onAlternarBrasas={() => setBrasasVisiveis((v) => !v)}
+        />
         <Pergunta
           titulo={detectada.title}
           onAceitar={() => void responder('aceito')}
@@ -272,8 +278,12 @@ export function App() {
 
   return (
     <div className="tq-side">
-      <Brasas />
-      <Cabecalho onHome={() => abrirHome()} />
+      {brasasVisiveis && <Brasas />}
+      <Cabecalho
+        onHome={() => abrirHome()}
+        brasasVisiveis={brasasVisiveis}
+        onAlternarBrasas={() => setBrasasVisiveis((v) => !v)}
+      />
 
       <Seletores
         modo={modo}
@@ -427,19 +437,39 @@ function Painel({
  * menu: é o caminho de volta para a página principal, e ter de procurá-lo seria
  * a sidebar competindo com ela em vez de apontar para ela.
  */
-function Cabecalho({ onHome }: { onHome: () => void }) {
+function Cabecalho({
+  onHome,
+  brasasVisiveis,
+  onAlternarBrasas,
+}: {
+  onHome: () => void;
+  brasasVisiveis: boolean;
+  onAlternarBrasas: () => void;
+}) {
   return (
     <header className="tq-side-topo">
       <Wordmark height={26} />
-      <button
-        type="button"
-        className="tq-icone"
-        onClick={onHome}
-        title="Abrir HOME"
-        aria-label="Abrir HOME"
-      >
-        <Icon name="home" size={20} />
-      </button>
+      <div className="tq-side-topo-acoes">
+        <button
+          type="button"
+          className={`tq-icone${brasasVisiveis ? '' : ' desligado'}`}
+          onClick={onAlternarBrasas}
+          title={brasasVisiveis ? 'Remover brasas do fundo' : 'Trazer brasas de volta'}
+          aria-label={brasasVisiveis ? 'Remover brasas do fundo' : 'Trazer brasas de volta'}
+          aria-pressed={!brasasVisiveis}
+        >
+          <Icon name="sparkles" size={18} />
+        </button>
+        <button
+          type="button"
+          className="tq-icone"
+          onClick={onHome}
+          title="Abrir HOME"
+          aria-label="Abrir HOME"
+        >
+          <Icon name="home" size={20} />
+        </button>
+      </div>
     </header>
   );
 }

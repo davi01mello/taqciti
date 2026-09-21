@@ -134,6 +134,19 @@
   color: rgb(238 240 242);
 }
 
+/* O botão das brasas fica ao lado do de ir para a HOME, não embaixo dele. */
+.tq-side-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Mesma linguagem do `.tq-motion.desligado` da HOME: continua clicável, só
+   esmaecido — não é `:disabled`, é "desligado e pronto para religar". */
+.tq-icone.desligado {
+  opacity: 0.4;
+}
+
 /* ------------------------------------------------------------- seletores */
 
 /*

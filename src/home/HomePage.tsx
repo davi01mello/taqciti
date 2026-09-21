@@ -77,6 +77,8 @@ export function HomePage() {
   };
   const [navAberta, setNavAberta] = useState(false);
   const [pausadoPeloUsuario, setPausado] = useState(false);
+  /** As brasas do fundo, e não a animação inteira — ver o botão ao lado do de pausar. */
+  const [brasasVisiveis, setBrasasVisiveis] = useState(true);
   const [pulso, setPulso] = useState(0);
 
   const [conversas, setConversas] = useState<Conversation[]>([]);
@@ -274,7 +276,7 @@ export function HomePage() {
 
   return (
     <div className={`tq-home${navAberta ? ' nav-aberta' : ''}`}>
-      <Brasas pausado={!animando} />
+      {brasasVisiveis && <Brasas pausado={!animando} />}
       <header className="tq-topo">
         <div className="tq-brand" aria-label="TaqCiti">
           <img
@@ -292,6 +294,16 @@ export function HomePage() {
               capturando legendas
             </span>
           )}
+          <button
+            type="button"
+            className={`tq-motion${brasasVisiveis ? '' : ' desligado'}`}
+            aria-label={brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'}
+            aria-pressed={!brasasVisiveis}
+            title={brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'}
+            onClick={() => setBrasasVisiveis((v) => !v)}
+          >
+            <Icon name="sparkles" size={15} />
+          </button>
           <button
             type="button"
             className="tq-motion"

@@ -227,6 +227,12 @@ body {
   opacity: 0.4;
 }
 
+/* O botão das brasas desligadas: mesma linguagem do `:disabled` acima, mas
+   sem ESTAR desabilitado — continua clicável para religar. */
+.tq-motion.desligado {
+  opacity: 0.4;
+}
+
 /* ------------------------------------------------------- menu de conversas */
 
 .tq-conversas {
