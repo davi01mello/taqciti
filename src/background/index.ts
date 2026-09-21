@@ -24,6 +24,7 @@ import { openHome } from './homeTab';
 import { abrirPainel, abrirPainelNaJanela, ligarAberturaPeloIcone } from './sidePanel';
 import { capturarAbaDaReuniao } from './captura';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
+import { liberarSessionParaContentScripts } from './sessionAccess';
 import { ensurePanelPrefs } from '@/features/panel/prefsStore';
 
 /**
@@ -39,7 +40,15 @@ import { ensurePanelPrefs } from '@/features/panel/prefsStore';
  * que nunca respondem. O erro fica visível no log, e o estado padrão — que
  * `ensurePanelPrefs` e `getState` garantem — continua de pé.
  */
-const ready: Promise<void> = migrateLocalStorage()
+const ready: Promise<void> = liberarSessionParaContentScripts()
+  /*
+   * PRIMEIRO de tudo, e antes de qualquer leitura de estado.
+   *
+   * Sem esta liberação o content script não consegue tocar o
+   * `chrome.storage.session`, e o portão da captura — a pergunta "deseja
+   * registrar esta reunião?" — não chega a existir. Ver `sessionAccess.ts`.
+   */
+  .then(() => migrateLocalStorage())
   .then(() => hydrate())
   .then(() => recoverInterruptedMeetings())
   .then(() => ensurePanelPrefs())
@@ -189,6 +198,8 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
+      case 'meet/captureRecovered':
+        return dispatch({ type: 'CAPTURE_RECOVERED' });
       case 'ui/print': {
         const sessao = getState().session;
         const captura = await capturarAbaDaReuniao(sessao?.tabId);

@@ -66,6 +66,11 @@ interface Props {
 /** Quanto tempo a explicação de falha fica na tela. */
 const DICA_MS = 6000;
 
+/** Largura desejada do balão da pergunta — a mesma do `w-[286px]` abaixo. */
+const LARGURA_PERGUNTA = 286;
+/** Respiro mínimo entre o balão e a borda da tela. */
+const MARGEM_DA_PERGUNTA = 12;
+
 export function Capsula({
   phase,
   startedAt,
@@ -157,6 +162,33 @@ export function Capsula({
   /** A pergunta abre para cima ou para baixo, conforme onde a cápsula está. */
   const paraBaixo = floating.geometry.capsule.top < 220;
 
+  /*
+   * Onde a pergunta cabe — e não só onde ela gostaria de ficar.
+   *
+   * A cápsula nasce encostada à direita (`x: 0.97` em DEFAULT_PANEL_PREFS), e
+   * a pergunta era posicionada apenas como "96px à esquerda da cápsula". Numa
+   * instalação nova isso punha metade do balão fora da tela: o botão "Agora
+   * não" ficava cortado pela borda direita, na primeira reunião de quem acabou
+   * de instalar. Medido no Chrome, com a posição padrão.
+   *
+   * Agora ela é presa dentro do viewport nos dois eixos. `window.innerWidth` é
+   * lido no render porque o hook de posicionamento já repinta a cada `resize`.
+   */
+  const larguraDaPergunta = Math.min(LARGURA_PERGUNTA, window.innerWidth * 0.92);
+  const esquerdaDaPergunta = Math.max(
+    MARGEM_DA_PERGUNTA,
+    Math.min(
+      floating.geometry.capsule.left - 96,
+      window.innerWidth - larguraDaPergunta - MARGEM_DA_PERGUNTA,
+    ),
+  );
+  const topoDaPergunta = Math.max(
+    MARGEM_DA_PERGUNTA,
+    paraBaixo
+      ? floating.geometry.capsule.top + 52
+      : floating.geometry.capsule.top - 172,
+  );
+
   return (
     <>
       <button
@@ -196,12 +228,7 @@ export function Capsula({
         <div
           role="dialog"
           aria-label="Registrar esta reunião?"
-          style={{
-            left: Math.max(12, floating.geometry.capsule.left - 96),
-            top: paraBaixo
-              ? floating.geometry.capsule.top + 52
-              : floating.geometry.capsule.top - 172,
-          }}
+          style={{ left: esquerdaDaPergunta, top: topoDaPergunta }}
           className="glass fixed z-[2147483002] w-[286px] max-w-[92vw] rounded-card p-3.5 animate-dock-in"
         >
           <p className="text-read font-semibold text-foreground">

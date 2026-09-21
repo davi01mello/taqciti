@@ -87,6 +87,7 @@ export const sessionStateSchema = z.object({
   droppedSegments: z.number(),
   reconnectCount: z.number(),
   captureDegradedCount: z.number().int().nonnegative().default(0),
+  captureHealthy: z.boolean().default(true),
   lastChunkAt: z.number().int().nonnegative().nullable().default(null),
   wasDiscardedAndRestarted: z.boolean(),
   captionLanguage: z.enum(['pt', 'en', 'unknown']).default('unknown'),
@@ -129,6 +130,15 @@ const contentMessages = z.discriminatedUnion('type', [
     type: z.literal('meet/captureDegraded'),
     reason: z.enum(['parser', 'stall']),
   }),
+  /**
+   * A captura voltou a ler as legendas.
+   *
+   * Existe porque a ida já era contada e a VOLTA não era: só a cápsula, dentro
+   * da aba do Meet, sabia que a interrupção tinha acabado. A sidebar é página
+   * da extensão e nunca enxergou o DOM da reunião — sem este recado, ela ficaria
+   * avisando de uma interrupção resolvida até a reunião terminar.
+   */
+  z.object({ type: z.literal('meet/captureRecovered') }),
 ]);
 
 /**

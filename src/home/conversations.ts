@@ -65,6 +65,16 @@ export interface ConversationMessage {
   attachments?: string[];
   /** O que a pessoa juntou à pergunta. Ausente = pergunta solta. */
   contexto?: ContextoDaPergunta;
+  /**
+   * Mensagem de DEMONSTRAÇÃO, semeada em build de desenvolvimento para dar o
+   * que olhar numa interface vazia (ver `src/dev/demo.ts`).
+   *
+   * Existe no tipo, e não só na tela, porque o selo "Demonstração" precisa
+   * sobreviver ao storage: uma resposta fictícia que perdesse a marca ao ser
+   * relida viraria, para todos os efeitos, uma resposta real no histórico.
+   * `acrescentarMensagem` nunca escreve este campo — só o semeador.
+   */
+  demo?: true;
 }
 
 export interface Conversation {

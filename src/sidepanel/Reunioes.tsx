@@ -1,13 +1,17 @@
 /**
- * O histórico na sidebar: conversas, reuniões e as notas de cada uma.
+ * As reuniões já registradas — o que a seção "Transcrição" mostra quando não
+ * há nenhuma em curso.
  *
- * ── Por que o .txt não tem um botão solto ────────────────────────────────
+ * ── Por que aqui, e não numa terceira seção ──────────────────────────────
  *
- * "Baixar transcrição" fora do contexto de uma reunião é um botão que baixa
- * algo indeterminado — a última? a que está aberta? Aqui a ação PERTENCE a uma
- * reunião: você escolhe qual na lista, e dentro dela existe o download. Uma
- * reunião sem fala capturada não esconde o botão: ela o mostra desligado, com a
- * razão escrita ao lado, porque "não aparece" é indistinguível de "quebrou".
+ * Transcrição é o assunto: a de agora quando existe, as de antes quando não
+ * existe. Uma seção "Histórico" separada faria a sidebar ter três seletores
+ * para dois assuntos, e obrigaria a escolher entre "ver a transcrição" e "ver
+ * as transcrições" — que é a mesma coisa em dois tempos.
+ *
+ * As CONVERSAS guardadas não estão aqui: elas são o assunto do outro seletor, e
+ * o menu de conversas lá dentro já lista todas, com data. Duplicá-las aqui
+ * seria a mesma lista em dois lugares, divergindo no primeiro ajuste.
  *
  * ── Por que a nota é editável daqui ──────────────────────────────────────
  *
@@ -18,39 +22,33 @@
 import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { Nota, EstadoDaGravacao } from '@/features/annotations/notes';
-import type { Conversation } from '@/home/conversations';
 import { downloadTranscript } from '@/features/history/export';
 import { Icon } from '@/shared/ui/Icon';
 import { formatDate, formatDurationHuman, formatTime } from '@/shared/ui/format';
+import { EDITOR_DE_NOTA_ID, EstadoDaNota } from './Notas';
 
 interface Props {
   registros: MeetingRecord[];
   carregado: boolean;
   notas: Record<string, Nota>;
-  conversas: Conversation[];
   rascunhosNota: Record<string, string>;
   estadoDaNota: EstadoDaGravacao;
-  onAbrirConversa: (id: string) => void;
+  recusada: boolean;
   onEscreverNota: (meetingId: string, texto: string) => void;
   onAbrirNaHome: (recordId?: string) => void;
 }
 
-type Guia = 'reunioes' | 'conversas';
-
-export function Historico({
+export function Reunioes({
   registros,
   carregado,
   notas,
-  conversas,
   rascunhosNota,
   estadoDaNota,
-  onAbrirConversa,
+  recusada,
   onEscreverNota,
   onAbrirNaHome,
 }: Props) {
-  const [guia, setGuia] = useState<Guia>('reunioes');
   const [abertaId, setAbertaId] = useState<string | null>(null);
-
   const aberta = abertaId ? (registros.find((r) => r.id === abertaId) ?? null) : null;
 
   if (aberta) {
@@ -68,73 +66,38 @@ export function Historico({
 
   return (
     <div className="tq-rolavel">
-      <div className="tq-guias" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={guia === 'reunioes'}
-          className={guia === 'reunioes' ? 'atual' : undefined}
-          onClick={() => setGuia('reunioes')}
-        >
-          Reuniões
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={guia === 'conversas'}
-          className={guia === 'conversas' ? 'atual' : undefined}
-          onClick={() => setGuia('conversas')}
-        >
-          Conversas
-        </button>
+      <div className="tq-reuniao-topo">
+        <h2>{recusada ? 'Captura desligada' : 'Nenhuma reunião em curso'}</h2>
+        <p className="tq-fino">
+          {recusada
+            ? 'Esta reunião não está sendo registrada. As anteriores continuam aqui.'
+            : 'Entre numa reunião do Google Meet e o TaqCiti pergunta se deve registrá-la.'}
+        </p>
       </div>
 
-      {guia === 'reunioes' &&
-        (!carregado ? (
-          <p className="tq-fino">Lendo o histórico…</p>
-        ) : registros.length === 0 ? (
-          <p className="tq-fino">
-            Nenhuma reunião guardada ainda. Entre num Meet, aceite registrar
-            quando o TaqCiti perguntar, e ela aparece aqui.
-          </p>
-        ) : (
-          <ul className="tq-lista">
-            {registros.map((r) => (
-              <li key={r.id}>
-                <button type="button" onClick={() => setAbertaId(r.id)}>
-                  <strong>{r.title}</strong>
-                  <small>
-                    {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
-                    {r.segments.length} trecho{r.segments.length === 1 ? '' : 's'}
-                    {notas[r.id] && ' · com nota'}
-                  </small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ))}
-
-      {guia === 'conversas' &&
-        (conversas.length === 0 ? (
-          <p className="tq-fino">
-            Nenhuma conversa guardada ainda. A primeira nasce quando você
-            escrever.
-          </p>
-        ) : (
-          <ul className="tq-lista">
-            {conversas.map((c) => (
-              <li key={c.id}>
-                <button type="button" onClick={() => onAbrirConversa(c.id)}>
-                  <strong>{c.title}</strong>
-                  <small>
-                    {formatDate(c.updatedAt)} · {c.messages.length}{' '}
-                    {c.messages.length === 1 ? 'mensagem' : 'mensagens'}
-                  </small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ))}
+      {!carregado ? (
+        <p className="tq-fino">Lendo o histórico…</p>
+      ) : registros.length === 0 ? (
+        <p className="tq-fino">
+          Nenhuma reunião guardada ainda. Entre num Meet, aceite registrar quando o
+          TaqCiti perguntar, e ela aparece aqui.
+        </p>
+      ) : (
+        <ul className="tq-lista">
+          {registros.map((r) => (
+            <li key={r.id}>
+              <button type="button" onClick={() => setAbertaId(r.id)}>
+                <strong>{r.title}</strong>
+                <small>
+                  {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
+                  {r.segments.length} trecho{r.segments.length === 1 ? '' : 's'}
+                  {notas[r.id] && ' · com nota'}
+                </small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -160,7 +123,7 @@ function DetalheDaReuniao({
     <div className="tq-rolavel">
       <button type="button" className="tq-voltar" onClick={onVoltar}>
         <Icon name="chevron" size={13} className="tq-girado" />
-        Histórico
+        Reuniões
       </button>
 
       <div className="tq-reuniao-topo">
@@ -195,20 +158,10 @@ function DetalheDaReuniao({
       <section className="tq-notas">
         <div className="tq-notas-topo">
           <h3>Nota desta reunião</h3>
-          <span
-            className={`tq-notas-estado${estadoDaNota === 'falhou' ? ' falhou' : ''}`}
-            role="status"
-          >
-            {estadoDaNota === 'gravando'
-              ? 'salvando…'
-              : estadoDaNota === 'salvo'
-                ? 'salvo'
-                : estadoDaNota === 'falhou'
-                  ? 'não foi possível salvar'
-                  : ''}
-          </span>
+          <EstadoDaNota estado={estadoDaNota} />
         </div>
         <textarea
+          id={EDITOR_DE_NOTA_ID}
           className="tq-notas-campo"
           value={nota}
           placeholder="Escrever uma nota sobre esta reunião…"

@@ -54,6 +54,14 @@ function fakeProvider() {
     jaEstavaNaSala(sala = SALA) {
       detectada = sala;
     },
+    /**
+     * O Meet re-renderizou e, por alguns quadros, `detectMeeting()` não
+     * reconhece a sala — o botão de sair sumiu da árvore e voltará. A reunião
+     * NÃO acabou: nenhum `onMeetingEnd` é disparado.
+     */
+    somePorUmInstante() {
+      detectada = null;
+    },
   };
 }
 
@@ -157,6 +165,37 @@ describe('detectar uma reunião não é começar a registrá-la', () => {
     const fake = fakeProvider();
     fake.jaEstavaNaSala();
     await montarControlador(fake);
+    await assentar();
+
+    expect(enviadas(sendMessage)).toContain('meet/detected');
+  });
+
+  /*
+   * A REGRESSÃO que fazia o "sim" não ligar nada.
+   *
+   * Quem responde na sidebar responde de outro contexto: a decisão chega aqui
+   * pelo storage, e nesse instante o `detectMeeting()` pode responder `null`
+   * por alguns quadros, porque o Meet re-renderiza a sala inteira com
+   * frequência. O controller guardava a reunião pendente para exatamente esse
+   * caso — e a apagava uma linha ANTES de escolher o alvo, então o alvo era
+   * sempre `null` e a captura não começava. A pergunta sumia das duas
+   * superfícies, nada era gravado, e não havia erro nenhum para investigar.
+   */
+  it('o aceite liga a captura mesmo se o Meet não estiver reconhecível naquele instante', async () => {
+    const fake = fakeProvider();
+    await montarControlador(fake);
+
+    fake.entrarNaSala();
+    await assentar();
+
+    const { lerReuniaoDetectada, guardarDecisao } = await import(
+      '@/features/meeting/consent'
+    );
+    const anunciada = await lerReuniaoDetectada();
+    expect(anunciada?.participacaoId).toBeTruthy();
+
+    fake.somePorUmInstante();
+    await guardarDecisao(anunciada!.participacaoId, 'aceito');
     await assentar();
 
     expect(enviadas(sendMessage)).toContain('meet/detected');

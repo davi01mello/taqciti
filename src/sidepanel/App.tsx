@@ -1,33 +1,36 @@
 /**
  * A SIDEBAR do TaqCiti — no painel lateral nativo do Chrome.
  *
- * ── Os dois mundos, e o que decide qual está na tela ─────────────────────
+ * ── Duas atividades, sempre visíveis ─────────────────────────────────────
  *
- * FORA de uma reunião a sidebar é uma versão estreita do produto: conversar,
- * chegar na HOME, e alcançar o histórico (conversas, reuniões e notas).
- * DENTRO de uma reunião ela vira o painel dela: transcrição ao vivo, notas,
- * prints e a conversa com o contexto daquela reunião.
+ * A sidebar tem DOIS modos de conteúdo, e não duas colunas: "Transcrição" e
+ * "Conversa". São dois assuntos que acontecem ao mesmo tempo e são lidos um de
+ * cada vez — numa coluna de 260px não cabe outra coisa.
  *
- * Quem decide não é a sidebar: é o estado da reunião, que mora no background e
- * chega por `useMeetingState`. Abrir o painel não começa nada — é o requisito
- * literal, e é por isso que a pergunta de autorização é uma TELA aqui, e não um
- * efeito colateral da abertura.
+ * O que os seletores mostram é a atividade de CADA UM, independentemente de
+ * qual está aberto: a captura corre enquanto se lê a conversa, e o agente
+ * responde enquanto se lê a transcrição. Ver `Seletores.tsx`.
+ *
+ * ── Por que as duas seções ficam montadas ────────────────────────────────
+ *
+ * Trocar de modo não pode custar nada: nem o rascunho, nem a posição de
+ * leitura. Desmontar a seção que sai perderia a segunda coisa mesmo com a
+ * primeira levantada para cá — a rolagem é do DOM, não do React.
+ *
+ * Então as duas vivem ao mesmo tempo, empilhadas, e a que não está em uso fica
+ * com `visibility: hidden` e `inert`. `visibility` e não `display: none` de
+ * propósito: `display: none` destrói a caixa e, com ela, o `scrollTop`. Quem
+ * volta para a transcrição depois de três minutos de conversa volta para a
+ * linha em que estava.
  *
  * ── Por que os rascunhos moram aqui em cima ──────────────────────────────
  *
- * Trocar de aba interna desmonta o componente da aba. Se o texto que está sendo
- * escrito vivesse dentro dele, ir até as notas e voltar apagaria a pergunta pela
- * metade. Levantados para cá, os rascunhos atravessam a navegação interna — e o
- * da nota ainda é descarregado no storage ao sair, para não depender de o
- * respiro do gravador ter vencido.
- *
- * ── Por que a largura é um problema de verdade ───────────────────────────
- *
- * O painel é redimensionável e começa estreito. Nada aqui empilha tudo numa
- * coluna só: o que existe são três abas de cada vez, e cada tela assume que
- * pode ter 260px de largura.
+ * Mesmo com a seção montada, o texto da nota é usado em dois lugares (o editor
+ * da reunião em curso e o de uma reunião do histórico). Levantados para cá, os
+ * rascunhos atravessam a navegação interna — e o da nota ainda é descarregado
+ * no storage ao sair, para não depender de o respiro do gravador ter vencido.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryState } from '@/features/history/useHistory';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
 import { usePlatform } from '@/shared/platform/context';
@@ -38,6 +41,7 @@ import {
   type DecisaoDeRegistro,
   type ReuniaoDetectada,
 } from '@/features/meeting/consent';
+import { observarAgente, type EstadoDoAgente } from '@/features/agent/atividade';
 import {
   criarGravadorDeNota,
   observarNotas,
@@ -50,44 +54,59 @@ import {
   type ContextoDaPergunta,
   type Conversation,
 } from '@/home/conversations';
+import type { MeetingState } from '@/shared/types/domain';
+import type { EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
 import { Icon } from '@/shared/ui/Icon';
 import { Wordmark } from '@/shared/ui/Wordmark';
 import { Conversa } from './Conversa';
-import { Historico } from './Historico';
-import { Notas } from './Notas';
 import { Pergunta } from './Pergunta';
 import { Reuniao } from './Reuniao';
+import { Reunioes } from './Reunioes';
+import { Seletores, type Modo } from './Seletores';
 
-type Aba = 'reuniao' | 'notas' | 'conversa' | 'historico';
+/**
+ * Os controles de desenvolvimento, e por que eles são carregados assim.
+ *
+ * `import()` dentro de um ramo que o bundler resolve em tempo de build: com
+ * `__TAQCITI_DEV__` falso o ternário vira `null`, a função que contém o
+ * `import()` morre com ele, e o chunk inteiro deixa de ser emitido. Não é um
+ * menu escondido — é código que não está lá. Ver `src/ambiente.d.ts`.
+ */
+const PainelDeSimulacao = __TAQCITI_DEV__
+  ? lazy(() => import('@/dev/PainelDeSimulacao'))
+  : null;
 
-const ABAS_NA_REUNIAO: ReadonlyArray<{ id: Aba; rotulo: string }> = [
-  { id: 'reuniao', rotulo: 'Reunião' },
-  { id: 'notas', rotulo: 'Notas' },
-  { id: 'conversa', rotulo: 'Conversa' },
-];
-const ABAS_FORA: ReadonlyArray<{ id: Aba; rotulo: string }> = [
-  { id: 'conversa', rotulo: 'Conversa' },
-  { id: 'historico', rotulo: 'Histórico' },
-];
+/** O que a simulação de desenvolvimento pode sobrepor. Só existe em dev. */
+export interface Sobreposicao {
+  meeting: MeetingState;
+}
 
 /** Chave do rascunho enquanto a conversa nova ainda não existe no storage. */
 const RASCUNHO_NOVA = '\u0000nova';
 
 export function App() {
   const platform = usePlatform();
-  const state = useMeetingState();
+  const estadoReal = useMeetingState();
   const { records, loaded } = useHistoryState();
 
   const [detectada, setDetectada] = useState<ReuniaoDetectada | null>(null);
   const [decisoes, setDecisoes] = useState<Record<string, DecisaoDeRegistro>>({});
   const [notas, setNotas] = useState<Record<string, Nota>>({});
   const [conversas, setConversas] = useState<Conversation[]>([]);
+  const [agente, setAgente] = useState<EstadoDoAgente>({
+    atividade: 'repouso',
+    parcial: '',
+  });
+  /** Preenchida apenas pelos controles de desenvolvimento. `null` em produção. */
+  const [sobreposicao, setSobreposicao] = useState<Sobreposicao | null>(null);
 
   useEffect(() => observarReuniaoDetectada(setDetectada), []);
   useEffect(() => observarDecisoes(setDecisoes), []);
   useEffect(() => observarNotas(setNotas), []);
   useEffect(() => observarConversas(setConversas), []);
+  useEffect(() => observarAgente(setAgente), []);
 
+  const state = sobreposicao?.meeting ?? estadoReal;
   const sessao = state.session;
   const emReuniao = sessao !== null && state.phase !== 'idle';
   /*
@@ -100,22 +119,18 @@ export function App() {
     detectada !== null && decisoes[detectada.participacaoId] === undefined;
   const recusada =
     detectada !== null && decisoes[detectada.participacaoId] === 'recusado';
-  const noContextoDeReuniao = emReuniao || detectada !== null;
 
-  const [aba, setAba] = useState<Aba>('conversa');
-  // Entrar numa reunião leva para a tela dela; sair devolve para a conversa.
-  // Reage à MUDANÇA de contexto, não a cada render — senão trocar de aba
+  const [modo, setModo] = useState<Modo>('conversa');
+  // Entrar numa reunião leva para a transcrição; sair devolve para a conversa.
+  // Reage à MUDANÇA de contexto, não a cada render — senão trocar de modo
   // durante a reunião seria desfeito no quadro seguinte.
-  const contextoAnterior = useRef(noContextoDeReuniao);
+  const contextoAnterior = useRef(emReuniao);
   useEffect(() => {
-    if (contextoAnterior.current !== noContextoDeReuniao) {
-      contextoAnterior.current = noContextoDeReuniao;
-      setAba(noContextoDeReuniao ? 'reuniao' : 'conversa');
+    if (contextoAnterior.current !== emReuniao) {
+      contextoAnterior.current = emReuniao;
+      setModo(emReuniao ? 'transcricao' : 'conversa');
     }
-  }, [noContextoDeReuniao]);
-
-  const abas = noContextoDeReuniao ? ABAS_NA_REUNIAO : ABAS_FORA;
-  const abaAtual = abas.some((a) => a.id === aba) ? aba : abas[0]!.id;
+  }, [emReuniao]);
 
   // ---------- conversas ----------
 
@@ -159,10 +174,10 @@ export function App() {
     [conversa, contexto],
   );
 
-  /** Vem da transcrição: leva o trecho para a conversa e troca de aba. */
+  /** Vem da transcrição: leva o trecho (ou a reunião) para a conversa. */
   const perguntarSobre = useCallback((ctx: ContextoDaPergunta) => {
     setContexto(ctx);
-    setAba('conversa');
+    setModo('conversa');
   }, []);
 
   // ---------- notas ----------
@@ -220,7 +235,7 @@ export function App() {
   if (perguntando && detectada) {
     return (
       <div className="tq-side">
-        <Cabecalho onHome={() => abrirHome()} estado="Aguardando" />
+        <Cabecalho onHome={() => abrirHome()} />
         <Pergunta
           titulo={detectada.title}
           onAceitar={() => void responder('aceito')}
@@ -231,72 +246,58 @@ export function App() {
   }
 
   const meetingId = sessao?.meetingId ?? null;
+  const captura = estadoDaCaptura(state);
 
   return (
     <div className="tq-side">
-      <Cabecalho
-        onHome={() => abrirHome()}
-        estado={
-          state.phase === 'recording'
-            ? 'Transcrevendo'
-            : state.phase === 'paused'
-              ? 'Pausado'
-              : state.phase === 'captionsRequired'
-                ? 'Preparando'
-                : state.phase === 'ended'
-                  ? 'Salva'
-                  : recusada
-                    ? 'Sem registro'
-                    : null
-        }
+      <Cabecalho onHome={() => abrirHome()} />
+
+      <Seletores
+        modo={modo}
+        onModo={setModo}
+        captura={captura}
+        /* Contar falas é o sinal honesto mais próximo de "chegou trecho novo". */
+        pulso={sessao?.segments.length ?? 0}
+        agente={agente.atividade}
       />
 
-      <nav className="tq-abas" aria-label="Seções da sidebar">
-        {abas.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            className={a.id === abaAtual ? 'atual' : undefined}
-            aria-current={a.id === abaAtual ? 'page' : undefined}
-            onClick={() => setAba(a.id)}
-          >
-            {a.rotulo}
-          </button>
-        ))}
-      </nav>
+      <div className="tq-palco">
+        <Painel ativo={modo === 'transcricao'} rotulo="Transcrição">
+          {emReuniao && sessao ? (
+            <Reuniao
+              state={state}
+              notaExiste={meetingId !== null && Boolean(notas[meetingId])}
+              rascunhoNota={
+                meetingId === null
+                  ? ''
+                  : (rascunhosNota[meetingId] ?? notas[meetingId]?.texto ?? '')
+              }
+              estadoDaNota={estadoDaNota}
+              onEscreverNota={escreverNota}
+              onPerguntarSobre={perguntarSobre}
+              onAbrirHome={abrirHome}
+            />
+          ) : (
+            <Reunioes
+              registros={records}
+              carregado={loaded}
+              notas={notas}
+              rascunhosNota={rascunhosNota}
+              estadoDaNota={estadoDaNota}
+              recusada={recusada}
+              onEscreverNota={escreverNota}
+              onAbrirNaHome={abrirHome}
+            />
+          )}
+        </Painel>
 
-      <div className="tq-corpo">
-        {abaAtual === 'reuniao' && (
-          <Reuniao
-            state={state}
-            recusada={recusada}
-            notaExiste={meetingId !== null && Boolean(notas[meetingId])}
-            onComecar={() => void responder('aceito')}
-            onPerguntarSobre={perguntarSobre}
-            onAbrirHome={abrirHome}
-          />
-        )}
-
-        {abaAtual === 'notas' && (
-          <Notas
-            meetingId={meetingId}
-            titulo={sessao?.title ?? null}
-            texto={
-              meetingId === null
-                ? ''
-                : (rascunhosNota[meetingId] ?? notas[meetingId]?.texto ?? '')
-            }
-            estado={estadoDaNota}
-            onEscrever={escreverNota}
-          />
-        )}
-
-        {abaAtual === 'conversa' && (
+        <Painel ativo={modo === 'conversa'} rotulo="Conversa">
           <Conversa
             conversa={conversa}
             conversas={conversas}
             gravando={gravandoMensagem}
             erro={erroEnvio}
+            agente={agente}
             contexto={contexto}
             registros={records}
             rascunho={rascunhosConversa[chaveRascunho] ?? ''}
@@ -314,57 +315,108 @@ export function App() {
               setIniciandoNova(false);
             }}
           />
-        )}
-
-        {abaAtual === 'historico' && (
-          <Historico
-            registros={records}
-            carregado={loaded}
-            notas={notas}
-            conversas={conversas}
-            onAbrirConversa={(id) => {
-              setConversaId(id);
-              setIniciandoNova(false);
-              setAba('conversa');
-            }}
-            onEscreverNota={escreverNota}
-            rascunhosNota={rascunhosNota}
-            estadoDaNota={estadoDaNota}
-            onAbrirNaHome={abrirHome}
-          />
-        )}
+        </Painel>
       </div>
+
+      {PainelDeSimulacao && (
+        <Suspense fallback={null}>
+          <PainelDeSimulacao
+            estadoReal={estadoReal}
+            sobreposicao={sobreposicao}
+            onSobrepor={setSobreposicao}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
 
 /**
- * O cabeçalho: marca, estado real e a porta para a HOME.
+ * O estado da captura, traduzido do estado da reunião.
  *
- * "Abrir HOME" é um controle fixo, e não um item escondido num menu: é o
- * caminho de volta para a página principal, e ter de procurá-lo seria a
- * sidebar competindo com ela em vez de apontar para ela.
+ * "Interrompida" é derivado de `captureHealthy`, que vem da aba do Meet: é a
+ * única coisa que sabe que há legenda na tela que a captura não está lendo.
  */
-function Cabecalho({ onHome, estado }: { onHome: () => void; estado: string | null }) {
+function estadoDaCaptura(state: MeetingState): EstadoDaCaptura {
+  switch (state.phase) {
+    case 'recording':
+      return state.session?.captureHealthy === false ? 'interrompida' : 'capturando';
+    case 'paused':
+      return 'pausada';
+    case 'captionsRequired':
+      return 'preparando';
+    case 'ended':
+      return 'salva';
+    default:
+      // Sem reunião e "agora não" são o mesmo fato para a captura: ela está
+      // desligada. O que os separa é o texto da seção, não o indicador.
+      return 'desligada';
+  }
+}
+
+/**
+ * Uma das duas seções. A que não está em uso continua montada e viva — só
+ * invisível e fora do alcance do teclado.
+ */
+function Painel({
+  ativo,
+  rotulo,
+  children,
+}: {
+  ativo: boolean;
+  rotulo: string;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  /*
+   * `inert` é o que impede o Tab de entrar na seção invisível. Sem ele, quem
+   * navega por teclado atravessaria a conversa inteira — campos, botões, menu —
+   * sem ver nada na tela. É atribuído por `ref` porque a propriedade existe no
+   * DOM antes de existir na tipagem de React 18.
+   */
+  useEffect(() => {
+    const el = ref.current as (HTMLDivElement & { inert?: boolean }) | null;
+    if (el) el.inert = !ativo;
+  }, [ativo]);
+
+  return (
+    <div
+      ref={ref}
+      className={`tq-painel${ativo ? ' ativo' : ''}`}
+      role="region"
+      aria-label={rotulo}
+      aria-hidden={!ativo}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * O cabeçalho: marca e a porta para a HOME.
+ *
+ * O selo de estado que ficava aqui saiu: os seletores agora dizem o que cada
+ * seção está fazendo, com mais precisão e no lugar em que se clica. Duas
+ * superfícies anunciando o mesmo estado divergiriam no primeiro ajuste.
+ *
+ * "Abrir HOME" continua sendo um controle fixo, e não um item escondido num
+ * menu: é o caminho de volta para a página principal, e ter de procurá-lo seria
+ * a sidebar competindo com ela em vez de apontar para ela.
+ */
+function Cabecalho({ onHome }: { onHome: () => void }) {
   return (
     <header className="tq-side-topo">
-      <Wordmark height={20} />
-      <div className="tq-side-topo-direita">
-        {estado && (
-          <span className={`tq-selo${estado === 'Transcrevendo' ? ' vivo' : ''}`} role="status">
-            {estado}
-          </span>
-        )}
-        <button
-          type="button"
-          className="tq-icone"
-          onClick={onHome}
-          title="Abrir o TaqCiti numa aba"
-          aria-label="Abrir o TaqCiti numa aba"
-        >
-          <Icon name="sparkles" size={15} />
-        </button>
-      </div>
+      <Wordmark height={26} />
+      <button
+        type="button"
+        className="tq-icone"
+        onClick={onHome}
+        title="Abrir HOME"
+        aria-label="Abrir HOME"
+      >
+        <Icon name="home" size={20} />
+      </button>
     </header>
   );
 }
