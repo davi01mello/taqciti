@@ -50,17 +50,21 @@ interface Props {
 }
 
 /**
- * O ladrilho é MENOR que a imagem nativa (2048×768) de propósito — "mais
- * vívidas, só que menores" pediu fagulhas mais miúdas, e encolher o
- * `background-size` faz duas coisas de uma vez: cada fagulha fica pequena
- * E o mesmo PNG se repete mais vezes na tela, lendo como "mais partículas".
+ * O tamanho do ladrilho controla DUAS coisas ao mesmo tempo, e elas puxam
+ * para lados opostos: encolher deixa cada fagulha menor, mas também faz o
+ * MESMO ladrilho repetir mais vezes na tela — e foi isso que leu como
+ * "sujo" em 0.32: as ~50 fagulhas da imagem viravam centenas de cópias
+ * visíveis ao mesmo tempo. 0.5 é o meio-termo: ainda claramente menor que
+ * o nativo, mas sem repetir tanto a ponto de virar ruído. A opacidade mais
+ * baixa (ver `global.css`) é quem termina o trabalho de "menor
+ * quantidade" — mais fraco lê como mais raro, mesmo repetindo igual.
  *
  * `--altura-ladrilho` carrega essa altura para o `@keyframes` em
  * `global.css` — UMA fonte para os dois lados do laço (o tamanho do
  * ladrilho aqui, o passo da rolagem lá), em vez de dois números copiados
  * que podem parar de bater.
  */
-const ESCALA = 0.45;
+const ESCALA = 0.5;
 const ALTURA_PX = Math.round(768 * ESCALA);
 const LARGURA_PX = Math.round(2048 * ESCALA);
 

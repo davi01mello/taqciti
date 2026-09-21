@@ -104,11 +104,13 @@
    * costura, e não algo desenhado na própria imagem. `pointer-events: none`
    * porque é fundo: clique, seleção e rolagem atravessam direto.
    *
-   * `opacity` e `filter: saturate` moram AQUI, no contêiner — nunca na
-   * imagem: são os dois ajustes de "mais vívidas" pedido, e ficam
-   * reversíveis sem regravar o PNG. `saturate` porque, numa opacidade baixa,
-   * é a cor que se perde primeiro — aumentar a saturação antes de misturar
-   * com o fundo é o que mantém o verde lendo como verde, e não como cinza.
+   * `opacity` mora AQUI, no contêiner — nunca na imagem: é o ajuste de
+   * intensidade pedido, e fica reversível sem regravar o PNG.
+   *
+   * Sem `filter: saturate`: a tentativa de "mais vívidas" por aí puxava a
+   * cor toda para o mesmo verde e achatava o brilho branco-amarelado do
+   * centro de cada fagulha — exatamente o que a imagem original tinha de
+   * variado. A opacidade sozinha já entrega vívido sem distorcer a cor.
    */
   .tq-brasas {
     position: fixed;
@@ -116,8 +118,7 @@
     z-index: 0;
     pointer-events: none;
     background-repeat: repeat;
-    opacity: 0.42;
-    filter: saturate(1.6);
+    opacity: 0.32;
     animation: tq-subir-brasas 90s linear infinite;
   }
 
