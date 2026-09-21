@@ -3,34 +3,34 @@
  *
  * ── Como o pedido mudou ───────────────────────────────────────────────────
  *
- * Começou como pontos parados ("estrelinhas"), virou oito barras subindo
- * "como um oceano", e agora são brasas: mais partículas, mais finas, e
- * quase invisíveis — "bem transparentes, muito difícil de visualizar". A
- * ideia final é a de uma fagulha subindo de uma fogueira distante: fina,
- * numerosa, e no limite do que se percebe sem prestar atenção.
+ * Começou como pontos parados ("estrelinhas") gerados em CSS, virou barras
+ * subindo, depois brasas finas geradas por fórmula — e a última volta foi
+ * trocar o gerado por um ARTE DE VERDADE: `public/backgrounds/brasas.png`,
+ * a textura de fagulhas que veio pronta. Nada aqui desenha partícula
+ * nenhuma; o trabalho é só posicionar essa imagem, repeti-la sem costura e
+ * fazê-la subir.
  *
- * ── Por que GERADAS, e não escritas à mão uma a uma ───────────────────────
+ * ── Por que dá para repetir SEM COSTURA sem a imagem ser "seamless" ───────
  *
- * Oito dava para escrever cada uma à mão; vinte e seis não — a lista viraria
- * ruído maior que o efeito. `gerarBrasas` deriva os cinco parâmetros de cada
- * partícula do seu ÍNDICE, com multiplicadores que não são múltiplos de 100
- * nem uns dos outros (37, 11, 13, 7 — todos primos entre si com a base),
- * pelo mesmo motivo do `--bg-estrelas` que existiu antes: um período que não
- * bate com os outros não mostra onde a sequência se repete.
- *
- * ── Por que cada brasa é a SUA PRÓPRIA camada, e não uma repetição ────────
- *
- * Um `background-image` com um padrão repetindo teria todas as brasas na
- * mesma fase — a tela inteira "pulsando" junto, o oposto do efeito pedido.
- * Cada `<span>` tem sua própria duração e atraso (negativo, para já nascer
- * em pontos diferentes do ciclo em vez de todas começarem juntas na
- * montagem), o que só é possível com elementos de verdade.
+ * `background-repeat` ladrilha a MESMA imagem, lado a lado e em pilha. Rolar
+ * o fundo por exatamente UMA altura de ladrilho (`ALTURA_PX`) e resetar a
+ * posição nesse instante é sempre contínuo — não porque o conteúdo da
+ * imagem foi desenhado para fechar nas bordas, mas porque o ladrilho de
+ * cima é PIXEL POR PIXEL igual ao de baixo. A costura só apareceria se o
+ * passo do laço não fosse um múltiplo exato da altura do ladrilho.
  *
  * ── Fixo à JANELA, não ao documento ────────────────────────────────────────
  *
  * Ao contrário da onda da HOME (que rola com o conteúdo — ver o comentário
  * em `WaveField`/`tq-wave`), isto é o "fundo da tela" pedido: uma cena
  * contínua atrás de tudo, igual em qualquer ponto da rolagem.
+ *
+ * ── Opacidade, e por que fica no CONTÊINER e não na imagem ─────────────────
+ *
+ * "Bem transparente, muito difícil de visualizar" é sobre o EFEITO na tela,
+ * não sobre a arte — regravar o PNG mais fraco perderia informação sem
+ * volta. `opacity` no `<div>` deixa a imagem original intacta em
+ * `public/backgrounds/` e o ajuste fica reversível, num lugar só.
  *
  * ── Movimento, e quem manda nele ───────────────────────────────────────────
  *
@@ -48,64 +48,22 @@ interface Props {
   pausado?: boolean;
 }
 
-interface Brasa {
-  esquerda: string;
-  atraso: string;
-  duracao: string;
-  altura: string;
-  largura: string;
-  /** Alfa no pico — já embutido na cor, não na opacidade do elemento. */
-  cor: string;
-}
-
-const QUANTIDADE = 26;
-
-function gerarBrasas(): Brasa[] {
-  const brasas: Brasa[] = [];
-  for (let i = 0; i < QUANTIDADE; i++) {
-    const duracaoS = 9 + ((i * 11) % 16); // 9..24s — o passeio até sumir no alto.
-    const atrasoS = (i * 13) % duracaoS; // dentro do próprio ciclo: nasce já em voo.
-    const esquerda = (i * 37) % 100; // espalhado pela largura, sem repetir vizinho.
-    // Bem fina, quase um traço: uma brasa não é uma barra.
-    const altura = 3 + (i % 4) * 1.4;
-    const largura = 1 + (i % 3) * 0.4;
-    // "Muito difícil de visualizar": o pico fica entre 4% e 13% de alfa.
-    const opacidadePico = (0.04 + ((i * 3) % 10) * 0.009).toFixed(3);
-    const cor = i % 2 === 0 ? 'glow' : 'primary';
-    brasas.push({
-      esquerda: `${esquerda}%`,
-      atraso: `-${atrasoS}s`,
-      duracao: `${duracaoS}s`,
-      altura: `${altura}px`,
-      largura: `${largura}px`,
-      cor: `rgb(var(--c-${cor}) / ${opacidadePico})`,
-    });
-  }
-  return brasas;
-}
-
-const BRASAS = gerarBrasas();
+/** Altura nativa de `brasas.png` — o passo do laço de rolagem tem que bater com isto. */
+const ALTURA_PX = 768;
+const LARGURA_PX = 2048;
 
 export function Brasas({ pausado = false }: Props) {
   const { animando } = useAnimacao(false);
   const parada = pausado || !animando;
 
   return (
-    <div className={`tq-brasas${parada ? ' parada' : ''}`} aria-hidden="true">
-      {BRASAS.map((b, i) => (
-        <span
-          key={i}
-          className="tq-brasa"
-          style={{
-            left: b.esquerda,
-            width: b.largura,
-            height: b.altura,
-            background: b.cor,
-            animationDuration: b.duracao,
-            animationDelay: b.atraso,
-          }}
-        />
-      ))}
-    </div>
+    <div
+      className={`tq-brasas${parada ? ' parada' : ''}`}
+      aria-hidden="true"
+      style={{
+        backgroundImage: `url(${chrome.runtime.getURL('backgrounds/brasas.png')})`,
+        backgroundSize: `${LARGURA_PX}px ${ALTURA_PX}px`,
+      }}
+    />
   );
 }
