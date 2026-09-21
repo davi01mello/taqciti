@@ -52,19 +52,22 @@ interface Props {
 /**
  * O tamanho do ladrilho controla DUAS coisas ao mesmo tempo, e elas puxam
  * para lados opostos: encolher deixa cada fagulha menor, mas também faz o
- * MESMO ladrilho repetir mais vezes na tela — e foi isso que leu como
- * "sujo" em 0.32: as ~50 fagulhas da imagem viravam centenas de cópias
- * visíveis ao mesmo tempo. 0.5 é o meio-termo: ainda claramente menor que
- * o nativo, mas sem repetir tanto a ponto de virar ruído. A opacidade mais
- * baixa (ver `global.css`) é quem termina o trabalho de "menor
- * quantidade" — mais fraco lê como mais raro, mesmo repetindo igual.
+ * MESMO ladrilho repetir mais vezes na tela (mais "quantidade"); crescer
+ * faz o oposto — cada fagulha maior, e o ladrilho repete MENOS.
+ *
+ * "Extremamente escassas" pede pouca REPETIÇÃO, não fagulha pequena — daí
+ * a escala ter subido bastante (era 0.5, foi para 1.6): num ladrilho maior
+ * que a própria janela, boa parte das ~50 fagulhas da imagem original nem
+ * chega a se repetir, e o que se vê por vez é só um punhado delas. A
+ * opacidade mais alta (ver `global.css`) é o "mais vívidas" — cada uma
+ * conta mais, já que agora são poucas.
  *
  * `--altura-ladrilho` carrega essa altura para o `@keyframes` em
  * `global.css` — UMA fonte para os dois lados do laço (o tamanho do
  * ladrilho aqui, o passo da rolagem lá), em vez de dois números copiados
  * que podem parar de bater.
  */
-const ESCALA = 0.5;
+const ESCALA = 1.6;
 const ALTURA_PX = Math.round(768 * ESCALA);
 const LARGURA_PX = Math.round(2048 * ESCALA);
 
