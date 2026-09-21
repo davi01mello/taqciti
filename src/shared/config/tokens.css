@@ -60,49 +60,6 @@
   --color-text: rgb(244 247 250);
   --color-text-secondary: rgb(148 163 177);
 
-  /*
-   * A textura do fundo escuro — pontos brancos e verdes, pouquíssimos, só
-   * para o grafite não ler como preto chapado. Cada ponto é a SUA PRÓPRIA
-   * camada de `background`, com o `background-size` fazendo de grade de
-   * repetição — por isso os tamanhos não são múltiplos uns dos outros
-   * (480, 640, 720, 560, 860px): grades que não coincidem não mostram
-   * onde o padrão se repete. Parado, sem brilho, sem animação — é textura,
-   * não sinal; o verde que importa continua só onde `--c-glow` já aparece.
-   *
-   * Uso: `background: var(--bg-estrelas), rgb(17 18 19);` — o último item
-   * da lista é a cor de base de toda a pilha.
-   */
-  --bg-estrelas: radial-gradient(
-        1.4px 1.4px at 22% 35%,
-        rgb(255 255 255 / 0.5),
-        transparent 100%
-      )
-      0 0 / 480px 480px repeat,
-    radial-gradient(
-        1.1px 1.1px at 68% 72%,
-        rgb(255 255 255 / 0.35),
-        transparent 100%
-      )
-      0 0 / 640px 640px repeat,
-    radial-gradient(
-        1.3px 1.3px at 84% 18%,
-        rgb(255 255 255 / 0.4),
-        transparent 100%
-      )
-      0 0 / 720px 720px repeat,
-    radial-gradient(
-        1.3px 1.3px at 12% 62%,
-        rgb(var(--c-glow) / 0.45),
-        transparent 100%
-      )
-      0 0 / 560px 560px repeat,
-    radial-gradient(
-        1.1px 1.1px at 46% 90%,
-        rgb(var(--c-glow) / 0.3),
-        transparent 100%
-      )
-      0 0 / 860px 860px repeat;
-
   /* ── Traço ──────────────────────────────────────────────────────────────
    * Borda nunca é linha: é o fio de luz onde a placa de vidro termina. Três
    * intensidades, da que separa camadas à que só insinua um limite.

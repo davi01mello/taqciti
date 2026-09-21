@@ -47,8 +47,7 @@
  */
 html,
 body {
-  /* A textura de estrelas — ver o comentário em `--bg-estrelas`, tokens.css. */
-  background: var(--bg-estrelas), rgb(17 18 19);
+  background: rgb(17 18 19);
 }
 
 .tq-home {

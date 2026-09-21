@@ -56,6 +56,7 @@ import {
 } from '@/home/conversations';
 import type { MeetingState } from '@/shared/types/domain';
 import type { EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
+import { BarrasDoOceano } from '@/shared/ui/BarrasDoOceano';
 import { Icon } from '@/shared/ui/Icon';
 import { Wordmark } from '@/shared/ui/Wordmark';
 import { Conversa } from './Conversa';
@@ -235,6 +236,7 @@ export function App() {
   if (perguntando && detectada) {
     return (
       <div className="tq-side">
+        <BarrasDoOceano />
         <Cabecalho onHome={() => abrirHome()} />
         <Pergunta
           titulo={detectada.title}
@@ -250,6 +252,7 @@ export function App() {
 
   return (
     <div className="tq-side">
+      <BarrasDoOceano />
       <Cabecalho onHome={() => abrirHome()} />
 
       <Seletores

@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHistoryState } from '@/features/history/useHistory';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
+import { BarrasDoOceano } from '@/shared/ui/BarrasDoOceano';
 import { Icon } from '@/shared/ui/Icon';
 import { AssistantView } from './AssistantView';
 import { ConversasMenu } from './ConversasMenu';
@@ -146,6 +147,7 @@ export function HomePage() {
 
   return (
     <div className={`tq-home${navAberta ? ' nav-aberta' : ''}`}>
+      <BarrasDoOceano pausado={!animando} />
       <header className="tq-topo">
         <div className="tq-brand" aria-label="TaqCiti">
           <img src={chrome.runtime.getURL('brand/taqciti-mark.png')} alt="" draggable={false} />
