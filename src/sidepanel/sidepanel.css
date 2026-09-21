@@ -874,6 +874,16 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  /*
+   * A rolagem que acompanha a resposta chegando (ver `Conversa.tsx`) já
+   * calcula o alvo na mão a cada trecho novo. A ANCORAGEM NATIVA do
+   * navegador tenta fazer a mesma coisa por conta própria sempre que o
+   * texto cresce e o layout se ajusta — e as duas contas brigam: o
+   * navegador corrige a rolagem para trás no meio da correção que o JS
+   * acabou de fazer para frente, e o resultado é o salto que quebra e
+   * volta abruptamente. Desligada aqui porque só há UM dono da rolagem.
+   */
+  overflow-anchor: none;
 }
 
 .tq-conversa-topo {
