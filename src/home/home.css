@@ -941,10 +941,15 @@ body {
   padding: 18px 21px;
   border: 1px solid rgb(255 255 255 / 0.05);
   border-radius: 14px;
-  /* Translúcido: a onda continua visível atrás da lista. */
-  background: rgb(33 34 36 / 0.72);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /*
+   * Translúcido, mas SEM `backdrop-filter`: isto é item de lista — o mesmo
+   * papel de `.glass-subtle` em glass.css, que por design não desfoca (ver o
+   * comentário de lá: "numa lista de reuniões que rola, um blur por item
+   * derruba o scroll"). Com N itens na tela, eram N regiões desfocando o
+   * fundo animado a cada quadro; a transparência sozinha já deixa o fundo
+   * atravessar, só que nítido em vez de fosco.
+   */
+  background: rgb(33 34 36 / 0.82);
   cursor: pointer;
   transition:
     background 0.3s,
@@ -1007,9 +1012,8 @@ body {
 }
 
 .tq-guia details {
-  background: rgb(33 34 36 / 0.72);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* Mesmo motivo de `.tq-item` acima: item de lista não desfoca. */
+  background: rgb(33 34 36 / 0.82);
   border: 1px solid rgb(255 255 255 / 0.06);
   border-radius: 14px;
   padding: 16px 20px;

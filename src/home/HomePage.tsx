@@ -356,13 +356,19 @@ export function HomePage() {
          * O fundo vive AQUI, dentro do fluxo, e não preso na janela: é o que
          * faz a onda sair da tela ao subir para reler o histórico. Ela é a
          * última camada, e não intercepta nada.
+         *
+         * Só existe na seção "assistente" — que é o "palco da conversa" do
+         * comentário de `WaveField.tsx`, o único lugar onde ela significa
+         * algo. Nas outras seções ela ficava montada em modo `discreta`
+         * (recuada, mas ainda desenhando milhares de partículas por quadro) —
+         * e como essas seções mostram LISTAS com `backdrop-filter` por item
+         * (`.tq-item`), cada item precisava reborrar o fundo animado atrás
+         * dele a cada quadro. Desmontar em vez de recuar tira esse custo
+         * inteiro fora do palco da conversa.
          */}
-        <WaveField
-          estado={estadoDaOnda}
-          animando={animando}
-          pulso={pulso}
-          discreta={secao !== 'assistente'}
-        />
+        {secao === 'assistente' && (
+          <WaveField estado={estadoDaOnda} animando={animando} pulso={pulso} discreta={false} />
+        )}
 
         {secao === 'assistente' && (
           <AssistantView
