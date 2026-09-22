@@ -218,8 +218,15 @@ describe('validadeDoCache', () => {
   // o teste quer afirmar.
   it('desconta a margem e respeita o teto', () => {
     const agora = agoraEmSegundos();
+    // Bem acima do teto: a folga de arredondar `agora` para segundos inteiros
+    // desaparece dentro do `Math.min`, e o resultado é exatamente o teto.
     expect(validadeDoCache(String(agora + 3599))).toBe(5 * 60 * 1000);
-    expect(validadeDoCache(agora + 60)).toBe(30 * 1000);
+    // Perto o bastante do valor exato para não bater no teto: aqui a mesma
+    // folga (até 999ms de truncamento, mais o tempo real decorrido até esta
+    // linha rodar) importa, então a checagem é por faixa, não igualdade.
+    const validade = validadeDoCache(agora + 60);
+    expect(validade).toBeGreaterThan(28 * 1000);
+    expect(validade).toBeLessThanOrEqual(30 * 1000);
   });
 
   it('vencido, quase vencendo ou ilegível vira zero — não guardar', () => {

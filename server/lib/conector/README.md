@@ -71,6 +71,9 @@ o `MeetingRecord` do storage: a projeção magra é o orçamento.
 | `busca.ts` | ranqueamento e extração de trecho, com a coordenada do acerto |
 | `ferramentas.ts` | as quatro ferramentas |
 | `despacho.ts` | catálogo MCP + roteador, independente de protocolo |
+| `chatgpt.ts` | a tradução de `search`/`fetch` para o contrato da OpenAI |
+| `mcp.ts` | a ponte JSON-RPC: catálogo, chamadas, e `structuredContent` |
+| `atenderMcp.ts` | a casca HTTP — token, transporte, e o fechamento sem cortar |
 | `acervoDeMemoria.ts` | `Acervo` em arrays — é contra ele que a disciplina é verificada |
 | `esquema.sql` | as tabelas, aplicáveis por cima de si mesmas |
 | `banco.ts` | o pool e a interface `Consultador` (independente de driver) |
@@ -125,7 +128,7 @@ casaria "deployamos" com "deploy", que o ranqueamento não casa, e peneira e
 ranqueamento precisam falar a mesma língua.
 
 Efeito colateral bom: nenhuma extensão é necessária, então o mesmo
-`esquema.sql` roda igual no Railway e no PGlite dos testes.
+`esquema.sql` roda igual na Supabase e no PGlite dos testes.
 
 `despachar(acervo, nome, argumentos)` é uma função pura. O transporte —
 JSON-RPC, stdio, ou uma chamada direta de dentro da HOME — fica de fora de
@@ -145,7 +148,7 @@ lê, só quebra.
 cd server && npx vitest run lib/conector
 ```
 
-56 testes, **sem precisar de banco nenhum** — e mesmo assim o SQL é de
+90 testes, **sem precisar de banco nenhum** — e mesmo assim o SQL é de
 verdade. Dois blocos carregam o peso:
 
 `describe('o teto é real')` constrói doze reuniões de seis horas, um documento
@@ -226,7 +229,7 @@ POST /api/sync ──────────────►  Postgres
 POST /api/conector/token ──────►  token_do_conector
    devolve a URL uma vez           │  (só o hash)
                                    ▼
-                              GET/POST /api/mcp?token=… ◄──── conecta
+                              POST /api/mcp/<token> ◄──────── conecta
                                    │
                               buscar → ler → conteudo
 ```
@@ -234,8 +237,64 @@ POST /api/conector/token ──────►  token_do_conector
 `/api/mcp` é sem sessão (`sessionIdGenerator: undefined`): cada requisição
 monta um servidor, responde e morre. As quatro ferramentas são de leitura e
 não guardam nada entre chamadas, então não há estado que uma sessão
-preservasse — e um mapa de sessões na memória do processo quebraria a cada
-reimplantação do Railway e mandaria o cliente para a réplica errada.
+preservasse — e um mapa de sessões na memória do processo mandaria o cliente
+para a instância errada assim que houvesse mais de uma, que na Vercel é o
+caso normal.
+
+## Três coisas que só um cliente de verdade revelou
+
+Nada aqui apareceu em teste, em `curl` ou em log. Todas as três foram
+encontradas tentando conectar de verdade, e as três produziam sintomas que
+pareciam sucesso.
+
+**1. Resposta em JSON, não em SSE.** No padrão, o transporte devolve uma
+`Response` cujo corpo é um stream que ele ainda vai preencher — e o `finally`
+que fecha o transporte corria na frente. O cliente recebia **200 com corpo
+vazio** e ficava esperando até estourar o tempo. Status 200, log de sucesso,
+`curl` "funcionando": três sinais verdes sobre uma coisa quebrada. Hoje é
+`enableJsonResponse: true`, e a resposta é materializada antes do `finally`.
+
+**2. O token vai no CAMINHO, não na query.** A Claude verifica o servidor
+sondando a URL **sem a query string** — a especificação define a URI canônica
+de um servidor MCP sem query nem fragmento, então quem canonicaliza antes de
+sondar perde o `?token=`. A sonda levava 401, e a tela dizia "não foi possível
+determinar como este servidor faz login". `/api/mcp?token=` continua atendido,
+para endereços já colados por aí não quebrarem.
+
+**3. Nada de `WWW-Authenticate` no 401.** Mandar esse cabeçalho SINALIZA
+"sou um recurso OAuth 2.1", e um cliente que segue a especificação vai atrás
+de `/.well-known/oauth-protected-resource`, de um servidor de autorização e de
+**registro dinâmico de cliente** (RFC 7591). Nada disso existe aqui, de
+propósito — e a Claude falhava com "não foi possível registrar no serviço de
+login do TaqCiti". O cabeçalho prometia um protocolo que este servidor nunca
+implementou.
+
+Isto nos deixa **fora da conformidade estrita**: a especificação manda enviar
+o cabeçalho e proíbe token na URL. A alternativa conforme é montar um servidor
+OAuth 2.1 inteiro (descoberta, registro dinâmico, PKCE) só para autenticar —
+exatamente a máquina que o requisito "sem login" recusa. A escolha é
+consciente, e está aqui escrita para ser revista quando o requisito mudar.
+
+## O contrato do ChatGPT é outro
+
+A Claude lê as quatro ferramentas nomeadas e o JSON que elas devolvem. O
+ChatGPT não: ele procura duas ferramentas de nome fixo e campos de nome fixo,
+e ignora o resto.
+
+```
+search → { results: [ { id, title, url } ] }
+fetch  → { id, title, text, url, metadata? }
+```
+
+E as duas precisam vir **duas vezes**: em `structuredContent` e como string
+JSON dentro de `content`. A documentação da OpenAI é explícita — a segunda
+cópia existe "para compatibilidade". Mandar só uma faz o conector aparecer
+conectado e não devolver nada.
+
+O `url` é usado para CITAR a fonte, então ele aponta para `/item/<id>` deste
+servidor: uma página real que diz o que aquele item é e **não** mostra
+conteúdo (não há autenticação ali, então não pode mostrar). Sem isso, toda
+citação do ChatGPT seria um link quebrado.
 
 `mcp.ts` usa a classe `Server` do SDK, e não `McpServer`: o catálogo já
 existe em `despacho.ts`, em JSON Schema. Passar por `McpServer` exigiria
@@ -249,10 +308,11 @@ ninguém está olhando.
    única peça que não é código. Sem ela a página Conexões mostra `sem-oauth`.
    Ver `docs/google-oauth-setup.md` — inclui o redirect URI exato a cadastrar.
 2. **`GOOGLE_OAUTH_WEB_CLIENT_ID` no servidor** (o mesmo id do `.env` da
-   extensão), e `TAQCITI_DOMINIO_PERMITIDO=citi.org.br` para restringir ao
-   CITi.
-3. **`DATABASE_URL`** — plugin de Postgres do Railway — e aplicar
-   `esquema.sql` uma vez.
+   extensão). `TAQCITI_DOMINIO_PERMITIDO` fica **vazio** de propósito: quem
+   usa a Claude não necessariamente paga por ela numa conta `@citi.org.br`, e
+   restringir por domínio barraria gente legítima.
+3. **`DATABASE_URL`** — a do pooler da Supabase, ver "Subir o banco" — e
+   aplicar `esquema.sql` uma vez.
 
 ### O que os testes não cobrem
 
@@ -264,15 +324,29 @@ injetado, descrevendo o que o `tokeninfo` responderia. Isso prova a lógica —
 formato descrito é o que o Google devolve hoje. Só se confirma na primeira
 sincronização real.
 
-**A casca HTTP do MCP.** `mcp.test.ts` liga um `Client` de verdade ao nosso
-servidor por transporte em memória: o handshake, o catálogo e as chamadas são
-protocolo real. O que fica de fora é `app/api/mcp/route.ts` — autenticação
-por token, e o `WebStandardStreamableHTTPServerTransport` sobre um `Request`
-do Next. É casca fina, mas é casca não testada.
+**A casca HTTP do MCP — hoje coberta, e vale saber por quê.** Era o buraco
+listado aqui, e o bug do corpo vazio estava exatamente nele. `atenderMcp.test.ts`
+cobre agora: token no caminho, token revogado, isolamento entre pessoas,
+tolerância a `Accept` incompleto, e a asserção central — **o corpo tem o
+resultado dentro e é JSON parseável**, não só "respondeu 200".
+
+O que essas asserções pegam é a CONFIGURAÇÃO que causava a corrida, não o
+instante em que ela acontecia: dentro do processo o stream se enche rápido
+demais para a corrida aparecer. Reproduzi-la exigiria o tempo de rede de um
+ambiente serverless. É a proteção possível, e basta, porque a corrida só volta
+se alguém voltar ao modo SSE — e aí os testes ficam vermelhos.
 
 ### Subir o banco
 
-Produção: plugin de Postgres do Railway, que fornece `DATABASE_URL`.
+Produção: **Supabase**, e a `DATABASE_URL` precisa ser a do **pooler**
+(Supavisor, porta 6543), não a "Direct connection".
+
+Isto não é sobre performance. A conexão direta da Supabase responde só em
+IPv6, e a função serverless da Vercel não tem saída IPv6: a direta falha com
+`getaddrinfo ENOTFOUND` em produção **mesmo funcionando na sua máquina**, que
+tem IPv6. O usuário do pooler também muda — é `postgres.<ref-do-projeto>`, não
+`postgres`, que é como o Supavisor sabe para qual projeto rotear.
+
 `aplicarEsquema()` existe para um passo de deploy — de propósito **não** roda
 no boot: um processo que altera schema ao subir é um processo que altera
 schema em toda réplica, ao mesmo tempo, na hora do pico.
@@ -284,10 +358,3 @@ docker run -d --name taqciti-pg -e POSTGRES_PASSWORD=taqciti \
   -e POSTGRES_DB=taqciti -p 55432:5432 postgres:17-alpine
 # DATABASE_URL=postgres://postgres:taqciti@localhost:55432/taqciti
 ```
-
-### Um ponto não verificado
-
-Os aliases `search` e `fetch` em `despacho.ts` existem porque o conector de
-pesquisa profunda do ChatGPT espera esses dois nomes. **Essa convenção não foi
-conferida contra a documentação atual do ChatGPT** — custa vinte linhas, não
-atrapalha a Claude, e se o contrato real for outro é só ali que se mexe.

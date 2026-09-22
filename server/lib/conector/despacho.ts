@@ -18,12 +18,16 @@
  * pesquisa profunda do ChatGPT espera esses dois nomes especificamente — é
  * uma convenção do lado dele, não um desenho nosso.
  *
- * ATENÇÃO: essa convenção é a parte deste arquivo que NÃO foi verificada
- * contra a documentação atual do ChatGPT. Ela custa vinte linhas e não atrapalha
- * a Claude (que usa as quatro nomeadas); se na hora de plugar o ChatGPT o
- * contrato for outro, é aqui que se mexe, e só aqui.
+ * O contrato dessas duas (nomes dos campos, e a resposta precisando vir tanto
+ * em `structuredContent` quanto como string JSON em `content`) está
+ * implementado em `chatgpt.ts`, conforme a documentação da OpenAI. Ele é
+ * diferente do formato das quatro nomeadas, e por isso mora num arquivo só
+ * dele em vez de espalhado aqui.
+ *
+ * Elas não atrapalham a Claude, que usa as quatro nomeadas e ignora estas.
  */
 import { ORCAMENTO } from './orcamento';
+import { paraBuscaDoChatGpt, paraDocumentoDoChatGpt } from './chatgpt';
 import {
   DESCRICOES,
   ErroDeUso,
@@ -142,7 +146,9 @@ export const FERRAMENTAS: readonly DefinicaoDeFerramenta[] = [
   // ---- Compatibilidade com o ChatGPT. Ver o cabeçalho do arquivo. ----
   {
     name: 'search',
-    description: `Alias de \`buscar\`, para clientes que esperam este nome. ${DESCRICOES.buscar}`,
+    description:
+      'Procura no acervo e devolve `results` com `id`, `title` e `url`. Alias de ' +
+      `\`buscar\` no formato que o ChatGPT espera. ${DESCRICOES.buscar}`,
     inputSchema: {
       type: 'object',
       properties: { query: { type: 'string' } },
@@ -153,9 +159,9 @@ export const FERRAMENTAS: readonly DefinicaoDeFerramenta[] = [
   {
     name: 'fetch',
     description:
-      'Alias de leitura para clientes que esperam este nome: devolve o envelope do ' +
-      'item E a primeira fatia do corpo numa só resposta. Para continuar, use ' +
-      '`conteudo` com o `proximo` devolvido.',
+      'Traz um item pelo `id` devolvido por `search`, com `title`, `text` e `url`. ' +
+      'O `text` é o começo do corpo, não o item inteiro: quando há mais, a última ' +
+      'linha diz como continuar com `conteudo`.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -215,6 +221,8 @@ export async function despachar(
   acervo: Acervo,
   nome: string,
   argumentos: Record<string, unknown> = {},
+  /** A origem HTTP, só para montar o `url` de citação do ChatGPT. */
+  origem?: string,
 ): Promise<unknown> {
   switch (nome) {
     case 'buscar':
@@ -241,22 +249,26 @@ export async function despachar(
         quantidade: inteiro(argumentos, 'quantidade'),
       });
 
+    // ---- Os dois nomes que o ChatGPT exige. Ver `chatgpt.ts`. ----
     case 'search':
-      return ferramentaBuscar(acervo, {
-        consulta: texto(argumentos, 'query') ?? texto(argumentos, 'consulta') ?? '',
-      });
+      return paraBuscaDoChatGpt(
+        await ferramentaBuscar(acervo, {
+          consulta: texto(argumentos, 'query') ?? texto(argumentos, 'consulta') ?? '',
+        }),
+        origem,
+      );
 
     case 'fetch': {
       // Envelope + primeira fatia. O cliente que usa `fetch` espera "o
       // documento", e devolver só o envelope o deixaria sem conteúdo nenhum;
       // devolver o corpo inteiro é o que o orçamento proíbe. A primeira fatia
-      // com `proximo` é a resposta honesta às duas coisas.
+      // com a instrução de continuar é a resposta honesta às duas coisas.
       const id = exigirId(argumentos);
       const [envelope, corpo] = await Promise.all([
         ferramentaLer(acervo, id),
         ferramentaConteudo(acervo, { id, de: 0 }),
       ]);
-      return { ...envelope, primeiraFatia: corpo };
+      return paraDocumentoDoChatGpt(envelope, corpo, origem);
     }
 
     default:

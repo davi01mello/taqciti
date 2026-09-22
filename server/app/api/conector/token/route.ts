@@ -39,10 +39,14 @@ export function OPTIONS(request: NextRequest): NextResponse {
  * constante fixa entregaria o domínio de produção para quem está em
  * desenvolvimento — um endereço que funciona em toda tela e falha só na hora
  * de conectar.
+ *
+ * O token vai no CAMINHO, não em `?token=`: a Claude descarta a query string
+ * ao verificar o servidor, e o endereço com query fazia ela avisar que não
+ * sabia como o servidor autentica. Ver o cabeçalho de `app/api/mcp/[token]`.
  */
 function urlDoConector(request: NextRequest, token: string): string {
   const origem = new URL(request.url).origin;
-  return `${origem}/api/mcp?token=${encodeURIComponent(token)}`;
+  return `${origem}/api/mcp/${encodeURIComponent(token)}`;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

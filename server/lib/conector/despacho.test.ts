@@ -98,20 +98,28 @@ describe('tolerância a argumento torto', () => {
 });
 
 describe('aliases do ChatGPT', () => {
-  it('`search` aceita `query`', async () => {
+  // O formato destas duas é ditado pela OpenAI, não por nós — `results` com
+  // `{id, title, url}`, e `fetch` com `{id, title, text, url}`. Ver
+  // `chatgpt.ts`, onde a tradução mora, e `chatgpt.test.ts`, onde o contrato
+  // é verificado campo a campo.
+  //
+  // Antes daqui, estes testes afirmavam o formato NOSSO (`itens`,
+  // `primeiraFatia`) sob os nomes do ChatGPT — ou seja, verificavam com
+  // precisão uma resposta que o ChatGPT não consegue ler.
+  it('`search` aceita `query` e devolve `results`', async () => {
     const r = (await despachar(acervo(), 'search', { query: 'deploy' })) as {
-      itens: unknown[];
+      results: unknown[];
     };
-    expect(r.itens.length).toBeGreaterThan(0);
+    expect(r.results.length).toBeGreaterThan(0);
   });
 
-  it('`fetch` traz envelope E a primeira fatia, com o caminho para continuar', async () => {
+  it('`fetch` traz o corpo em `text`, com o caminho para continuar', async () => {
     const r = (await despachar(acervo(), 'fetch', { id: 'reuniao:r1' })) as {
-      corpo: { total: number };
-      primeiraFatia: { itens: unknown[]; total: number };
+      title: string;
+      text: string;
     };
-    expect(r.corpo.total).toBe(2);
-    expect(r.primeiraFatia.itens).toHaveLength(2);
+    expect(r.title).toBeTruthy();
+    expect(r.text.length).toBeGreaterThan(0);
   });
 
   it('`fetch` num item enorme não devolve o item enorme', async () => {

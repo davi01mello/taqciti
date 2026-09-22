@@ -224,11 +224,39 @@ describe('o conector por MCP', () => {
     expect(lidas).toBe(121);
   });
 
-  it('o alias `fetch` traz envelope e primeira fatia', async () => {
+  it('o alias `fetch` devolve o documento nos campos que o ChatGPT lê', async () => {
     const r = await cliente.callTool({ name: 'fetch', arguments: { id: 'documento:d1' } });
-    const corpo = json<{ titulo: string; primeiraFatia: { itens: unknown[] } }>(r);
-    expect(corpo.titulo).toBe('Ata do planejamento');
-    expect(corpo.primeiraFatia.itens.length).toBeGreaterThan(0);
+    const corpo = json<{ title: string; text: string; url: string }>(r);
+    expect(corpo.title).toBe('Ata do planejamento');
+    expect(corpo.text.length).toBeGreaterThan(0);
+    expect(corpo.url).toContain('/item/');
+  });
+
+  it('`search` e `fetch` também vêm em structuredContent, como a OpenAI exige', async () => {
+    // As duas metades: a estruturada é a que o ChatGPT lê, a de texto existe
+    // por compatibilidade. Mandar só uma faz o conector aparecer conectado e
+    // não devolver nada — falha silenciosa, a pior de diagnosticar.
+    const busca = (await cliente.callTool({
+      name: 'search',
+      arguments: { query: 'planejamento' },
+    })) as { structuredContent?: { results?: unknown[] } };
+    expect(busca.structuredContent?.results).toBeInstanceOf(Array);
+
+    const doc = (await cliente.callTool({
+      name: 'fetch',
+      arguments: { id: 'documento:d1' },
+    })) as { structuredContent?: { title?: string } };
+    expect(doc.structuredContent?.title).toBe('Ata do planejamento');
+  });
+
+  it('as quatro nomeadas NÃO ganham structuredContent', async () => {
+    // O formato delas é o nosso, descrito na própria ferramenta. Duplicar em
+    // `structuredContent` criaria uma segunda descrição para divergir depois.
+    const r = (await cliente.callTool({
+      name: 'buscar',
+      arguments: { consulta: 'planejamento' },
+    })) as { structuredContent?: unknown };
+    expect(r.structuredContent).toBeUndefined();
   });
 
   it('a nota chega com a contagem de prints, sem imagem nenhuma', async () => {

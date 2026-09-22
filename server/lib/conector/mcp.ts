@@ -33,7 +33,17 @@ import type { Acervo } from './tipos';
 /** A versão anunciada ao cliente. Acompanha a do `package.json` da extensão. */
 const VERSAO = '2.1.2';
 
-export function construirServidorMcp(acervo: Acervo): Server {
+/**
+ * Os dois nomes cuja resposta o ChatGPT lê por `structuredContent`.
+ * Ver `chatgpt.ts` para o contrato.
+ */
+const DO_CHATGPT = new Set(['search', 'fetch']);
+
+export function construirServidorMcp(
+  acervo: Acervo,
+  /** A origem HTTP, para o `url` de citação. Ausente fora de uma requisição. */
+  origem?: string,
+): Server {
   const servidor = new Server(
     { name: 'taqciti', version: VERSAO },
     {
@@ -67,11 +77,19 @@ export function construirServidorMcp(acervo: Acervo): Server {
   servidor.setRequestHandler(CallToolRequestSchema, async (pedido) => {
     const { name, arguments: argumentos } = pedido.params;
     try {
-      const resultado = await despachar(acervo, name, argumentos ?? {});
+      const resultado = await despachar(acervo, name, argumentos ?? {}, origem);
       return {
-        // Texto com JSON, e não `structuredContent`: é o formato que todo
-        // cliente de MCP entende hoje, e o conteúdo já é compacto por
-        // construção (ver `orcamento.ts`) — não há ganho em duplicá-lo.
+        // Para as quatro ferramentas nomeadas: texto com JSON, que é o
+        // formato que todo cliente de MCP entende, e o conteúdo já é
+        // compacto por construção (ver `orcamento.ts`).
+        //
+        // Para `search` e `fetch`: TAMBÉM `structuredContent`. A documentação
+        // da OpenAI exige as duas metades — a estruturada é a que ele lê, a
+        // de texto existe "para compatibilidade". Mandar só uma faz o
+        // conector aparecer conectado e não devolver nada.
+        ...(DO_CHATGPT.has(name)
+          ? { structuredContent: resultado as Record<string, unknown> }
+          : {}),
         content: [{ type: 'text' as const, text: JSON.stringify(resultado) }],
       };
     } catch (erro) {
