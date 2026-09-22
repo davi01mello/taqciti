@@ -25,7 +25,7 @@
  * só ONDE na URL — e essa escolha é sobre funcionar, não sobre segurança.
  */
 import type { NextRequest } from 'next/server';
-import { atenderMcp, naoAutorizado } from '@/lib/conector/atenderMcp';
+import { atenderMcp, credencialRecusada } from '@/lib/conector/atenderMcp';
 
 /**
  * Node, e não Edge: o driver `pg` abre socket TCP, que o runtime de borda não
@@ -40,7 +40,8 @@ async function atender(request: NextRequest, { params }: Contexto): Promise<Resp
   const { token } = await params;
   const limpo = decodeURIComponent(token ?? '').trim();
   if (!limpo) {
-    return naoAutorizado(
+    return credencialRecusada(
+      request,
       'Falta o token do conector. Gere um endereço na seção Conexões do TaqCiti.',
     );
   }

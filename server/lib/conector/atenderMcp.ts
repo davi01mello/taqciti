@@ -27,22 +27,92 @@ import { construirServidorMcp } from '@/lib/conector/mcp';
 import { pessoaDoToken } from '@/lib/identidade/tokenDoConector';
 
 /**
- * 401 SEM `WWW-Authenticate`, e essa ausência é deliberada.
+ * A recusa por credencial NÃO é 401: é 200 com erro JSON-RPC no corpo.
  *
- * A especificação do MCP diz que um 401 com esse cabeçalho SINALIZA "este
- * servidor é um recurso OAuth 2.1" — e manda o cliente ir buscar
- * `/.well-known/oauth-protected-resource`, descobrir um servidor de
- * autorização e tentar REGISTRO DINÂMICO DE CLIENTE (RFC 7591) contra ele.
+ * ── Por que não 401 ───────────────────────────────────────────────────────
  *
- * Foi exatamente isso que aconteceu na prática: a Claude tentou "registrar no
- * serviço de login do TaqCiti" e falhou, porque não existe servidor de
- * autorização aqui — de propósito, para não exigir login. O cabeçalho antigo
- * prometia um protocolo que este servidor nunca implementou.
+ * Um 401 vindo de um endereço de MCP faz o cliente concluir que aqui existe
+ * OAuth 2.1: ele vai buscar `/.well-known/oauth-protected-resource`, depois um
+ * servidor de autorização, depois tenta REGISTRO DINÂMICO DE CLIENTE
+ * (RFC 7591). Nada disso existe neste servidor, de propósito — a credencial é
+ * o token que a pessoa copia de Conexões, e não há tela de login para montar.
  *
- * Sem o cabeçalho, o 401 continua sendo 401 — só não aciona a descoberta.
+ * A primeira versão mandava `WWW-Authenticate` no 401 e a Claude falhava com
+ * "não foi possível registrar no serviço de login do TaqCiti". Tirar o
+ * cabeçalho resolveu na época; hoje não resolve mais. Log de produção, com a
+ * resposta 401 já sem cabeçalho nenhum:
+ *
+ *   POST /api/mcp  origemDoToken:"query"  401-token-invalido
+ *     agente: Claude-User   mcp-protocol-version: 2026-07-28
+ *
+ *   ...e na tela: "Não foi possível registrar no serviço de login de TaqCiti."
+ *
+ * Ou seja: o cliente atual sai à procura de OAuth diante de QUALQUER 401, com
+ * cabeçalho ou sem. Enquanto a recusa for 401, quem digitou um token errado ou
+ * revogado recebe um texto sobre serviço de login e um pedido de OAuth Client
+ * ID — nada que aponte para o problema real, que é a credencial.
+ *
+ * Com 200 e o erro no corpo, o cliente entrega ao usuário a MENSAGEM que está
+ * aqui: "Token inválido ou revogado. Gere outro endereço em Conexões." É a
+ * frase que resolve o problema de quem está lendo.
+ *
+ * O preço, escrito para quem for revisar isto: um monitor de uptime que olhe
+ * só o status passa a ver 200 onde havia 401, e a conformidade estrita com a
+ * especificação piora mais um passo (ela manda 401 com `WWW-Authenticate`).
+ * A troca é consciente — a mesma da decisão de não ter login: o único cliente
+ * que lê o status aqui é a IA, e o que ela faz com 401 é pior que inútil.
+ *
+ * ── Por que o `id` é ecoado ───────────────────────────────────────────────
+ *
+ * Uma resposta JSON-RPC é casada com a requisição pelo `id`. Com `id: null` o
+ * cliente não reconhece a resposta do `initialize` que ele mandou, e fica
+ * esperando até estourar o tempo — trocaríamos um erro enganoso por um
+ * travamento silencioso. Por isso o corpo da requisição é lido aqui: só para
+ * devolver o mesmo `id`.
  */
-export function naoAutorizado(mensagem: string): NextResponse {
-  return NextResponse.json({ error: mensagem }, { status: 401 });
+const CODIGO_CREDENCIAL = -32003;
+
+/**
+ * O `id` da requisição JSON-RPC, para a resposta casar com ela.
+ *
+ * Nunca lança: o corpo pode ser qualquer coisa — vazio, HTML de uma sonda,
+ * JSON sem `id`. Em todos esses casos `null` é a resposta honesta, e ler o
+ * corpo aqui é seguro porque quem chama esta função já decidiu recusar e não
+ * vai repassar a requisição adiante.
+ */
+async function idDaRequisicao(request: NextRequest): Promise<string | number | null> {
+  if (request.method !== 'POST') return null;
+  try {
+    const corpo: unknown = await request.json();
+    // Um lote JSON-RPC responde em lote; recusar pelo primeiro `id` mantém a
+    // resposta casável, e lote é coisa que nenhum cliente de MCP manda hoje.
+    const primeiro = Array.isArray(corpo) ? corpo[0] : corpo;
+    const id = (primeiro as { id?: unknown } | null | undefined)?.id;
+    return typeof id === 'string' || typeof id === 'number' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A recusa por credencial. Ver o bloco acima para o porquê do status 200. */
+export async function credencialRecusada(
+  request: NextRequest,
+  mensagem: string,
+): Promise<NextResponse> {
+  return NextResponse.json(
+    {
+      jsonrpc: '2.0',
+      error: {
+        // Fora da faixa que o SDK batiza (-32000 ConnectionClosed, -32001
+        // RequestTimeout): um código com significado próprio faria o cliente
+        // desenhar a SUA mensagem por cima da nossa.
+        code: CODIGO_CREDENCIAL,
+        message: mensagem,
+      },
+      id: await idDaRequisicao(request),
+    },
+    { status: 200 },
+  );
 }
 
 /**
@@ -181,8 +251,9 @@ export async function atenderMcp(
   const consultador = pool ?? banco();
 
   if (!recebido.token) {
-    registrar(request, recebido.origem, '401-sem-token');
-    return naoAutorizado(
+    registrar(request, recebido.origem, 'recusa-sem-token');
+    return credencialRecusada(
+      request,
       'Falta o token do conector. Gere um endereço na seção Conexões do TaqCiti.',
     );
   }
@@ -191,8 +262,11 @@ export async function atenderMcp(
   if (!pessoaId) {
     // Mesma resposta para token inexistente e token revogado: distinguir os
     // dois diria a quem está tentando que um valor existiu.
-    registrar(request, recebido.origem, '401-token-invalido');
-    return naoAutorizado('Token inválido ou revogado. Gere outro endereço em Conexões.');
+    registrar(request, recebido.origem, 'recusa-token-invalido');
+    return credencialRecusada(
+      request,
+      'Token inválido ou revogado. Gere outro endereço em Conexões.',
+    );
   }
 
   if (request.method === 'GET') {

@@ -261,19 +261,40 @@ sondar perde o `?token=`. A sonda levava 401, e a tela dizia "não foi possível
 determinar como este servidor faz login". `/api/mcp?token=` continua atendido,
 para endereços já colados por aí não quebrarem.
 
-**3. Nada de `WWW-Authenticate` no 401.** Mandar esse cabeçalho SINALIZA
-"sou um recurso OAuth 2.1", e um cliente que segue a especificação vai atrás
-de `/.well-known/oauth-protected-resource`, de um servidor de autorização e de
-**registro dinâmico de cliente** (RFC 7591). Nada disso existe aqui, de
+**3. A recusa por credencial não pode ser 401 — nem sem `WWW-Authenticate`.**
+Mandar esse cabeçalho SINALIZA "sou um recurso OAuth 2.1", e o cliente vai
+atrás de `/.well-known/oauth-protected-resource`, de um servidor de autorização
+e de **registro dinâmico de cliente** (RFC 7591). Nada disso existe aqui, de
 propósito — e a Claude falhava com "não foi possível registrar no serviço de
-login do TaqCiti". O cabeçalho prometia um protocolo que este servidor nunca
-implementou.
+login do TaqCiti".
 
-Isto nos deixa **fora da conformidade estrita**: a especificação manda enviar
-o cabeçalho e proíbe token na URL. A alternativa conforme é montar um servidor
-OAuth 2.1 inteiro (descoberta, registro dinâmico, PKCE) só para autenticar —
-exatamente a máquina que o requisito "sem login" recusa. A escolha é
-consciente, e está aqui escrita para ser revista quando o requisito mudar.
+Tirar o cabeçalho resolveu, e **parou de resolver**. Em 22/09/2026, com a
+resposta 401 já limpa, o log de produção registrou a mesma falha:
+
+    POST /api/mcp  origemDoToken:"query"  401-token-invalido
+      agente: Claude-User   mcp-protocol-version: 2026-07-28
+
+    ...e na tela: "Não foi possível registrar no serviço de login de TaqCiti."
+
+O cliente atual procura OAuth diante de **qualquer** 401. Enquanto a recusa
+fosse 401, quem colasse um token revogado leria um texto sobre serviço de
+login e um pedido de OAuth Client ID — nada sobre a credencial, que é o
+problema. Hoje a recusa é **200 com erro JSON-RPC no corpo**, ecoando o `id`
+da requisição, e o cliente mostra a frase que resolve: "Token inválido ou
+revogado. Gere outro endereço em Conexões." Ver `credencialRecusada` em
+`atenderMcp.ts`, que registra o preço junto.
+
+Isto nos deixa **fora da conformidade estrita** em três pontos: sem
+`WWW-Authenticate`, com token na URL, e agora sem 401. A alternativa conforme
+é montar um servidor OAuth 2.1 inteiro (descoberta, registro dinâmico, PKCE)
+só para autenticar — exatamente a máquina que o requisito "sem login" recusa.
+A escolha é consciente, e está aqui escrita para ser revista quando o
+requisito mudar.
+
+Uma consequência de operação, para quem for montar monitoramento: **status
+não distingue mais aceito de recusado neste endereço.** Quem quiser alarme de
+credencial tem que olhar `error` no corpo, ou a linha `[mcp]` do log
+(`resultado: "recusa-token-invalido"`).
 
 ## O contrato do ChatGPT é outro
 

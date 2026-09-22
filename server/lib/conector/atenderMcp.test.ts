@@ -202,23 +202,37 @@ describe('atenderMcp', () => {
   });
 
   describe('credencial', () => {
-    it('sem token, 401 — e SEM `WWW-Authenticate`', async () => {
-      // O cabeçalho faz um cliente que segue a especificação sair à procura
-      // de um servidor OAuth e tentar registro dinâmico de cliente, que aqui
-      // não existe. Foi o que quebrou a primeira tentativa de conectar.
+    it('sem token, a recusa vai no CORPO — nada de 401 nem `WWW-Authenticate`', async () => {
+      // Um 401 daqui manda o cliente procurar servidor de autorização e tentar
+      // registro dinâmico de cliente, que neste servidor não existe: a pessoa
+      // lê "não foi possível registrar no serviço de login de TaqCiti" em vez
+      // de saber que o token está errado. Ver o bloco em `atenderMcp.ts`.
       const r = await atenderMcp(requisicao(INICIALIZAR), { token: null, origem: 'ausente' }, pool);
-      expect(r.status).toBe(401);
+      expect(r.status).toBe(200);
       expect(r.headers.get('www-authenticate')).toBeNull();
+
+      const corpo = JSON.parse(await r.text()) as {
+        result?: unknown;
+        error?: { code?: number; message?: string };
+        id?: unknown;
+      };
+      expect(corpo.result).toBeUndefined();
+      expect(corpo.error?.message).toContain('Conexões');
+      // O `id` casa a resposta com a requisição. Sem ele o cliente não
+      // reconhece esta resposta e espera até estourar o tempo — um travamento
+      // silencioso no lugar de uma frase que resolve.
+      expect(corpo.id).toBe(INICIALIZAR.id);
     });
 
-    it('token revogado deixa de valer na hora', async () => {
+    it('token revogado deixa de valer na hora, e diz isso em texto', async () => {
       const { token: descartavel, id } = await criarTokenDoConector(pessoaId, 'curto', pool);
       const antes = await atenderMcp(
         requisicao(INICIALIZAR),
         { token: descartavel, origem: 'caminho' },
         pool,
       );
-      expect(antes.status).toBe(200);
+      const aceito = JSON.parse(await antes.text()) as { result?: { serverInfo?: unknown } };
+      expect(aceito.result?.serverInfo).toBeDefined();
 
       await revogarToken(pessoaId, id, pool);
 
@@ -227,7 +241,16 @@ describe('atenderMcp', () => {
         { token: descartavel, origem: 'caminho' },
         pool,
       );
-      expect(depois.status).toBe(401);
+      // 200 é o status; o que separa aceito de recusado é o corpo. Uma
+      // asserção só de status aqui passaria com o servidor entregando o
+      // acervo para um token revogado.
+      expect(depois.status).toBe(200);
+      const corpo = JSON.parse(await depois.text()) as {
+        result?: unknown;
+        error?: { message?: string };
+      };
+      expect(corpo.result).toBeUndefined();
+      expect(corpo.error?.message).toContain('revogado');
     });
 
     it('o acervo devolvido é o da pessoa do token, não o de outra', async () => {
