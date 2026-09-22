@@ -242,6 +242,24 @@ export function matrixFor(provider: ProviderId): MatrixEntry[] {
 }
 
 /**
+ * Os provedores que a matriz de comparação cobre — DERIVADO dela, nunca escrito
+ * à mão, senão a lista e a matriz divergem no primeiro acréscimo.
+ *
+ * Nem todo provedor implementado está aqui, e isso é estado legítimo:
+ *
+ *  - `mock` nunca entra. Ele não é um fornecedor a comparar; pô-lo na matriz
+ *    faria o harness "medir" um provedor que devolve texto inventado de graça,
+ *    e ele ganharia todas as métricas de custo.
+ *  - `openai` ainda não entrou. Entrar exige escolher os modelos e conferir os
+ *    preços na documentação oficial, e a fase que escreveu o adaptador não
+ *    consulta a rede. Enquanto o preço não estiver na tabela, uma entrada aqui
+ *    produziria custo `undefined` no relatório — ver `estimateCost`.
+ */
+export function providersNaMatriz(): ProviderId[] {
+  return [...new Set(COMPARISON_MATRIX.map((entry) => entry.provider))];
+}
+
+/**
  * Só o que é candidato a produção — exclui preview e free tier. É sobre
  * este conjunto que vale a regra de um teto e um piso por fornecedor: as
  * entradas experimentais existem para responder perguntas laterais, não
@@ -284,7 +302,10 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   const model = raw.slice(separator + 1).trim();
 
   if (!isProviderId(provider)) {
-    throw new Error(`${envVar}: provedor "${provider}" desconhecido. Use anthropic, google ou xai.`);
+    throw new Error(
+      `${envVar}: provedor "${provider}" desconhecido. ` +
+        'Use anthropic, openai, google, xai ou mock.',
+    );
   }
   if (!model) {
     throw new Error(`${envVar}="${raw}": o modelo está vazio.`);
@@ -292,8 +313,122 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   return { provider, model };
 }
 
+// ---------------------------------------------------------------------------
+// Troca global de provedor
+// ---------------------------------------------------------------------------
+
+/**
+ * `LLM_PROVIDER` — o nome COMERCIAL, não o interno.
+ *
+ * Quem escreve a variável pensa em "Claude" e "GPT"; quem lê o código pensa em
+ * `anthropic` e `openai`. Este mapa é a tradução, e ele existe num lugar só
+ * para os dois vocabulários não vazarem um no outro. Os ids internos também são
+ * aceitos — quem já conhece a camada não deveria ser corrigido por ela.
+ */
+const APELIDO_DE_PROVEDOR: Record<string, ProviderId> = {
+  claude: 'anthropic',
+  anthropic: 'anthropic',
+  gpt: 'openai',
+  openai: 'openai',
+  gemini: 'google',
+  google: 'google',
+  grok: 'xai',
+  xai: 'xai',
+  mock: 'mock',
+  fake: 'mock',
+};
+
+/** O modelo usado quando só o PROVEDOR foi escolhido, sem dizer qual modelo. */
+const MODELO_PADRAO_POR_PROVEDOR: Record<ProviderId, string> = {
+  anthropic: 'claude-sonnet-5',
+  // Sem modelo decidido ainda — ver o README da fase e a lista de pendências.
+  openai: 'gpt-4.1-mini',
+  google: 'gemini-3.5-flash',
+  xai: 'grok-4.3',
+  mock: 'mock-1',
+};
+
+export function parseProviderAlias(raw: string, envVar: string): ProviderId {
+  const provedor = APELIDO_DE_PROVEDOR[raw.trim().toLowerCase()];
+  if (!provedor) {
+    throw new Error(
+      `${envVar}="${raw}" desconhecido. Use claude, openai (ou gpt), google, xai ou mock.`,
+    );
+  }
+  return provedor;
+}
+
+/**
+ * Quando o mock é o padrão — e por que não é sempre que `NODE_ENV !==
+ * 'production'`.
+ *
+ * A regra pedida é "mock por padrão em desenvolvimento local". Tomada ao pé da
+ * letra, ela sequestraria o `next dev` de quem TEM chave configurada e está
+ * justamente testando a geração de verdade: o servidor subiria respondendo
+ * `[mock]` sem ninguém ter pedido, e o sintoma (um documento de texto falso)
+ * levaria um tempo até ser entendido.
+ *
+ * A regra implementada é a mesma intenção sem esse efeito: fora de produção, o
+ * mock assume quando NÃO HÁ CHAVE do provedor configurado. Quem não tem chave
+ * ganha um servidor que funciona; quem tem continua com o que configurou. E
+ * `MOCK_LLM=true` força o mock em qualquer ambiente, inclusive com chave — é o
+ * botão explícito, e o que a suíte de testes usa.
+ */
+export function mockPadrao(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.MOCK_LLM?.trim().toLowerCase() === 'true') return true;
+  if (env.NODE_ENV === 'production') return false;
+  if (env.LLM_PROVIDER?.trim()) return false;
+  // Uma chave de qualquer provedor basta: a configuração padrão é por agente e
+  // pode misturar fornecedores.
+  const chaves = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_API_KEY', 'XAI_API_KEY'];
+  return !chaves.some((chave) => env[chave]?.trim());
+}
+
+/**
+ * A precedência, do mais forte para o mais fraco:
+ *
+ *   1. `MOCK_LLM=true`            — o botão de pânico; ignora todo o resto
+ *   2. `DOCCITI_<AGENTE>`         — provedor+modelo de UM agente
+ *   3. `LLM_PROVIDER`             — o provedor de TODOS os agentes
+ *   4. `DEFAULT_AGENT_CONFIG`     — ou o mock, quando não há chave nenhuma
+ *
+ * O override por agente vence o global porque é o mais específico: quem
+ * escreveu `DOCCITI_AUDITOR=mock:mock-1` com `LLM_PROVIDER=claude` está
+ * dizendo "tudo no Claude, menos o auditor", e a ordem inversa tornaria essa
+ * frase impossível de escrever.
+ */
 function buildAgentConfig(): Record<AgentName, AgentModelConfig> {
-  const config = { ...DEFAULT_AGENT_CONFIG };
+  if (process.env.MOCK_LLM?.trim().toLowerCase() === 'true') {
+    return agentConfigFor({
+      id: 'mock',
+      provider: 'mock',
+      tier: 'barato',
+      model: MODELO_PADRAO_POR_PROVEDOR.mock,
+    });
+  }
+
+  const global = process.env.LLM_PROVIDER?.trim();
+  let config: Record<AgentName, AgentModelConfig>;
+
+  if (global) {
+    const provider = parseProviderAlias(global, 'LLM_PROVIDER');
+    config = agentConfigFor({
+      id: `global:${provider}`,
+      provider,
+      tier: 'barato',
+      model: MODELO_PADRAO_POR_PROVEDOR[provider],
+    });
+  } else if (mockPadrao()) {
+    config = agentConfigFor({
+      id: 'mock',
+      provider: 'mock',
+      tier: 'barato',
+      model: MODELO_PADRAO_POR_PROVEDOR.mock,
+    });
+  } else {
+    config = { ...DEFAULT_AGENT_CONFIG };
+  }
+
   for (const agent of AGENT_NAMES) {
     const raw = process.env[ENV_VAR_BY_AGENT[agent]];
     if (raw && raw.trim()) {

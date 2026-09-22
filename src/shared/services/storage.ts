@@ -13,6 +13,11 @@ export async function writeLocal<T>(key: string, value: T): Promise<void> {
   await chrome.storage.local.set({ [key]: value });
 }
 
+/** Uma única operação para alterações relacionadas, sem estados parciais na UI. */
+export async function writeLocalBatch(values: Record<string, unknown>): Promise<void> {
+  await chrome.storage.local.set(values);
+}
+
 export async function removeLocal(key: string): Promise<void> {
   await chrome.storage.local.remove(key);
 }

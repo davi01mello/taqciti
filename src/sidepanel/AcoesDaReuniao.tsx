@@ -1,17 +1,21 @@
 /**
- * A FILEIRA DE AÇÕES da reunião — nota, print, pausa e perguntar à IA.
+ * A FILEIRA DE AÇÕES da reunião — print, pausa e perguntar à IA.
  *
- * ── Por que as quatro ficam à vista ──────────────────────────────────────
+ * ── Por que as três ficam à vista ────────────────────────────────────────
  *
  * São as coisas que se faz DURANTE uma reunião, e durante uma reunião ninguém
- * procura. Antes elas estavam espalhadas: a nota era uma aba, o print era uma
- * seção no meio da rolagem, a pausa era um botão de texto entre outros, e
- * "perguntar à IA" só existia depois de clicar num trecho — três gestos para
- * chegar a uma pergunta.
+ * procura. Antes elas estavam espalhadas: o print era uma seção no meio da
+ * rolagem, a pausa era um botão de texto entre outros, e "perguntar à IA" só
+ * existia depois de clicar num trecho — três gestos para chegar a uma pergunta.
  *
- * Aqui são quatro alvos de 44px, com ícone e nome, no topo da seção. O que abre
- * painel (nota, print) fica MARCADO enquanto está aberto, para o segundo clique
- * ser obviamente o que recolhe.
+ * ── Por que a NOTA não está mais aqui ────────────────────────────────────
+ *
+ * Porque havia dois caminhos para a mesma coisa: este botão e a aba "Notas",
+ * logo abaixo, abrindo o MESMO editor. Dois controles para um destino é uma
+ * pergunta a mais a cada vez ("são a mesma nota?"), e o estado de um tinha de
+ * ser espelhado no outro. Quem escolhe o que ler é a fileira de abas —
+ * transcrição ou notas —, e a nota passou a ser só um dos dois lados dela. O
+ * selo de "já tem nota" foi junto, para a aba.
  *
  * ── O que continua fora daqui, de propósito ──────────────────────────────
  *
@@ -27,12 +31,8 @@ interface Props {
   /** `false` quando a reunião já terminou: não há o que pausar. */
   viva: boolean;
   pausada: boolean;
-  notaAberta: boolean;
-  /** Já existe nota guardada para esta reunião. */
-  notaExiste: boolean;
   printAberto: boolean;
   quantosPrints: number;
-  onNota: () => void;
   onPrint: () => void;
   onPausar: () => void;
   onPerguntar: () => void;
@@ -42,11 +42,8 @@ interface Props {
 export function AcoesDaReuniao({
   viva,
   pausada,
-  notaAberta,
-  notaExiste,
   printAberto,
   quantosPrints,
-  onNota,
   onPrint,
   onPausar,
   onPerguntar,
@@ -55,18 +52,6 @@ export function AcoesDaReuniao({
   return (
     <>
       <div className="tq-acoes" role="group" aria-label="Ações desta reunião">
-        <button
-          type="button"
-          className={`tq-acao${notaAberta ? ' aberta' : ''}`}
-          aria-expanded={notaAberta}
-          aria-controls="tq-editor-de-nota"
-          onClick={onNota}
-        >
-          <Icon name="doc" size={18} />
-          <span>Nota</span>
-          {notaExiste && <span className="tq-acao-selo" aria-label="já tem nota" />}
-        </button>
-
         <button
           type="button"
           className={`tq-acao${printAberto ? ' aberta' : ''}`}

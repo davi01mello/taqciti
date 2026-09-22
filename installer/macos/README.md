@@ -1,4 +1,4 @@
-# Instalador macOS (pkgbuild)
+﻿# Instalador macOS (pkgbuild)
 
 Gera um único arquivo `.pkg` que instala a extensão TaqCITi.
 
@@ -62,7 +62,7 @@ Depois disso o instalador roda normalmente (ainda vai pedir a senha de admin —
 isso é padrão de qualquer `.pkg`, assinado ou não).
 
 Essa mesma instrução aparece no guia de pré-instalação
-(`assetsingestion/COMECE_AQUI.html`), num passo dedicado, que também
+(`installer/guide/COMECE_AQUI.html`), num passo dedicado, que também
 separa esse bloqueio de outros erros (`"está danificado"`, falha de instalação)
 — porque para esses o caminho dos Ajustes não resolve nada.
 
@@ -84,10 +84,10 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 3. Copia esse caminho para a área de transferência via `pbcopy`, rodado no
    contexto do usuário. Se falhar, só avisa e imprime o caminho — não derruba
    a instalação.
-4. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+4. Copia o guia (`installer/guide/COMECE_AQUI.html`) **intocado** para
    `~/Library/Application Support/TaqCITi/guide/`, grava ao lado um
    `install-path.js` com o caminho real, e abre essa cópia no contexto do
-   usuário. O HTML nunca é reescrito — ver `assetsingestion/README.md`.
+   usuário. O HTML nunca é reescrito — ver `installer/guide/README.md`.
 
 > **Não abre a página de extensões do navegador sozinho** (essa etapa
 > existia aqui antes, via `open -a "Google Chrome" chrome://extensions`).

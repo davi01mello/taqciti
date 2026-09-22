@@ -1,4 +1,4 @@
-# Publicar um instalador que funciona
+﻿# Publicar um instalador que funciona
 
 Runbook da release: do servidor no ar até o arquivo que o time baixa.
 
@@ -195,7 +195,7 @@ A pessoa extrai, abre a pasta e dá dois cliques em `COMECE_AQUI.html`. O guia
 abre no navegador, pergunta o sistema e conduz as quatro fases (preparar,
 instalar, Chrome, conferir) até a extensão estar funcionando — inclusive os
 avisos do Windows e do macOS, que assustam quem não sabe que são esperados. A
-origem do guia é `assetsingestion/`; ver o README de lá.
+origem do guia é `installer/guide/`; ver o README de lá.
 
 **O nome do ZIP não tem versão, e isso é de propósito.**
 `upload-to-gdrive.sh` procura por nome e sobrescreve o que achar, então um nome

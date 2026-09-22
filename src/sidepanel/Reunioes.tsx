@@ -24,8 +24,15 @@ import type { MeetingRecord } from '@/shared/types/domain';
 import type { Nota, EstadoDaGravacao } from '@/features/annotations/notes';
 import { downloadTranscript } from '@/features/history/export';
 import { Icon } from '@/shared/ui/Icon';
-import { formatDate, formatDurationHuman, formatTime } from '@/shared/ui/format';
+import {
+  formatDate,
+  formatDurationHuman,
+  formatTime,
+  hostName,
+  speakerLabel,
+} from '@/shared/ui/format';
 import { EDITOR_DE_NOTA_ID, EstadoDaNota } from './Notas';
+import { AbasDaReuniao, ParteDaReuniao } from './AbasDaReuniao';
 
 interface Props {
   registros: MeetingRecord[];
@@ -118,6 +125,7 @@ function DetalheDaReuniao({
   onAbrirNaHome: () => void;
 }) {
   const semFala = registro.segments.length === 0;
+  const [notasEmFoco, setNotasEmFoco] = useState(false);
 
   return (
     <div className="tq-rolavel">
@@ -150,36 +158,55 @@ function DetalheDaReuniao({
       </div>
       {semFala && (
         <p className="tq-fino">
-          Esta reunião não tem transcrição: as legendas do Meet não chegaram a
-          produzir fala nenhuma. Não há o que baixar.
+          Esta reunião não tem transcrição: as legendas do Meet não chegaram a produzir
+          fala nenhuma. Não há o que baixar.
         </p>
       )}
 
-      <section className="tq-notas">
-        <div className="tq-notas-topo">
-          <h3>Nota desta reunião</h3>
-          <EstadoDaNota estado={estadoDaNota} />
-        </div>
-        <textarea
-          id={EDITOR_DE_NOTA_ID}
-          className="tq-notas-campo"
-          value={nota}
-          placeholder="Escrever uma nota sobre esta reunião…"
-          aria-label={`Nota de ${registro.title}`}
-          onChange={(e) => onEscreverNota(registro.id, e.target.value)}
-        />
-      </section>
-
-      {!semFala && (
-        <section className="tq-falas tq-falas-estatica">
-          {registro.segments.map((s) => (
-            <article key={s.captionId} className="tq-fala">
-              <span className="tq-fala-quem">{s.speaker ?? 'Alguém'}</span>
-              <span className="tq-fala-texto">{s.text}</span>
-            </article>
-          ))}
-        </section>
-      )}
+      <AbasDaReuniao
+        notas={notasEmFoco}
+        notaExiste={nota.trim().length > 0}
+        onNotas={setNotasEmFoco}
+      />
+      <div className="tq-reuniao-alternada">
+        <ParteDaReuniao ativa={notasEmFoco}>
+          <section className="tq-notas">
+            <div className="tq-notas-topo">
+              <h3>Nota desta reunião</h3>
+              <EstadoDaNota estado={estadoDaNota} />
+            </div>
+            <textarea
+              id={EDITOR_DE_NOTA_ID}
+              className="tq-notas-campo"
+              value={nota}
+              placeholder="Anote algo sobre esta reunião…"
+              aria-label={`Nota de ${registro.title}`}
+              onChange={(e) => onEscreverNota(registro.id, e.target.value)}
+            />
+          </section>
+        </ParteDaReuniao>
+        <ParteDaReuniao ativa={!notasEmFoco}>
+          {!semFala && (
+            <section className="tq-falas tq-falas-estatica">
+              {/* Mesma leitura da reunião em curso: a própria fala em verde, as
+                  dos outros em cinza, e o nome sempre no cinza da etiqueta. */}
+              {registro.segments.map((s) => {
+                const nome = s.speaker ?? 'Alguém';
+                const rotulo = speakerLabel(nome, hostName(registro.participants));
+                return (
+                  <article
+                    key={s.captionId}
+                    className={`tq-fala${rotulo !== nome ? ' minha' : ''}`}
+                  >
+                    <span className="tq-fala-quem">{rotulo}</span>
+                    <span className="tq-fala-texto">{s.text}</span>
+                  </article>
+                );
+              })}
+            </section>
+          )}
+        </ParteDaReuniao>
+      </div>
     </div>
   );
 }

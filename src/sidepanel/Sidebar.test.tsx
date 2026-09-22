@@ -50,6 +50,13 @@ function acao(nome: string): HTMLButtonElement {
   )!;
 }
 
+/** A aba da reunião pelo nome visível: é por elas que se chega às notas. */
+function aba(nome: string): HTMLButtonElement {
+  return todos<HTMLButtonElement>('.tq-reuniao-abas button').find((b) =>
+    b.textContent?.includes(nome),
+  )!;
+}
+
 const clicar = async (el: HTMLElement) => {
   await act(async () => el.click());
 };
@@ -263,28 +270,41 @@ describe('trocar de seção não custa nada', () => {
 });
 
 describe('as ações da reunião', () => {
-  it('estão as quatro à vista, sem menu nenhum', async () => {
+  it('estão as três à vista, sem menu nenhum', async () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();
 
     const nomes = todos<HTMLButtonElement>('.tq-acao').map((b) => b.textContent);
-    expect(nomes.some((n) => n?.includes('Nota'))).toBe(true);
     expect(nomes.some((n) => n?.includes('Print'))).toBe(true);
     expect(nomes.some((n) => n?.includes('Pausar'))).toBe(true);
     expect(nomes.some((n) => n?.includes('Perguntar'))).toBe(true);
   });
 
-  it('o editor de nota abre, recolhe e não perde o que foi escrito', async () => {
+  /*
+   * A DUPLICIDADE que saiu: havia um botão "Nota" aqui em cima E uma aba
+   * "Notas" logo abaixo, abrindo o mesmo editor. O caminho agora é um só, e
+   * este teste existe para ninguém devolver o segundo sem perceber.
+   */
+  it('não há botão de nota na fileira de ações — a nota é a aba', async () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();
 
-    await clicar(acao('Nota'));
+    const nomes = todos<HTMLButtonElement>('.tq-acao').map((b) => b.textContent);
+    expect(nomes.some((n) => n?.includes('Nota'))).toBe(false);
+    expect(aba('Notas')).toBeTruthy();
+  });
+
+  it('o editor de nota abre pela aba, recolhe e não perde o que foi escrito', async () => {
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+
+    await clicar(aba('Notas'));
     await escrever(q<HTMLTextAreaElement>('#tq-editor-de-nota'), 'Combinado: avisar hoje');
 
-    await clicar(acao('Nota'));
-    expect(host.querySelector('#tq-editor-de-nota')).toBeNull();
+    await clicar(aba('Transcrição'));
+    expect(q('#tq-editor-de-nota').closest('[aria-hidden="true"]')).not.toBeNull();
 
-    await clicar(acao('Nota'));
+    await clicar(aba('Notas'));
     expect(q<HTMLTextAreaElement>('#tq-editor-de-nota').value).toBe(
       'Combinado: avisar hoje',
     );

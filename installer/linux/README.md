@@ -1,4 +1,4 @@
-# Instalador Linux (makeself)
+﻿# Instalador Linux (makeself)
 
 Gera um único arquivo `.run` autoextraível que instala a extensão TaqCITi.
 
@@ -38,10 +38,10 @@ baixados como executáveis sem confirmação explícita):
 2. Copia esse caminho para a área de transferência via `xclip` ou `xsel`, se
    algum dos dois estiver instalado. Se nenhum estiver, só imprime o caminho
    no terminal — não falha a instalação.
-3. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+3. Copia o guia (`installer/guide/COMECE_AQUI.html`) **intocado** para
    `~/.local/share/taqciti/guide/`, grava ao lado um `install-path.js` com o
    caminho real, e abre essa cópia (via `xdg-open`). O HTML nunca é reescrito
-   — ver `assetsingestion/README.md`.
+   — ver `installer/guide/README.md`.
 4. A mensagem final diz o que de fato aconteceu. Sem `xdg-open` ou sem sessão
    gráfica — servidor, container, WSL — nenhuma aba abre, e o script diz isso
    em vez de mandar a pessoa procurar uma aba que não existe. O sinal de

@@ -1,13 +1,28 @@
 /**
- * A ONDINHA COM OLHOS — a expressão do agente na interface.
+ * A BOLINHA NA ONDA — o sinal de atividade do agente.
  *
  * ── O que ela é, e o que ela NÃO é ───────────────────────────────────────
  *
- * É o personagem do agente: a onda da marca, pequena, com dois olhos. Aparece
- * onde o agente age — no seletor "Conversa" e dentro da conversa. NÃO substitui
- * a marca: `Wave` continua sendo o símbolo do produto na cápsula, na pergunta e
- * no ícone da extensão, e `Wordmark` continua no cabeçalho. Um personagem no
- * lugar do logotipo seria a identidade trocada por uma mascote.
+ * É a onda da marca, pequena, com uma bolinha correndo por cima dela — como
+ * quem surfa a curva. Aparece onde o agente age: no seletor "Conversa" e dentro
+ * da conversa. NÃO substitui a marca: `Wave` continua sendo o símbolo do
+ * produto na cápsula, na pergunta e no ícone da extensão, e `Wordmark` continua
+ * no cabeçalho.
+ *
+ * ── Por que não é mais uma carinha ───────────────────────────────────────
+ *
+ * Eram dois olhos sobre a onda, com piscadas. Uma mascote antropomórfica dá ao
+ * indicador uma promessa que o produto não cumpre — "alguém está te ouvindo" —
+ * e aqui não há ninguém ouvindo: não há rota de conversa no servidor, e a
+ * extensão nunca tocou em microfone. A bolinha diz a mesma coisa que importa
+ * (parado, acelerando, trabalhando) sem fingir presença.
+ *
+ * ── Sobre áudio ──────────────────────────────────────────────────────────
+ *
+ * A altura da onda e o salto da bolinha NÃO acompanham volume de voz: não há
+ * amplitude de áudio disponível em lugar nenhum desta extensão (ver o cabeçalho
+ * de `OndaDaCaptura.tsx`). O movimento é senoidal contínuo, modulado pelo
+ * estado do agente — que é um fato verdadeiro sobre o sistema.
  *
  * ── Por que canvas, e por que UM laço só ─────────────────────────────────
  *
@@ -50,27 +65,25 @@ interface Alvo {
   velocidade: number;
   /** Quanto de verde entra no traço, 0..1. */
   verde: number;
-  /** Abertura dos olhos, 0..1 — 1 é redondo, perto de 0 é um traço. */
-  abertura: number;
-  /** Deslocamento vertical dos olhos: negativo é "olhando para cima". */
-  atencao: number;
-  /** Segundos médios entre piscadas. 0 desliga o piscar. */
-  piscaCada: number;
+  /** Velocidade do passeio da bolinha ao longo da onda. 0 a deixa parada. */
+  passeio: number;
+  /** Altura do salto acima da curva, em fração do lado. 0 a faz deslizar. */
+  quique: number;
 }
 
 const ALVOS: Record<AtividadeDoAgente, Alvo> = {
-  // Vivo, mas quieto: ondulação delicada e piscadas ocasionais.
-  repouso: { amplitude: 0.05, velocidade: 0.95, verde: 0, abertura: 1, atencao: 0, piscaCada: 4.6 },
-  // Atenção: a onda acelera e os olhos sobem um pouco, como quem escuta.
-  preparando: { amplitude: 0.085, velocidade: 2.1, verde: 0.5, abertura: 1.08, atencao: -0.035, piscaCada: 7 },
+  // Vivo, mas quieto: ondulação delicada e um passeio lento, quase deslizando.
+  repouso: { amplitude: 0.05, velocidade: 0.95, verde: 0, passeio: 0.8, quique: 0.015 },
+  // Atenção: a onda acelera e a bolinha começa a quicar.
+  preparando: { amplitude: 0.085, velocidade: 2.1, verde: 0.5, passeio: 1.9, quique: 0.055 },
   // Respondendo: mais ativa, ainda suave.
-  escrevendo: { amplitude: 0.132, velocidade: 3.1, verde: 0.8, abertura: 1, atencao: -0.012, piscaCada: 5.5 },
+  escrevendo: { amplitude: 0.132, velocidade: 3.1, verde: 0.8, passeio: 2.8, quique: 0.085 },
   // Acomodação: o alvo já é o repouso; quem faz a descida é o amortecimento.
-  concluido: { amplitude: 0.05, velocidade: 1.1, verde: 0.18, abertura: 1, atencao: 0, piscaCada: 3.2 },
-  // Falha: a onda achata e os olhos viram traço. Nada de verde.
-  falhou: { amplitude: 0.012, velocidade: 0.4, verde: 0, abertura: 0.16, atencao: 0.02, piscaCada: 0 },
+  concluido: { amplitude: 0.05, velocidade: 1.1, verde: 0.18, passeio: 1, quique: 0.02 },
+  // Falha: a onda achata e a bolinha pousa nela. Nada de verde.
+  falhou: { amplitude: 0.012, velocidade: 0.4, verde: 0, passeio: 0, quique: 0 },
   // Cancelado: mesma quietude da falha, sem o âmbar (ver `corDoTraco`).
-  cancelado: { amplitude: 0.016, velocidade: 0.4, verde: 0, abertura: 0.3, atencao: 0.015, piscaCada: 0 },
+  cancelado: { amplitude: 0.016, velocidade: 0.4, verde: 0, passeio: 0, quique: 0 },
 };
 
 /** Grafite claro: a cor de repouso do traço e dos olhos. */
@@ -121,13 +134,11 @@ export function AgenteOnda({ estado, tamanho = 26, className, rotulo }: Props) {
     let amplitude = ALVOS.repouso.amplitude;
     let velocidade = ALVOS.repouso.velocidade;
     let verde = 0;
-    let abertura = 1;
-    let atencao = 0;
+    let passeio = ALVOS.repouso.passeio;
+    let quique = ALVOS.repouso.quique;
     let ambar = 0;
-    /** 0 = olho aberto; 1 = fechado. Sobe e desce numa piscada. */
-    let piscada = 0;
-    let proximaPiscada = 2.5;
-    let relogio = 0;
+    /** Onde a bolinha está no percurso. Vira ida e volta por um seno. */
+    let percurso = 0;
     let anterior = 0;
     let quadro = 0;
 
@@ -149,34 +160,22 @@ export function AgenteOnda({ estado, tamanho = 26, className, rotulo }: Props) {
 
       if (parado) {
         // Movimento reduzido: o estado continua legível, mas nada se mexe. Os
-        // valores vão direto para o alvo, e a fase não avança.
+        // valores vão direto para o alvo, e nem a fase nem o percurso avançam.
         amplitude = alvo.amplitude;
         velocidade = alvo.velocidade;
         verde = alvo.verde;
-        abertura = alvo.abertura;
-        atencao = alvo.atencao;
+        passeio = alvo.passeio;
+        quique = 0;
         ambar = estadoRef.current === 'falhou' ? 1 : 0;
-        piscada = 0;
       } else {
-        relogio += dt;
         amplitude = amortecer(amplitude, alvo.amplitude, dt, 3.4);
         velocidade = amortecer(velocidade, alvo.velocidade, dt, 3);
         verde = amortecer(verde, alvo.verde, dt, 2.6);
-        abertura = amortecer(abertura, alvo.abertura, dt, 6);
-        atencao = amortecer(atencao, alvo.atencao, dt, 5);
+        passeio = amortecer(passeio, alvo.passeio, dt, 2.4);
+        quique = amortecer(quique, alvo.quique, dt, 3);
         ambar = amortecer(ambar, estadoRef.current === 'falhou' ? 1 : 0, dt, 3);
         fase += dt * velocidade * Math.PI;
-
-        // A piscada: um vaivém rápido, em instantes sorteados.
-        if (alvo.piscaCada === 0) {
-          piscada = 0;
-        } else if (piscada > 0) {
-          piscada -= dt * 7.5;
-          if (piscada < 0) piscada = 0;
-        } else if (relogio >= proximaPiscada) {
-          piscada = 1;
-          proximaPiscada = relogio + alvo.piscaCada * (0.6 + Math.random() * 0.8);
-        }
+        percurso += dt * passeio;
       }
 
       ctx.clearRect(0, 0, L, L);
@@ -201,25 +200,44 @@ export function AgenteOnda({ estado, tamanho = 26, className, rotulo }: Props) {
       ctx.lineJoin = 'round';
       ctx.stroke();
 
-      // ---- os olhos ----
-      // Montam na onda: cada um segue a altura dela no seu x, para o conjunto
-      // ler como uma carinha em vez de dois pontos soltos sobre um traço.
-      const raio = L * 0.092;
-      const alturaOlho = Math.max(L * 0.02, raio * abertura * (1 - piscada * 0.88));
+      // ---- a bolinha ----
+      /*
+       * Ela SURFA a curva: a posição horizontal vai e volta por um seno — que
+       * desacelera sozinho nas pontas, como quem vira no fim da onda —, e a
+       * altura é a da própria onda naquele x, menos o raio, para a bolinha
+       * tocar a linha em vez de cruzá-la.
+       *
+       * O quique é um segundo seno, mais rápido, sempre POSITIVO (`abs`): ele
+       * só levanta a bolinha, nunca a afunda dentro do traço. Quanto mais o
+       * agente trabalha, mais alto o salto.
+       */
+      const raio = L * 0.1;
+      const fracao = 0.5 + 0.5 * Math.sin(percurso);
+      const xBola = esq + (dir - esq) * fracao;
+      const yOnda = base + Math.sin(fracao * Math.PI * 2.4 + fase) * amp;
+      const salto = L * quique * Math.abs(Math.sin(percurso * 3));
+      const yBola = yOnda - raio - salto;
+
+      // O rastro do salto: some quando a bolinha está pousada.
+      if (salto > 0.5) {
+        ctx.globalAlpha = Math.min(0.35, salto / (L * 0.12));
+        ctx.beginPath();
+        ctx.moveTo(xBola, yOnda - raio * 0.2);
+        ctx.lineTo(xBola, yBola);
+        ctx.strokeStyle = cor;
+        ctx.lineWidth = Math.max(1, L * 0.03);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
       ctx.fillStyle = misturar(
         [238, 240, 242],
         ambar > 0.5 ? AMBAR : VERDE,
-        Math.max(verde * 0.45, ambar * 0.7),
+        Math.max(verde * 0.55, ambar * 0.7),
       );
-      for (const fracao of [0.38, 0.62]) {
-        const x = esq + (dir - esq) * fracao;
-        const u = (x - esq) / (dir - esq);
-        const yOnda = base + Math.sin(u * Math.PI * 2.4 + fase) * amp;
-        const y = yOnda - L * 0.26 + L * atencao;
-        ctx.beginPath();
-        ctx.ellipse(x, y, raio * Math.min(1, abertura), alturaOlho, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.beginPath();
+      ctx.arc(xBola, yBola, raio, 0, Math.PI * 2);
+      ctx.fill();
 
       if (animandoRef.current) quadro = requestAnimationFrame(desenhar);
       else quadro = 0;

@@ -54,9 +54,12 @@ import {
 import { EXPLICACAO, type MotivoDeFalha } from '@/background/captura';
 import type { ContextoDaPergunta } from '@/home/conversations';
 import { Icon } from '@/shared/ui/Icon';
-import { formatElapsedClock, formatOffset } from '@/shared/ui/format';
+import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
+import { WaveField } from '@/home/WaveField';
+import { useAnimacao } from '@/home/useAnimacao';
 import { AcoesDaReuniao } from './AcoesDaReuniao';
 import { EditorDeNota } from './Notas';
+import { AbasDaReuniao, ParteDaReuniao } from './AbasDaReuniao';
 
 interface Props {
   state: MeetingState;
@@ -113,8 +116,8 @@ export function Reuniao({
         <span className="tq-girando" aria-hidden="true" />
         <h2>Preparando a transcrição…</h2>
         <p>
-          Ligando as legendas do Meet e escondendo-as da tela. A captura começa
-          assim que elas aparecerem.
+          Ligando as legendas do Meet e escondendo-as da tela. A captura começa assim que
+          elas aparecerem.
         </p>
       </div>
     );
@@ -149,11 +152,8 @@ export function Reuniao({
       <AcoesDaReuniao
         viva={viva}
         pausada={fase === 'paused'}
-        notaAberta={notaAberta}
-        notaExiste={notaExiste}
         printAberto={printAberto}
         quantosPrints={prints.length}
-        onNota={() => setNotaAberta((v) => !v)}
         onPrint={() => setPrintAberto((v) => !v)}
         onPausar={() =>
           void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
@@ -162,22 +162,12 @@ export function Reuniao({
         onFinalizar={() => void platform.send({ type: 'ui/finish' })}
       />
 
-      {notaAberta && (
-        <EditorDeNota
-          meetingId={sessao.meetingId}
-          texto={rascunhoNota}
-          estado={estadoDaNota}
-          onEscrever={onEscreverNota}
-          onRecolher={() => setNotaAberta(false)}
-        />
-      )}
-
       {printAberto && <Prints meetingId={sessao.meetingId} prints={prints} />}
 
       {fase === 'paused' && (
         <p className="tq-aviso-caixa">
-          Captura pausada. O que já foi transcrito continua guardado; nada novo
-          entra até você retomar.
+          Captura pausada. O que já foi transcrito continua guardado; nada novo entra até
+          você retomar.
         </p>
       )}
 
@@ -188,8 +178,8 @@ export function Reuniao({
        */}
       {interrompida && (
         <p className="tq-aviso-caixa tq-aviso-atencao" role="status">
-          A captura parou de ler as legendas do Meet. O TaqCiti está tentando
-          religar sozinho — o que já foi transcrito continua guardado.
+          A captura parou de ler as legendas do Meet. O TaqCiti está tentando religar
+          sozinho — o que já foi transcrito continua guardado.
         </p>
       )}
 
@@ -221,21 +211,72 @@ export function Reuniao({
         />
       )}
 
-      {sessao.segments.length === 0 ? (
-        <p className="tq-fino tq-centrado">
-          {fase === 'ended'
-            ? 'Nenhuma fala foi capturada nesta reunião — as legendas do Meet não chegaram a produzir texto.'
-            : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
-        </p>
-      ) : (
-        <ListaDeFalas
-          meetingId={sessao.meetingId}
-          titulo={sessao.title}
-          segmentos={sessao.segments}
-          onPerguntarSobre={onPerguntarSobre}
-        />
-      )}
+      <AbasDaReuniao
+        notas={notaAberta}
+        notaExiste={notaExiste}
+        onNotas={setNotaAberta}
+      />
+      <div className="tq-reuniao-alternada">
+        <ParteDaReuniao ativa={notaAberta}>
+          <EditorDeNota
+            ativa={notaAberta}
+            meetingId={sessao.meetingId}
+            texto={rascunhoNota}
+            estado={estadoDaNota}
+            onEscrever={onEscreverNota}
+            onRecolher={() => setNotaAberta(false)}
+          />
+        </ParteDaReuniao>
+        <ParteDaReuniao ativa={!notaAberta}>
+          {/*
+           * A onda é ancorada AQUI, no pé da transcrição, e não atrás do campo
+           * de escrita da conversa: ela é o sinal de que há captura correndo, e
+           * o lugar em que isso se lê é a lista de falas. Fica atrás do texto,
+           * decorativa, sem capturar o ponteiro.
+           */}
+          <div className="tq-transcricao-palco">
+            {sessao.segments.length === 0 ? (
+              <p className="tq-fino tq-centrado">
+                {fase === 'ended'
+                  ? 'Nenhuma fala foi capturada nesta reunião — as legendas do Meet não chegaram a produzir texto.'
+                  : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
+              </p>
+            ) : (
+              <ListaDeFalas
+                meetingId={sessao.meetingId}
+                titulo={sessao.title}
+                segmentos={sessao.segments}
+                selfName={hostName(sessao.participants)}
+                onPerguntarSobre={onPerguntarSobre}
+              />
+            )}
+            <OndaDaTranscricao capturando={fase === 'recording'} />
+          </div>
+        </ParteDaReuniao>
+      </div>
     </div>
+  );
+}
+
+// ---------- a onda, no pé da transcrição ----------
+
+/**
+ * O fundo vivo da transcrição.
+ *
+ * `captando` só enquanto a captura corre de verdade — uma onda subindo com a
+ * reunião pausada seria a animação contando uma história que não está
+ * acontecendo. E ela NÃO mede áudio: a extensão nunca ouviu microfone nenhum, e
+ * o que a faz reagir é a chegada de um trecho novo (ver `OndaDaCaptura.tsx`).
+ */
+function OndaDaTranscricao({ capturando }: { capturando: boolean }) {
+  const { animando, movimentoReduzido } = useAnimacao(false);
+  return (
+    <WaveField
+      estado={capturando && !movimentoReduzido ? 'captando' : 'repouso'}
+      animando={animando}
+      pulso={0}
+      discreta
+    />
   );
 }
 
@@ -245,11 +286,14 @@ function ListaDeFalas({
   meetingId,
   titulo,
   segmentos,
+  selfName,
   onPerguntarSobre,
 }: {
   meetingId: string;
   titulo: string;
   segmentos: readonly LiveSegment[];
+  /** Quem é "eu" nesta reunião: a fala dessa pessoa é desenhada em verde. */
+  selfName: string | null;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
 }) {
   const [marcas, setMarcas] = useState<MarcasDaReuniao>({});
@@ -288,10 +332,22 @@ function ListaDeFalas({
       {segmentos.map((s) => {
         const marca = marcas[s.captionId];
         const aberto = selecionado === s.captionId;
+        /*
+         * Quem falou. O "(Eu)" é o mesmo rótulo do histórico na HOME, e sai da
+         * MESMA conta: "eu" é o participante marcado como anfitrião (ver
+         * `hostName`). A comparação é a de `speakerLabel`, e não uma segunda
+         * regra escrita aqui — duas contas de "sou eu" divergiriam na primeira
+         * reunião em que o nome viesse com espaço a mais.
+         */
+        const nome = s.speaker ?? 'Alguém';
+        const rotulo = speakerLabel(nome, selfName);
+        const ehVoce = rotulo !== nome;
         return (
           <article
             key={s.captionId}
-            className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}`}
+            className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}${
+              ehVoce ? ' minha' : ''
+            }`}
           >
             <button
               type="button"
@@ -300,7 +356,7 @@ function ListaDeFalas({
               onClick={() => setSelecionado(aberto ? null : s.captionId)}
             >
               <span className="tq-fala-quem">
-                {s.speaker ?? 'Alguém'}
+                {rotulo}
                 <span className="tq-fala-hora">{formatOffset(s.startOffsetMs)}</span>
                 {marca && (
                   <span
@@ -325,7 +381,11 @@ function ListaDeFalas({
                     aria-label={marca === t.id ? `Remover ${t.rotulo}` : t.rotulo}
                     aria-pressed={marca === t.id}
                     onClick={() =>
-                      void marcarTrecho(meetingId, s.captionId, marca === t.id ? null : t.id)
+                      void marcarTrecho(
+                        meetingId,
+                        s.captionId,
+                        marca === t.id ? null : t.id,
+                      )
                     }
                   >
                     <span aria-hidden="true">{t.simbolo}</span>
@@ -462,9 +522,7 @@ function AvisoNoChat({
           {enviando ? 'Enviando…' : 'Enviar ao chat'}
         </button>
         {!saindo && (
-          <span className="tq-fino tq-contagem">
-            {segundosRestantes(inicio, agora)}s
-          </span>
+          <span className="tq-fino tq-contagem">{segundosRestantes(inicio, agora)}s</span>
         )}
       </div>
       {falhou && (
@@ -562,7 +620,11 @@ function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
         <div className="tq-previa">
           <img src={previa} alt="Prévia do print da reunião" />
           <div className="tq-acoes-linha">
-            <button type="button" className="tq-botao-principal" onClick={() => void salvar()}>
+            <button
+              type="button"
+              className="tq-botao-principal"
+              onClick={() => void salvar()}
+            >
               Salvar
             </button>
             <button

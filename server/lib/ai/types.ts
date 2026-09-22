@@ -16,9 +16,22 @@
  * provedor garante a forma ou se o adaptador precisou validar e reparar.
  */
 
-export type ProviderId = 'anthropic' | 'google' | 'xai';
+/**
+ * `mock` é um provedor de primeira classe, e não um caso especial tratado com
+ * `if` no chamador. A razão é a mesma que faz esta camada existir: quem pede
+ * inferência não conhece provedor. Um mock que morasse fora da lista obrigaria
+ * todo consumidor a saber que existe um modo de teste — e o código exercitado
+ * nos testes deixaria de ser o mesmo que roda em produção.
+ */
+export type ProviderId = 'anthropic' | 'openai' | 'google' | 'xai' | 'mock';
 
-export const PROVIDER_IDS: readonly ProviderId[] = ['anthropic', 'google', 'xai'];
+export const PROVIDER_IDS: readonly ProviderId[] = [
+  'anthropic',
+  'openai',
+  'google',
+  'xai',
+  'mock',
+];
 
 export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value);

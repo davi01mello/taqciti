@@ -83,10 +83,21 @@ function secretsMatch(provided: string, expected: string): boolean {
  * Sem `Access-Control-Allow-Credentials` de propósito: não há cookie nem
  * sessão nesta rota, e refletir a origem COM credenciais seria outra conversa.
  */
-export function corsHeaders(origin: string | null): Record<string, string> {
+export function corsHeaders(
+  origin: string | null,
+  /**
+   * Os métodos que a rota aceita. O padrão cobre as rotas de geração, que só
+   * fazem POST; as rotas do conector listam e revogam, e precisam dizer isso
+   * no preflight — um método fora desta lista é bloqueado pelo navegador
+   * antes de a requisição sair, e o handler nunca chega a ser chamado.
+   */
+  metodos = 'POST, OPTIONS',
+): Record<string, string> {
   const headers: Record<string, string> = {
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': `Content-Type, ${SHARED_KEY_HEADER}`,
+    'Access-Control-Allow-Methods': metodos,
+    // `Authorization` entra porque é por ele que o token do Google chega nas
+    // rotas de identidade. Ver `lib/identidade/rota.ts`.
+    'Access-Control-Allow-Headers': `Content-Type, Authorization, ${SHARED_KEY_HEADER}`,
     Vary: 'Origin',
   };
   if (origin) {

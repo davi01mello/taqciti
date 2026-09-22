@@ -397,17 +397,21 @@
 /* ------------------------------------------------------- ações da reunião */
 
 /*
- * Quatro alvos confortáveis, em duas colunas.
+ * Três alvos, numa linha só.
  *
- * Duas colunas e não quatro: a 260px, quatro botões numa linha dariam 58px
- * cada, e "Perguntar" com ícone não cabe nisso sem virar reticências. Em duas
- * colunas cada um tem 120px, o nome inteiro aparece, e a altura de 44px é a
- * área clicável pedida. Numa sidebar larga viram quatro numa linha (ver a
- * consulta de largura no fim do arquivo).
+ * Eram quatro em duas colunas — duas FILEIRAS, ocupando ~100px de altura antes
+ * de a primeira fala aparecer. Com a nota devolvida às abas sobraram três, e
+ * três cabem lado a lado mesmo a 260px: ~82px cada, o suficiente para o nome
+ * inteiro ao lado do ícone. A altura caiu para 40px e a fileira passou a ser
+ * uma; o que sobrou foi para a transcrição, que é o que se lê durante a
+ * reunião.
+ *
+ * 40px e não 44: continua sendo alvo confortável de dedo, e é o mesmo número
+ * das abas logo abaixo, para as duas fileiras lerem como uma faixa só.
  */
 .tq-acoes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -416,9 +420,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 10px;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 8px;
   border-radius: 12px;
   border: 1px solid rgb(255 255 255 / 0.08);
   background: rgb(255 255 255 / 0.035);
@@ -724,12 +728,26 @@
   color: rgb(var(--c-glow));
 }
 
+/*
+ * A COR DA FALA diz de quem ela é: verde para quem está na reunião, cinza para
+ * os demais. A cor está no TEXTO, e só nele — o nome e o horário continuam no
+ * cinza claro de `.tq-fala-quem`, porque eles são etiqueta, não conteúdo, e
+ * pintá-los junto faria duas informações diferentes competirem pelo mesmo
+ * sinal.
+ *
+ * E a cor nunca vem sozinha: quem fala já está escrito por extenso, com "(Eu)"
+ * ao lado do próprio nome. Quem não distingue as duas cores lê a mesma coisa.
+ */
 .tq-fala-texto {
   display: block;
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: rgb(219 222 226);
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgb(176 180 185);
   overflow-wrap: anywhere;
+}
+
+.tq-fala.minha .tq-fala-texto {
+  color: rgb(var(--c-glow));
 }
 
 .tq-fala-acoes {
@@ -913,6 +931,46 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+
+/*
+ * O seletor de conversas: etiqueta fixa em cima, nome da conversa embaixo.
+ *
+ * A etiqueta é o que impede o botão de ser lido pelo nome da conversa aberta —
+ * uma conversa chamada "agente" fazia o seletor parecer um botão de agente. Ver
+ * o comentário em `Conversa.tsx`.
+ */
+.tq-side .tq-seletor-conversa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: rgb(224 227 231);
+  text-align: left;
+}
+.tq-side .tq-seletor-conversa:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+.tq-seletor-textos {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.tq-seletor-textos small {
+  font-size: 9.5px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: rgb(140 144 149);
+}
+.tq-seletor-textos > span {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tq-conversa-menu {
@@ -1421,6 +1479,111 @@
 .tq-rolavel > .tq-falas {
   flex-shrink: 1;
 }
+
+.tq-reuniao-abas {
+  display: flex;
+  gap: 8px;
+}
+.tq-reuniao-abas button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: #a9adb2;
+}
+.tq-reuniao-abas button[aria-selected='true'] {
+  background: rgb(255 255 255 / 0.08);
+  color: #eee;
+}
+
+/* O ponto de "já tem nota": era o selo do botão Nota, e veio com ele. */
+.tq-aba-selo {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+}
+
+/*
+ * A transcrição fica com o espaço, porque é o que se lê durante a reunião. O
+ * `flex: 1 1 auto` deixa esta caixa engolir toda a sobra da coluna, e o piso de
+ * 360px garante uma tela de leitura mesmo quando os avisos do topo se acumulam
+ * — o que rola primeiro, aí, é a coluna, não a transcrição espremida a nada.
+ */
+.tq-rolavel > .tq-reuniao-alternada {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 360px;
+}
+
+/*
+ * O palco da transcrição: a lista rola por dentro, e a onda fica ancorada no
+ * pé, atrás dela. `isolation` cria o contexto de empilhamento local, para o
+ * `z-index` da lista valer aqui dentro e não disputar com o resto da sidebar.
+ */
+.tq-transcricao-palco {
+  position: relative;
+  isolation: isolate;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tq-transcricao-palco > :not(.tq-wave) {
+  position: relative;
+  z-index: 1;
+}
+.tq-transcricao-palco .tq-wave {
+  position: absolute;
+  pointer-events: none;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 120px;
+  opacity: 0.55;
+  mask-image: linear-gradient(transparent, #000 55%, #000 100%);
+}
+.tq-reuniao-parte {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+/*
+ * `inherit`, e NUNCA `visible`.
+ *
+ * ── O bug que isto corrige ────────────────────────────────────────────────
+ *
+ * `visibility` é herdada, e um descendente com `visible` reaparece mesmo dentro
+ * de um ancestral `hidden`. As duas seções da sidebar são empilhadas e a que
+ * está fora de uso fica `visibility: hidden` (ver `.tq-painel`) — mas a aba
+ * ativa daqui dizia `visible` em voz alta, e ressuscitava a transcrição DENTRO
+ * do painel escondido. O sintoma era a transcrição ao vivo desenhada por cima
+ * do campo "Escreva sua ideia…" e da onda, na seção Conversa, sempre que havia
+ * captura correndo.
+ *
+ * Com `inherit`, a aba ativa fica visível quando o painel está visível, e some
+ * junto com ele quando não está. A troca de abas continua sendo `visibility` —
+ * e não `display` — para a lista de falas não perder o `scrollTop`.
+ */
+.tq-reuniao-parte.ativa {
+  visibility: inherit;
+}
+.tq-reuniao-parte .tq-notas {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+.tq-reuniao-parte .tq-notas-campo {
+  flex: 1;
+  min-height: 120px;
+  max-height: none;
+}
 /* ------------------------------------------------------------- o agente */
 
 /*
@@ -1579,7 +1742,7 @@
 /* Sidebar larga: as quatro ações cabem numa linha só. */
 @media (min-width: 400px) {
   .tq-acoes {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

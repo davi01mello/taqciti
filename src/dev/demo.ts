@@ -37,6 +37,7 @@ import type { Nota } from '@/features/annotations/notes';
 import type { MarcasDaReuniao, TipoDeMarca } from '@/features/annotations/marks';
 import type { Print } from '@/features/annotations/shots';
 import type { Conversation } from '@/home/conversations';
+import type { DocumentoGuardado } from '@/features/documents/store';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { readLocal, writeLocal } from '@/shared/services/storage';
 
@@ -282,6 +283,66 @@ function conversas(inicio: number): Conversation[] {
   ];
 }
 
+/**
+ * Os documentos de demonstração.
+ *
+ * Existem para exercitar a COLEÇÃO e o EDITOR sem depender de o servidor de
+ * geração estar no ar — abrir, renomear, editar, salvar e baixar um documento
+ * guardado não passa por IA nenhuma, e isso precisa poder ser verificado.
+ *
+ * `origem: 'demo'` é o que a interface mostra como "demonstração". Um deles
+ * nasce vinculado à reunião fictícia e o outro não, para as duas formas
+ * aparecerem na lista.
+ */
+function documentos(inicio: number): DocumentoGuardado[] {
+  return [
+    {
+      id: `${PREFIXO_DEMO}doc-ata`,
+      title: `${SELO}Ata — Kickoff do projeto`,
+      content: `# Ata — Kickoff do projeto
+
+**Data:** hoje · **Participantes:** Ana Duarte, Bruno Lima, Carla Nunes, Diego Alves
+
+## Decisões
+
+- A primeira entrega leva cadastro, autenticação e uma versão mínima do acompanhamento (lista e detalhe).
+- Login social fica fora desta entrega.
+- A data passa do dia 30 para o dia 6 do mês seguinte.
+
+## Responsáveis
+
+- **Bruno Lima** — regras de permissão (amanhã) e carga nova de homologação (quinta).
+- **Carla Nunes** — desenho das telas (sexta, depois das permissões).
+- **Ana Duarte** — avisar o cliente sobre a data nova (hoje).
+
+## Em aberto
+
+- Migração dos dados antigos. Apontada por dois participantes como o maior risco do projeto. Bruno levanta o tamanho até a próxima reunião.
+
+**[A preencher: nome do cliente]**
+`,
+      formato: 'markdown',
+      createdAt: inicio + 40 * 60 * 1000,
+      updatedAt: inicio + 40 * 60 * 1000,
+      meetingId: REUNIAO_DEMO_ID,
+      tipo: 'Ata de Reunião',
+      origem: 'demo',
+    },
+    {
+      id: `${PREFIXO_DEMO}doc-solto`,
+      title: `${SELO}Rascunho sem reunião de origem`,
+      content: `Documento de demonstração sem vínculo com reunião nenhuma.
+
+Serve para conferir que a lista lida com as duas formas: com origem e sem origem. O editor é o mesmo nos dois casos, e nenhuma das ações aqui depende do servidor de geração.
+`,
+      formato: 'markdown',
+      createdAt: inicio + 42 * 60 * 1000,
+      updatedAt: inicio + 42 * 60 * 1000,
+      origem: 'demo',
+    },
+  ];
+}
+
 function registro(inicio: number): MeetingRecord {
   const segs = segmentos();
   return {
@@ -387,6 +448,12 @@ export async function semear(): Promise<void> {
     ...conversas(inicio),
     ...semDemo(guardadas),
   ]);
+
+  const guardados = await lerLista<DocumentoGuardado>(STORAGE_KEYS.documents);
+  await writeLocal(STORAGE_KEYS.documents, [
+    ...documentos(inicio),
+    ...semDemo(guardados),
+  ]);
 }
 
 /** Tira só o que foi semeado. Nada que não comece com `demo-` é tocado. */
@@ -410,6 +477,10 @@ export async function remover(): Promise<void> {
   await writeLocal(
     STORAGE_KEYS.conversations,
     semDemo(await lerLista<Conversation>(STORAGE_KEYS.conversations)),
+  );
+  await writeLocal(
+    STORAGE_KEYS.documents,
+    semDemo(await lerLista<DocumentoGuardado>(STORAGE_KEYS.documents)),
   );
 }
 

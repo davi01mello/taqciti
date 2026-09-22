@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Manifesto MV3 da extensão — fonte única de verdade consumida pelo @crxjs/vite-plugin.
  *
  * Ver `content_scripts` e `host_permissions` abaixo para o porquê de o TaqCITi
@@ -6,20 +6,43 @@
  * Chrome, em vez de existir numa aba e desaparecer na navegação seguinte.
  */
 import { defineManifest } from '@crxjs/vite-plugin';
+import { loadEnv } from 'vite';
+
+/**
+ * O `.env` precisa ser lido À MÃO aqui, e isso não é preciosismo.
+ *
+ * O Vite carrega `.env` para `import.meta.env` — do código do cliente. Ele
+ * NÃO povoa `process.env`, por decisão de segurança da própria ferramenta. E
+ * este arquivo roda em Node, na hora de montar o manifesto, onde
+ * `import.meta.env` não existe.
+ *
+ * Sem `loadEnv`, um `.env` com o client id certo é ignorado em silêncio e o
+ * manifesto sai com o placeholder. O modo de falhar é o pior possível: a
+ * extensão carrega normalmente, o `getAuthToken` falha com "bad client id", e
+ * nada em lugar nenhum liga uma coisa à outra — a pessoa vai conferir o
+ * console do Google, que está certo.
+ *
+ * `process.env` continua vindo primeiro: é o caminho do CI (ver
+ * `.github/workflows/release.yml`) e o do `$env:` numa sessão do PowerShell,
+ * que a documentação descreve.
+ */
+const DO_ARQUIVO = loadEnv(process.env.NODE_ENV ?? 'production', process.cwd(), 'VITE_');
 
 /**
  * Cliente OAuth do Google, registrado no Google Cloud Console como
  * "Extensão do Chrome" e amarrado ao ID abaixo.
  *
- * Definível por `VITE_GOOGLE_OAUTH_CLIENT_ID` no ambiente da build. O
+ * Definível por `VITE_GOOGLE_OAUTH_CLIENT_ID`, no ambiente ou no `.env`. O
  * placeholder mantém o manifesto VÁLIDO quando ninguém registrou nada — a
- * extensão carrega, e só o envio para o Google Docs falha, com mensagem
- * dizendo o que fazer. Um `client_id` ausente faria o Chrome recusar a
- * extensão inteira, o que é um modo de falhar muito pior por um recurso
- * opcional. Ver `docs/google-docs-setup.md`.
+ * extensão carrega, e só o envio ao Google Docs e a seção Conexões ficam
+ * indisponíveis, cada um com mensagem dizendo o que fazer. Um `client_id`
+ * ausente faria o Chrome recusar a extensão inteira, o que é um modo de
+ * falhar muito pior. Ver `docs/google-oauth-setup.md`.
  */
 const OAUTH_CLIENT_ID =
-  process.env.VITE_GOOGLE_OAUTH_CLIENT_ID ?? 'CLIENT_ID_NAO_CONFIGURADO.apps.googleusercontent.com';
+  process.env.VITE_GOOGLE_OAUTH_CLIENT_ID ??
+  DO_ARQUIVO.VITE_GOOGLE_OAUTH_CLIENT_ID ??
+  'CLIENT_ID_NAO_CONFIGURADO.apps.googleusercontent.com';
 
 export default defineManifest({
   manifest_version: 3,
@@ -50,7 +73,7 @@ export default defineManifest({
   key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnK6hLSrLUsXOj3pPWAwMyzBPBOh3A9nI4PnbL/k6B3/G68Rk+MyjMj/86I4b2Dxi65UFD44YfygrpULYVBCayZ26qcjShnJse0U9rvF8OMp/U7EUBGS1VLdx6JKur/3OBzAMSb4c0V6EgL3rj4OEPgHbjEXjHDHt7azDyaOUOB+HJV6nCXzCiAogGXAHXB+9C1NG/GCpyh3F7cLu8gUnyND2xpkFPHU1+1Tdda7cOdZPK2SvbeXe5dCwdVzA3nSnsTNc2in+HMUvjtDZLdQRHV8nQIRQiApDUTa3LPfY6YLvPMvnfq3bEPCceHgdxmezRPbSUNYESp5Zj8n4YxFz8QIDAQAB',
 
   /*
-   * Só `drive.file`, e só ele.
+   * Três escopos, pedidos SEPARADAMENTE — e a separação é o ponto.
    *
    * `drive.file` dá acesso EXCLUSIVAMENTE aos arquivos que esta extensão
    * criou. Ela não enxerga, não lê e não altera nada mais do Drive de quem
@@ -59,11 +82,34 @@ export default defineManifest({
    * verificação da Google e pediriam ao usuário uma permissão que o produto
    * não precisa.
    *
+   * `openid` + `userinfo.email` existem para a sincronização: o servidor
+   * precisa saber DE QUEM é o acervo, e a conta do Google que a pessoa já usa
+   * é a resposta que não exige tela de login. Ver `lib/identidade/google.ts`
+   * no servidor.
+   *
+   * ── Por que isto NÃO é "pedir tudo de uma vez" ──────────────────────────
+   *
+   * Esta lista é o TETO do que a extensão pode pedir, não o que ela pede numa
+   * chamada. `chrome.identity.getAuthToken` aceita um `scopes` próprio, e ele
+   * sobrescreve esta lista (confirmado no tipo `TokenDetails`). Então:
+   *
+   *   sincronizar        → openid + email      (silencioso, ou quase)
+   *   "enviar pro Docs"  → drive.file          (só ao clicar, aí justificado)
+   *
+   * Juntos numa chamada só, a primeira sincronização mostraria à pessoa uma
+   * tela do Google pedindo acesso ao Drive dela — para um recurso que ela não
+   * pediu e talvez nunca use. É o momento exato em que alguém desiste.
+   * Separados, quem só sincroniza nunca vê o Drive ser mencionado.
+   *
    * Se algum dia parecer que precisa de mais, PARE e pergunte ao autor.
    */
   oauth2: {
     client_id: OAUTH_CLIENT_ID,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: [
+      'openid',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/drive.file',
+    ],
   },
 
   icons: {

@@ -58,7 +58,13 @@ body {
   flex-direction: column;
   background: transparent;
   color: rgb(237 238 239);
-  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   font-size: 14px;
   line-height: 1.6;
   overflow-x: clip;
@@ -1138,6 +1144,446 @@ body {
   margin: 0 0 12px;
 }
 
+/* ------------------------------------------- a reunião em duas colunas */
+
+/*
+ * Transcrição e notas lado a lado, separadas por ESPAÇO.
+ *
+ * Nenhuma das duas mora numa caixa: a norma visual da HOME é grafite neutro
+ * com branco e cinza, e duas molduras aqui dentro — sobre uma página que já
+ * tem a onda ao fundo — seriam duas bordas disputando a atenção do texto que
+ * elas deveriam servir. O que separa as colunas é o vão entre elas e o filete
+ * de uma linha só.
+ *
+ * As duas têm rolagem PRÓPRIA e topo alinhado. Isso é o que mantém as notas
+ * sempre à vista enquanto a transcrição corre — e, em largura estreita, o que
+ * preserva a posição de leitura ao alternar, porque o `scrollTop` é da coluna
+ * e não da página.
+ */
+.tq-reuniao-corpo {
+  display: grid;
+  gap: 28px;
+  margin-top: 20px;
+  height: min(68vh, 720px);
+}
+
+@media (min-width: 900px) {
+  .tq-main.tq-main-reuniao {
+    width: min(1100px, calc(100% - 128px));
+  }
+}
+
+.tq-reuniao-corpo.lado-a-lado {
+  /* Dois terços para a transcrição, o resto para as notas. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.tq-coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.tq-coluna + .tq-coluna {
+  padding-left: 8px;
+}
+
+/*
+ * Estreito: as duas ficam EMPILHADAS no mesmo lugar e se alternam.
+ *
+ * `visibility`, e não `display: none`: `display: none` destrói a caixa e leva
+ * junto o `scrollTop` — a posição de leitura que o requisito pede para
+ * preservar. Quem tira a coluna escondida do caminho do teclado é o `inert`
+ * (ver `Paginas.tsx`), porque isso não é decisão de estilo.
+ */
+.tq-coluna.empilhada {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.tq-coluna.empilhada.ativa {
+  visibility: visible;
+}
+
+.tq-coluna-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tq-coluna-topo h2 {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(150 153 157);
+  margin: 0;
+}
+
+.tq-coluna-corpo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 6px;
+}
+
+.tq-coluna-rodape {
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgb(142 145 150);
+  margin: 10px 0 0;
+}
+
+/* ------------------------------------------------- notas da reunião */
+
+.tq-notas-coluna {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.tq-notas-estado {
+  font-size: 10.5px;
+  color: rgb(140 143 147);
+  transition: color 0.2s;
+}
+
+.tq-notas-estado.falhou {
+  color: rgb(240 198 160);
+}
+
+/*
+ * O campo é o único elemento desta composição com superfície própria — ele
+ * precisa parecer escrevível, e um `textarea` sem nenhuma indicação sobre a
+ * onda de fundo não parece. É `textarea` mesmo, e não um editor construído à
+ * mão: seleção, copiar, colar, desfazer e todo atalho do sistema vêm de graça
+ * e funcionam como a pessoa espera.
+ */
+.tq-notas-campo {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  padding: 14px 15px;
+  border-radius: 13px;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  background: rgb(33 34 36 / 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgb(232 234 237);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.75;
+  caret-color: rgb(var(--c-glow));
+  /* Só o verde do cursor e da borda em foco: o resto é grafite. */
+  transition: border-color 0.25s;
+}
+
+.tq-notas-campo::placeholder {
+  color: rgb(130 133 138);
+}
+
+.tq-notas-campo:focus {
+  outline: none;
+  border-color: rgb(var(--c-primary) / 0.45);
+}
+
+/* -------------------------------------- alternância em largura estreita */
+
+.tq-alternar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-top: 18px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.035);
+  width: fit-content;
+}
+
+.tq-alternar button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 11px;
+  border: 0;
+  font-size: 12.5px;
+  color: rgb(150 153 157);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+
+.tq-alternar button:hover {
+  color: rgb(224 226 229);
+}
+
+/* Seleção por luz neutra, como no resto do produto. */
+.tq-alternar button.atual {
+  color: rgb(246 248 250);
+  background: rgb(255 255 255 / 0.09);
+}
+
+/* ----------------------------------------------- vínculos e atalhos */
+
+/*
+ * O acesso aos documentos da reunião: uma linha de atalhos, e não mais um
+ * painel. O requisito é explícito — não criar outro painel permanentemente
+ * aberto disputando a largura com o que se veio ler.
+ */
+.tq-vinculados {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  color: rgb(150 153 157);
+}
+
+.tq-chip {
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.03);
+  font-size: 12px;
+  color: rgb(206 209 212);
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.tq-chip:hover {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.18);
+  color: rgb(243 245 247);
+}
+
+/* ------------------------------------------------- ações do rodapé */
+
+/*
+ * Uma faixa discreta embaixo, depois do conteúdo — e não quatro botões soltos
+ * logo abaixo do título, onde competiam com o que se veio ler. O que é raro
+ * (apagar) fica no menu ao lado, atrás de um gesto a mais.
+ */
+.tq-rodape-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgb(255 255 255 / 0.07);
+}
+
+.tq-acao-icone {
+  padding: 8px 10px;
+}
+
+.tq-menu-secundario {
+  position: relative;
+}
+
+.tq-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  min-width: 190px;
+  padding: 5px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(31 33 35 / 0.97);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.38);
+}
+
+.tq-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: rgb(214 217 221);
+  cursor: pointer;
+}
+
+.tq-menu button:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.tq-menu button.perigo {
+  color: rgb(224 150 145);
+}
+
+.tq-menu button.perigo:hover {
+  background: rgb(224 110 105 / 0.12);
+  color: rgb(240 178 172);
+}
+
+/* -------------------------------------------------- gerar documento */
+
+.tq-gerar {
+  position: relative;
+}
+
+.tq-gerar-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  min-width: 210px;
+  padding: 5px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(31 33 35 / 0.97);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.38);
+}
+
+.tq-gerar-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  color: rgb(214 217 221);
+  cursor: pointer;
+}
+
+.tq-gerar-menu button:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.tq-gerar-menu button.ocupado {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.tq-gerar-erro {
+  margin: 6px 0 2px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(240 198 160);
+}
+
+.tq-gerar-perguntas {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 21;
+  width: min(520px, 80vw);
+}
+
+/*
+ * O resultado. Verde só aqui, e só na confirmação de que a gravação
+ * aconteceu — que é exatamente "um detalhe num estado relevante".
+ */
+.tq-gerar-resultado {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  width: min(460px, 86vw);
+  padding: 14px 16px;
+  border-radius: 13px;
+  border: 1px solid rgb(var(--c-primary) / 0.32);
+  background: rgb(26 32 29 / 0.97);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.38);
+}
+
+.tq-gerar-resultado.falhou {
+  border-color: rgb(230 192 158 / 0.4);
+  background: rgb(34 30 26 / 0.97);
+}
+
+.tq-gerar-resultado p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgb(222 225 228);
+}
+
+.tq-gerar-resultado strong {
+  font-weight: 500;
+  color: rgb(var(--c-glow));
+}
+
+.tq-gerar-resultado.falhou strong {
+  color: rgb(236 205 178);
+}
+
+/* --------------------------------------------------- editor de documento */
+
+.tq-documento-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.tq-documento-topo .tq-titulo-editavel {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * O conteúdo primeiro: o campo é o maior elemento da tela, e o resto fica em
+ * volta. Mesma superfície do campo de notas — são o mesmo gesto.
+ */
+.tq-documento-campo {
+  display: block;
+  width: 100%;
+  height: min(64vh, 700px);
+  resize: vertical;
+  margin-top: 16px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  background: rgb(33 34 36 / 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgb(232 234 237);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.8;
+  caret-color: rgb(var(--c-glow));
+  transition: border-color 0.25s;
+}
+
+.tq-documento-campo:focus {
+  outline: none;
+  border-color: rgb(var(--c-primary) / 0.45);
+}
+
 .tq-transcricao {
   margin-top: 26px;
 }
@@ -1309,5 +1755,124 @@ body.tq-pointer-in .tq-halo {
   .tq-home *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ------------------------------------------------------------- Conexões */
+
+/* Título de seção dentro de uma página. Menor que o `h1` do topo, e com
+   respiro em cima: ele separa blocos, não abre a página. */
+.tq-secao-titulo {
+  margin: 30px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgb(222 225 229);
+}
+
+/*
+ * A AÇÃO PRINCIPAL de uma página: verde cheio, e chamando.
+ *
+ * `.tq-acao` é deliberadamente discreto — é o botão de tudo que é secundário
+ * (baixar, copiar, revogar), e existem vários por tela. Ligar a sincronização
+ * não é isso: é a única coisa a fazer na página, e um botão que se parece com
+ * os outros não diz isso.
+ *
+ * Preenchido, e não só contornado, porque aqui a cor é o conteúdo — é o que
+ * distingue "a ação" de "as ações". O texto é o verde ESCURO do próprio
+ * sistema (`--c-primary-deep`) sobre o verde claro: contraste alto sem
+ * recorrer a branco puro, que destoaria do resto.
+ *
+ * O ritmo do halo é o mesmo de `tq-selecao` — 3,4s, lento, sem pico agudo.
+ * Reusar o compasso é o que impede a página de ter dois verdes piscando em
+ * tempos diferentes, que é como uma tela começa a parecer nervosa. Com
+ * movimento reduzido a animação some sozinha, pela regra geral no fim deste
+ * arquivo; o botão continua verde e continua legível.
+ */
+.tq-acao-principal {
+  background: rgb(var(--c-primary));
+  border-color: rgb(var(--c-primary));
+  color: rgb(var(--c-primary-deep));
+  font-weight: 600;
+  padding: 10px 19px;
+  animation: tq-chamando 3.4s ease-in-out infinite;
+}
+
+.tq-acao-principal:hover {
+  background: rgb(var(--c-glow));
+  border-color: rgb(var(--c-glow));
+  color: rgb(var(--c-primary-deep));
+}
+
+/* Desabilitado não chama: enquanto a janela do Google está aberta, insistir
+   com o olho da pessoa num botão que não responde é ruído. */
+.tq-acao-principal:disabled {
+  animation: none;
+  opacity: 0.55;
+  cursor: default;
+}
+
+@keyframes tq-chamando {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(var(--c-primary) / 0);
+  }
+  50% {
+    box-shadow: 0 0 18px -2px rgb(var(--c-primary) / 0.45);
+  }
+}
+
+/*
+ * O aviso de uma FALHA — cor âmbar, mesma da usada no resto do produto para
+ * "algo não deu certo" (ver `.tq-gerar-resultado.falhou`, `.tq-aviso-falha`
+ * na sidebar, e o AMBAR de `AgenteOnda.tsx`). `.tq-aviso` sozinho é neutro —
+ * serve tanto para "explicando como funciona" quanto para "algo falhou", e
+ * as duas coisas precisam ser visualmente diferentes: uma falha depois de um
+ * clique precisa SALTAR, não se misturar ao texto explicativo ao lado.
+ */
+.tq-aviso-falha {
+  border-color: rgb(230 192 158 / 0.35);
+  background: rgb(34 30 26 / 0.6);
+  color: rgb(236 214 190);
+}
+
+.tq-conector-novo {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+
+/* O endereço é um `input` de verdade, e não um `<code>`, por dois motivos:
+   `.tq-home input` é a única exceção ao `user-select: none` da página, então
+   ele continua selecionável se o botão Copiar falhar; e um campo focável
+   permite selecionar tudo com um clique. */
+.tq-conector-endereco {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tq-conector-endereco input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 13px;
+  border-radius: 11px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(20 21 23 / 0.75);
+  color: rgb(214 217 221);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+}
+
+.tq-conector-endereco input:focus {
+  outline: none;
+  border-color: rgb(92 203 133 / 0.45);
+}
+
+@media (max-width: 560px) {
+  .tq-conector-endereco {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

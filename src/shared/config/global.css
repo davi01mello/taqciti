@@ -121,15 +121,38 @@
    * fica encoberto. É outra grade, então gira 17° para as duas grades
    * nunca lerem como uma só, e o `scale` cobre o que a rotação deixaria de
    * fora nos cantos.
+   *
+   * ── Por que o laço anima `transform`, e não `background-position-y` ──────
+   *
+   * Animar `background-position` repinta a camada a cada quadro — e esta
+   * camada cobre a TELA INTEIRA, atrás de tudo, rodando pra sempre em loop
+   * de 90s. Isso competia por orçamento de quadro com qualquer outra
+   * coisa em movimento na página (o cursor customizado incluso), e o
+   * resultado lido era "o mouse está com lag" — o mouse nunca teve atraso
+   * nenhum, era a página inteira represando quadro.
+   *
+   * `transform` é composto pela GPU, sem repintura. Para trocar um pelo
+   * outro sem mudar UM PIXEL do resultado: a caixa cresce um ladrilho a
+   * mais para cima e para baixo (`top`/`bottom` em vez de `inset: 0`), e o
+   * laço passa a mover essa caixa inteira por `translateY` — como é a
+   * PRIMEIRA função do `transform` (a mais à direita), ela desloca o
+   * conteúdo no espaço local, ANTES do `scale`/`rotate`, exatamente como o
+   * deslocamento de fundo fazia. A folga extra garante que a área visível
+   * nunca fique sem ladrilho embaixo, em qualquer tamanho de tela.
    */
   .tq-brasas {
     position: fixed;
-    inset: 0;
+    top: calc(-1 * var(--altura-ladrilho));
+    right: 0;
+    bottom: calc(-1 * var(--altura-ladrilho));
+    left: 0;
     z-index: 0;
     pointer-events: none;
+    contain: paint;
     background-repeat: repeat;
     opacity: 0.7;
-    transform: rotate(17deg) scale(1.5);
+    transform: rotate(17deg) scale(1.5) translateY(0);
+    will-change: transform;
     mask-image: radial-gradient(circle 46px at center, #000 55%, transparent 100%);
     mask-size: 320px 320px;
     mask-repeat: repeat;
@@ -159,10 +182,10 @@
    */
   @keyframes tq-subir-brasas {
     from {
-      background-position-y: 0;
+      transform: rotate(17deg) scale(1.5) translateY(0);
     }
     to {
-      background-position-y: calc(-1 * var(--altura-ladrilho));
+      transform: rotate(17deg) scale(1.5) translateY(calc(-1 * var(--altura-ladrilho)));
     }
   }
 

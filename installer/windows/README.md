@@ -1,4 +1,4 @@
-# Instalador Windows (Inno Setup)
+﻿# Instalador Windows (Inno Setup)
 
 Gera um `.exe` único que instala a extensão TaqCITi sem precisar descompactar
 nada manualmente.
@@ -44,7 +44,7 @@ real do `package.json` (ou de uma tag), passe `/D`:
 1. Instala silenciosamente (sem tela de licença, sem escolha de pasta) em
    `%USERPROFILE%\Desktop\TaqCITi (não apagar)\`.
 2. Copia esse caminho para a área de transferência.
-3. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+3. Copia o guia (`installer/guide/COMECE_AQUI.html`) **intocado** para
    `%LOCALAPPDATA%\TaqCITi\guide\`, grava ao lado um `install-path.js` com o
    caminho real, e abre essa cópia no navegador escolhido no passo 0.
 
@@ -52,7 +52,7 @@ real do `package.json` (ou de uma tag), passe `/D`:
    0x7e). É o que conserta os caracteres estranhos no caminho: o jeito
    anterior guardava bytes UTF-8 num `AnsiString` concatenado com literais
    `String`, e a conversão por code page do Pascal Script os estragava. Ver
-   `EscapeParaJs` no `.iss` e `assetsingestion/README.md`.
+   `EscapeParaJs` no `.iss` e `installer/guide/README.md`.
 
 > **Não abre `chrome://extensions` sozinho.** Chegamos a tentar (passando
 > a URL como argumento pro Chrome), mas em testes reais isso nunca

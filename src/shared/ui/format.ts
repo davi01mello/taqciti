@@ -97,12 +97,6 @@ function hueForName(name: string): number {
   return SPEAKER_HUES[index] ?? SPEAKER_HUES[0];
 }
 
-/** Cor determinística por nome: mesma pessoa, mesma cor, em qualquer tela. */
-export function colorForName(name: string): string {
-  const palette = SESSION_COLORS.dark;
-  return palette[hashName(name) % palette.length] ?? palette[0];
-}
-
 /**
  * Paleta da SESSÃO: o hash só escolhe a preferência inicial; colisões fazem
  * probing nos tons ainda livres. Assim nomes com o mesmo hash não recebem a

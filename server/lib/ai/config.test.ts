@@ -10,10 +10,11 @@ import {
   matrixFor,
   parseOverride,
   productionCandidates,
+  providersNaMatriz,
   usesContentForTraining,
 } from './config';
 import { costForEntry } from './index';
-import { priceFor } from './pricing';
+import { PRICING, priceFor } from './pricing';
 import { AGENT_NAMES, PROVIDER_IDS } from './types';
 
 describe('matriz de comparação', () => {
@@ -22,7 +23,7 @@ describe('matriz de comparação', () => {
     // tornariam a escolha dependente da ordem do array. A regra vale entre
     // CANDIDATOS A PRODUÇÃO: entradas experimentais podem repetir tier,
     // porque respondem perguntas laterais em vez de disputar a decisão.
-    for (const provider of PROVIDER_IDS) {
+    for (const provider of providersNaMatriz()) {
       const baratos = productionCandidates().filter(
         (entry) => entry.provider === provider && entry.tier === 'barato',
       );
@@ -32,7 +33,7 @@ describe('matriz de comparação', () => {
   });
 
   it('cada provedor tem pelo menos um teto de produção', () => {
-    for (const provider of PROVIDER_IDS) {
+    for (const provider of providersNaMatriz()) {
       const caros = productionCandidates().filter(
         (entry) => entry.provider === provider && entry.tier === 'caro',
       );
@@ -43,9 +44,31 @@ describe('matriz de comparação', () => {
   it('o piso de produção nunca envia conteúdo para treinamento', () => {
     // Se um dia o piso de um fornecedor virar free tier sem querer, o
     // pipeline passaria a mandar transcrição para treinamento em silêncio.
-    for (const provider of PROVIDER_IDS) {
+    for (const provider of providersNaMatriz()) {
       expect(usesContentForTraining(cheapestProductionEntry(provider)), provider).toBe(false);
     }
+  });
+
+  /*
+   * As invariantes acima varrem `providersNaMatriz()`, e não `PROVIDER_IDS` —
+   * senão implementar um adaptador novo quebraria testes de matriz antes de
+   * existir decisão nenhuma sobre modelos e preços. O preço de derivar a lista
+   * é que uma ausência deixa de fazer barulho; este teste é o barulho, escrito
+   * à mão, e ele muda quando a decisão for tomada.
+   */
+  it('quem está de fora da matriz está de fora por um motivo escrito', () => {
+    const naMatriz = providersNaMatriz();
+    expect(naMatriz).toContain('anthropic');
+    expect(naMatriz).toContain('google');
+    expect(naMatriz).toContain('xai');
+
+    // O mock não é fornecedor: ganharia toda métrica de custo devolvendo texto
+    // inventado de graça.
+    expect(naMatriz).not.toContain('mock');
+    // A OpenAI entra quando houver modelo escolhido e preço conferido na
+    // documentação oficial. Sem preço, o relatório sairia com custo undefined.
+    expect(naMatriz).not.toContain('openai');
+    expect(PRICING.openai).toEqual({});
   });
 
   it('matrixFor devolve também as entradas experimentais', () => {
@@ -215,7 +238,9 @@ describe('parseOverride', () => {
   });
 
   it('recusa provedor desconhecido', () => {
-    expect(() => parseOverride('openai:gpt-5', 'DOCCITI_ANALISTA')).toThrow(/desconhecido/);
+    // Era `openai` aqui. Deixou de servir de exemplo no dia em que a OpenAI
+    // virou provedor de verdade — ver providers/openai.ts.
+    expect(() => parseOverride('llama:3.1-70b', 'DOCCITI_ANALISTA')).toThrow(/desconhecido/);
   });
 
   it('recusa modelo vazio', () => {

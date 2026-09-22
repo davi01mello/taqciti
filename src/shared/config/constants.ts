@@ -67,6 +67,49 @@ export const STORAGE_KEYS = {
   shots: 'taq:shots',
   /** chrome.storage.local — aviso no chat do Meet já enviado, por reunião. */
   chatNotice: 'taq:chatNotice',
+
+  /**
+   * chrome.storage.local — os DOCUMENTOS guardados.
+   *
+   * Coleção própria, e não um campo dentro do registro da reunião, pelo mesmo
+   * motivo das anotações acima: a captura reescreve o registro da reunião a
+   * cada trecho, e um documento guardado lá dentro seria atropelado por uma
+   * escrita da transcrição. Aqui ele tem dono e ritmo próprios, e o vínculo
+   * com a reunião (ou com a conversa) é um id, não um aninhamento.
+   *
+   * Só entra aqui documento cujo CONTEÚDO a extensão tem. Um arquivo que foi
+   * apenas baixado num passado sem esta coleção não vira registro: listá-lo
+   * seria oferecer "abrir" e "editar" para algo que não existe mais aqui.
+   */
+  documents: 'taq:documents',
+
+  /**
+   * chrome.storage.local — o estado da sincronização com o servidor.
+   *
+   * `local` e não `session`: é uma decisão que vale até ser desfeita, não uma
+   * autorização por vez como `participation`. A diferença é proposital — dizer
+   * "sim, sincronize" uma vez por reunião seria atrito diário para uma
+   * pergunta que só faz sentido uma vez.
+   *
+   * O que mora aqui é o SIM, não a credencial. O token do Google é do Chrome e
+   * fica no cache dele; guardar uma cópia nossa só criaria um segredo a mais
+   * para vazar, com validade pior que a do original.
+   */
+  sync: 'taq:sync',
+
+  /**
+   * chrome.storage.local — o que JÁ foi aceito pelo servidor.
+   *
+   * Um resumo curto por item (`tipo:id` → assinatura), e não um "sincronizei
+   * até tal data": as coisas mudam para trás. Renomear uma reunião de março,
+   * editar um documento antigo ou apagar uma nota são invisíveis para um
+   * marcador temporal, e visíveis para uma assinatura que deixou de bater.
+   *
+   * Separado de `sync` porque tem outro ciclo de vida: o "sim" é da pessoa e
+   * dura até ela desfazer; isto é cache de progresso, e apagá-lo só custa um
+   * reenvio.
+   */
+  syncEstado: 'taq:syncEstado',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */
@@ -124,12 +167,7 @@ export const LOCAL_STORAGE_SCHEMA_VERSION_KEY = 'taq:storageSchemaVersion';
 export const LOCAL_STORAGE_SCHEMA_VERSION = 2;
 export const ANONYMOUS_IDENTITY_NAMESPACE = 'anonymous';
 
-export const MAX_HISTORY_RECORDS = 100;
-
 export const PROVIDER_GOOGLE_MEET = 'google-meet';
-
-/** Idioma que a extensão espera nas legendas. Fixo por ora — sem preferência de usuário nesta versão. */
-export const EXPECTED_CAPTION_LANGUAGE = 'pt' as const;
 
 /** Chunks aplicados entre cada nova checagem da heurística de idioma da legenda. */
 export const LANGUAGE_DETECTION_CHUNK_INTERVAL = 8;

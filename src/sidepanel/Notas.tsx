@@ -46,6 +46,7 @@ export function EstadoDaNota({ estado }: { estado: EstadoDaGravacao }) {
 }
 
 interface Props {
+  ativa?: boolean;
   meetingId: string;
   texto: string;
   estado: EstadoDaGravacao;
@@ -54,6 +55,7 @@ interface Props {
 }
 
 export function EditorDeNota({
+  ativa = true,
   meetingId,
   texto,
   estado,
@@ -68,8 +70,8 @@ export function EditorDeNota({
    * gesto a mais numa ação que já é "quero escrever agora".
    */
   useEffect(() => {
-    campoRef.current?.focus();
-  }, []);
+    if (ativa) campoRef.current?.focus();
+  }, [ativa]);
 
   return (
     <section className="tq-notas tq-notas-inline" aria-label="Nota desta reunião">
@@ -89,19 +91,29 @@ export function EditorDeNota({
         </div>
       </div>
 
+      {estado === 'falhou' && (
+        <button
+          type="button"
+          className="tq-botao-fantasma"
+          onClick={() => onEscrever(meetingId, texto)}
+        >
+          Tentar salvar novamente
+        </button>
+      )}
+
       <textarea
         id={EDITOR_DE_NOTA_ID}
         ref={campoRef}
         className="tq-notas-campo tq-notas-campo-inline"
         value={texto}
-        placeholder="O que você quer lembrar desta reunião…"
+        placeholder="Anote algo sobre esta reunião…"
         aria-label="Notas desta reunião"
         onChange={(e) => onEscrever(meetingId, e.target.value)}
       />
 
       <p className="tq-fino">
-        Guardada separada da transcrição, neste computador. Aparece depois no
-        histórico — aqui e na HOME.
+        Guardada separada da transcrição, neste computador. Aparece depois no histórico —
+        aqui e na HOME.
       </p>
     </section>
   );

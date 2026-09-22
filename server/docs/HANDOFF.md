@@ -1,4 +1,4 @@
-# Handoff — continuar o pipeline de geração de documento
+﻿# Handoff — continuar o pipeline de geração de documento
 
 > Cole este arquivo inteiro como primeira mensagem numa sessão nova, na raiz
 > do repositório (`C:\Users\edisi\taqciti`).
@@ -320,7 +320,7 @@ Ver `docs/medicao-2026-08-14/execucao-2-ata.html` para uma saída real.
 `permissions`, o bloco `oauth2` (client id lido de
 `VITE_GOOGLE_OAUTH_CLIENT_ID`, com placeholder que mantém o manifesto válido
 sem client registrado) e a `key` fixa que trava o ID da extensão entre
-clones/máquinas — ver `docs/google-docs-setup.md`. `entregarDocumento` em
+clones/máquinas — ver `docs/google-oauth-setup.md`. `entregarDocumento` em
 `src/document/generateDocument.ts` já decide sozinho entre Docs direto e
 download, lendo `oauthConfigurado()`.
 
@@ -330,7 +330,7 @@ nem em nenhum `.env` versionado), então `oauthConfigurado()` é sempre
 `false` em produção e o caminho de Docs direto nunca roda — todo mundo usa
 o download. Decisão do autor: tratar isso como **descontinuado por ora**,
 não como pendência a destravar. Se um dia precisar do caminho direto de
-verdade, o trabalho é só configurar o client OAuth (`docs/google-docs-setup.md`),
+verdade, o trabalho é só configurar o client OAuth (`docs/google-oauth-setup.md`),
 não mexer em código.
 
 ---

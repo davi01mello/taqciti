@@ -5,6 +5,8 @@
 import type { ReactNode } from 'react';
 
 export type IconName =
+  | 'home'
+  | 'info'
   | 'search'
   | 'play'
   | 'pause'
@@ -44,6 +46,18 @@ interface IconProps {
 const FILLED = new Set<IconName>(['play', 'pause', 'stop']);
 
 const PATHS: Record<IconName, ReactNode> = {
+  home: (
+    <>
+      <path d="m3.5 10 8.5-7 8.5 7" />
+      <path d="M5.5 8.5V21h5v-7h3v7h5V8.5" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v6M12 7.5v.1" />
+    </>
+  ),
   search: (
     <>
       <circle cx="11" cy="11" r="7" />

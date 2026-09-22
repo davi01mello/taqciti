@@ -49,10 +49,10 @@ describe('notas', () => {
       g.agendar('m1', 'a');
       g.agendar('m1', 'ab');
       g.agendar('m1', 'abc');
-      expect(estados).toEqual([]);
+      expect(estados.at(-1)).toBe('gravando');
 
       await vi.advanceTimersByTimeAsync(AGUARDAR_MS + 10);
-      expect(estados).toEqual(['gravando', 'salvo']);
+      expect(estados.at(-1)).toBe('salvo');
       await expect(lerNota('m1')).resolves.toMatchObject({ texto: 'abc' });
     } finally {
       vi.useRealTimers();

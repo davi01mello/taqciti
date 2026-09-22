@@ -259,10 +259,3 @@ export const messageSchema = z.union([
 export type ExtensionMessage = z.infer<typeof messageSchema>;
 /** Um comando emitido por uma UI — o vocabulário da camada de plataforma. */
 export type UiCommand = z.infer<typeof uiMessageSchema>;
-export type MessageOf<T extends ExtensionMessage['type']> = Extract<
-  ExtensionMessage,
-  { type: T }
->;
-
-/** Respostas possíveis a mensagens que esperam retorno. */
-export const stateResponseSchema = meetingStateSchema;

@@ -75,13 +75,14 @@ it('explica a ausência de IA antes da escrita e salva sem enviar a um processad
   expect(q('#tq-ajuda-ia').textContent).toContain('Nada é enviado para processamento');
   expect(q<HTMLButtonElement>('.tq-enviar').disabled).toBe(true);
   await write('Ideia para retomar depois');
-  expect(q<HTMLElement>('.tq-wave').dataset.estado).toBe('escrita');
   await click('.tq-enviar');
   const saved = storage.local.values[STORAGE_KEYS.conversations] as Conversation[];
   expect(saved[0]!.messages).toHaveLength(1);
   expect(saved[0]!.messages[0]!.text).toBe('Ideia para retomar depois');
   expect(q<HTMLTextAreaElement>('textarea').value).toBe('');
-  expect(q<HTMLElement>('.tq-wave').dataset.estado).toBe('repouso');
+  // A onda não mora mais atrás do compositor — ela é o sinal da captura e foi
+  // para o pé da transcrição (ver `OndaDaTranscricao`, em Reuniao.tsx).
+  expect(q('.tq-wave')).toBeNull();
   expect(host.textContent).toContain('Rascunho salvo');
   expect(
     vi
@@ -143,7 +144,7 @@ it('nova conversa preserva as existentes e os rascunhos ao navegar', async () =>
   await write('Outra ideia');
   await click('.tq-enviar');
   expect(storage.local.values[STORAGE_KEYS.conversations]).toHaveLength(2);
-  await click('.tq-conversa-topo .tq-linkish');
+  await click('.tq-seletor-conversa');
   const previous = [
     ...host.querySelectorAll<HTMLButtonElement>('.tq-conversa-menu button'),
   ].find((b) => b.textContent?.includes('Conversa anterior'))!;

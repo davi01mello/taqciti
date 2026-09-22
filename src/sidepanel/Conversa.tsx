@@ -29,8 +29,6 @@ import type { EstadoDoAgente } from '@/features/agent/atividade';
 import { Icon } from '@/shared/ui/Icon';
 import { AgenteOnda } from '@/shared/ui/AgenteOnda';
 import { formatDate } from '@/shared/ui/format';
-import { WaveField } from '@/home/WaveField';
-import { useAnimacao } from '@/home/useAnimacao';
 
 interface Props {
   conversa: Conversation | null;
@@ -74,9 +72,7 @@ export function Conversa({
   const salvando = useRef(false);
   const [menuAberto, setMenuAberto] = useState(false);
   const [ajudaAberta, setAjudaAberta] = useState(false);
-  const [escrevendo, setEscrevendo] = useState(false);
   const [salvo, setSalvo] = useState(false);
-  const { animando, movimentoReduzido } = useAnimacao(false);
 
   const mensagens = conversa?.messages ?? [];
   const total = mensagens.length;
@@ -167,7 +163,6 @@ export function Conversa({
     // gravação que não deu certo é o pior desfecho possível aqui.
     if (ok) {
       onRascunho('');
-      setEscrevendo(false);
       setSalvo(true);
     }
     campoRef.current?.focus();
@@ -183,17 +178,35 @@ export function Conversa({
       }}
     >
       <div className={`tq-conversa-conteudo${total === 0 ? ' vazia' : ''}`}>
+        {/*
+         * O SELETOR DE CONVERSAS — e por que ele tem uma etiqueta fixa em cima.
+         *
+         * O que este botão mostra é o NOME DA CONVERSA ABERTA, não um rótulo do
+         * produto. Só que o nome de uma conversa é a primeira coisa escrita
+         * nela: quem começou perguntando "agente" acaba com uma conversa
+         * chamada "agente", e o seletor passa a parecer um botão de agente.
+         * Aconteceu, e foi lido como duplicidade de ponto de entrada.
+         *
+         * A etiqueta "Conversa" resolve sem inventar controle novo: ela é
+         * constante, o nome varia embaixo dela, e a seta diz que há outras. O
+         * ponto de entrada do agente continua sendo um só — o seletor de seção
+         * lá em cima (ver `Seletores.tsx`).
+         */}
         <div className="tq-conversa-topo">
           <button
             type="button"
-            className="tq-linkish"
+            className="tq-seletor-conversa"
             aria-label="Escolher conversa"
+            aria-haspopup="menu"
             title={conversa?.title ?? 'Conversas'}
             aria-expanded={menuAberto}
             onClick={() => setMenuAberto((v) => !v)}
           >
             <Icon name="chats" size={18} />
-            <span>{conversa ? conversa.title : 'Conversas'}</span>
+            <span className="tq-seletor-textos">
+              <small>Conversa</small>
+              <span>{conversa ? conversa.title : 'Nenhuma conversa aberta'}</span>
+            </span>
             <Icon name="chevron" size={16} />
           </button>
           <button
@@ -362,13 +375,13 @@ export function Conversa({
           )}
         </div>
 
+        {/*
+         * Sem onda atrás do campo. Ela era decoração aqui e sinal lá: o que a
+         * onda diz é "há captura correndo", e isso se lê na transcrição, onde
+         * ela agora mora (ver `OndaDaTranscricao`, em Reuniao.tsx). Atrás do
+         * compositor ela só concorria com o texto que se está escrevendo.
+         */}
         <div className="tq-escrita-palco">
-          <WaveField
-            estado={escrevendo && !movimentoReduzido ? 'escrita' : 'repouso'}
-            animando={animando}
-            pulso={0}
-            discreta
-          />
           {contexto && (
             <div className="tq-contexto-pendente">
               <div>
@@ -404,10 +417,8 @@ export function Conversa({
               }
               onChange={(e) => {
                 onRascunho(e.target.value);
-                setEscrevendo(true);
                 setSalvo(false);
               }}
-              onBlur={() => setEscrevendo(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();

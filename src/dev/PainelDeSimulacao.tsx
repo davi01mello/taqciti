@@ -262,10 +262,10 @@ export default function PainelDeSimulacao({ sobreposicao, onSobrepor }: Props) {
             </button>
           </div>
           <p className="tq-dev-nota">
-            Uma reunião, a nota dela, cinco trechos marcados, um print fictício e
-            três conversas. Todos com id <code>demo-</code> e título
-            &ldquo;Demonstração&rdquo;. Semear duas vezes não duplica; remover não
-            toca em nada real.
+            Uma reunião, a nota dela, cinco trechos marcados, um print fictício,
+            três conversas e dois documentos. Todos com id <code>demo-</code> e
+            título &ldquo;Demonstração&rdquo;. Semear duas vezes não duplica;
+            remover não toca em nada real.
           </p>
         </div>
       )}

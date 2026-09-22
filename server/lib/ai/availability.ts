@@ -15,13 +15,26 @@
 import { COMPARISON_MATRIX, type MatrixEntry } from './config';
 import { PROVIDER_IDS, type ProviderId } from './types';
 
+/**
+ * A variável de ambiente que guarda a chave de cada provedor.
+ *
+ * `mock` tem string vazia porque ele não tem chave — e não pode ter. Deixá-lo
+ * fora do mapa faria `API_KEY_ENV_VAR[provider]` devolver `undefined` e
+ * `process.env[undefined]` virar uma leitura que não falha nem funciona; a
+ * string vazia é explícita e `hasApiKey` a trata em cima.
+ */
 export const API_KEY_ENV_VAR: Record<ProviderId, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
+  openai: 'OPENAI_API_KEY',
   google: 'GOOGLE_API_KEY',
   xai: 'XAI_API_KEY',
+  mock: '',
 };
 
 export function hasApiKey(provider: ProviderId): boolean {
+  // O mock está sempre disponível: é o provedor que existe justamente para
+  // rodar sem chave nenhuma.
+  if (provider === 'mock') return true;
   return Boolean(process.env[API_KEY_ENV_VAR[provider]]?.trim());
 }
 
