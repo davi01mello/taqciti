@@ -72,7 +72,7 @@ async function chamar(caminho: string, init: RequestInit = {}): Promise<Response
   }
 
   if (resposta.status === 401) {
-    await descartarToken(token);
+    await descartarToken();
     const novo = await tokenDeIdentidade(false);
     if (novo) {
       try {

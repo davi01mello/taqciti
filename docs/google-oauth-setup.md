@@ -209,7 +209,6 @@ Em `server/.env.local` (ou nas variáveis do Railway, em produção):
 
 ```
 GOOGLE_OAUTH_WEB_CLIENT_ID=<o mesmo client id do passo 3B>.apps.googleusercontent.com
-TAQCITI_DOMINIO_PERMITIDO=citi.org.br
 ```
 
 **É o cliente Web (3B), não o da extensão (3A).** O servidor verifica um
@@ -225,8 +224,11 @@ aceito aqui — e quem operasse aquele aplicativo entraria como ela. Por isso
 a rota **falha fechada** sem a variável: "não sei comparar" não pode virar
 "então deixa passar". Ver o cabeçalho de `server/lib/identidade/google.ts`.
 
-`TAQCITI_DOMINIO_PERMITIDO` é opcional e restringe o produto a um domínio.
-Vazio, qualquer conta Google verificada cria acervo no servidor.
+`TAQCITI_DOMINIO_PERMITIDO` existe (opcional, comentado em `.env.example`) mas
+NÃO é usado aqui de propósito: quem usa o Claude/ChatGPT não necessariamente
+paga por eles numa conta @citi.org.br, e a conta do Google só identifica de
+quem é o acervo — não é uma cobrança. Deixado vazio, qualquer conta Google
+verificada cria acervo no servidor.
 
 ### 7. Conferir
 

@@ -108,11 +108,28 @@ function payloadDoJwt(idToken: string): Record<string, unknown> | null {
  * runtime.lastError" no console a cada tentativa silenciosa que falha, que é
  * o caso NORMAL do caminho de fundo.
  *
- * `prompt=select_account` só no caminho INTERATIVO: no silencioso ele forçaria
- * a tela a aparecer, que é exatamente o que `interactive: false` promete não
- * fazer.
+ * ── Os dois caminhos pedem coisas diferentes ao Google ───────────────────
+ *
+ * **Interativo** (`prompt=select_account`): a tela de escolha de conta, que é
+ * o ponto inteiro de usar `launchWebAuthFlow` — ver o cabeçalho do arquivo.
+ *
+ * **Silencioso** (`prompt=none` + `login_hint`): nenhuma tela, nunca. E o
+ * `login_hint` é o que faz este caminho FUNCIONAR em vez de falhar sempre:
+ *
+ *   Sem ele, quando há mais de uma conta Google no navegador — o caso comum,
+ *   porque a pessoa tem a do CITi e a pessoal — o Google não tem como saber
+ *   qual usar e responde com o seletor de contas. Em modo silencioso não há
+ *   onde mostrar seletor, então a tentativa simplesmente falha. O resultado
+ *   visível era a sincronização "desligar sozinha" e pedir permissão de novo
+ *   a cada vez que o service worker morria, que no MV3 é o tempo todo.
+ *
+ *   Com o `login_hint`, o Google sabe qual conta é e devolve direto.
+ *
+ * `prompt=none` é o par disso: diz explicitamente "não me mostre nada". Sem
+ * ele, o Google poderia tentar abrir tela dentro de um fluxo que já se
+ * comprometeu a não abrir nenhuma, e a falha viria mais lenta e mais confusa.
  */
-function pedirIdentidade(interativo: boolean): Promise<ResultadoDeLogin> {
+function pedirIdentidade(interativo: boolean, dicaDeConta?: string): Promise<ResultadoDeLogin> {
   const clientId = webClientId();
   if (!clientId) {
     return Promise.resolve({
@@ -128,7 +145,8 @@ function pedirIdentidade(interativo: boolean): Promise<ResultadoDeLogin> {
     redirect_uri: chrome.identity.getRedirectURL(),
     scope: ESCOPO,
     nonce,
-    ...(interativo ? { prompt: 'select_account' } : {}),
+    ...(interativo ? { prompt: 'select_account' } : { prompt: 'none' }),
+    ...(dicaDeConta ? { login_hint: dicaDeConta } : {}),
   });
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
@@ -215,7 +233,12 @@ export async function tokenDeIdentidade(interativo: boolean): Promise<string | n
   const guardado = doCache();
   if (guardado) return guardado;
 
-  const { idToken } = await pedirIdentidade(interativo);
+  // A dica de conta vem do "sim" guardado, e é o que sustenta o caminho
+  // silencioso entre mortes do service worker — ver `pedirIdentidade`. Não é
+  // credencial: é só o endereço de e-mail que a pessoa já escolheu uma vez.
+  const dica = interativo ? undefined : (await lerSim()).email;
+
+  const { idToken } = await pedirIdentidade(interativo, dica);
   if (idToken) guardarNoCache(idToken);
   return idToken;
 }
@@ -224,8 +247,12 @@ export async function tokenDeIdentidade(interativo: boolean): Promise<string | n
  * Descarta a identidade em cache — chamado quando o SERVIDOR recusa um
  * token (401): o cache local pode estar desatualizado em relação ao que o
  * servidor aceita, e insistir com o mesmo valor só repetiria a recusa.
+ *
+ * Sem argumento, de propósito: diferente do cache do `getAuthToken` (que era
+ * do Chrome, por token), este é nosso e vale só um de cada vez — não há "qual
+ * token" para especificar.
  */
-export function descartarToken(_idToken: string): Promise<void> {
+export function descartarToken(): Promise<void> {
   emCache = null;
   return Promise.resolve();
 }
@@ -298,14 +325,24 @@ export async function estadoDaSincronizacao(): Promise<EstadoDaSincronizacao> {
  * deixaria a extensão convencida de que está ligada enquanto a pessoa fechou
  * o popup.
  */
-export async function ligarSincronizacao(
-  email?: string,
-): Promise<EstadoDaSincronizacao> {
+export async function ligarSincronizacao(): Promise<EstadoDaSincronizacao> {
   if (!identidadeConfigurada()) return { situacao: 'sem-oauth' };
 
   const { idToken, erro } = await pedirIdentidade(true);
   if (!idToken) return { situacao: 'desligada', ...(erro ? { motivo: erro } : {}) };
   guardarNoCache(idToken);
+
+  // O e-mail sai do próprio token, não de um parâmetro de quem chamou. Antes
+  // era um argumento que a página nunca passava, então o "sim" era gravado
+  // sem e-mail nenhum — e sem e-mail não há `login_hint`, que é justamente o
+  // que mantém o caminho silencioso funcionando depois. Ler do token torna
+  // impossível esquecer de preencher.
+  //
+  // Não é autoridade sobre nada: quem decide de quem é o acervo é o servidor,
+  // conferindo a assinatura do mesmo token. Aqui serve para a dica de conta e
+  // para a tela ter o que mostrar.
+  const doToken = payloadDoJwt(idToken)?.email;
+  const email = typeof doToken === 'string' ? doToken : undefined;
 
   const sim: SimGuardado = {
     ligada: true,

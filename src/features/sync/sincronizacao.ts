@@ -262,9 +262,9 @@ export async function sincronizar(): Promise<ResultadoDoSync> {
     }
 
     if (resposta.status === 401) {
-      // Token vencido. Descartar o cache do Chrome é o que permite a próxima
+      // Token vencido. Descartar o cache local é o que permite a próxima
       // passada pegar um novo — sem isso, vira recusa permanente.
-      await descartarToken(token);
+      await descartarToken();
       return { estado: 'falhou', enviados, apagados, motivo: 'credencial recusada' };
     }
     if (!resposta.ok) {

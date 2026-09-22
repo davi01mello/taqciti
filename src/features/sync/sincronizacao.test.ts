@@ -9,10 +9,11 @@
  * Por isso o teste central é `o que mudou PARA TRÁS também vai`. Um marcador
  * temporal — o desenho ingênuo — passaria em tudo aqui menos nele.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import type { MeetingRecord } from '@/shared/types/domain';
+import { limparCacheDeIdentidadeLocal } from '@/shared/services/identidade';
 import {
   assinar,
   esquecerSincronizado,
@@ -42,21 +43,53 @@ function reuniao(over: Partial<MeetingRecord> = {}): MeetingRecord {
   } as MeetingRecord;
 }
 
-/** Liga o "sim" e finge um token válido. */
-function montarChromeComToken(token: string | null = 'tok') {
+const REDIRECT_URI = 'https://jalebpaefejnbacgncgkailhemkdpnhm.chromiumapp.org/';
+
+/** Um JWT que basta para `identidade.ts` ler: só o PAYLOAD importa (nonce,
+ *  exp) — a assinatura é verificada pelo servidor, nunca aqui. */
+function jwtDeMentira(payload: Record<string, unknown>): string {
+  const parte = (obj: unknown) =>
+    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${parte({ alg: 'none' })}.${parte(payload)}.assinatura-fake`;
+}
+
+/**
+ * Liga o "sim" e finge uma identidade válida.
+ *
+ * `idToken: null` finge que o Google não devolveu nada — sessão caducada, ou
+ * a pessoa fechou o popup. Devolve quantas vezes `launchWebAuthFlow` foi
+ * chamado, para os testes de cache/401 poderem afirmar sobre isso sem
+ * depender de uma API do Chrome que não existe mais neste mecanismo.
+ */
+function montarChromeComToken(idToken: string | null = 'presente') {
+  const chamadas = { total: 0 };
   const g = globalThis as unknown as { chrome: Record<string, unknown> };
   g.chrome = {
     ...(g.chrome ?? {}),
     runtime: {
       ...((g.chrome?.runtime as object) ?? {}),
-      getManifest: () => ({ oauth2: { client_id: '1.apps.googleusercontent.com' } }),
       lastError: undefined,
     },
     identity: {
-      getAuthToken: (_d: unknown, cb: (t?: string) => void) => cb(token ?? undefined),
-      removeCachedAuthToken: (_d: unknown, cb: () => void) => cb(),
+      getRedirectURL: () => REDIRECT_URI,
+      launchWebAuthFlow: (detalhes: { url: string }, cb: (url?: string) => void) => {
+        chamadas.total += 1;
+        if (idToken === null) {
+          cb(undefined);
+          return;
+        }
+        const nonce = new URL(detalhes.url).searchParams.get('nonce');
+        const token = jwtDeMentira({
+          sub: 'sub-ana',
+          email: 'ana@citi.org.br',
+          nonce,
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+        cb(`${REDIRECT_URI}#id_token=${token}`);
+      },
     },
   };
+  return chamadas;
 }
 
 async function ligar() {
@@ -65,8 +98,14 @@ async function ligar() {
 
 beforeEach(() => {
   installChromeStorageMock();
+  vi.stubEnv('VITE_GOOGLE_OAUTH_WEB_CLIENT_ID', '123456-web.apps.googleusercontent.com');
+  limparCacheDeIdentidadeLocal();
   montarChromeComToken();
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ------------------------------------------------------------- assinatura
@@ -298,7 +337,7 @@ describe('sincronizar', () => {
     expect(rede).toHaveBeenCalledTimes(1);
   });
 
-  it('manda o token do Google no cabeçalho', async () => {
+  it('manda a identidade do Google no cabeçalho', async () => {
     await ligar();
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [reuniao()] });
     const rede = vi
@@ -307,7 +346,10 @@ describe('sincronizar', () => {
 
     await sincronizar();
     const init = rede.mock.calls[0]?.[1] as RequestInit;
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+    const cabecalho = (init.headers as Record<string, string>).Authorization;
+    // O valor exato é um JWT gerado pelo mock — o que importa afirmar é a
+    // FORMA (Bearer + três partes separadas por ponto), não o literal.
+    expect(cabecalho).toMatch(/^Bearer [^.]+\.[^.]+\.[^.]+$/);
   });
 
   it('falha no meio preserva o que já entrou', async () => {
@@ -333,20 +375,23 @@ describe('sincronizar', () => {
     expect(await sincronizar()).toEqual({ estado: 'ok', enviados: 10, apagados: 0 });
   });
 
-  it('401 descarta o token em cache, para a próxima passada pegar outro', async () => {
+  it('401 descarta a identidade em cache, para a próxima passada pedir outra', async () => {
     await ligar();
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [reuniao()] });
-
-    let descartou = false;
-    const g = globalThis as unknown as { chrome: { identity: Record<string, unknown> } };
-    g.chrome.identity.removeCachedAuthToken = (_d: unknown, cb: () => void) => {
-      descartou = true;
-      cb();
-    };
+    // Reinstala o mock para pegar a contagem de chamadas a partir de zero
+    // (o `beforeEach` já tinha montado um, sem capturar o retorno).
+    const chamadas = montarChromeComToken();
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('nao', { status: 401 }));
     expect(await sincronizar()).toMatchObject({ estado: 'falhou', motivo: 'credencial recusada' });
-    expect(descartou).toBe(true);
+    expect(chamadas.total).toBe(1);
+
+    // Sem o descarte, esta segunda passada serviria a MESMA identidade do
+    // cache (ainda dentro da validade) em vez de pedir outra — e repetiria a
+    // mesma recusa do servidor para sempre.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ gravados: 1 })));
+    await sincronizar();
+    expect(chamadas.total).toBe(2);
   });
 
   it('servidor fora não derruba nada — vira resultado, não exceção', async () => {

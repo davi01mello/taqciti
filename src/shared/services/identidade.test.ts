@@ -1,4 +1,4 @@
-/**
+﻿/**
  * A identidade do lado da extensão.
  *
  * Quatro invariantes carregam o arquivo, e os quatro são sobre ATRITO — que é
@@ -137,10 +137,15 @@ describe('escopo e forma do pedido', () => {
   });
 
   it('select_account só no caminho INTERATIVO', async () => {
+    // O silencioso manda `prompt=none` — o oposto de `select_account`, e não
+    // a ausência de `prompt`, que era o que este teste afirmava antes.
+    // Ausência deixava o Google livre para decidir mostrar tela; `none` diz
+    // explicitamente que não há onde mostrar. A invariante é a mesma: tela de
+    // escolha de conta, só quando alguém clicou.
     const { pedidos } = montarChrome();
     await tokenDeIdentidade(false);
     await ligarSincronizacao();
-    expect(new URL(pedidos[0]!.url).searchParams.has('prompt')).toBe(false);
+    expect(new URL(pedidos[0]!.url).searchParams.get('prompt')).toBe('none');
     expect(new URL(pedidos[1]!.url).searchParams.get('prompt')).toBe('select_account');
   });
 
@@ -175,7 +180,7 @@ describe('estadoDaSincronizacao', () => {
 
   it('NUNCA abre popup', async () => {
     const { pedidos } = montarChrome();
-    await ligarSincronizacao('ana@citi.org.br');
+    await ligarSincronizacao();
     pedidos.length = 0;
 
     await estadoDaSincronizacao();
@@ -184,7 +189,7 @@ describe('estadoDaSincronizacao', () => {
 
   it('ligada quando há sim e identidade', async () => {
     montarChrome();
-    await ligarSincronizacao('ana@citi.org.br');
+    await ligarSincronizacao();
     expect(await estadoDaSincronizacao()).toEqual({
       situacao: 'ligada',
       email: 'ana@citi.org.br',
@@ -195,7 +200,7 @@ describe('estadoDaSincronizacao', () => {
     // Distinção que importa na tela: "você desligou" e "a sessão do Google
     // caducou" pedem respostas diferentes de quem está lendo.
     montarChrome();
-    await ligarSincronizacao('ana@citi.org.br');
+    await ligarSincronizacao();
 
     montarChrome({ idToken: null });
     limparCacheDeIdentidadeLocal();
@@ -241,7 +246,7 @@ describe('ligar e desligar', () => {
     // `precisa-permissao` não tem campo `motivo` no tipo — a mensagem bruta
     // é ruído aqui, porque a recusa silenciosa é o resultado ESPERADO.
     montarChrome();
-    await ligarSincronizacao('ana@citi.org.br');
+    await ligarSincronizacao();
 
     montarChrome({ idToken: null, erro: 'qualquer coisa que o Chrome disser' });
     limparCacheDeIdentidadeLocal();
@@ -252,13 +257,73 @@ describe('ligar e desligar', () => {
 
   it('desligar apaga o sim e o cache local', async () => {
     montarChrome();
-    await ligarSincronizacao('ana@citi.org.br');
+    await ligarSincronizacao();
 
     await desligarSincronizacao();
     // Sem o cache limpo, `estadoDaSincronizacao` acharia que ainda tem uma
     // identidade válida em mãos mesmo com o sim apagado.
     montarChrome({ idToken: null });
     expect(await estadoDaSincronizacao()).toEqual({ situacao: 'desligada' });
+  });
+});
+
+describe('o caminho silencioso sobrevive ao service worker morrer', () => {
+  /**
+   * O cache de identidade vive em MEMÓRIA, e no MV3 o service worker morre
+   * por ociosidade o tempo todo. Ou seja: o caminho silencioso não é o caso
+   * raro — é o caso NORMAL, percorrido a cada sincronização.
+   *
+   * E ele falhava. Sem dizer ao Google QUAL conta usar, um navegador com mais
+   * de uma conta logada (a do CITi e a pessoal, o arranjo comum) recebe o
+   * seletor de contas como resposta — que em modo silencioso não tem onde
+   * aparecer, então a tentativa morre. O sintoma era a sincronização pedir
+   * permissão de novo sem parar, como se a conta não se mantivesse.
+   */
+  it('manda login_hint com a conta já escolhida', async () => {
+    montarChrome();
+    await ligarSincronizacao();
+    limparCacheDeIdentidadeLocal();
+
+    const { pedidos } = montarChrome();
+    await tokenDeIdentidade(false);
+
+    const url = new URL(pedidos[0]!.url);
+    expect(url.searchParams.get('login_hint')).toBe('ana@citi.org.br');
+  });
+
+  it('manda prompt=none — promete ao Google que não há onde mostrar tela', async () => {
+    montarChrome();
+    await ligarSincronizacao();
+    limparCacheDeIdentidadeLocal();
+
+    const { pedidos } = montarChrome();
+    await tokenDeIdentidade(false);
+
+    const url = new URL(pedidos[0]!.url);
+    expect(url.searchParams.get('prompt')).toBe('none');
+  });
+
+  it('o interativo continua pedindo select_account, e NÃO manda login_hint', async () => {
+    // Travar a conta no caminho interativo tiraria justamente a escolha que
+    // faz este fluxo existir — ver o cabeçalho de `identidade.ts`.
+    const { pedidos } = montarChrome();
+    await ligarSincronizacao();
+
+    const url = new URL(pedidos[0]!.url);
+    expect(url.searchParams.get('prompt')).toBe('select_account');
+    expect(url.searchParams.get('login_hint')).toBeNull();
+  });
+
+  it('o e-mail guardado vem do TOKEN, não de quem chamou', async () => {
+    // Antes era um parâmetro opcional que a página nunca passava: o "sim"
+    // ficava sem e-mail, e sem e-mail não há `login_hint`. Tirar o parâmetro
+    // torna impossível esquecer.
+    montarChrome({ payload: { email: 'outra.pessoa@citi.org.br' } });
+    const estado = await ligarSincronizacao();
+
+    expect(estado).toEqual({ situacao: 'ligada', email: 'outra.pessoa@citi.org.br' });
+    const guardado = await chrome.storage.local.get(STORAGE_KEYS.sync);
+    expect(guardado[STORAGE_KEYS.sync]).toMatchObject({ email: 'outra.pessoa@citi.org.br' });
   });
 });
 
@@ -302,7 +367,7 @@ describe('ruído no console', () => {
 describe('integração com o mock de storage', () => {
   it('o sim sobrevive a uma releitura', async () => {
     montarChrome();
-    await ligarSincronizacao('ana@citi.org.br');
+    await ligarSincronizacao();
     const guardado = await chrome.storage.local.get(STORAGE_KEYS.sync);
     expect(guardado[STORAGE_KEYS.sync]).toMatchObject({
       ligada: true,

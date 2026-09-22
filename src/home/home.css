@@ -1036,6 +1036,50 @@ body {
   margin: 10px 0 0 16px;
 }
 
+/* Passos numerados de um guia.
+   Contador próprio em vez do marcador do navegador porque o número precisa
+   ficar FORA do texto e alinhado com ele — com `list-style` nativo, uma linha
+   que quebra volta por baixo do número e a lista perde a coluna. */
+.tq-passos {
+  list-style: none;
+  counter-reset: passo;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.tq-passos li {
+  counter-increment: passo;
+  position: relative;
+  padding-left: 34px;
+  font-size: 12.5px;
+  color: rgb(186 189 193);
+  line-height: 1.8;
+}
+
+.tq-passos li::before {
+  content: counter(passo);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(214 217 220);
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.tq-passos strong {
+  color: rgb(228 230 233);
+  font-weight: 550;
+}
+
 /* ------------------------------------------------- detalhe de uma reunião */
 
 .tq-voltar {

@@ -96,8 +96,9 @@ function EnderecoNovo({ criado }: { criado: TokenRecemCriado }) {
   return (
     <div className="tq-conector-novo">
       <p className="tq-aviso">
-        <strong>Copie agora.</strong> Este endereço não aparece de novo — o servidor guarda
-        só um resumo dele, não o valor. Se perder, gere outro e revogue este.
+        <strong>Copie agora — este endereço não aparece de novo.</strong> O servidor guarda
+        só um resumo dele, não o valor. Cole-o na Claude ou no ChatGPT seguindo o passo a
+        passo abaixo. Se perder, gere outro e revogue este.
       </p>
       <div className="tq-conector-endereco">
         <input readOnly value={criado.url} onFocus={(e) => e.currentTarget.select()} />
@@ -119,50 +120,119 @@ function EnderecoNovo({ criado }: { criado: TokenRecemCriado }) {
 /**
  * As instruções por assistente.
  *
- * Os nomes de menu são os que os dois usam hoje, e é honesto dizer que eles
- * mudam: escrever "clique exatamente em X" e a pessoa não achar X é pior do
- * que descrever onde procurar. Por isso cada passo diz o LUGAR e o que
- * procurar, não só o rótulo.
+ * ── Duas regras que este guia obedece ────────────────────────────────────
+ *
+ * **1. Diz o LUGAR, não só o rótulo.** Os nomes de menu da Claude e do
+ * ChatGPT mudam sem aviso. "Clique exatamente em X" e a pessoa não achar X é
+ * pior do que descrever onde procurar e o que o botão faz.
+ *
+ * **2. Antecipa o que vai dar errado.** O aviso "não foi possível verificar
+ * o servidor" da Claude apareceu em uso real, e quem não foi avisado
+ * interpreta como "quebrou" e desiste — quando a resposta certa é seguir. Um
+ * guia que só descreve o caminho feliz falha exatamente na hora em que
+ * alguém precisa dele.
  */
 function ComoConectar() {
   return (
     <div className="tq-guia">
       <details open>
-        <summary>No Claude</summary>
-        <p>
-          Abra <code>claude.ai</code> e vá em <strong>Configurações → Conectores</strong>.
-          Escolha adicionar um conector personalizado (<em>custom connector</em>) e cole o
-          endereço acima.
-        </p>
+        <summary>Conectar na Claude</summary>
+        <ol className="tq-passos">
+          <li>
+            Copie o endereço acima (é o botão <strong>Copiar</strong>).
+          </li>
+          <li>
+            Em <code>claude.ai</code>, abra <strong>Configurações</strong> e procure a
+            seção <strong>Conectores</strong>.
+          </li>
+          <li>
+            Clique em <strong>Adicionar conector personalizado</strong> e cole o endereço
+            no campo de URL. Não há usuário nem senha para preencher: o endereço já é a
+            credencial.
+          </li>
+          <li>
+            <strong>Se aparecer um aviso</strong> dizendo que não foi possível verificar o
+            servidor ou determinar como ele faz login, escolha{' '}
+            <strong>continuar mesmo assim</strong>. Isso é esperado e está explicado logo
+            abaixo — o conector funciona normalmente.
+          </li>
+          <li>
+            Pronto. Pergunte algo como <em>“o que ficou decidido na última reunião?”</em>{' '}
+            e autorize o uso da ferramenta quando ela pedir.
+          </li>
+        </ol>
+      </details>
+
+      <details>
+        <summary>Conectar no ChatGPT</summary>
+        <ol className="tq-passos">
+          <li>Copie o mesmo endereço — ele serve para os dois.</li>
+          <li>
+            Em <code>chatgpt.com</code>, abra <strong>Configurações</strong> e procure{' '}
+            <strong>Conectores</strong> (em algumas contas aparece dentro de{' '}
+            <strong>Aplicativos e conectores</strong>).
+          </li>
+          <li>
+            Escolha criar um conector e cole o endereço. Quando pedir o tipo de
+            autenticação, escolha <strong>nenhuma</strong> — a credencial já está no
+            endereço.
+          </li>
+          <li>
+            Numa conversa, ative o conector do TaqCiti nas ferramentas antes de perguntar.
+            O ChatGPT não o usa sozinho como a Claude faz.
+          </li>
+        </ol>
         <p className="tq-meta">
-          Conectores personalizados exigem um plano pago da Anthropic. Se a opção não
-          aparecer, é isso — e não o endereço.
+          Aqui é honesto dizer o que não sabemos: o servidor anuncia as ferramentas{' '}
+          <code>search</code> e <code>fetch</code> que o ChatGPT espera, mas a tela de
+          conectores dele muda com frequência e costuma exigir plano pago. Se travar, o
+          caminho manual lá embaixo funciona sempre.
         </p>
       </details>
 
       <details>
-        <summary>No ChatGPT</summary>
+        <summary>Por que a Claude avisa que “não verificou” o servidor</summary>
         <p>
-          Em <code>chatgpt.com</code>, vá em <strong>Configurações → Conectores</strong> e
-          adicione um conector por URL, colando o endereço acima.
+          Porque ela procura um sistema de login completo (um servidor OAuth, como o do
+          Notion ou do Google) e não encontra — este servidor não tem um, de propósito.
+          Quem prova quem você é é o próprio endereço que você colou, e ele já vai
+          autenticado.
         </p>
-        <p className="tq-meta">
-          No ChatGPT isto costuma estar atrás do modo de desenvolvedor e de um plano pago,
-          e o suporte varia mais que no Claude. Se não funcionar de primeira, o caminho
-          manual lá embaixo continua valendo.
+        <p>
+          O aviso é sobre a AUSÊNCIA de uma tela de login, não sobre o servidor estar com
+          problema. Seguir em frente é o caminho certo aqui.
+        </p>
+      </details>
+
+      <details>
+        <summary>As duas contas — e por que não precisam ser a mesma</summary>
+        <p>
+          <strong>Aqui, no TaqCiti:</strong> sua conta do Google. É ela que diz de quem é o
+          acervo, e é por isso que só as SUAS reuniões aparecem.
+        </p>
+        <p>
+          <strong>Na Claude ou no ChatGPT:</strong> qualquer conta, inclusive pessoal. Elas
+          não precisam ser a mesma e nem precisam ser do CITi. O endereço que você colou é
+          o que liga uma ponta à outra — quem paga a assinatura do assistente não tem
+          nenhuma relação com de quem é o acervo.
         </p>
       </details>
 
       <details>
         <summary>O que o assistente passa a conseguir fazer</summary>
         <p>
-          Procurar em todas as suas reuniões, documentos, conversas e notas — e ler só o
-          pedaço de que precisa. Ele não recebe o acervo inteiro de uma vez: busca, acha a
-          posição exata e puxa aquele trecho.
+          Procurar em <strong>todas</strong> as suas reuniões, documentos, conversas e
+          notas já sincronizadas — e ler só o pedaço de que precisa. Ele não recebe o
+          acervo inteiro de uma vez: busca, acha a posição exata e puxa aquele trecho.
         </p>
         <p>
           É isso que faz perguntas como <em>“quem ficou de fazer o deploy?”</em> custarem
-          uma busca e algumas falas, em vez da transcrição toda.
+          uma busca e algumas falas, em vez da transcrição toda — e é o que permite ter
+          meses de reunião ao alcance sem estourar a conversa.
+        </p>
+        <p className="tq-meta">
+          Ele só enxerga o que já subiu. Reunião capturada com a sincronização desligada
+          não está lá.
         </p>
       </details>
     </div>
@@ -259,7 +329,7 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
     <div className="tq-pagina">
       <Cabecalho
         titulo="Conexões"
-        sub="Dê ao Claude e ao ChatGPT acesso às suas reuniões — sem colar arquivo."
+        sub="Dê à Claude e ao ChatGPT acesso às suas reuniões — copiando e colando um link."
       />
 
       {estado === null ? (
@@ -289,20 +359,10 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
                 </strong>{' '}
                 e o resto do produto funciona igual.
               </div>
-              {/*
-                A distinção que este parágrafo existe para ensinar — antes do clique, não
-                depois — é a que confunde todo mundo na primeira vez: a conta usada aqui é
-                a do NAVEGADOR (o ícone de perfil), não a de uma aba aberta do Gmail. As
-                duas parecem a mesma coisa e não são: dá pra estar logado no Gmail da
-                empresa numa aba e o Chrome, como programa, continuar com o perfil pessoal
-                — e é o perfil que decide, silenciosamente, sem perguntar.
-              */}
               <p className="tq-meta">
-                <strong>Antes de clicar:</strong> confira o ícone de perfil no canto
-                superior direito do Chrome. É essa conta — a do navegador, não a de uma
-                aba aberta do Gmail — que a sincronização vai usar. Se não for a sua conta
-                do CITi, troque de perfil ali antes de continuar; senão a extensão liga
-                com a conta errada, sem avisar.
+                O clique abre a tela de login do Google — a mesma que qualquer site mostra
+                — com a lista de contas para escolher. Selecione a sua conta do CITi ali;
+                não importa qual conta o Chrome já estiver usando.
               </p>
               <div className="tq-acoes">
                 <button
@@ -325,14 +385,10 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
           {estado.situacao === 'precisa-permissao' && (
             <>
               <div className="tq-aviso">
-                <strong>O Chrome não está mais liberando o acesso à sua conta.</strong>{' '}
-                Costuma ser sair da conta, trocar de perfil ou revogar o acesso nas
-                configurações do Google. Reconectar resolve — nada foi perdido.
+                <strong>A sessão do Google expirou.</strong> Costuma ser revogação de acesso
+                nas configurações da conta, ou tempo demais sem usar. Reconectar resolve —
+                nada foi perdido.
               </div>
-              <p className="tq-meta">
-                Antes de reconectar, confira o ícone de perfil no canto superior direito
-                do Chrome: é essa conta que vale, não a de uma aba aberta do Gmail.
-              </p>
               <div className="tq-acoes">
                 <button
                   type="button"
@@ -371,6 +427,11 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
                 </button>
               </div>
               <p className="tq-meta">
+                Esta é a conta que diz de quem é o acervo — só as reuniões dela aparecem
+                para o assistente. A conta que você usa na Claude ou no ChatGPT pode ser
+                outra, inclusive pessoal; as duas não precisam combinar.
+              </p>
+              <p className="tq-meta">
                 Desligar para de enviar daqui para frente. O que já subiu continua lá —
                 revogar os endereços abaixo é o que tira o acesso dos assistentes.
               </p>
@@ -379,9 +440,15 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
 
               <h2 className="tq-secao-titulo">Endereços do conector</h2>
               <p className="tq-meta">
-                Um endereço por assistente. Quem tiver o endereço alcança seu acervo, então
-                trate-o como senha — e revogue o que não usa. Um endereço já criado não pode
-                ser mostrado de novo: se você não o guardou, gere outro e revogue o antigo.
+                Um endereço é um link que você cola na Claude ou no ChatGPT — e é só isso
+                que a conexão exige, sem instalar nada e sem criar conta em lugar nenhum.
+                Ele já vai autenticado, então <strong>vale como senha</strong>: quem tiver o
+                link alcança seu acervo. Gere um por assistente, e revogue o que não usa.
+              </p>
+              <p className="tq-meta">
+                Um endereço já criado não pode ser mostrado de novo — o servidor guarda só
+                um resumo dele. Se você não guardou, gere outro e revogue o antigo; não
+                custa nada e não afeta o que já foi sincronizado.
               </p>
 
               {criado && <EnderecoNovo criado={criado} />}
@@ -403,7 +470,10 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
               </div>
 
               {tokens.length === 0 ? (
-                <p className="tq-vazio">Nenhum endereço criado ainda.</p>
+                <p className="tq-vazio">
+                  Nenhum endereço criado ainda — gere o primeiro acima para conectar a
+                  Claude ou o ChatGPT.
+                </p>
               ) : (
                 <div className="tq-lista tq-lista-densa">
                   {tokens.map((t) => (
