@@ -4,12 +4,33 @@ Runbook completo. Nenhuma chave aparece aqui: tudo é variável de ambiente, e o
 mesmo procedimento serve para a sua chave hoje e para a da empresa depois —
 troca-se o valor, não o código.
 
-> **Produção hoje é o Railway**, em
-> `https://taqciti-production.up.railway.app`. Este documento já se chamou
-> `deploy-vercel.md` e descrevia a Vercel do começo ao fim, muito depois de a
-> produção ter mudado de casa — inclusive mandando rodar a prova de fumaça
-> contra um endereço `.vercel.app` que não existe mais. O nome do arquivo
-> perdeu o host de propósito, para não rotular errado de novo.
+> ⚠️ **Produção mudou, e o corpo deste runbook ainda não.**
+>
+> Desde **22/09/2026** o servidor roda na **Vercel**, em
+> `https://server-psi-liart-81.vercel.app` — é o endereço que o `.env` da
+> extensão aponta —, e **o deploy é manual**: nenhum push publica nada sozinho.
+> As seções abaixo descrevem os cliques do **Railway**, o host anterior, e não
+> foram reescritas. Use-as como referência de *o que* precisa estar
+> configurado (Root Directory, variáveis, a prova de fumaça), não de *onde*
+> clicar.
+>
+> Duas armadilhas conhecidas da casa nova, que o corpo abaixo não cobre:
+>
+> - **`DATABASE_URL` tem que ser o endereço do _pooler_ da Supabase**, não o da
+>   conexão direta. O texto de erro em `lib/conector/banco.ts` ainda fala do
+>   plugin de Postgres do Railway.
+> - **O teto de função voltou a existir.** A seção 5 explica por que ele não
+>   valia no Railway (processo Node de vida longa); na Vercel cada rota é
+>   serverless de novo, e os comentários que dizem "INERTE no Railway" em
+>   `app/api/generate/route.ts`, `app/api/ai/bench/route.ts` e
+>   `app/api/ai/secao/route.ts` voltaram a valer. Isso ainda não foi revisto no
+>   código.
+>
+> Este documento já se chamou `deploy-vercel.md` e descrevia a Vercel do começo
+> ao fim muito depois de a produção ter saído de lá — inclusive mandando rodar
+> a prova de fumaça contra um endereço que não existia mais. O nome do arquivo
+> perdeu o host de propósito, para não rotular errado de novo; o aviso no topo
+> é que precisa acompanhar a mudança.
 >
 > O app continua sendo um Next.js (App Router) comum, sem `output: 'export'` e
 > sem nada que exija hospedagem especial — qualquer host Node/Next serve. O que
@@ -32,9 +53,10 @@ servidor em `server/`. O host precisa saber disso.
 extensão (Vite) achando que é o app Next, e o deploy falha ou publica a coisa
 errada. É ajuste de projeto, no painel — não dá para configurar por arquivo.
 
-O Railway **redeploya sozinho** a cada push na branch conectada (`main`). Levou
-~1 minuto nas duas vezes medidas em 22/08/2026. Não existe passo manual de
-deploy no fluxo normal.
+O Railway **redeployava sozinho** a cada push na branch conectada (`main`) —
+~1 minuto nas duas vezes medidas em 22/08/2026. **Na Vercel, hoje, não.** O
+deploy é manual, e é por isso que `docs/publicar-release.md` manda publicar o
+servidor **antes** de cortar a tag: nada o atualiza no caminho.
 
 ---
 
@@ -224,3 +246,8 @@ surtindo efeito hoje, o que importa saber antes de confiar neles:
 
 Se voltar para a Vercel, os dois voltam a valer sozinhos — e a seção 5 volta a
 ser o maior risco aberto do projeto.
+
+> **E foi o que aconteceu.** A produção voltou para a Vercel em 22/09/2026 (ver
+> o aviso no topo). Esta seção descreve os dois artefatos como inertes porque
+> foi escrita na casa anterior: hoje os dois estão **valendo**, e a frase acima
+> deixou de ser hipótese. A seção 5 é, de novo, o maior risco aberto.

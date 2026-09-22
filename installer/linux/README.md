@@ -1,6 +1,6 @@
-﻿# Instalador Linux (makeself)
+# Instalador Linux (makeself)
 
-Gera um único arquivo `.run` autoextraível que instala a extensão TaqCITi.
+Gera um único arquivo `.run` autoextraível que instala a extensão TaqCiti.
 
 ## Pré-requisitos
 

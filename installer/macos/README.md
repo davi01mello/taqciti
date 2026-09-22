@@ -1,6 +1,6 @@
-﻿# Instalador macOS (pkgbuild)
+# Instalador macOS (pkgbuild)
 
-Gera um único arquivo `.pkg` que instala a extensão TaqCITi.
+Gera um único arquivo `.pkg` que instala a extensão TaqCiti.
 
 ## Pré-requisitos
 
@@ -34,8 +34,8 @@ Este `.pkg` **não é assinado** com um certificado de desenvolvedor Apple
 (exigiria conta paga, fora do escopo desta fase). Isso significa que dando
 duplo-clique nele, o Gatekeeper vai bloquear com algo como:
 
-> "TaqCITi.pkg" não pode ser aberto porque é de um desenvolvedor não
-> identificado.
+> "taqciti-instalador-mac-X.Y.Z.pkg" não pode ser aberto porque é de um
+> desenvolvedor não identificado.
 
 **Isso é esperado.** Não tentamos contornar via assinatura de código por
 enquanto. A instrução para quem for instalar, que é a que a Apple documenta

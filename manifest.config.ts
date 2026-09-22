@@ -46,9 +46,18 @@ const OAUTH_CLIENT_ID =
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'TaqCITi Standalone',
+  /*
+   * O nome que o Chrome mostra no cartão da extensão, e o nome do produto.
+   *
+   * Era "TaqCITi Standalone". O sufixo descrevia a ORIGEM — a extração do
+   * núcleo de captura da extensão antiga, sem a plataforma CITi Flow — e isso
+   * deixou de ser uma distinção útil: não existe uma edição "não standalone"
+   * deste produto para se contrapor a ela, e o sufixo só aparecia para quem
+   * instala, que nunca soube do que ele falava.
+   */
+  name: 'TaqCiti',
   description:
-    'Transcrição automática de reuniões do Google Meet — captura invisível e histórico 100% local, sem integração com nenhum backend.',
+    'Transcrição automática de reuniões do Google Meet — captura invisível, histórico local e geração de ata a partir do que foi dito.',
   version: '2.1.2',
   minimum_chrome_version: '116',
 

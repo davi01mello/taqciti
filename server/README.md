@@ -1,4 +1,4 @@
-# TaqCITi — servidor de geração de documento
+# TaqCiti — servidor de geração de documento
 
 Servidor Next.js (App Router) independente do resto do repositório, usado
 pela extensão na fase 2 do fluxo "Continuar fluxo": recebe a transcrição de
@@ -50,14 +50,15 @@ nada que exija hospedagem especial. `npm run build` já compila as rotas de
 API como dinâmicas (confirmado: `next build` gera `/api/generate` e as
 outras como `ƒ`, não `○`), então qualquer host Node/Next serve.
 
-**Produção hoje roda no Railway**, em
-`https://taqciti-production.up.railway.app`, com redeploy automático a cada
-push em `main`. Seja qual for o host, aponte o **Root Directory para
+**Produção hoje roda na Vercel**, em
+`https://server-psi-liart-81.vercel.app`, e **o deploy é manual** — nenhum push
+publica sozinho. Seja qual for o host, aponte o **Root Directory para
 `server/`** (é um projeto Next.js à parte dentro do monorepo) e configure as
 variáveis abaixo no painel dele.
 
-O runbook completo — incluindo por que o teto de 300s que o código ainda
-declara não vale aqui — está em [`docs/deploy.md`](docs/deploy.md).
+O runbook em [`docs/deploy.md`](docs/deploy.md) ainda descreve o **Railway**,
+o host anterior, e tem um aviso no topo dizendo isso: vale como referência do
+que precisa estar configurado, não de onde clicar.
 
 ### Variáveis no host
 
@@ -86,7 +87,7 @@ deployado, defina as duas variáveis **na build da extensão** (raiz do repo,
 não aqui):
 
 ```powershell
-$env:VITE_DOCCITI_SERVER_URL = 'https://taqciti-production.up.railway.app'
+$env:VITE_DOCCITI_SERVER_URL = 'https://server-psi-liart-81.vercel.app'
 $env:VITE_DOCCITI_SHARED_KEY = '<o mesmo valor de DOCCITI_SHARED_KEY no host>'
 npm run build
 ```

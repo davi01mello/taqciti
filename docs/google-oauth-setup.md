@@ -205,7 +205,7 @@ que não depende desse ID).
 
 Só o Google Docs funciona sem este passo. O conector, não.
 
-Em `server/.env.local` (ou nas variáveis do Railway, em produção):
+Em `server/.env.local` (ou nas variáveis de ambiente do host, em produção):
 
 ```
 GOOGLE_OAUTH_WEB_CLIENT_ID=<o mesmo client id do passo 3B>.apps.googleusercontent.com

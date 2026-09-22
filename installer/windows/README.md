@@ -1,6 +1,6 @@
-﻿# Instalador Windows (Inno Setup)
+# Instalador Windows (Inno Setup)
 
-Gera um `.exe` único que instala a extensão TaqCITi sem precisar descompactar
+Gera um `.exe` único que instala a extensão TaqCiti sem precisar descompactar
 nada manualmente.
 
 ## Pré-requisitos

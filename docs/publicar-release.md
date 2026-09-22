@@ -1,4 +1,4 @@
-﻿# Publicar um instalador que funciona
+# Publicar um instalador que funciona
 
 Runbook da release: do servidor no ar até o arquivo que o time baixa.
 
@@ -42,18 +42,25 @@ errado.
 
 ### 1. Servidor no ar, e respondendo
 
-O runbook do deploy é `server/docs/deploy.md`. Produção roda no **Railway**
-(`https://taqciti-production.up.railway.app`), com redeploy automático a cada
-push em `main`. O mínimo: **Root Directory = `server`**,
-`DOCCITI_SHARED_KEY` e a chave do provedor nas variáveis de ambiente do
-serviço.
+> ⚠️ **Produção mudou de host, e o runbook ainda não.** Desde 22/09/2026 o
+> servidor roda na **Vercel**, em `https://server-psi-liart-81.vercel.app` — é
+> o que o `.env` deste repositório aponta —, e **o deploy é manual**: nenhum
+> push redeploya nada sozinho. `server/docs/deploy.md` ainda descreve o
+> Railway passo a passo, e não foi reescrito. Use o endereço e a regra de
+> deploy manual daqui; trate os cliques do runbook como histórico até alguém
+> refazê-lo contra o painel da Vercel.
+
+O runbook do deploy é `server/docs/deploy.md`. O mínimo, em qualquer host:
+**Root Directory = `server`**, `DOCCITI_SHARED_KEY` e a chave do provedor nas
+variáveis de ambiente do serviço. Como o deploy não é automático, **publique o
+servidor antes** de cortar a tag.
 
 Confirme que responde, antes de gastar uma release — a prova de fumaça não
 consome cota de modelo nenhum:
 
 ```bash
 cd server
-SMOKE_BASE_URL=https://taqciti-production.up.railway.app \
+SMOKE_BASE_URL=https://server-psi-liart-81.vercel.app \
 DOCCITI_SHARED_KEY=<a mesma chave> \
 node scripts/smokePdf.mjs
 ```
@@ -64,8 +71,8 @@ node scripts/smokePdf.mjs
 
 | Nome | Onde | Valor |
 | --- | --- | --- |
-| `DOCCITI_SERVER_URL` | **Variables** | `https://taqciti-production.up.railway.app` — `https://`, sem barra no fim |
-| `DOCCITI_SHARED_KEY` | **Secrets** | **idêntico** ao valor que está no Railway |
+| `DOCCITI_SERVER_URL` | **Variables** | `https://server-psi-liart-81.vercel.app` — `https://`, sem barra no fim |
+| `DOCCITI_SHARED_KEY` | **Secrets** | **idêntico** ao valor que está no host do servidor |
 
 > **O check não testa o servidor.** Ele confere só que as duas existem, que a
 > URL não é `localhost`/`127.0.0.1`, que começa com `https://` e que não
@@ -100,7 +107,7 @@ git push origin main
 ### 5. Tag com **três** números
 
 ```bash
-git tag -a vX.Y.Z -m "TaqCITi X.Y.Z"
+git tag -a vX.Y.Z -m "TaqCiti X.Y.Z"
 git push origin vX.Y.Z
 ```
 
@@ -260,7 +267,7 @@ node scripts/package-distribution.mjs --somente-guia --saida release/preview-gui
 
 Para colar junto do link do Drive:
 
-> **TaqCITi X.Y.Z** — baixe o `TaqCiti.zip`, **extraia** (não abra o arquivo
+> **TaqCiti X.Y.Z** — baixe o `TaqCiti.zip`, **extraia** (não abra o arquivo
 > compactado direto) e, dentro da pasta `TaqCiti`, dê dois cliques em
 > **`COMECE_AQUI.html`**. O guia abre no navegador e conduz o resto — serve
 > para Windows, Mac e Linux.
@@ -326,8 +333,8 @@ Release verde não prova instalador bom — a `v2.0.0` ficou verde.
    grep -r "localhost:3000" ~/Desktop/"TaqCITi (não apagar)"/assets/
    ```
 
-   Sem resultado = certo. Para confirmar o outro lado, procure
-   `taqciti-production.up.railway.app` no mesmo lugar — ele **tem** que
+   Sem resultado = certo. Para confirmar o outro lado, procure o endereço de
+   produção (`server-psi-liart-81.vercel.app`) no mesmo lugar — ele **tem** que
    aparecer.
 
 3. **Rode uma reunião de verdade** — carregue a pasta em `chrome://extensions`
@@ -342,7 +349,7 @@ Release verde não prova instalador bom — a `v2.0.0` ficou verde.
 | --- | --- | --- |
 | `FALTA VITE_DOCCITI_SERVER_URL` | a Variable `DOCCITI_SERVER_URL` não existe | criar em *Variables* (não em *Secrets*) |
 | `FALTA VITE_DOCCITI_SHARED_KEY` | o Secret `DOCCITI_SHARED_KEY` não existe | criar em *Secrets* |
-| `aponta para a maquina local` | a Variable foi preenchida com `localhost` | trocar pelo endereço de produção (Railway) |
+| `aponta para a maquina local` | a Variable foi preenchida com `localhost` | trocar pelo endereço de produção |
 | `precisa comecar com https://` | endereço `http://` | a extensão roda em página https (Meet); `http://` seria bloqueado como conteúdo misto |
 | `nao pode terminar com '/'` | barra no fim | duplicaria em `${url}/api/generate` |
 | nenhuma run apareceu | tag fora do padrão `v*.*.*` | cortar `vX.Y.Z` com três números |
