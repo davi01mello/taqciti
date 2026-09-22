@@ -20,9 +20,18 @@
  * mesma função do ranqueamento. Por isso toda escrita passa por
  * `textoDeBusca` — se alguém gravar por fora, a linha existe mas não é
  * encontrável, que é a pior falha possível aqui porque é silenciosa.
+ *
+ * ── Toda escrita invalida o cache da pessoa ───────────────────────────────
+ *
+ * `AcervoPostgres` (ver `cache.ts`) cacheia leitura por até 30s. Sem
+ * invalidar aqui, sincronizar uma reunião editada devolveria a versão velha
+ * para a Claude até o TTL vencer — silenciosamente, que é o pior jeito de
+ * falhar. Por isso toda função abaixo, inclusive `apagarItem`, chama
+ * `invalidarPessoa` depois de escrever.
  */
 import { type Consultador, banco } from './banco';
 import { textoDeBusca } from './acervoPostgres';
+import { invalidarPessoa } from './cache';
 import type {
   ConversaDoAcervo,
   DocumentoDoAcervo,
@@ -60,6 +69,7 @@ export async function gravarReuniao(
       textoDeBusca(r),
     ],
   );
+  invalidarPessoa(pessoaId);
 }
 
 export async function gravarDocumento(
@@ -92,6 +102,7 @@ export async function gravarDocumento(
       textoDeBusca(d),
     ],
   );
+  invalidarPessoa(pessoaId);
 }
 
 export async function gravarConversa(
@@ -122,6 +133,7 @@ export async function gravarConversa(
       textoDeBusca(c),
     ],
   );
+  invalidarPessoa(pessoaId);
 }
 
 export async function gravarNota(
@@ -154,6 +166,7 @@ export async function gravarNota(
       textoDeBusca(n),
     ],
   );
+  invalidarPessoa(pessoaId);
 }
 
 /** Despacha pelo tipo. É o que a rota de sincronização vai chamar. */
@@ -189,4 +202,5 @@ export async function apagarItem(
   // O nome da tabela vem de `TipoDeItem`, que é uma união fechada de
   // literais — não há string de fora chegando aqui.
   await pool.query(`delete from ${tipo} where pessoa_id = $1 and id = $2`, [pessoaId, id]);
+  invalidarPessoa(pessoaId);
 }

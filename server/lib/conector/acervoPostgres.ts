@@ -20,6 +20,7 @@
  */
 import { type Consultador, banco } from './banco';
 import { dobrar } from './busca';
+import { comCache } from './cache';
 import type {
   Acervo,
   ConversaDoAcervo,
@@ -197,35 +198,43 @@ export class AcervoPostgres implements Acervo {
   ) {}
 
   async indice<T extends TipoDeItem>(tipo: T): Promise<readonly IndicePorTipo[T][]> {
-    const c = CONSULTAS[tipo] as Consultas<T>;
-    const { rows } = await this.pool.query(
-      `select ${c.indice} from ${c.tabela} where pessoa_id = $1`,
-      [this.pessoaId],
-    );
-    return rows.map(c.paraIndice);
+    return comCache(`${this.pessoaId}:indice:${tipo}`, async () => {
+      const c = CONSULTAS[tipo] as Consultas<T>;
+      const { rows } = await this.pool.query(
+        `select ${c.indice} from ${c.tabela} where pessoa_id = $1`,
+        [this.pessoaId],
+      );
+      return rows.map(c.paraIndice);
+    });
   }
 
   async obter<T extends TipoDeItem>(tipo: T, id: string): Promise<ItemPorTipo[T] | null> {
-    const c = CONSULTAS[tipo] as Consultas<T>;
-    const { rows } = await this.pool.query(
-      `select ${c.colunas} from ${c.tabela} where pessoa_id = $1 and id = $2`,
-      [this.pessoaId, id],
-    );
-    return rows[0] ? c.paraDominio(rows[0]) : null;
+    return comCache(`${this.pessoaId}:obter:${tipo}:${id}`, async () => {
+      const c = CONSULTAS[tipo] as Consultas<T>;
+      const { rows } = await this.pool.query(
+        `select ${c.colunas} from ${c.tabela} where pessoa_id = $1 and id = $2`,
+        [this.pessoaId, id],
+      );
+      return rows[0] ? c.paraDominio(rows[0]) : null;
+    });
   }
 
   async procurar<T extends TipoDeItem>(
     tipo: T,
     termos: readonly string[],
   ): Promise<readonly ItemPorTipo[T][]> {
-    const c = CONSULTAS[tipo] as Consultas<T>;
     if (termos.length === 0) return [];
-    const { rows } = await this.pool.query(
-      `select ${c.colunas} from ${c.tabela}
-        where pessoa_id = $1 and busca @@ to_tsquery('simple', $2)`,
-      [this.pessoaId, tsqueryDe(termos)],
-    );
-    return rows.map(c.paraDominio);
+    // Termos já vêm de `termosDe` (`[a-z0-9]` só), então a chave não precisa
+    // de separador que escape ambiguidade — `|` nunca aparece num termo.
+    return comCache(`${this.pessoaId}:procurar:${tipo}:${termos.join('|')}`, async () => {
+      const c = CONSULTAS[tipo] as Consultas<T>;
+      const { rows } = await this.pool.query(
+        `select ${c.colunas} from ${c.tabela}
+          where pessoa_id = $1 and busca @@ to_tsquery('simple', $2)`,
+        [this.pessoaId, tsqueryDe(termos)],
+      );
+      return rows.map(c.paraDominio);
+    });
   }
 }
 

@@ -78,7 +78,8 @@ o `MeetingRecord` do storage: a projeção magra é o orçamento.
 | `esquema.sql` | as tabelas, aplicáveis por cima de si mesmas |
 | `banco.ts` | o pool e a interface `Consultador` (independente de driver) |
 | `acervoPostgres.ts` | `Acervo` sobre Postgres, atrás da mesma interface |
-| `escrita.ts` | os upserts — é por aqui que a sincronização entra |
+| `cache.ts` | cache em memória por instância, com TTL — não compartilhado entre instâncias da Vercel |
+| `escrita.ts` | os upserts — é por aqui que a sincronização entra, e invalida o cache da pessoa |
 | `pessoa.ts` | achar/criar a pessoa a partir de uma identidade já verificada |
 
 ### A interface `Acervo`, e por que ela tem três métodos

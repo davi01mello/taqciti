@@ -248,6 +248,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
   const [criado, setCriado] = useState<TokenRecemCriado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [rotuloNovo, setRotuloNovo] = useState('');
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false);
 
   const carregarTokens = useCallback(async () => {
     try {
@@ -290,6 +293,8 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
       setTokens([]);
       setCriado(null);
       setEmail(null);
+      setConfirmandoId(null);
+      setConfirmandoLimpeza(false);
     } finally {
       setOcupado(false);
     }
@@ -299,8 +304,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
     setOcupado(true);
     setErro(null);
     try {
-      const novo = await criarTokenDoConector();
+      const novo = await criarTokenDoConector(rotuloNovo.trim() || undefined);
       setCriado(novo);
+      setRotuloNovo('');
       await carregarTokens();
     } catch (e) {
       setErro(e instanceof ConectorIndisponivel ? e.message : 'Não foi possível gerar.');
@@ -310,6 +316,7 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
   }
 
   async function aoRevogar(id: string) {
+    setConfirmandoId(null);
     setOcupado(true);
     try {
       await revogarTokenDoConector(id);
@@ -322,8 +329,36 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
     }
   }
 
+  /**
+   * Revoga de uma vez só os que NUNCA foram usados.
+   *
+   * É a única forma de limpeza em massa que não arrisca derrubar uma conexão
+   * viva: `usadoEm` nulo significa que nenhum cliente de MCP apresentou este
+   * endereço nem uma vez, então não há Claude nem ChatGPT do outro lado para
+   * quebrar. Um "revogar todos" pareceria mais completo e seria a forma
+   * errada de resolver acúmulo — apagaria também o endereço que alguém está
+   * usando agora.
+   */
+  async function aoRevogarNaoUsados() {
+    setConfirmandoLimpeza(false);
+    const alvos = ativos.filter((t) => !t.usadoEm);
+    if (alvos.length === 0) return;
+    setOcupado(true);
+    setErro(null);
+    try {
+      for (const t of alvos) await revogarTokenDoConector(t.id);
+      await carregarTokens();
+    } catch (e) {
+      setErro(e instanceof ConectorIndisponivel ? e.message : 'Não foi possível revogar.');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
   const comConteudo = registros.filter(temConteudo);
   const ativos = tokens.filter((t) => !t.revogadoEm);
+  const revogados = tokens.filter((t) => t.revogadoEm);
+  const naoUsados = ativos.filter((t) => !t.usadoEm);
 
   return (
     <div className="tq-pagina">
@@ -445,15 +480,28 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
                 Ele já vai autenticado, então <strong>vale como senha</strong>: quem tiver o
                 link alcança seu acervo. Gere um por assistente, e revogue o que não usa.
               </p>
-              <p className="tq-meta">
-                Um endereço já criado não pode ser mostrado de novo — o servidor guarda só
-                um resumo dele. Se você não guardou, gere outro e revogue o antigo; não
-                custa nada e não afeta o que já foi sincronizado.
-              </p>
 
-              {criado && <EnderecoNovo criado={criado} />}
+              {criado ? (
+                <EnderecoNovo criado={criado} />
+              ) : (
+                tokens.length > 0 && (
+                  <p className="tq-meta">
+                    Um endereço já criado não aparece de novo — o servidor guarda só um
+                    resumo dele. Perdeu o seu? Gere outro e revogue o antigo.
+                  </p>
+                )
+              )}
 
               <div className="tq-acoes">
+                <input
+                  type="text"
+                  className="tq-rotulo-input"
+                  placeholder="Nome deste endereço (opcional) — ex.: Claude do trabalho"
+                  value={rotuloNovo}
+                  onChange={(e) => setRotuloNovo(e.target.value)}
+                  disabled={ocupado}
+                  maxLength={60}
+                />
                 {/* Verde só enquanto não houver nenhum: aí ele é a única coisa
                     a fazer. Com endereços já criados, gerar mais um é opção
                     entre outras, e um botão gritando seria convite a
@@ -469,39 +517,128 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
                 </button>
               </div>
 
+              {ativos.length > 2 && (
+                <div className="tq-aviso">
+                  Você tem <strong>{ativos.length} endereços ativos</strong>. Normalmente
+                  bastam dois — um por assistente. Cada endereço vale como senha do seu
+                  acervo inteiro, então sobrar credencial esquecida é risco, não conveniência.
+                  {naoUsados.length > 0 && (
+                    <div className="tq-acoes tq-aviso-acao">
+                      {confirmandoLimpeza ? (
+                        <>
+                          <span className="tq-confirma-inline">
+                            Revogar os {naoUsados.length} endereços nunca usados?
+                          </span>
+                          <button
+                            type="button"
+                            className="tq-linkish tq-linkish-perigo"
+                            disabled={ocupado}
+                            onClick={aoRevogarNaoUsados}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            type="button"
+                            className="tq-linkish"
+                            disabled={ocupado}
+                            onClick={() => setConfirmandoLimpeza(false)}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="tq-linkish"
+                          disabled={ocupado}
+                          onClick={() => setConfirmandoLimpeza(true)}
+                        >
+                          Revogar os {naoUsados.length} que nunca foram usados
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {tokens.length === 0 ? (
                 <p className="tq-vazio">
                   Nenhum endereço criado ainda — gere o primeiro acima para conectar a
                   Claude ou o ChatGPT.
                 </p>
               ) : (
-                <div className="tq-lista tq-lista-densa">
-                  {tokens.map((t) => (
-                    <div key={t.id} className="tq-item">
-                      <span>
-                        <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
-                        <small>
-                          criado em {dataCurta(t.criadoEm)}
-                          {t.revogadoEm
-                            ? ` · revogado em ${dataCurta(t.revogadoEm)}`
-                            : t.usadoEm
-                              ? ` · último uso em ${dataCurta(t.usadoEm)}`
-                              : ' · nunca usado'}
-                        </small>
-                      </span>
-                      {!t.revogadoEm && (
-                        <button
-                          type="button"
-                          className="tq-linkish"
-                          disabled={ocupado}
-                          onClick={() => aoRevogar(t.id)}
-                        >
-                          Revogar
-                        </button>
-                      )}
+                <>
+                  {ativos.length === 0 ? (
+                    <p className="tq-vazio">
+                      Nenhum endereço ativo — gere um acima para conectar a Claude ou o
+                      ChatGPT.
+                    </p>
+                  ) : (
+                    <div className="tq-lista tq-lista-densa">
+                      {ativos.map((t) => (
+                        <div key={t.id} className="tq-item">
+                          <span>
+                            <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
+                            <small>
+                              criado em {dataCurta(t.criadoEm)}
+                              {t.usadoEm
+                                ? ` · último uso em ${dataCurta(t.usadoEm)}`
+                                : ' · nunca usado'}
+                            </small>
+                          </span>
+                          {confirmandoId === t.id ? (
+                            <span className="tq-acoes">
+                              <button
+                                type="button"
+                                className="tq-linkish tq-linkish-perigo"
+                                disabled={ocupado}
+                                onClick={() => aoRevogar(t.id)}
+                              >
+                                Confirmar
+                              </button>
+                              <button
+                                type="button"
+                                className="tq-linkish"
+                                disabled={ocupado}
+                                onClick={() => setConfirmandoId(null)}
+                              >
+                                Cancelar
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="tq-linkish"
+                              disabled={ocupado}
+                              onClick={() => setConfirmandoId(t.id)}
+                            >
+                              Revogar
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  )}
+
+                  {revogados.length > 0 && (
+                    <details className="tq-guia">
+                      <summary>Endereços revogados ({revogados.length})</summary>
+                      <div className="tq-lista tq-lista-densa">
+                        {revogados.map((t) => (
+                          <div key={t.id} className="tq-item">
+                            <span>
+                              <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
+                              <small>
+                                criado em {dataCurta(t.criadoEm)} · revogado em{' '}
+                                {dataCurta(t.revogadoEm ?? '')}
+                              </small>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </>
               )}
 
               {ativos.length > 0 && <ComoConectar />}
