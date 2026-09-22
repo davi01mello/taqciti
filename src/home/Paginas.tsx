@@ -62,6 +62,7 @@ interface ReunioesProps {
   estadoDaNota: EstadoDaGravacao;
   documentos: DocumentoGuardado[];
   onEscreverNota: (meetingId: string, texto: string) => void;
+  onApagarNota: (meetingId: string) => Promise<boolean>;
   onAbrirDocumento: (id: string) => void;
 }
 
@@ -75,6 +76,7 @@ export function PaginaReunioes({
   estadoDaNota,
   documentos,
   onEscreverNota,
+  onApagarNota,
   onAbrirDocumento,
 }: ReunioesProps) {
   // A reunião pode sumir (apagada aqui mesmo, ou noutra aba): a tela volta
@@ -93,6 +95,7 @@ export function PaginaReunioes({
         estadoDaNota={estadoDaNota}
         documentos={documentosDaReuniao(documentos, aberta.id)}
         onEscreverNota={onEscreverNota}
+        onApagarNota={onApagarNota}
         onAbrirDocumento={onAbrirDocumento}
         onVoltar={() => onAbrir(null)}
       />
@@ -167,6 +170,7 @@ function DetalheDaReuniao({
   estadoDaNota,
   documentos,
   onEscreverNota,
+  onApagarNota,
   onAbrirDocumento,
   onVoltar,
 }: {
@@ -175,6 +179,7 @@ function DetalheDaReuniao({
   estadoDaNota: EstadoDaGravacao;
   documentos: DocumentoGuardado[];
   onEscreverNota: (meetingId: string, texto: string) => void;
+  onApagarNota: (meetingId: string) => Promise<boolean>;
   onAbrirDocumento: (id: string) => void;
   onVoltar: () => void;
 }) {
@@ -329,6 +334,7 @@ function DetalheDaReuniao({
             texto={nota}
             estado={estadoDaNota}
             onEscrever={onEscreverNota}
+            onApagar={onApagarNota}
           />
         </Coluna>
       </div>

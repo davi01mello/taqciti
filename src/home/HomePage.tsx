@@ -32,6 +32,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryState } from '@/features/history/useHistory';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
 import {
+  apagarNota,
   criarGravadorDeNota,
   observarNotas,
   type EstadoDaGravacao,
@@ -53,6 +54,7 @@ import { useAnimacao } from './useAnimacao';
 import { WaveField, type EstadoDaOnda } from './WaveField';
 import {
   acrescentarMensagem,
+  apagarConversa,
   observarConversas,
   type Conversation,
 } from './conversations';
@@ -189,6 +191,58 @@ export function HomePage() {
     setRascunhosNota((atual) => ({ ...atual, [meetingId]: texto }));
     gravadorDeNota.current.agendar(meetingId, texto);
   }, []);
+
+  /*
+   * Apagar a nota: o rascunho pendente é CANCELADO antes, e o local é limpo
+   * depois. Sem o cancelamento, a última tecla digitada ainda estaria na fila
+   * e o gravador a escreveria de volta um instante após a remoção — a nota
+   * apagada reapareceria sozinha. E sem limpar o rascunho, o campo continuaria
+   * mostrando o texto que já não existe no storage.
+   */
+  const apagarNotaDaReuniao = useCallback(async (meetingId: string) => {
+    gravadorDeNota.current.cancelar();
+    try {
+      await apagarNota(meetingId);
+      setRascunhosNota((atual) => {
+        const proximo = { ...atual };
+        delete proximo[meetingId];
+        return proximo;
+      });
+      setEstadoDaNota('parado');
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // ---------- conversas ----------
+
+  /*
+   * Apagar a conversa. O rascunho dela vai junto: guardar o texto não enviado
+   * de uma conversa que não existe mais só faria ele reaparecer, sem dono, na
+   * próxima conversa que herdasse a chave.
+   *
+   * `conversaId` volta a `null` quando a apagada era a escolhida — e não é
+   * apontado para outra à força: `null` já significa "a mais recente", que é a
+   * escolha certa aqui.
+   */
+  const apagarConversaEscolhida = useCallback(
+    async (id: string) => {
+      try {
+        await apagarConversa(id);
+        setRascunhos((atual) => {
+          const proximo = { ...atual };
+          delete proximo[id];
+          return proximo;
+        });
+        if (conversaId === id) setConversaId(null);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [conversaId],
+  );
 
   const abrirDocumento = useCallback(
     (id: string) => {
@@ -338,6 +392,7 @@ export function HomePage() {
               setIniciandoNova(false);
               setSecao('assistente');
             }}
+            onApagar={apagarConversaEscolhida}
           />
         </div>
       </header>
@@ -394,6 +449,7 @@ export function HomePage() {
             estadoDaNota={estadoDaNota}
             documentos={documentos}
             onEscreverNota={escreverNota}
+            onApagarNota={apagarNotaDaReuniao}
             onAbrirDocumento={abrirDocumento}
           />
         )}

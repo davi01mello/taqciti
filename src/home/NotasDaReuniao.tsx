@@ -23,8 +23,17 @@
  * O texto e o gravador NÃO moram aqui: moram em quem renderiza esta coluna.
  * Em largura estreita ela alterna com a transcrição, e um `useState` local
  * perderia a frase pela metade na primeira troca.
+ *
+ * ── Apagar ───────────────────────────────────────────────────────────────
+ *
+ * Um ícone discreto no topo da coluna, só quando há nota, e atrás de uma
+ * confirmação que diz o que NÃO vai junto. Apagar não é "selecionar tudo e
+ * deletar": aquilo deixa um registro vazio no storage e leva o texto pelo
+ * mesmo caminho da gravação automática, sem pergunta nenhuma. Aqui o registro
+ * sai inteiro (ver `apagarNota` em `features/annotations/notes.ts`).
  */
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Icon } from '@/shared/ui/Icon';
 import type { EstadoDaGravacao } from '@/features/annotations/notes';
 
 interface Props {
@@ -33,6 +42,8 @@ interface Props {
   texto: string;
   estado: EstadoDaGravacao;
   onEscrever: (meetingId: string, texto: string) => void;
+  /** Apaga a nota inteira. Resolve `false` quando o storage recusou. */
+  onApagar: (meetingId: string) => Promise<boolean>;
 }
 
 export function NotasDaReuniao({
@@ -41,26 +52,105 @@ export function NotasDaReuniao({
   texto,
   estado,
   onEscrever,
+  onApagar,
 }: Props) {
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  /*
+   * Trocar de reunião fecha a confirmação. Sem isso, a pergunta "apagar as
+   * notas de X?" continuaria na tela apontando para a nota de Y — e o clique
+   * seguinte apagaria a errada.
+   */
+  useEffect(() => {
+    setConfirmando(false);
+    setErro('');
+  }, [meetingId]);
+
+  /*
+   * Nota vazia não oferece apagar: não há o que remover, e um botão de perigo
+   * permanente ao lado de um campo em branco é só ruído com risco.
+   */
+  const temNota = texto.trim().length > 0;
 
   return (
     <div className="tq-notas-coluna">
       <div className="tq-coluna-topo">
         <h2>Notas da reunião</h2>
-        <span
-          className={`tq-notas-estado${estado === 'falhou' ? ' falhou' : ''}`}
-          role="status"
-        >
-          {estado === 'gravando'
-            ? 'salvando…'
-            : estado === 'salvo'
-              ? 'salvo'
-              : estado === 'falhou'
-                ? 'não foi possível salvar'
-                : ''}
-        </span>
+        <div className="tq-coluna-topo-acoes">
+          <span
+            className={`tq-notas-estado${estado === 'falhou' ? ' falhou' : ''}`}
+            role="status"
+          >
+            {estado === 'gravando'
+              ? 'salvando…'
+              : estado === 'salvo'
+                ? 'salvo'
+                : estado === 'falhou'
+                  ? 'não foi possível salvar'
+                  : ''}
+          </span>
+          {temNota && (
+            <button
+              type="button"
+              className="tq-icone-apagar"
+              title="Apagar as notas desta reunião"
+              aria-label={`Apagar as notas de ${tituloDaReuniao}`}
+              onClick={() => {
+                setErro('');
+                setConfirmando(true);
+              }}
+            >
+              <Icon name="trash" size={15} />
+            </button>
+          )}
+        </div>
       </div>
+
+      {confirmando && (
+        <div
+          className="tq-confirma tq-confirma-estreita"
+          role="alertdialog"
+          aria-label="Apagar as notas?"
+        >
+          {/* O texto diz o que NÃO vai junto: a transcrição é outro registro,
+              e quem apaga a nota costuma temer estar apagando a reunião. */}
+          <p>
+            <strong>Apagar as notas desta reunião?</strong> O que você escreveu sai
+            deste computador para sempre. A transcrição não é afetada.
+          </p>
+          <div className="tq-acoes">
+            <button
+              type="button"
+              className="tq-acao tq-acao-perigo"
+              onClick={() => {
+                void onApagar(meetingId).then((ok) => {
+                  if (ok) {
+                    setConfirmando(false);
+                    campoRef.current?.focus();
+                  } else setErro('Não foi possível apagar as notas.');
+                });
+              }}
+            >
+              Apagar
+            </button>
+            <button
+              type="button"
+              className="tq-acao"
+              onClick={() => setConfirmando(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {erro && (
+        <p className="tq-notas-erro" role="alert">
+          {erro}
+        </p>
+      )}
       {estado === 'falhou' && (
         <button
           type="button"

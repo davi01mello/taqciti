@@ -1,0 +1,17 @@
+{
+  "quando": "2026-09-22T15:10:34.308Z",
+  "checks": [
+    "Documentos: a lixeira é irmã do item, visível e à direita dele",
+    "Documentos: cancelar devolve o item e não apaga nada",
+    "Documentos: apagar tira só o documento; a reunião de origem fica",
+    "Notas: o ícone mora no topo da coluna, fora do campo",
+    "Notas: cancelar mantém a nota, e a confirmação não espremeu o campo",
+    "Notas: apagar remove o registro, e a tecla pendente não a ressuscita",
+    "Conversas: a lixeira cabe na linha, sem cobrir o título nem sair do menu",
+    "Conversas: Apagar e Cancelar cabem lado a lado dentro do menu",
+    "Conversas: Escape desfaz a pergunta sem fechar o menu",
+    "Conversas: apagar remove do storage e o menu continua aberto",
+    "Conversas: apagar a última deixa a tela de abertura, sem mensagens órfãs"
+  ],
+  "errors": []
+}

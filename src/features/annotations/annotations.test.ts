@@ -31,6 +31,61 @@ describe('notas', () => {
     await expect(lerNota('m1')).resolves.toBeNull();
   });
 
+  it('apagar remove a nota inteira, e só a dela', async () => {
+    const { gravarNota, apagarNota, lerNota } = await import('./notes');
+    await gravarNota('m1', 'a que some');
+    await gravarNota('m2', 'a que fica');
+
+    await apagarNota('m1');
+
+    await expect(lerNota('m1')).resolves.toBeNull();
+    expect((await lerNota('m2'))?.texto).toBe('a que fica');
+    // Sem chave órfã: apagar tira o registro do storage, não o esvazia.
+    const guardadas = (await chrome.storage.local.get(STORAGE_KEYS.notes))[
+      STORAGE_KEYS.notes
+    ] as Record<string, unknown>;
+    expect(Object.keys(guardadas)).toEqual(['m2']);
+  });
+
+  /*
+   * A diferença que justifica `apagarNota` existir ao lado de `gravarNota(id,
+   * '')`: esvaziar preserva os `anteriores` — os originais guardados quando
+   * registros antigos foram agregados — e a nota volta a aparecer agregada.
+   * Apagar leva tudo.
+   */
+  it('apagar leva junto os originais que esvaziar preservaria', async () => {
+    const { apagarNota, lerNota } = await import('./notes');
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.notes]: {
+        antiga: [
+          { meetingId: 'm1', texto: 'primeira', updatedAt: 1 },
+          { meetingId: 'm1', texto: 'segunda', updatedAt: 2 },
+        ],
+      },
+    });
+    expect((await lerNota('m1'))?.anteriores).toHaveLength(2);
+
+    await apagarNota('m1');
+    await expect(lerNota('m1')).resolves.toBeNull();
+    const guardadas = (await chrome.storage.local.get(STORAGE_KEYS.notes))[
+      STORAGE_KEYS.notes
+    ] as Record<string, unknown>;
+    expect(guardadas).toEqual({});
+  });
+
+  /* Apagar não exige a reunião viva: nota órfã é justamente o caso em que
+     remover importa mais, e gravar recusaria. */
+  it('apaga a nota de uma reunião que já saiu do histórico', async () => {
+    const { apagarNota, lerNota } = await import('./notes');
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.history]: [],
+      [STORAGE_KEYS.notes]: { m1: { meetingId: 'm1', texto: 'órfã', updatedAt: 1 } },
+    });
+
+    await apagarNota('m1');
+    await expect(lerNota('m1')).resolves.toBeNull();
+  });
+
   /* A nota é registro à parte: gravá-la não toca o histórico da reunião. */
   it('gravar nota não escreve no histórico', async () => {
     const { gravarNota } = await import('./notes');

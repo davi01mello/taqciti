@@ -326,6 +326,119 @@ body {
   color: rgb(149 152 155);
 }
 
+/*
+ * A linha com o item e o botão de apagar.
+ *
+ * O `li` vira flex e o item de escolher cresce; o apagar é um quadrado fixo no
+ * fim. Ele NÃO é sobreposto ao item (posicionado por cima): sobreposição aqui
+ * comeria o fim do título, que é justamente onde as conversas se distinguem.
+ */
+.tq-conversas-linha {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.tq-conversas-linha > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * Presente, mas apagado: 0.4 de opacidade pede o olho só quando procurado, e
+ * sobe no hover da linha inteira. Escondê-lo até o hover o tornaria invisível
+ * em toque, onde não existe hover nenhum.
+ *
+ * O seletor carrega `.tq-conversas-lista li` de propósito: a regra dos itens,
+ * logo acima, é `display: block; width: 100%` — mais específica que uma classe
+ * sozinha. Sem isto a lixeira nasce com 296px e transborda o menu pela direita,
+ * empurrando o título para fora. Foi o que a verificação no navegador pegou; o
+ * jsdom não mede largura nenhuma e passava.
+ */
+.tq-conversas-lista li button.tq-conversas-apagar {
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  padding: 0;
+  border-radius: 9px;
+  color: rgb(168 171 175);
+  opacity: 0.4;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background 0.2s,
+    color 0.2s;
+}
+
+.tq-conversas-linha:hover .tq-conversas-apagar,
+.tq-conversas-lista li button.tq-conversas-apagar:focus-visible {
+  opacity: 1;
+}
+
+.tq-conversas-lista li button.tq-conversas-apagar:hover {
+  background: rgb(224 110 105 / 0.14);
+  color: rgb(240 178 172);
+  opacity: 1;
+}
+
+/* A pergunta toma o lugar do item, dentro da mesma lista. */
+.tq-conversas-confirma {
+  padding: 10px 11px;
+  border-radius: 9px;
+  border: 1px solid rgb(224 110 105 / 0.28);
+  background: rgb(224 110 105 / 0.08);
+}
+
+.tq-conversas-confirma p {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(222 224 226);
+  margin: 0 0 9px;
+}
+
+.tq-conversas-confirma-acoes {
+  display: flex;
+  gap: 6px;
+}
+
+/* Mesma armadilha da lixeira: `.tq-conversas-lista li button` dá `width: 100%`
+   e `text-align: left` a qualquer botão da lista, e os dois lado a lado
+   viravam dois blocos ocupando a largura inteira. */
+.tq-conversas-lista li .tq-conversas-confirma-acoes button {
+  width: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  text-align: center;
+  font-size: 11.5px;
+  color: rgb(206 209 212);
+  cursor: pointer;
+}
+
+.tq-conversas-lista li .tq-conversas-confirma-acoes button:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(243 245 247);
+}
+
+.tq-conversas-lista li .tq-conversas-confirma-acoes button.perigo {
+  color: rgb(224 150 145);
+  border-color: rgb(224 110 105 / 0.32);
+}
+
+.tq-conversas-lista li .tq-conversas-confirma-acoes button.perigo:hover {
+  background: rgb(224 110 105 / 0.16);
+  color: rgb(240 178 172);
+}
+
+.tq-conversas-erro {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(240 178 172);
+  margin: 8px 10px 4px;
+}
+
 .tq-conversas-vazio {
   font-size: 11.5px;
   line-height: 1.6;
@@ -988,6 +1101,57 @@ body {
   padding: 13px 16px;
 }
 
+/*
+ * Item com ação de apagar ao lado.
+ *
+ * O apagar é IRMÃO do item, não filho: `.tq-item` é um `<button>`, e um botão
+ * dentro de outro é HTML inválido — o navegador desfaz o aninhamento e o
+ * clique passa a acertar o alvo errado.
+ */
+.tq-item-linha {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.tq-item-linha .tq-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.tq-item-apagar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  border: 1px solid rgb(255 255 255 / 0.05);
+  border-radius: 14px;
+  background: rgb(33 34 36 / 0.82);
+  color: rgb(159 162 166);
+  opacity: 0.55;
+  cursor: pointer;
+  transition:
+    opacity 0.25s,
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+/* Some quase por completo até a linha ser procurada — mas nunca a ponto de
+   deixar de existir em toque, onde não há hover. */
+.tq-item-linha:hover .tq-item-apagar,
+.tq-item-apagar:focus-visible {
+  opacity: 1;
+}
+
+.tq-item-apagar:hover {
+  background: rgb(224 110 105 / 0.14);
+  border-color: rgb(224 110 105 / 0.32);
+  color: rgb(240 178 172);
+  opacity: 1;
+}
+
 .tq-vazio {
   font-size: 13px;
   color: rgb(159 162 166);
@@ -1282,6 +1446,62 @@ body {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+/* O estado da gravação e o apagar dividem o canto direito do topo da coluna.
+   `baseline` no pai alinharia o ícone pelo texto do irmão; aqui o alinhamento
+   é pelo centro dos dois. */
+.tq-coluna-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tq-icone-apagar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: rgb(150 153 157);
+  opacity: 0.65;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background 0.2s,
+    color 0.2s;
+}
+
+.tq-icone-apagar:hover,
+.tq-icone-apagar:focus-visible {
+  opacity: 1;
+}
+
+.tq-icone-apagar:hover {
+  background: rgb(224 110 105 / 0.14);
+  color: rgb(240 178 172);
+}
+
+/* Dentro de uma coluna a confirmação não pode empurrar o campo para fora da
+   tela: ela é mais compacta que a do rodapé de página. */
+.tq-confirma-estreita {
+  flex: 0 0 auto;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+}
+
+.tq-confirma-estreita p {
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.tq-notas-erro {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(240 178 172);
+  margin: 0 0 10px;
 }
 
 .tq-coluna-topo h2 {

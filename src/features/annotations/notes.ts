@@ -122,6 +122,38 @@ export async function gravarNota(meetingId: string, texto: string): Promise<void
   );
 }
 
+/**
+ * Apaga a nota de uma reunião — o registro inteiro, e não só o texto.
+ *
+ * Diferente de `gravarNota(id, '')`, que esvazia o texto e PRESERVA os
+ * `anteriores` (os originais guardados quando registros antigos foram
+ * agregados). Quem pede "apagar a nota" não está pedindo um campo em branco
+ * com o texto antigo escondido atrás: está pedindo que ela saia daqui.
+ *
+ * Também não exige que a reunião ainda esteja no histórico, ao contrário da
+ * gravação. Apagar uma nota órfã — sobrevivente de uma reunião já removida —
+ * é exatamente o caso em que este botão é mais útil, e recusar ali deixaria o
+ * registro preso para sempre.
+ */
+export async function apagarNota(meetingId: string): Promise<void> {
+  await comTravaLocal(STORAGE_KEYS.notes, async () => {
+    const bruto = (await readLocal<Record<string, unknown>>(STORAGE_KEYS.notes)) ?? {};
+    if (typeof bruto !== 'object') throw new Error('Formato de notas não reconhecido');
+    const proximo: Record<string, unknown> = { ...bruto };
+    for (const [id, valor] of Object.entries(proximo)) {
+      if (ehNota(valor) && valor.meetingId === meetingId) delete proximo[id];
+      else if (Array.isArray(valor)) {
+        const restante = valor.filter((n) => !ehNota(n) || n.meetingId !== meetingId);
+        // Lista que ficou vazia sai junto: uma chave com `[]` continuaria
+        // aparecendo no storage como se houvesse nota ali.
+        if (restante.length) proximo[id] = restante;
+        else delete proximo[id];
+      }
+    }
+    await writeLocal(STORAGE_KEYS.notes, proximo);
+  });
+}
+
 /** Respiro entre a última tecla e a gravação. */
 export const AGUARDAR_MS = 700;
 

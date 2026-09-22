@@ -14,6 +14,16 @@
  * ações fala com o servidor de geração — abrir um documento guardado não pode
  * depender de a IA estar no ar.
  *
+ * ── Apagar, nos dois lugares ─────────────────────────────────────────────
+ *
+ * Na LISTA, um ícone por item: é ali que se percebe que há lixo acumulado, e
+ * obrigar a abrir cada documento para removê-lo transformaria uma faxina em
+ * uma sequência de idas e voltas. E no EDITOR, no menu secundário, para quem
+ * só descobre que não quer o documento depois de lê-lo.
+ *
+ * Nos dois, a confirmação diz que a reunião de origem não vai junto — o medo
+ * de levar a transcrição embora é o que faz alguém deixar a lista crescer.
+ *
  * ── O que ela nunca faz ──────────────────────────────────────────────────
  *
  * Inventar registro para a lista não parecer vazia. Documento que só foi
@@ -58,12 +68,22 @@ export function PaginaDocumentos({
   onIrParaReuniao,
 }: Props) {
   const aberto = abertoId ? (documentos.find((d) => d.id === abertoId) ?? null) : null;
+  /** O documento da lista cuja remoção está à espera de confirmação. */
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const [erroDaLista, setErroDaLista] = useState('');
 
   // O documento pode sumir (apagado aqui, ou noutra aba): a tela volta para a
   // lista em vez de ficar num editor sem dono.
   useEffect(() => {
     if (abertoId && carregado && !aberto) onAbrir(null);
   }, [abertoId, carregado, aberto, onAbrir]);
+
+  // A confirmação morre com o documento que ela apontava. Sem isto, apagar
+  // noutra aba deixaria a pergunta na tela sobre um id que não existe mais.
+  useEffect(() => {
+    if (confirmandoId && !documentos.some((d) => d.id === confirmandoId))
+      setConfirmandoId(null);
+  }, [documentos, confirmandoId]);
 
   if (aberto) {
     return (
@@ -100,28 +120,79 @@ export function PaginaDocumentos({
         <p className="tq-vazio">Nenhum documento guardado ainda.</p>
       ) : (
         <div className="tq-lista">
+          {erroDaLista && <p role="alert">{erroDaLista}</p>}
           {documentos.map((d) => {
             const reuniao = d.meetingId
               ? (registros.find((r) => r.id === d.meetingId) ?? null)
               : null;
+
+            /* A pergunta ocupa o LUGAR do item, e não uma caixa por cima: é o
+               que mantém óbvio qual documento está prestes a sumir. */
+            if (confirmandoId === d.id) {
+              return (
+                <div
+                  key={d.id}
+                  className="tq-confirma"
+                  role="alertdialog"
+                  aria-label={`Apagar "${d.title}"?`}
+                >
+                  <p>
+                    <strong>Apagar &ldquo;{d.title}&rdquo;?</strong> O conteúdo sai
+                    deste computador para sempre. A reunião de origem não é afetada.
+                  </p>
+                  <div className="tq-acoes">
+                    <button
+                      type="button"
+                      className="tq-acao tq-acao-perigo"
+                      onClick={() => {
+                        void apagarDocumento(d.id)
+                          .then(() => setConfirmandoId(null))
+                          .catch(() =>
+                            setErroDaLista('Não foi possível apagar o documento.'),
+                          );
+                      }}
+                    >
+                      Apagar
+                    </button>
+                    <button
+                      type="button"
+                      className="tq-acao"
+                      onClick={() => setConfirmandoId(null)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
-              <button
-                key={d.id}
-                type="button"
-                className="tq-item"
-                onClick={() => onAbrir(d.id)}
-              >
-                <span>
-                  <strong>{d.title}</strong>
-                  <small>
-                    {formatDate(d.updatedAt)} · {formatTime(d.updatedAt)}
-                    {d.tipo && ` · ${d.tipo}`}
-                    {reuniao && ` · de "${reuniao.title}"`}
-                    {d.origem === 'demo' && ' · demonstração'}
-                  </small>
-                </span>
-                <Icon name="arrowUpRight" size={16} />
-              </button>
+              <div key={d.id} className="tq-item-linha">
+                <button type="button" className="tq-item" onClick={() => onAbrir(d.id)}>
+                  <span>
+                    <strong>{d.title}</strong>
+                    <small>
+                      {formatDate(d.updatedAt)} · {formatTime(d.updatedAt)}
+                      {d.tipo && ` · ${d.tipo}`}
+                      {reuniao && ` · de "${reuniao.title}"`}
+                      {d.origem === 'demo' && ' · demonstração'}
+                    </small>
+                  </span>
+                  <Icon name="arrowUpRight" size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="tq-item-apagar"
+                  title={`Apagar "${d.title}"`}
+                  aria-label={`Apagar "${d.title}"`}
+                  onClick={() => {
+                    setErroDaLista('');
+                    setConfirmandoId(d.id);
+                  }}
+                >
+                  <Icon name="trash" size={16} />
+                </button>
+              </div>
             );
           })}
         </div>

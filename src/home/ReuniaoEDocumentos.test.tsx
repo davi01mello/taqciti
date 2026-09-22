@@ -218,6 +218,81 @@ describe('a reunião na HOME', () => {
     expect(q<HTMLTextAreaElement>('.tq-notas-campo').value).toBe('escrita na sidebar');
   });
 
+  /* Apagar a nota é uma ação DELA, não da reunião: a transcrição fica. */
+  it('só oferece apagar a nota quando existe nota', async () => {
+    await montar({ url: '/?record=m-1' });
+    expect(host.querySelector('.tq-icone-apagar')).toBeNull();
+
+    await act(async () => {
+      digitar(q<HTMLTextAreaElement>('.tq-notas-campo'), 'alguma coisa');
+    });
+    expect(host.querySelector('.tq-icone-apagar')).not.toBeNull();
+  });
+
+  it('apagar a nota tira o registro do storage e deixa a transcrição', async () => {
+    await montar({
+      url: '/?record=m-1',
+      notas: { 'm-1': { meetingId: 'm-1', texto: 'combinado: avisar hoje', updatedAt: 1 } },
+    });
+
+    await clicar(q<HTMLElement>('.tq-icone-apagar'));
+    const pergunta = q('.tq-confirma').textContent ?? '';
+    expect(pergunta).toContain('A transcrição não é afetada');
+
+    await clicar(porTexto('.tq-confirma .tq-acao-perigo', 'Apagar'));
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        const notas = storage.local.values[STORAGE_KEYS.notes] as Record<string, Nota>;
+        expect(notas['m-1']).toBeUndefined();
+      });
+    });
+    // O campo esvazia, e a transcrição continua onde estava.
+    expect(q<HTMLTextAreaElement>('.tq-notas-campo').value).toBe('');
+    expect(host.textContent).toContain('A gente precisa fechar o escopo hoje.');
+    // E o histórico não foi tocado.
+    expect(
+      (storage.local.values[STORAGE_KEYS.history] as MeetingRecord[]).map((r) => r.id),
+    ).toEqual(['m-1']);
+  });
+
+  /*
+   * O defeito que este teste tranca: o gravador tem respiro de 700ms, e a
+   * última tecla digitada antes de apagar escreveria a nota DE VOLTA logo
+   * depois da remoção — ela reapareceria sozinha.
+   */
+  it('a última tecla pendente não ressuscita a nota apagada', async () => {
+    await montar({ url: '/?record=m-1' });
+
+    await act(async () => {
+      digitar(q<HTMLTextAreaElement>('.tq-notas-campo'), 'texto que some');
+    });
+    await clicar(q<HTMLElement>('.tq-icone-apagar'));
+    await clicar(porTexto('.tq-confirma .tq-acao-perigo', 'Apagar'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
+    const notas = storage.local.values[STORAGE_KEYS.notes] as
+      | Record<string, Nota>
+      | undefined;
+    expect(notas?.['m-1']).toBeUndefined();
+    expect(q<HTMLTextAreaElement>('.tq-notas-campo').value).toBe('');
+  });
+
+  it('cancelar mantém a nota', async () => {
+    await montar({
+      url: '/?record=m-1',
+      notas: { 'm-1': { meetingId: 'm-1', texto: 'fica', updatedAt: 1 } },
+    });
+
+    await clicar(q<HTMLElement>('.tq-icone-apagar'));
+    await clicar(porTexto('.tq-confirma .tq-acao', 'Cancelar'));
+
+    expect(host.querySelector('.tq-confirma')).toBeNull();
+    expect(q<HTMLTextAreaElement>('.tq-notas-campo').value).toBe('fica');
+  });
+
   it('não tem mais o cartão de cabeçalho nem o botão verde gigante', async () => {
     await montar({ url: '/?record=m-1' });
 
@@ -385,6 +460,49 @@ describe('a seção Documentos', () => {
     expect(q<HTMLTextAreaElement>('.tq-documento-campo').value).toContain(
       'Ficou decidido',
     );
+  });
+
+  /* Fazer faxina na lista sem abrir cada documento — o caminho longo que o
+     botão do editor, sozinho, obrigava a percorrer. */
+  it('apaga um documento direto da lista, depois de perguntar', async () => {
+    await montar({
+      documentos: [DOCUMENTO, { ...DOCUMENTO, id: 'd-2', title: 'Outra ata' }],
+    });
+    await irParaDocumentos();
+
+    const linha = todos<HTMLElement>('.tq-item-linha')[1]!;
+    expect(linha.textContent).toContain('Outra ata');
+    await clicar(linha.querySelector<HTMLElement>('.tq-item-apagar')!);
+
+    // Só o item apontado vira pergunta; o outro continua sendo item.
+    expect(todos('.tq-confirma')).toHaveLength(1);
+    expect(q('.tq-confirma').textContent).toContain('Outra ata');
+    // E ela diz que a reunião não vai junto.
+    expect(q('.tq-confirma').textContent).toContain('reunião de origem não é afetada');
+
+    await clicar(porTexto('.tq-confirma .tq-acao-perigo', 'Apagar'));
+    await act(async () => {
+      await vi.waitFor(() => {
+        const lista = storage.local.values[STORAGE_KEYS.documents] as DocumentoGuardado[];
+        expect(lista.map((d) => d.id)).toEqual(['d-1']);
+      });
+    });
+  });
+
+  it('cancelar na lista devolve o item, sem apagar nada', async () => {
+    await montar({ documentos: [DOCUMENTO] });
+    await irParaDocumentos();
+
+    await clicar(q<HTMLElement>('.tq-item-apagar'));
+    await clicar(porTexto('.tq-confirma .tq-acao', 'Cancelar'));
+
+    expect(host.querySelector('.tq-confirma')).toBeNull();
+    expect(q('.tq-item').textContent).toContain('Ata do planning');
+    expect(
+      (storage.local.values[STORAGE_KEYS.documents] as DocumentoGuardado[]).map(
+        (d) => d.id,
+      ),
+    ).toEqual(['d-1']);
   });
 
   it('um vínculo para reunião que não existe mais é dito, não escondido', async () => {
