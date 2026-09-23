@@ -9,7 +9,7 @@
  *
  * Sobrescrevível por variável de ambiente, pra trocar provedor sem
  * recompilar:
- *   DOCCITI_PENSANTE=google:gemini-3.6-flash
+ *   DOCCITI_LEITOR=google:gemini-3.6-flash
  *   DOCCITI_AUDITOR=xai:grok-4.3
  */
 import { AGENT_NAMES, isProviderId, type AgentName, type ProviderId } from './types';
@@ -20,59 +20,33 @@ export interface AgentModelConfig {
 }
 
 /**
- * Configuração ATIVA. Hoje é `gemini-2.5-flash` nos quatro agentes, no free
- * tier — a única que roda sem cartão enquanto só há chave do Google.
- *
- * **Isto não é a configuração boa, é a que funciona.** Três coisas erradas
- * com ela, todas conhecidas e nenhuma acidental:
- *
- * - manda conteúdo para treinamento do provedor, com revisão humana; enquanto
- *   for a ativa, SÓ TRANSCRIÇÃO SINTÉTICA (ver `activeDataPolicyWarning`);
- * - é geração anterior, então não serve para comparar fornecedores;
- * - põe o mesmo modelo no Pensante e no Auditor, o que a matriz existe
- *   justamente para questionar.
+ * Configuração ATIVA: Gemini, `flash` na leitura e `lite` na conferência.
+ * São DUAS chamadas por documento — ver `generateStep.ts`.
  *
  * A configuração de produção pretendida está em `COMPARISON_MATRIX` e é
- * decidida pelo harness da Fase 8, não aqui. Quando houver chave paga,
- * trocar é editar este bloco ou exportar `DOCCITI_*`.
+ * decidida pelo harness da Fase 8, não aqui. Trocar é editar este bloco ou
+ * exportar `DOCCITI_*`.
  *
  * Referência das opções (IDs conferidos na documentação oficial em
- * 2026-08-12): Anthropic `claude-sonnet-5` para Pensante/Escritor e
- * `claude-haiku-4-5` para o Auditor; Google `gemini-3.6-flash` e
- * `gemini-3.5-flash-lite`.
+ * 2026-08-12): Anthropic `claude-sonnet-5` para o Leitor e `claude-haiku-4-5`
+ * para o Auditor; Google `gemini-3.6-flash` e `gemini-3.5-flash-lite`.
  */
 const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
-  // RACIOCÍNIO — lê a transcrição bruta e decide o que entra na seção, com
-  // raciocínio ligado em HIGH (ver THINKING_LEVEL em providers/google.ts).
+  // A LEITURA — uma chamada por documento, com raciocínio HIGH. É a que
+  // separa proposta de decisão e a que escreve o texto final, então fica no
+  // `flash`: sendo a única, descer de modelo aqui economiza centavos e arrisca
+  // justamente o que o produto existe para acertar.
   //
-  // ATENÇÃO ao trocar este modelo: desde o corte da compactação é ELE que
-  // produz `quote`, e portanto é a taxa de âncoras dele que sustenta a
-  // auditoria inteira. `gemini-3.5-flash` já foi visto devolvendo "gesto"
-  // onde a transcrição diz "gestão" numa execução do bench, derrubando a
-  // taxa de 100% para 29% — intermitente, amostra de duas execuções. É a
-  // dívida #5 do handoff, e agora ela pesa aqui.
-  pensante: { provider: 'google', model: 'gemini-3.5-flash' },
+  // ATENÇÃO ao trocar este modelo: é ELE que produz `quote`, e portanto é a
+  // taxa de âncoras dele que sustenta a auditoria inteira. `gemini-3.5-flash`
+  // já foi visto devolvendo "gesto" onde a transcrição diz "gestão" numa
+  // execução do bench, derrubando a taxa de 100% para 29% — intermitente,
+  // amostra de duas execuções. É a dívida #5 do handoff.
+  leitor: { provider: 'google', model: 'gemini-3.5-flash' },
 
-  // EXTRAÇÃO — julgamento binário sobre excerto curto, e a chamada mais
-  // frequente do pipeline. É verificação, não deliberação.
+  // A CONFERÊNCIA — julgamento binário sobre excertos curtos, todos numa
+  // chamada. É verificação, não deliberação.
   auditor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
-
-  // Redação final. Desceu para `lite` — era a linha que o comentário anterior
-  // já apontava como a primeira a descer, e a especificação observa que a
-  // redação é a parte mais fácil.
-  //
-  // O que forçou a descida foi ARITMÉTICA, e vale registrar: no free tier o
-  // teto é de 20 requisições por dia, por projeto, POR MODELO. Uma Ata faz 9
-  // chamadas do Pensante e 9 do Escritor; com os dois no `flash` isso é 18 a
-  // 20 e a geração morre no meio — foi medido três vezes. Com o Escritor no
-  // `lite`, o `flash` carrega só o Pensante (9, ou 11 com as segundas
-  // passadas das seções `strict`), e o documento fecha.
-  //
-  // O risco de acento corrompido do `lite` não vem junto: ele foi observado
-  // na PARÁFRASE do Pensante, e na mesma chamada as citações vieram intactas.
-  // O Escritor não produz citação, e a prosa que ele gerou no `lite` nas
-  // execuções de 14/08 saiu acentuada.
-  escritor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
 };
 
 // ---------------------------------------------------------------------------
@@ -284,9 +258,18 @@ export function cheapestProductionEntry(provider: ProviderId): MatrixEntry {
 // ---------------------------------------------------------------------------
 
 const ENV_VAR_BY_AGENT: Record<AgentName, string> = {
-  pensante: 'DOCCITI_PENSANTE',
+  leitor: 'DOCCITI_LEITOR',
   auditor: 'DOCCITI_AUDITOR',
-  escritor: 'DOCCITI_ESCRITOR',
+};
+
+/**
+ * Nomes antigos que ainda valem, para uma variável já configurada no deploy
+ * não parar de funcionar em silêncio. `DOCCITI_PENSANTE` apontava o modelo que
+ * lia a transcrição — é o mesmo papel do Leitor. `DOCCITI_ESCRITOR` não tem
+ * sucessor: o agente não existe mais.
+ */
+const LEGACY_ENV_VAR_BY_AGENT: Partial<Record<AgentName, string>> = {
+  leitor: 'DOCCITI_PENSANTE',
 };
 
 /** Formato aceito: `provedor:modelo`, ex. `google:gemini-3.6-flash`. */
@@ -295,7 +278,7 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   if (separator === -1) {
     throw new Error(
       `${envVar}="${raw}" está mal formado. Use "provedor:modelo", ` +
-        'ex. DOCCITI_PENSANTE=google:gemini-3.6-flash.',
+        'ex. DOCCITI_LEITOR=google:gemini-3.6-flash.',
     );
   }
   const provider = raw.slice(0, separator).trim();
@@ -389,6 +372,7 @@ export function mockPadrao(env: NodeJS.ProcessEnv = process.env): boolean {
  *
  *   1. `MOCK_LLM=true`            — o botão de pânico; ignora todo o resto
  *   2. `DOCCITI_<AGENTE>`         — provedor+modelo de UM agente
+ *                                   (`DOCCITI_PENSANTE` ainda vale pelo Leitor)
  *   3. `LLM_PROVIDER`             — o provedor de TODOS os agentes
  *   4. `DEFAULT_AGENT_CONFIG`     — ou o mock, quando não há chave nenhuma
  *
@@ -430,10 +414,13 @@ function buildAgentConfig(): Record<AgentName, AgentModelConfig> {
   }
 
   for (const agent of AGENT_NAMES) {
-    const raw = process.env[ENV_VAR_BY_AGENT[agent]];
-    if (raw && raw.trim()) {
-      config[agent] = parseOverride(raw.trim(), ENV_VAR_BY_AGENT[agent]);
-    }
+    const legado = LEGACY_ENV_VAR_BY_AGENT[agent];
+    const envVar = process.env[ENV_VAR_BY_AGENT[agent]]?.trim()
+      ? ENV_VAR_BY_AGENT[agent]
+      : legado && process.env[legado]?.trim()
+        ? legado
+        : undefined;
+    if (envVar) config[agent] = parseOverride(process.env[envVar]!.trim(), envVar);
   }
   return config;
 }

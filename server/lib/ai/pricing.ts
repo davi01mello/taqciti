@@ -65,10 +65,8 @@ const ANTHROPIC_PRICING: Record<string, ModelPrice> = {
  * Google Gemini — consultado em 2026-08-12.
  * https://ai.google.dev/gemini-api/docs/pricing
  * Cache implícito não cobra escrita; a coluna "context caching" da tabela
- * é o preço de LEITURA. O cache EXPLÍCITO (usado para a transcrição do
- * Pensante, ver providers/google.ts) cobra também armazenamento por hora, que
- * esta tabela não modela: é uma transcrição vivendo 10 minutos, fração de
- * centavo por Ata.
+ * é o preço de LEITURA. O preço de armazenamento por hora só se aplica ao
+ * cache EXPLÍCITO, que não usamos.
  */
 const GOOGLE_PRICING: Record<string, ModelPrice> = {
   'gemini-3.6-flash': { inputPerMTok: 1.5, outputPerMTok: 7.5, cachedInputPerMTok: 0.15 },

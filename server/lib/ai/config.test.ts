@@ -211,8 +211,8 @@ describe('defaults de produção', () => {
       DEFAULT_AGENT_CONFIG.auditor.model,
     )!;
     const pensante = priceFor(
-      DEFAULT_AGENT_CONFIG.pensante.provider,
-      DEFAULT_AGENT_CONFIG.pensante.model,
+      DEFAULT_AGENT_CONFIG.leitor.provider,
+      DEFAULT_AGENT_CONFIG.leitor.model,
     )!;
     expect(auditor.inputPerMTok).toBeLessThanOrEqual(pensante.inputPerMTok);
     expect(auditor.outputPerMTok).toBeLessThanOrEqual(pensante.outputPerMTok);

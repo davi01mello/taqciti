@@ -40,14 +40,14 @@ describe('a tranca da suíte', () => {
 
 describe('o caminho completo', () => {
   it('complete devolve texto e metadados', async () => {
-    const r = await complete('escritor', PEDIDO);
+    const r = await complete('auditor', PEDIDO);
     expect(r.text).toContain('[mock]');
     expect(r.meta.provider).toBe('mock');
     expect(r.meta.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
   it('completeStructured devolve o valor já validado', async () => {
-    const { value, result } = await completeStructured<{ decisoes: string[] }>('pensante', {
+    const { value, result } = await completeStructured<{ decisoes: string[] }>('leitor', {
       ...PEDIDO,
       jsonSchema: {
         type: 'object',
@@ -79,7 +79,7 @@ describe('o caminho completo', () => {
    * custo dizendo que a geração saiu de graça — ver `estimateCost`.
    */
   it('o mock não produz custo inventado', async () => {
-    expect(costOf(await complete('escritor', PEDIDO))).toBeUndefined();
+    expect(costOf(await complete('auditor', PEDIDO))).toBeUndefined();
   });
 });
 
@@ -96,13 +96,12 @@ describe('o registro de provedores', () => {
     );
   });
 
-  it('só Anthropic e Google declaram controle de cache por requisição', () => {
+  it('só a Anthropic declara controle de cache por requisição', () => {
     const comCache = capabilityTable()
       .filter((linha) => linha.contextCache)
-      .map((linha) => linha.provider)
-      .sort();
-    // xAI e OpenAI cacheiam por conta própria, sem controle nosso; o que a
-    // capacidade pergunta é se existe controle, não se há cache.
-    expect(comCache).toEqual(['anthropic', 'google']);
+      .map((linha) => linha.provider);
+    // Google, xAI e OpenAI cacheiam por conta própria, sem controle nosso; o
+    // que a capacidade pergunta é se existe controle, não se há cache.
+    expect(comCache).toEqual(['anthropic']);
   });
 });

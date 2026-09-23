@@ -73,7 +73,7 @@ de host para host.
 | `XAI_API_KEY` | não | Idem. |
 | `DOCCITI_MAX_TRANSCRIPT_CHARS` | não | Teto por requisição. Padrão 400000. |
 | `DOCCITI_DATA_POLICY` | **não defina em produção** | Ver a seção 4. |
-| `DOCCITI_PENSANTE` / `DOCCITI_AUDITOR` / `DOCCITI_ESCRITOR` | não | `provedor:modelo`, para trocar de modelo sem recompilar. |
+| `DOCCITI_LEITOR` / `DOCCITI_AUDITOR` (`DOCCITI_PENSANTE` ainda vale pelo Leitor) | não | `provedor:modelo`, para trocar de modelo sem recompilar. |
 
 Gere o `DOCCITI_SHARED_KEY` como um valor aleatório longo, e guarde: ele
 precisa ser **idêntico** no servidor e na build da extensão (seção 3).

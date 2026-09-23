@@ -44,8 +44,6 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'light',
       omitWhenEmpty: false,
-      // A data já vem semeada do carimbo da captura; sobra achar um nome.
-      reasoning: 'low',
       needs: ['data em que a reunião ocorreu', 'nome do projeto'],
       guidance: [
         'DATA no formato DD/MM/AAAA, representando a data em que a reunião ocorreu.',
@@ -66,7 +64,6 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'none',
       omitWhenEmpty: false,
-      reasoning: 'low',
       needs: ['tema central da reunião', 'estado geral do assunto tratado'],
       guidance: [
         'TÓPICO: nome do tema central da reunião.',
@@ -88,8 +85,6 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'strict',
       omitWhenEmpty: false,
-      // Extração com citação — trabalho mecânico, e o Auditor confere depois.
-      reasoning: 'low',
       needs: [
         'nomes das pessoas que participaram',
         'cargo ou papel de cada participante',
@@ -128,9 +123,6 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'light',
       omitWhenEmpty: false,
-      // Separar a reunião em tópicos é julgamento, mas não o que custa caro
-      // errar: um tópico mal cortado não vira fato inventado.
-      reasoning: 'medium',
       needs: [
         'tópicos reais tratados na reunião',
         'contexto e argumentos de cada tópico',
@@ -159,9 +151,6 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'strict',
       omitWhenEmpty: false,
-      // O ÚNICO 'high' da Ata. Separar proposta de decisão é a armadilha que
-      // o pipeline existe para não cair, e a seção tem peso jurídico.
-      reasoning: 'high',
       needs: [
         'o que foi efetivamente decidido, acordado ou aprovado',
         'evidência na reunião que sustenta cada decisão',
@@ -190,7 +179,6 @@ export const ata: DocumentTemplate = {
       required: false,
       audit: 'light',
       omitWhenEmpty: true,
-      reasoning: 'low',
       needs: ['alinhamentos e entendimentos compartilhados produzidos pela conversa'],
       guidance: [
         'Resultados estratégicos ou alinhamentos produzidos pela conversa — o que foi',
@@ -213,7 +201,6 @@ export const ata: DocumentTemplate = {
       required: false,
       audit: 'light',
       omitWhenEmpty: true,
-      reasoning: 'low',
       needs: ['artefatos e resultados concretos produzidos ou estabelecidos na reunião'],
       guidance: [
         'Resultados concretos produzidos ou estabelecidos durante a reunião — coisas que',
@@ -235,9 +222,6 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'none',
       omitWhenEmpty: false,
-      // Sintetiza o que as seções anteriores já apuraram (vai em "já
-      // determinado"); não precisa redescobrir a reunião.
-      reasoning: 'low',
       needs: ['situação atual, principais decisões, andamento e foco imediato'],
       guidance: [
         'Um único parágrafo executivo.',

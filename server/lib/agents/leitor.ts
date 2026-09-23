@@ -1,55 +1,52 @@
 /**
- * Pensante: transcrição bruta + `SectionSpec` → DADOS estruturados da seção,
- * mais as lacunas encontradas. Não devolve texto redigido; a redação é do
- * Escritor.
+ * Leitor: a transcrição bruta → os DADOS do documento inteiro, numa chamada.
  *
- * Ele lê a transcrição INTEIRA, e isso é deliberado. A compactação que existia
- * antes (o Analista) foi cortada por três razões medidas:
+ * Substitui o Pensante, que fazia a mesma coisa uma seção por vez — nove
+ * leituras da transcrição inteira, cada uma com raciocínio próprio, ligadas
+ * por um "o que já foi determinado" serializado entre elas. Tudo isso era
+ * compensação por limitação de modelo que o Gemini atual não tem:
  *
- * - o contexto compactado tinha ~1.000 tokens, abaixo do piso de cache
- *   implícito do provedor, então a compactação impedia justamente o cache que
- *   a tornaria desnecessária. A transcrição bruta passa folgado desse piso e
- *   vai como `cacheablePrefix`, idêntica nas nove seções;
- * - o Pensante raciocinava sobre a paráfrase de outro modelo, e o Auditor
- *   tentava reconstruir a vizinhança que a compactação tinha jogado fora;
- * - com a transcrição em mãos, o Pensante consegue apontar a citação da
- *   CONCORDÂNCIA, não só a da proposta — que é o que separa decisão de
- *   proposta (ver `Decision.agreement` em `documentData.ts`).
+ * - **contexto**: 1M de tokens. Uma reunião de uma hora são ~15 mil. Não há
+ *   o que dividir;
+ * - **saída estruturada nativa**: o schema do documento inteiro é só um objeto
+ *   com uma chave por seção, e o provedor garante a forma;
+ * - **raciocínio nativo**: o modelo já pensa antes de responder. Um agente
+ *   chamado "Pensante" rodando nove vezes pagava esse raciocínio nove vezes, e
+ *   ainda perdia a visão do todo — cada seção via as outras só pelo resumo.
  *
- * **O modelo NUNCA informa offset.** Ele devolve `quote`; `anchoring.ts`
- * localiza. Citação que não se localiza fica com `anchor: null` e não sustenta
- * nada.
+ * O que continua em CÓDIGO, porque não é trabalho de modelo:
  *
- * As regras de cada seção vêm do `guidance` do `SectionSpec`, repassadas
- * ÍNTEGRAS. Não são reescritas aqui: o `guidance` foi preenchido a partir do
- * PDF e da especificação exatamente para isso, e regra que mora em dois
- * lugares diverge.
+ * - **o modelo NUNCA informa offset.** Ele devolve `quote`; `anchoring.ts`
+ *   localiza. Citação que não se localiza fica com `anchor: null` e não
+ *   sustenta nada;
+ * - as regras de cada seção vêm do `guidance` do `SectionSpec`, repassadas
+ *   ÍNTEGRAS — regra que mora em dois lugares diverge;
+ * - lacuna é decidida por `detectGaps`, não pelo modelo.
  */
-import { complete, type CompletionResult } from '../ai';
+import { complete, type CompletionResult, type JsonSchema } from '../ai';
 import { renderPrompt } from '../prompts';
 import type { SectionSpec } from '../templates/types';
 import { specForSection, type DocumentData, type Gap, type Locate } from '../documentData';
 import type { Answer } from '../generateStep';
-import { createLocator, type LocatedAnchor } from './anchoring';
+import { createLocator, type LocatedAnchor, type Locator } from './anchoring';
 import { ehRotuloDeSelf, PERGUNTA_DO_NOME } from '../rotuloDeSelf';
 
-export interface PensarInput {
-  /** A transcrição bruta, literal. Vai como prefixo cacheável. */
+export interface LerInput {
+  /** A transcrição bruta, literal. */
   transcript: string;
-  section: SectionSpec;
-  /** Dados já preenchidos por seções anteriores — o "já determinado". */
+  /** As seções a preencher. As `fromUserOnly` são ignoradas aqui. */
+  sections: SectionSpec[];
+  /** O que já se sabe — passadas anteriores, data semeada da captura. */
   known: DocumentData;
   /** Respostas que o usuário já deu. Não se pergunta duas vezes. */
   answers: Answer[];
-  /** Justificativas de rejeição do Auditor, quando esta é a segunda passada. */
-  rejections?: string[];
   promptVersion?: `v${number}`;
   maxTokens?: number;
 }
 
 /**
- * Saúde das citações desta seção. A taxa de localização é o PRINCIPAL
- * indicador de qualidade do Pensante — foi a única métrica que pegou um modelo
+ * Saúde das citações de uma seção. A taxa de localização é o PRINCIPAL
+ * indicador de qualidade do Leitor — foi a única métrica que pegou um modelo
  * devolvendo citação com caractere apagado: JSON válido, schema satisfeito,
  * âncora inútil.
  */
@@ -63,16 +60,27 @@ export interface QuoteStats {
   anchorRate: number;
 }
 
-export interface PensarResult {
-  /** O payload cru da seção, já enxertado em `data` pelo spec da seção. */
-  data: DocumentData;
-  gaps: Gap[];
+export interface SecaoLida {
+  sectionId: string;
   quotes: QuoteStats;
   /** As citações que não existem na transcrição. Nunca somem em silêncio. */
   unlocatable: string[];
-  meta: CompletionResult['meta'];
+}
+
+export interface LerResult {
+  data: DocumentData;
+  porSecao: SecaoLida[];
+  /** Ausente quando nenhuma seção precisava do modelo. */
+  meta?: CompletionResult['meta'];
   usage: CompletionResult['usage'];
 }
+
+/**
+ * Teto de saída. É teto, não custo: paga-se o que se usa. Cobre o raciocínio
+ * (que o Gemini conta como saída) mais o JSON do documento inteiro de uma
+ * reunião longa, com folga — estourar aqui seria perder a Ata inteira.
+ */
+export const LEITOR_MAX_TOKENS = 48_000;
 
 function serializeKnown(known: DocumentData, answers: Answer[]): string {
   const linhas: string[] = [];
@@ -90,22 +98,15 @@ function serializeKnown(known: DocumentData, answers: Answer[]): string {
     linhas.push(`- Resposta do usuário (${answer.questionId}): ${answer.answer}`);
   }
 
-  return linhas.length > 0 ? linhas.join('\n') : '(nada ainda — esta é a primeira seção)';
+  return linhas.join('\n');
 }
 
-/**
- * Localizador que conta enquanto localiza.
- *
- * A contagem sai daqui, e não de uma varredura posterior sobre o
- * `DocumentData`, porque `data` já carrega as citações das seções anteriores —
- * varrer o acumulado contaria de novo o que já foi contado.
- */
-function countingLocator(transcript: string): {
+/** Localizador que conta, por seção, enquanto localiza. */
+function countingLocator(locator: Locator): {
   locate: Locate;
   stats: () => QuoteStats;
   unlocatable: string[];
 } {
-  const locator = createLocator(transcript);
   const unlocatable: string[] = [];
   let total = 0;
   let exact = 0;
@@ -129,85 +130,97 @@ function countingLocator(transcript: string): {
       normalized,
       missing: unlocatable.length,
       // Sem citação nenhuma a taxa é 1, e não 0: a seção pode legitimamente
-      // não ter o que citar (Conclusão, Assinatura). Zerar ali faria a
-      // métrica denunciar seções saudáveis e esconder as doentes na média.
+      // não ter o que citar (Conclusão). Zerar ali faria a métrica denunciar
+      // seções saudáveis e esconder as doentes na média.
       anchorRate: total === 0 ? 1 : (exact + normalized) / total,
     }),
   };
 }
 
-export async function pensar(input: PensarInput): Promise<PensarResult> {
+/** O schema do documento: uma chave por seção, cada uma com o schema dela. */
+export function schemaDoDocumento(sections: SectionSpec[]): JsonSchema {
+  return {
+    type: 'object',
+    properties: Object.fromEntries(
+      sections.map((section) => [
+        section.id,
+        { ...specForSection(section).schema, description: section.title },
+      ]),
+    ),
+    required: sections.map((section) => section.id),
+  };
+}
+
+function pedidoDoDocumento(input: LerInput, sections: SectionSpec[]): string {
+  const conhecido = serializeKnown(input.known, input.answers);
+  return [
+    '# Seções a preencher',
+    '',
+    'Cada seção é a chave de mesmo nome no resultado.',
+    '',
+    ...sections.flatMap((section) => [
+      `## ${section.title} (chave \`${section.id}\`)`,
+      '',
+      section.guidance || '(sem instrução específica para esta seção)',
+      '',
+    ]),
+    ...(conhecido
+      ? [
+          '# O que já foi determinado',
+          '',
+          conhecido,
+          '',
+          'Isto já está confirmado. Não contradiga; use como está.',
+        ]
+      : []),
+  ].join('\n');
+}
+
+export async function ler(input: LerInput): Promise<LerResult> {
   if (!input.transcript.trim()) {
-    throw new Error('pensar: transcrição vazia.');
+    throw new Error('ler: transcrição vazia.');
   }
 
-  const spec = specForSection(input.section);
+  const sections = input.sections.filter((section) => !section.fromUserOnly);
+  const data: DocumentData = structuredCloneish(input.known);
 
-  // O prompt de sistema é IDÊNTICO nas nove seções, de propósito: todo cache
-  // de prefixo casa desde o começo do prompt, e um sistema que variasse por
-  // seção encerraria o prefixo comum antes da transcrição. O que varia —
-  // guidance da seção, fatos já determinados, rejeições — vem DEPOIS da
-  // transcrição, na mensagem de usuário.
-  const system = renderPrompt('pensante', input.promptVersion ?? 'v3');
+  if (sections.length === 0) {
+    return { data, porSecao: [], usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 } };
+  }
 
-  const pedido = [
-    `# Seção a preencher: ${input.section.title}`,
-    '',
-    input.section.guidance || '(sem instrução específica para esta seção)',
-    '',
-    '# O que já foi determinado',
-    '',
-    serializeKnown(input.known, input.answers),
-    '',
-    'Não repita nem contradiga o que já está acima.',
-    input.rejections?.length
-      ? [
-          '',
-          '# Atenção',
-          '',
-          'A tentativa anterior teve afirmações REJEITADAS na conferência contra a',
-          'transcrição. Motivos:',
-          ...input.rejections.map((r) => `- ${r}`),
-          '',
-          'Refaça a seção. Não reapresente afirmação rejeitada sem citação literal da',
-          'transcrição que realmente a sustente; se não houver, omita-a.',
-        ].join('\n')
-      : '',
-  ]
-    .filter((bloco) => bloco !== '')
-    .join('\n');
-
-  const result = await complete('pensante', {
-    system,
-    messages: [{ role: 'user', content: pedido }],
-    maxTokens: input.maxTokens ?? 8_000,
-    jsonSchema: spec.schema,
-    // A transcrição bruta, idêntica nas nove chamadas. É a maior economia
-    // disponível no pipeline, e a razão de o prefixo ir sempre no início da
-    // primeira mensagem (ver providers/shared.ts).
+  const result = await complete('leitor', {
+    system: renderPrompt('leitor', input.promptVersion ?? 'v1'),
+    messages: [{ role: 'user', content: pedidoDoDocumento(input, sections) }],
+    maxTokens: input.maxTokens ?? LEITOR_MAX_TOKENS,
+    jsonSchema: schemaDoDocumento(sections),
+    // Uma leitura só: não há o que cachear entre chamadas. O prefixo vai
+    // assim mesmo, porque é o que põe a transcrição ANTES das instruções.
     cacheablePrefix: input.transcript,
-    ...(input.section.reasoning ? { reasoning: input.section.reasoning } : {}),
+    // Raciocínio alto, e uma vez. É esta chamada que separa proposta de
+    // decisão; economizar aqui é economizar no que o produto existe para
+    // acertar, e ela já é a única.
+    reasoning: 'high',
   });
 
-  const { locate, stats, unlocatable } = countingLocator(input.transcript);
+  const parsed = (result.parsed ?? {}) as Record<string, unknown>;
 
-  const data: DocumentData = structuredCloneish(input.known);
-  spec.merge(data, result.parsed, input.section.id, locate);
+  const porSecao = sections.map((section) => {
+    // Um localizador POR SEÇÃO: ele guarda um cursor (ver anchoring.ts), e as
+    // citações vêm em ordem dentro de uma seção, não entre seções. O cursor
+    // da Conclusão não deve começar onde as Decisões terminaram.
+    const { locate, stats, unlocatable } = countingLocator(createLocator(input.transcript));
+    specForSection(section).merge(data, parsed[section.id], section.id, locate);
+    return { sectionId: section.id, quotes: stats(), unlocatable };
+  });
 
-  return {
-    data,
-    gaps: detectGaps(input.section, data),
-    quotes: stats(),
-    unlocatable,
-    meta: result.meta,
-    usage: result.usage,
-  };
+  return { data, porSecao, meta: result.meta, usage: result.usage };
 }
 
 /** Cópia rasa suficiente: os campos são substituídos, não mutados em lugar. */
 function structuredCloneish(data: DocumentData): DocumentData {
   return {
     ...data,
+    ...(data.metadata ? { metadata: { ...data.metadata } } : {}),
     ...(data.participants ? { participants: [...data.participants] } : {}),
     ...(data.decisions ? { decisions: [...data.decisions] } : {}),
     ...(data.topicsDiscussed ? { topicsDiscussed: [...data.topicsDiscussed] } : {}),

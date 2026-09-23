@@ -8,13 +8,13 @@ nenhum.
 ```ts
 import { complete, completeStructured } from '@/lib/ai';
 
-const { text } = await complete('escritor', {
+const { text } = await complete('auditor', {
   system: 'Você redige atas.',
   messages: [{ role: 'user', content: transcricao }],
   maxTokens: 2000,
 });
 
-const { value } = await completeStructured<{ decisoes: string[] }>('pensante', {
+const { value } = await completeStructured<{ decisoes: string[] }>('leitor', {
   system: 'Extraia as decisões.',
   messages: [{ role: 'user', content: transcricao }],
   maxTokens: 1000,
@@ -34,7 +34,7 @@ para o mais fraco:
 | # | Variável | O que faz |
 |---|---|---|
 | 1 | `MOCK_LLM=true` | Põe **todos** os agentes no mock. Vence tudo, inclusive em produção. |
-| 2 | `DOCCITI_PENSANTE`, `DOCCITI_AUDITOR`, `DOCCITI_ESCRITOR` | `provedor:modelo` para **um** agente. |
+| 2 | `DOCCITI_LEITOR` (ou o antigo `DOCCITI_PENSANTE`), `DOCCITI_AUDITOR` | `provedor:modelo` para **um** agente. |
 | 3 | `LLM_PROVIDER` | O provedor de **todos** os agentes. |
 | 4 | — | Os defaults de `config.ts`; ou o mock, quando não há chave nenhuma e não é produção. |
 

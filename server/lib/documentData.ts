@@ -1,11 +1,11 @@
 /**
  * O JSON INTERMEDIÁRIO — `document_data` da especificação.
  *
- * É a camada canônica do documento. O Pensante produz DADOS, não prosa; o
- * Escritor redige a partir daqui; e a renderização da Fase 6 consome isto, e
- * não o markdown. O markdown já perdeu que Maria é participante com cargo de
- * origem `user`; renderizar dele obrigaria a reparsear o que a estrutura já
- * sabia.
+ * É a camada canônica do documento. O Leitor produz estes DADOS numa leitura
+ * só da reunião, e tudo que o cliente vê — markdown, HTML, PDF — é montado em
+ * código a partir daqui. O markdown já perdeu que Maria é participante com
+ * cargo de origem `user`; renderizar dele obrigaria a reparsear o que a
+ * estrutura já sabia.
  *
  * Duas propriedades sustentam a auditoria:
  *
@@ -220,7 +220,7 @@ export interface AuditableClaim {
 }
 
 export interface SectionDataSpec {
-  /** Schema que o Pensante deve satisfazer para esta seção. */
+  /** A fatia desta seção no schema que o Leitor deve satisfazer. */
   schema: JsonSchema;
   /**
    * Enxerta a resposta do modelo no DocumentData acumulado, ancorando as
@@ -230,42 +230,44 @@ export interface SectionDataSpec {
   /**
    * Afirmações que PODEM ser auditadas nesta seção — capacidade, não política.
    * Quem decide se a auditoria roda é o `audit` do `SectionSpec`, lido por
-   * `runSection`. Espelhar a política aqui duplicaria a mesma decisão em dois
+   * `apurar` (generateStep.ts). Espelhar a política aqui duplicaria a mesma decisão em dois
    * lugares, e é assim que eles divergem.
    */
   claims(data: DocumentData, sectionId: string): AuditableClaim[];
   /** Remove as afirmações rejeitadas pelo Auditor. */
   drop(data: DocumentData, paths: Set<string>, sectionId: string): void;
   /**
-   * Os dados DESTA seção em texto, para o Escritor — ou `null` quando não há
-   * nada.
+   * Os dados DESTA seção em texto — ou `null` quando não há nada.
    *
    * `null` é o que decide `omitWhenEmpty`: seção vazia com a marca some do
-   * documento em vez de aparecer com um título e nada embaixo. Vive aqui, e
-   * não no Escritor, porque saber o que é "vazio" nesta seção é conhecimento
-   * da seção — e o Escritor é genérico de propósito.
+   * documento em vez de aparecer com um título e nada embaixo. É a MESMA
+   * regra no markdown, no HTML e no PDF, e vive aqui porque saber o que é
+   * "vazio" nesta seção é conhecimento da seção.
    *
    * As citações NÃO entram: elas são evidência para a auditoria, não texto
-   * para a ata. O Escritor redige a partir dos dados, e não da transcrição.
+   * para a ata.
    */
   serialize(data: DocumentData, sectionId: string): string | null;
   /**
-   * Markdown da seção montado em CÓDIGO, sem chamar modelo.
+   * Markdown da seção, montado em CÓDIGO a partir dos dados — em TODAS as
+   * seções.
    *
-   * Presente só onde a seção é pura estrutura — Identificação, Participantes,
-   * Assinatura. Ali o Escritor não tem prosa para escrever: ele receberia uma
-   * lista de nomes e devolveria a mesma lista de nomes. A chamada seria custo
-   * pago por nada e risco de graça, porque um modelo que reescreve uma lista
-   * de participantes pode perder um nome ou trocar um acento — e ninguém
-   * confere lista de nome.
-   *
-   * Ausente = a seção tem prosa de verdade e vai para o Escritor.
+   * Havia um Escritor, um modelo que reescrevia os dados em prosa. Ele saiu
+   * porque era redundante duas vezes: o HTML e o PDF, que são o que o cliente
+   * recebe, já saíam direto de `DocumentData` e nunca leram o texto dele; e o
+   * Leitor já escreve os campos de texto na forma final. Sobrava uma chamada
+   * por seção para produzir um markdown que podia discordar do PDF.
    */
-  renderPlain?(data: DocumentData, sectionId: string, gaps: Gap[]): string;
+  markdown(data: DocumentData, section: SectionSpec, gaps: Gap[]): string;
 }
 
-/** O marcador de lacuna em markdown. Igual ao do Escritor, e pelo mesmo
- *  `textoDeLacuna`, para as duas rotas não divergirem. */
+/** `## Título` + corpo; corpo vazio vira só o título, e a lacuna vem depois. */
+function secaoMarkdown(section: SectionSpec, corpo: string[]): string {
+  return [`## ${section.title}`, ...(corpo.length > 0 ? ['', ...corpo] : [])].join('\n');
+}
+
+/** O marcador de lacuna em markdown. Igual ao de `vazamento.ts`, e pelo
+ *  mesmo `textoDeLacuna`, para os dois não divergirem. */
 function marcador(gap: Gap | undefined, campo: string): string {
   return `**${textoDeLacuna(gap ? gap.question : campo)}**`;
 }
@@ -273,7 +275,7 @@ function marcador(gap: Gap | undefined, campo: string): string {
 const lacunaDoCampo = (gaps: Gap[], field: string): Gap | undefined =>
   gaps.find((g) => g.field === field);
 
-/** Lista para o Escritor, ou `null` quando não sobrou item. */
+/** Lista em markdown, ou `null` quando não sobrou item. */
 function bullets(items: string[]): string | null {
   const linhas = items.filter((linha) => linha.trim());
   return linhas.length > 0 ? linhas.map((linha) => `- ${linha}`).join('\n') : null;
@@ -328,6 +330,10 @@ function listSpec(
     serialize(data) {
       return bullets((data[key] ?? []).map((item) => item.text));
     },
+    markdown(data, section) {
+      const lista = bullets((data[key] ?? []).map((item) => item.text));
+      return secaoMarkdown(section, lista ? [lista] : []);
+    },
   };
 }
 
@@ -375,6 +381,10 @@ const GENERIC_SPEC: SectionDataSpec = {
   serialize(data, sectionId) {
     return bullets((data.generic?.[sectionId] ?? []).map((item) => item.text));
   },
+  markdown(data, section) {
+    const lista = bullets((data.generic?.[section.id] ?? []).map((item) => item.text));
+    return secaoMarkdown(section, lista ? [lista] : []);
+  },
 };
 
 /**
@@ -415,7 +425,7 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         data.metadata?.projectName ? `Projeto: ${data.metadata.projectName}` : '',
       ]);
     },
-    renderPlain(data, _sectionId, gaps) {
+    markdown(data, _section, gaps) {
       const projeto = data.metadata?.projectName ?? marcador(lacunaDoCampo(gaps, 'metadata.projectName'), 'projeto');
       const quando = data.metadata?.date ?? marcador(lacunaDoCampo(gaps, 'metadata.date'), 'data');
       return [
@@ -448,6 +458,15 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       return bullets([
         `Tema central: ${data.generalTopic.topic}`,
         `Andamento: ${data.generalTopic.progress}`,
+      ]);
+    },
+    // Mesmas linhas rotuladas do HTML (TÓPICO / ANDAMENTO).
+    markdown(data, section) {
+      if (!data.generalTopic) return secaoMarkdown(section, []);
+      return secaoMarkdown(section, [
+        `**TÓPICO:** ${data.generalTopic.topic}`,
+        '',
+        `**ANDAMENTO:** ${data.generalTopic.progress}`,
       ]);
     },
   },
@@ -517,7 +536,7 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         ),
       );
     },
-    renderPlain(data, _sectionId, gaps) {
+    markdown(data, _section, gaps) {
       const linhas = (data.participants ?? []).map((p) => {
         const cargo =
           p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`), `cargo de ${p.name}`);
@@ -566,6 +585,14 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     drop: () => {},
     serialize(data) {
       return bullets((data.topicsDiscussed ?? []).map((t) => `${t.title}: ${t.summary}`));
+    },
+    // Numerada: o guidance pede numeração "para facilitar referência futura",
+    // e o HTML numera também.
+    markdown(data, section) {
+      return secaoMarkdown(
+        section,
+        (data.topicsDiscussed ?? []).map((t, i) => `${i + 1}. **${t.title}:** ${t.summary}`),
+      );
     },
   },
 
@@ -647,10 +674,8 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       );
     },
     serialize(data) {
-      // A concordância entra porque o guidance da Ata pede para preservar a
-      // concordância explícita do cliente quando houver. É o único lugar em
-      // que uma citação chega ao Escritor, e chega como conteúdo pedido pela
-      // especificação, não como evidência de auditoria.
+      // Resumo de diagnóstico, com confiança e concordância. Não vai para o
+      // documento — o markdown desta seção é `markdown`, só com o texto.
       return bullets(
         (data.decisions ?? []).map(
           (d) =>
@@ -658,6 +683,11 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
             `${d.agreement?.quote ? `; concordância: "${d.agreement.quote}"` : ''})`,
         ),
       );
+    },
+    // Só `text`, como no HTML: a concordância é evidência para a auditoria.
+    markdown(data, section) {
+      const lista = bullets((data.decisions ?? []).map((d) => d.text));
+      return secaoMarkdown(section, lista ? [lista] : []);
     },
   },
 
@@ -678,6 +708,9 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     drop: () => {},
     serialize(data) {
       return data.conclusion?.text ?? null;
+    },
+    markdown(data, section) {
+      return secaoMarkdown(section, data.conclusion ? [data.conclusion.text] : []);
     },
   },
 
@@ -707,7 +740,7 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         `Cargo de quem assina: ${data.signature?.role ?? '(não determinado)'}`,
       ]);
     },
-    renderPlain(data, _sectionId, gaps) {
+    markdown(data, _section, gaps) {
       const nome = data.signature?.name ?? marcador(lacunaDoCampo(gaps, 'signature.name'), 'quem assina');
       const cargo = data.signature?.role ?? marcador(lacunaDoCampo(gaps, 'signature.role'), 'cargo de quem assina');
       return ['## Assinatura', '', 'Atenciosamente,', '', `${nome} – ${cargo}`].join('\n');
@@ -717,7 +750,7 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
   /**
    * X1 — pares pergunta do entrevistador / resposta do candidato.
    *
-   * UMA chamada ao Pensante devolve a lista INTEIRA de pares (mesmo padrão de
+   * A leitura devolve a lista INTEIRA de pares (mesmo padrão de
    * `topicos_discutidos`/`decisoes`/`participantes`), não uma seção por
    * pergunta — isso manteria o custo fixo mesmo com entrevistas de tamanhos
    * bem diferentes, em vez de gastar uma chamada por pergunta ou travar num
@@ -826,11 +859,7 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         )
         .join('\n');
     },
-    // `renderPlain`, e não Escritor: fidelidade ao que foi perguntado/
-    // respondido importa mais que prosa reescrita, e um modelo redigindo de
-    // novo arrisca alterar o sentido de uma resposta — o mesmo raciocínio de
-    // Identificação/Participantes/Assinatura.
-    renderPlain(data, _sectionId, gaps) {
+    markdown(data, _section, gaps) {
       const pares = data.qa ?? [];
       const blocos = pares.map((par, index) => {
         const pergunta =

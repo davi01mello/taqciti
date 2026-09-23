@@ -39,9 +39,14 @@ export function isProviderId(value: unknown): value is ProviderId {
 
 export type Capability = 'structuredOutput' | 'contextCache' | 'extendedThinking';
 
-export type AgentName = 'pensante' | 'auditor' | 'escritor';
+/**
+ * `leitor` lê a reunião uma vez e produz os dados do documento; `auditor`
+ * confere as afirmações críticas contra o trecho citado. Eram três agentes
+ * (Pensante, Auditor, Escritor) — ver `agents/leitor.ts` para o que saiu.
+ */
+export type AgentName = 'leitor' | 'auditor';
 
-export const AGENT_NAMES: readonly AgentName[] = ['pensante', 'auditor', 'escritor'];
+export const AGENT_NAMES: readonly AgentName[] = ['leitor', 'auditor'];
 
 export interface CompletionMessage {
   role: 'user' | 'assistant';

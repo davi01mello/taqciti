@@ -14,9 +14,7 @@
  * 3. **Sem regra de negócio duplicada.** As regras da Ata vivem no `guidance`
  *    do `SectionSpec`, e chegam ao modelo ÍNTEGRAS, nunca reescritas — regra
  *    em dois lugares diverge. O `guidance` vai na mensagem de usuário, e não
- *    interpolado no prompt de sistema: o sistema do Pensante precisa ser
- *    byte-idêntico nas nove seções para o cache de prefixo pegar a
- *    transcrição (ver `agents/pensante.ts`).
+ *    interpolado no prompt de sistema.
  * 4. **Formato de saída declarado por schema**, não por prosa. O prompt
  *    descreve a tarefa; o `jsonSchema` descreve a forma.
  *
@@ -25,7 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type PromptAgent = 'pensante' | 'auditor' | 'escritor';
+export type PromptAgent = 'leitor' | 'auditor' | 'taq';
 export type PromptVersion = `v${number}`;
 
 /** Cache por arquivo. Prompt não muda em runtime; ler a cada chamada seria
