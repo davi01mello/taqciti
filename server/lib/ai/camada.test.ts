@@ -96,12 +96,13 @@ describe('o registro de provedores', () => {
     );
   });
 
-  it('só a Anthropic declara controle de cache por requisição', () => {
+  it('só Anthropic e Google declaram controle de cache por requisição', () => {
     const comCache = capabilityTable()
       .filter((linha) => linha.contextCache)
-      .map((linha) => linha.provider);
-    // Google, xAI e OpenAI cacheiam por conta própria, sem controle nosso; o
-    // que a capacidade pergunta é se existe controle, não se há cache.
-    expect(comCache).toEqual(['anthropic']);
+      .map((linha) => linha.provider)
+      .sort();
+    // xAI e OpenAI cacheiam por conta própria, sem controle nosso; o que a
+    // capacidade pergunta é se existe controle, não se há cache.
+    expect(comCache).toEqual(['anthropic', 'google']);
   });
 });

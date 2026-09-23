@@ -186,6 +186,7 @@ export async function pensar(input: PensarInput): Promise<PensarResult> {
     // disponível no pipeline, e a razão de o prefixo ir sempre no início da
     // primeira mensagem (ver providers/shared.ts).
     cacheablePrefix: input.transcript,
+    ...(input.section.reasoning ? { reasoning: input.section.reasoning } : {}),
   });
 
   const { locate, stats, unlocatable } = countingLocator(input.transcript);

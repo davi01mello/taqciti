@@ -228,15 +228,17 @@ reparar (e aí marca `repaired: true`, que é dado de comparação).
 | Capacidade         | anthropic | google | xai |
 |--------------------|-----------|--------|-----|
 | `structuredOutput` | ✅ `output_config.format` | ✅ `responseJsonSchema` | ✅ `response_format` |
-| `contextCache`     | ✅ `cache_control` explícito | ❌ só implícito | ❌ automático |
-| `extendedThinking` | ✅ `thinking: adaptive` | ✅ `thinkingConfig` | ❌ escolhido pelo ID do modelo |
+| `contextCache`     | ✅ `cache_control` explícito | ✅ `cachedContents` explícito (prefixo ≥ 16 mil caracteres) | ❌ automático |
+| `extendedThinking` | ✅ `thinking: adaptive` | ✅ `thinkingConfig`, nível por chamada via `reasoning` | ❌ escolhido pelo ID do modelo |
 
 Os `false` não querem dizer "não tem cache" nem "não raciocina": querem
-dizer que não há botão por requisição. O Gemini tem cache implícito a partir
-da família 2.5 e a xAI tem cache automático; os dois casam por prefixo, e é
-por isso que `cacheablePrefix` vai sempre no início da primeira mensagem de
-usuário, para os três. O Grok escolhe raciocínio por variante de modelo
-(`-reasoning` / `-non-reasoning`) em vez de parâmetro.
+dizer que não há botão por requisição. A xAI tem cache automático, que casa
+por prefixo, e é por isso que `cacheablePrefix` vai sempre no início da
+primeira mensagem de usuário, para os três. No Gemini o cache implícito
+existe mas foi medido em 4% da entrada, por isso o adaptador cria um cache
+explícito de 10 minutos para prefixo grande e cai na chamada normal se ele
+falhar (`DOCCITI_GEMINI_CACHE=off` desliga). O Grok escolhe raciocínio por
+variante de modelo (`-reasoning` / `-non-reasoning`) em vez de parâmetro.
 
 ### Convenção de `usage`
 

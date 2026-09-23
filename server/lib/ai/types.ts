@@ -66,7 +66,20 @@ export interface CompletionRequest {
    * essa diferença que o harness da Fase 8 vai medir.
    */
   cacheablePrefix?: string;
+  /**
+   * Quanto raciocínio esta chamada merece. Ausente = o padrão do modelo (ver
+   * THINKING_LEVEL em providers/google.ts).
+   *
+   * É a alavanca de custo que mais pesa: raciocínio é cobrado como token de
+   * SAÍDA, e na medição de 16/08 a saída era dois terços do custo da Ata —
+   * quase toda ela raciocínio do Pensante em HIGH, inclusive na seção que só
+   * extrai um nome de projeto. Quem sabe o que a tarefa pede é quem chama,
+   * não o adaptador. Provedor sem controle por requisição ignora.
+   */
+  reasoning?: ReasoningEffort;
 }
+
+export type ReasoningEffort = 'low' | 'medium' | 'high';
 
 export interface CompletionUsage {
   inputTokens: number;

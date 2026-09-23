@@ -57,6 +57,45 @@ describe('seção não-strict', () => {
   });
 });
 
+describe('custo por seção', () => {
+  const assinatura = TEMPLATES.ata.sections.find((s) => s.id === 'assinatura')!;
+
+  it('Assinatura não chama modelo nenhum e já sai com as duas perguntas', async () => {
+    const result = await runSection({ section: assinatura, transcript, known: {}, answers: [] });
+
+    expect(complete).not.toHaveBeenCalled();
+    expect(result.passes).toBe(0);
+    expect(result.gaps.map((g) => g.field)).toEqual(['signature.name', 'signature.role']);
+    expect(result.usage).toEqual({ inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 });
+  });
+
+  it('Assinatura já respondida não abre lacuna', async () => {
+    const known = { signature: { name: 'Ana Souza', role: 'Gerente' } };
+    const result = await runSection({ section: assinatura, transcript, known, answers: [] });
+
+    expect(result.gaps).toEqual([]);
+    expect(result.data.signature).toEqual({ name: 'Ana Souza', role: 'Gerente' });
+  });
+
+  it('o Pensante pede o raciocínio da seção — high só em Decisões', async () => {
+    complete
+      .mockResolvedValueOnce(reply(umaDecisao))
+      .mockResolvedValueOnce(reply({ supported: true, reason: 'ok' }));
+    await run();
+    expect(complete.mock.calls[0]![1].reasoning).toBe('high');
+
+    complete.mockReset();
+    complete.mockResolvedValueOnce(reply({ text: 'Parágrafo executivo.' }));
+    await runSection({ section: conclusao, transcript, known: {}, answers: [] });
+    expect(complete.mock.calls[0]![1].reasoning).toBe('low');
+  });
+
+  it('nenhuma outra seção da Ata raciocina em high', () => {
+    const altas = TEMPLATES.ata.sections.filter((s) => s.reasoning === 'high').map((s) => s.id);
+    expect(altas).toEqual(['decisoes']);
+  });
+});
+
 describe('seção strict', () => {
   it('aprovada de primeira: uma passada, nada descartado', async () => {
     complete

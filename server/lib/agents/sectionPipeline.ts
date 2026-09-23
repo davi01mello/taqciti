@@ -17,7 +17,7 @@ import type { SectionSpec } from '../templates/types';
 import { specForSection, type DocumentData, type Gap } from '../documentData';
 import type { Answer } from '../generateStep';
 import { auditar, type AuditVerdict } from './auditor';
-import { pensar, type QuoteStats } from './pensante';
+import { detectGaps, pensar, type QuoteStats } from './pensante';
 
 export const MAX_PASSES = 2;
 
@@ -37,7 +37,7 @@ export interface DiscardedClaim {
 export interface SectionRunResult {
   data: DocumentData;
   gaps: Gap[];
-  /** Quantas passadas do Pensante foram gastas (1 ou 2). */
+  /** Quantas passadas do Pensante foram gastas (0 em `fromUserOnly`, 1 ou 2). */
   passes: number;
   audited: boolean;
   verdicts: AuditVerdict[];
@@ -64,6 +64,22 @@ function addUsage(
 export async function runSection(input: SectionRunInput): Promise<SectionRunResult> {
   const spec = specForSection(input.section);
   const usage = zeroUsage();
+
+  // Seção cujo dado só o usuário tem: nenhuma chamada. O que faltar vira
+  // lacuna agora e é respondido depois, em `POST /api/answers`.
+  if (input.section.fromUserOnly) {
+    return {
+      data: input.known,
+      gaps: detectGaps(input.section, input.known),
+      passes: 0,
+      audited: false,
+      verdicts: [],
+      discarded: [],
+      quotes: { total: 0, exact: 0, normalized: 0, missing: 0, anchorRate: 1 },
+      unlocatable: [],
+      usage,
+    };
+  }
 
   // Passada 1.
   let attempt = await pensar({

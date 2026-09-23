@@ -1,4 +1,5 @@
 import type { DocumentType } from '../documentTypes';
+import type { ReasoningEffort } from '../ai/types';
 
 /** `id` estável, usado depois pra regenerar só esta seção sem mexer nas outras. */
 export interface SectionSpec {
@@ -27,6 +28,20 @@ export interface SectionSpec {
   askWhenMissing: string[];
   /** true = sem conteúdo, a seção some do documento em vez de aparecer vazia. */
   omitWhenEmpty: boolean;
+  /**
+   * Quanto o Pensante raciocina nesta seção. Ausente = o padrão do modelo.
+   * 'high' só onde há julgamento que custa caro errar (separar proposta de
+   * decisão); extração e síntese curta ficam em 'low'.
+   */
+  reasoning?: ReasoningEffort;
+  /**
+   * true = a seção NÃO chama o Pensante: o dado dela vem do usuário, nunca da
+   * transcrição. É o caso da Assinatura — a reunião não diz quem assina a
+   * ata, e pagar uma leitura da transcrição inteira para descobrir isso era
+   * custo certo por resposta quase sempre vazia. As lacunas saem direto de
+   * `detectGaps` e viram pergunta.
+   */
+  fromUserOnly?: boolean;
 }
 
 export interface DocumentTemplate {
