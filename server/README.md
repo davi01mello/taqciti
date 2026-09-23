@@ -228,7 +228,7 @@ reparar (e aí marca `repaired: true`, que é dado de comparação).
 | Capacidade         | anthropic | google | xai |
 |--------------------|-----------|--------|-----|
 | `structuredOutput` | ✅ `output_config.format` | ✅ `responseJsonSchema` | ✅ `response_format` |
-| `contextCache`     | ✅ `cache_control` explícito | ✅ `cachedContents` explícito (prefixo ≥ 16 mil caracteres) | ❌ automático |
+| `contextCache`     | ✅ `cache_control` explícito | ✅ `cachedContents` explícito (prefixo ≥ 8 mil caracteres) | ❌ automático |
 | `extendedThinking` | ✅ `thinking: adaptive` | ✅ `thinkingConfig`, nível por chamada via `reasoning` | ❌ escolhido pelo ID do modelo |
 
 Os `false` não querem dizer "não tem cache" nem "não raciocina": querem

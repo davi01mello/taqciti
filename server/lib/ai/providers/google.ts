@@ -172,10 +172,12 @@ export function thinkingConfigFor(
 /**
  * Abaixo disso não vale criar: o provedor recusa prefixo pequeno (o mínimo do
  * explícito é da ordem de milhares de tokens) e, mesmo se aceitasse, a
- * economia de uma transcrição curta não paga a chamada de criação. ~4 mil
- * tokens, a ~4 caracteres por token em português.
+ * economia não paga a latência da criação. ~2 mil tokens de transcrição, a
+ * ~4 caracteres por token em português — que somados ao system passam do
+ * mínimo. Errar para baixo é barato: a recusa custa UMA tentativa por
+ * transcrição, e a Ata segue sem cache.
  */
-export const MIN_CACHE_PREFIX_CHARS = 16_000;
+export const MIN_CACHE_PREFIX_CHARS = 8_000;
 
 /** Folga para uma Ata inteira — nove seções em sequência. */
 const CACHE_TTL_SECONDS = 600;
