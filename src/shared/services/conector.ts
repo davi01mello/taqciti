@@ -25,7 +25,8 @@ export interface TokenDoConector {
   rotulo: string | null;
   criadoEm: string;
   usadoEm: string | null;
-  revogadoEm: string | null;
+  /** Só vem de servidor anterior a revogar virar DELETE; o atual não manda. */
+  revogadoEm?: string | null;
 }
 
 export interface TokenRecemCriado {

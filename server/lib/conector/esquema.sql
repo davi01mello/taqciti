@@ -66,8 +66,8 @@ create table if not exists pessoa (
 --
 -- Guardamos o HASH, nunca o token — mesma regra de senha, e pelo mesmo
 -- motivo: um vazamento do banco não pode virar acesso ao acervo de ninguém.
--- `revogado_em` em vez de DELETE para a página Conexões poder mostrar
--- histórico ("revogado em tal dia") em vez de um sumiço silencioso.
+-- Revogar apaga a linha. `revogado_em` sobra de quando revogar só marcava;
+-- nada mais escreve nele, e a leitura ainda ignora as linhas antigas marcadas.
 create table if not exists token_do_conector (
   id           uuid primary key default gen_random_uuid(),
   pessoa_id    uuid        not null references pessoa(id) on delete cascade,

@@ -96,9 +96,9 @@ function EnderecoNovo({ criado }: { criado: TokenRecemCriado }) {
   return (
     <div className="tq-conector-novo">
       <p className="tq-aviso">
-        <strong>Copie agora — este endereço não aparece de novo.</strong> O servidor guarda
-        só um resumo dele, não o valor. Cole-o na Claude ou no ChatGPT seguindo o passo a
-        passo abaixo. Se perder, gere outro e revogue este.
+        <strong>Copie agora — este endereço não aparece de novo.</strong> O servidor
+        guarda só um resumo dele, não o valor. Cole-o na Claude ou no ChatGPT seguindo o
+        passo a passo abaixo. Se perder, gere outro e revogue este.
       </p>
       <div className="tq-conector-endereco">
         <input readOnly value={criado.url} onFocus={(e) => e.currentTarget.select()} />
@@ -207,14 +207,14 @@ function ComoConectar() {
       <details>
         <summary>As duas contas — e por que não precisam ser a mesma</summary>
         <p>
-          <strong>Aqui, no TaqCiti:</strong> sua conta do Google. É ela que diz de quem é o
-          acervo, e é por isso que só as SUAS reuniões aparecem.
+          <strong>Aqui, no TaqCiti:</strong> sua conta do Google. É ela que diz de quem é
+          o acervo, e é por isso que só as SUAS reuniões aparecem.
         </p>
         <p>
-          <strong>Na Claude ou no ChatGPT:</strong> qualquer conta, inclusive pessoal. Elas
-          não precisam ser a mesma e nem precisam ser do CITi. O endereço que você colou é
-          o que liga uma ponta à outra — quem paga a assinatura do assistente não tem
-          nenhuma relação com de quem é o acervo.
+          <strong>Na Claude ou no ChatGPT:</strong> qualquer conta, inclusive pessoal.
+          Elas não precisam ser a mesma e nem precisam ser do CITi. O endereço que você
+          colou é o que liga uma ponta à outra — quem paga a assinatura do assistente não
+          tem nenhuma relação com de quem é o acervo.
         </p>
       </details>
 
@@ -261,7 +261,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
     } catch (e) {
       // Servidor fora não pode apagar a página: a parte local (ligar,
       // desligar, exportar manualmente) continua inteira.
-      setErro(e instanceof ConectorIndisponivel ? e.message : 'Falha ao falar com o servidor.');
+      setErro(
+        e instanceof ConectorIndisponivel ? e.message : 'Falha ao falar com o servidor.',
+      );
     }
   }, []);
 
@@ -323,7 +325,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
       if (criado?.id === id) setCriado(null);
       await carregarTokens();
     } catch (e) {
-      setErro(e instanceof ConectorIndisponivel ? e.message : 'Não foi possível revogar.');
+      setErro(
+        e instanceof ConectorIndisponivel ? e.message : 'Não foi possível revogar.',
+      );
     } finally {
       setOcupado(false);
     }
@@ -349,7 +353,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
       for (const t of alvos) await revogarTokenDoConector(t.id);
       await carregarTokens();
     } catch (e) {
-      setErro(e instanceof ConectorIndisponivel ? e.message : 'Não foi possível revogar.');
+      setErro(
+        e instanceof ConectorIndisponivel ? e.message : 'Não foi possível revogar.',
+      );
     } finally {
       setOcupado(false);
     }
@@ -357,7 +363,6 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
 
   const comConteudo = registros.filter(temConteudo);
   const ativos = tokens.filter((t) => !t.revogadoEm);
-  const revogados = tokens.filter((t) => t.revogadoEm);
   const naoUsados = ativos.filter((t) => !t.usadoEm);
 
   return (
@@ -389,10 +394,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
               )}
               <div className="tq-aviso">
                 Sincronizar envia suas reuniões, documentos, conversas e notas para o
-                servidor do TaqCiti, para que um assistente possa consultá-los. <strong>
-                  Enquanto estiver desligado, nada sai desta máquina
-                </strong>{' '}
-                e o resto do produto funciona igual.
+                servidor do TaqCiti, para que um assistente possa consultá-los.{' '}
+                <strong>Enquanto estiver desligado, nada sai desta máquina</strong> e o
+                resto do produto funciona igual.
               </div>
               <p className="tq-meta">
                 O clique abre a tela de login do Google — a mesma que qualquer site mostra
@@ -420,9 +424,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
           {estado.situacao === 'precisa-permissao' && (
             <>
               <div className="tq-aviso">
-                <strong>A sessão do Google expirou.</strong> Costuma ser revogação de acesso
-                nas configurações da conta, ou tempo demais sem usar. Reconectar resolve —
-                nada foi perdido.
+                <strong>A sessão do Google expirou.</strong> Costuma ser revogação de
+                acesso nas configurações da conta, ou tempo demais sem usar. Reconectar
+                resolve — nada foi perdido.
               </div>
               <div className="tq-acoes">
                 <button
@@ -477,14 +481,15 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
               <p className="tq-meta">
                 Um endereço é um link que você cola na Claude ou no ChatGPT — e é só isso
                 que a conexão exige, sem instalar nada e sem criar conta em lugar nenhum.
-                Ele já vai autenticado, então <strong>vale como senha</strong>: quem tiver o
-                link alcança seu acervo. Gere um por assistente, e revogue o que não usa.
+                Ele já vai autenticado, então <strong>vale como senha</strong>: quem tiver
+                o link alcança seu acervo. Gere um por assistente, e revogue o que não
+                usa.
               </p>
 
               {criado ? (
                 <EnderecoNovo criado={criado} />
               ) : (
-                tokens.length > 0 && (
+                ativos.length > 0 && (
                   <p className="tq-meta">
                     Um endereço já criado não aparece de novo — o servidor guarda só um
                     resumo dele. Perdeu o seu? Gere outro e revogue o antigo.
@@ -521,7 +526,8 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
                 <div className="tq-aviso">
                   Você tem <strong>{ativos.length} endereços ativos</strong>. Normalmente
                   bastam dois — um por assistente. Cada endereço vale como senha do seu
-                  acervo inteiro, então sobrar credencial esquecida é risco, não conveniência.
+                  acervo inteiro, então sobrar credencial esquecida é risco, não
+                  conveniência.
                   {naoUsados.length > 0 && (
                     <div className="tq-acoes tq-aviso-acao">
                       {confirmandoLimpeza ? (
@@ -561,84 +567,56 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
                 </div>
               )}
 
-              {tokens.length === 0 ? (
+              {ativos.length === 0 ? (
                 <p className="tq-vazio">
-                  Nenhum endereço criado ainda — gere o primeiro acima para conectar a
-                  Claude ou o ChatGPT.
+                  Nenhum endereço ativo — gere um acima para conectar a Claude ou o
+                  ChatGPT.
                 </p>
               ) : (
-                <>
-                  {ativos.length === 0 ? (
-                    <p className="tq-vazio">
-                      Nenhum endereço ativo — gere um acima para conectar a Claude ou o
-                      ChatGPT.
-                    </p>
-                  ) : (
-                    <div className="tq-lista tq-lista-densa">
-                      {ativos.map((t) => (
-                        <div key={t.id} className="tq-item">
-                          <span>
-                            <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
-                            <small>
-                              criado em {dataCurta(t.criadoEm)}
-                              {t.usadoEm
-                                ? ` · último uso em ${dataCurta(t.usadoEm)}`
-                                : ' · nunca usado'}
-                            </small>
-                          </span>
-                          {confirmandoId === t.id ? (
-                            <span className="tq-acoes">
-                              <button
-                                type="button"
-                                className="tq-linkish tq-linkish-perigo"
-                                disabled={ocupado}
-                                onClick={() => aoRevogar(t.id)}
-                              >
-                                Confirmar
-                              </button>
-                              <button
-                                type="button"
-                                className="tq-linkish"
-                                disabled={ocupado}
-                                onClick={() => setConfirmandoId(null)}
-                              >
-                                Cancelar
-                              </button>
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="tq-linkish"
-                              disabled={ocupado}
-                              onClick={() => setConfirmandoId(t.id)}
-                            >
-                              Revogar
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                <div className="tq-lista tq-lista-densa">
+                  {ativos.map((t) => (
+                    <div key={t.id} className="tq-item">
+                      <span>
+                        <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
+                        <small>
+                          criado em {dataCurta(t.criadoEm)}
+                          {t.usadoEm
+                            ? ` · último uso em ${dataCurta(t.usadoEm)}`
+                            : ' · nunca usado'}
+                        </small>
+                      </span>
+                      {confirmandoId === t.id ? (
+                        <span className="tq-acoes">
+                          <button
+                            type="button"
+                            className="tq-linkish tq-linkish-perigo"
+                            disabled={ocupado}
+                            onClick={() => aoRevogar(t.id)}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            type="button"
+                            className="tq-linkish"
+                            disabled={ocupado}
+                            onClick={() => setConfirmandoId(null)}
+                          >
+                            Cancelar
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="tq-linkish"
+                          disabled={ocupado}
+                          onClick={() => setConfirmandoId(t.id)}
+                        >
+                          Revogar
+                        </button>
+                      )}
                     </div>
-                  )}
-
-                  {revogados.length > 0 && (
-                    <details className="tq-guia">
-                      <summary>Endereços revogados ({revogados.length})</summary>
-                      <div className="tq-lista tq-lista-densa">
-                        {revogados.map((t) => (
-                          <div key={t.id} className="tq-item">
-                            <span>
-                              <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
-                              <small>
-                                criado em {dataCurta(t.criadoEm)} · revogado em{' '}
-                                {dataCurta(t.revogadoEm ?? '')}
-                              </small>
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </>
+                  ))}
+                </div>
               )}
 
               {ativos.length > 0 && <ComoConectar />}
@@ -649,8 +627,8 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
 
       <h2 className="tq-secao-titulo">Sem conectar: o caminho manual</h2>
       <p className="tq-meta">
-        Funciona sempre, inclusive com a sincronização desligada. Serve bem para mandar uma
-        reunião só.
+        Funciona sempre, inclusive com a sincronização desligada. Serve bem para mandar
+        uma reunião só.
       </p>
 
       <div className="tq-guia">
@@ -663,7 +641,9 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
             mesmo jeito.
           </p>
           {comConteudo.length === 0 ? (
-            <p className="tq-vazio">Nenhuma reunião com transcrição para exportar ainda.</p>
+            <p className="tq-vazio">
+              Nenhuma reunião com transcrição para exportar ainda.
+            </p>
           ) : (
             <div className="tq-lista tq-lista-densa">
               {comConteudo.slice(0, 6).map((r) => (

@@ -115,19 +115,19 @@ describe('token do conector', () => {
     expect(await pessoaDoToken(token, pool)).toBe(ana);
   });
 
-  it('a listagem mostra o histórico e nunca o token', async () => {
+  it('a listagem esquece o revogado e nunca mostra o token', async () => {
     const pool2 = pglite as unknown as Consultador;
     const carlos = await garantirPessoa(
       { googleSub: 'sub-carlos', email: 'carlos@citi.org.br' },
       pool2,
     );
-    const { token, id } = await criarTokenDoConector(carlos, 'ChatGPT', pool2);
+    const { token } = await criarTokenDoConector(carlos, 'ChatGPT', pool2);
+    const { id } = await criarTokenDoConector(carlos, 'Claude', pool2);
     await revogarToken(carlos, id, pool2);
 
     const lista = await listarTokens(carlos, pool2);
     expect(lista).toHaveLength(1);
     expect(lista[0]?.rotulo).toBe('ChatGPT');
-    expect(lista[0]?.revogadoEm).not.toBeNull();
     // Nem o token, nem o hash dele, aparecem no que a página vai desenhar.
     const serializado = JSON.stringify(lista);
     expect(serializado).not.toContain(token);

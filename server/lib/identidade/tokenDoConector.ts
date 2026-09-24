@@ -131,17 +131,22 @@ export interface TokenListado {
   rotulo: string | null;
   criadoEm: string;
   usadoEm: string | null;
-  revogadoEm: string | null;
 }
 
-/** O que a página Conexões mostra. Nunca o token — ele não existe mais aqui. */
+/**
+ * O que a página Conexões mostra. Nunca o token — ele não existe mais aqui.
+ *
+ * O filtro de `revogado_em` só pega linhas de antes de revogar virar DELETE.
+ */
 export async function listarTokens(
   pessoaId: string,
   pool: Consultador = banco(),
 ): Promise<TokenListado[]> {
   const { rows } = await pool.query(
-    `select id, rotulo, criado_em, usado_em, revogado_em
-       from token_do_conector where pessoa_id = $1 order by criado_em desc`,
+    `select id, rotulo, criado_em, usado_em
+       from token_do_conector
+      where pessoa_id = $1 and revogado_em is null
+      order by criado_em desc`,
     [pessoaId],
   );
   return rows.map((l) => ({
@@ -149,19 +154,14 @@ export async function listarTokens(
     rotulo: l.rotulo === null || l.rotulo === undefined ? null : String(l.rotulo),
     criadoEm: new Date(l.criado_em as string).toISOString(),
     usadoEm: l.usado_em ? new Date(l.usado_em as string).toISOString() : null,
-    revogadoEm: l.revogado_em ? new Date(l.revogado_em as string).toISOString() : null,
   }));
 }
 
 /**
- * Revoga um token. Idempotente, e devolve se algo mudou.
+ * Revoga um token apagando a linha. Idempotente, e devolve se algo mudou.
  *
  * `pessoa_id` no WHERE não é zelo: sem ele, saber o id de um token bastaria
  * para revogar o de outra pessoa.
- *
- * Marca em vez de apagar para a página poder mostrar "revogado em tal dia" —
- * um token que some sem deixar rastro é indistinguível de um que nunca
- * existiu, e é justamente no momento de desconfiança que se quer o histórico.
  */
 export async function revogarToken(
   pessoaId: string,
@@ -169,8 +169,8 @@ export async function revogarToken(
   pool: Consultador = banco(),
 ): Promise<boolean> {
   const { rows } = await pool.query(
-    `update token_do_conector set revogado_em = now()
-      where id = $1 and pessoa_id = $2 and revogado_em is null
+    `delete from token_do_conector
+      where id = $1 and pessoa_id = $2
       returning id`,
     [tokenId, pessoaId],
   );
