@@ -1,6 +1,6 @@
-﻿/**
- * A tela da reunião em andamento: transcrição, controles da captura, prints e
- * o aviso no chat.
+/**
+ * A tela da reunião em andamento: as ações, a transcrição, os prints e o aviso
+ * no chat.
  *
  * ── O que NUNCA acontece aqui ────────────────────────────────────────────
  *
@@ -8,6 +8,13 @@
  * parte (ver features/annotations/marks.ts), a nota é outro registro, o print é
  * outro ainda, e a pergunta à IA vai para a conversa. A transcrição é o que foi
  * dito; tudo o mais é o que a pessoa acrescentou em volta.
+ *
+ * ── A ordem da tela ──────────────────────────────────────────────────────
+ *
+ * Ações primeiro, transcrição depois. É o contrário do que era, e o motivo é o
+ * uso: a transcrição rola sozinha e cresce sem parar; qualquer controle depois
+ * dela é um controle que foge da tela em três minutos de reunião. As ações
+ * ficam ancoradas no topo, e só a lista de falas rola.
  *
  * ── O trecho selecionado ─────────────────────────────────────────────────
  *
@@ -21,6 +28,7 @@ import type { LiveSegment, MeetingState } from '@/shared/types/domain';
 import { usePlatform } from '@/shared/platform/context';
 import { buildMeetingRecord } from '@/features/meeting/payload';
 import { downloadTranscript } from '@/features/history/export';
+import type { EstadoDaGravacao } from '@/features/annotations/notes';
 import {
   lerMarcas,
   marcarTrecho,
@@ -46,30 +54,52 @@ import {
 import { EXPLICACAO, type MotivoDeFalha } from '@/background/captura';
 import type { ContextoDaPergunta } from '@/home/conversations';
 import { Icon } from '@/shared/ui/Icon';
-import { Wave } from '@/shared/ui/Wave';
-import { formatElapsedClock, formatOffset } from '@/shared/ui/format';
+import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
+import { WaveField } from '@/home/WaveField';
+import { useAnimacao } from '@/home/useAnimacao';
+import { AcoesDaReuniao } from './AcoesDaReuniao';
+import { EditorDeNota } from './Notas';
+import { AbasDaReuniao, ParteDaReuniao } from './AbasDaReuniao';
 
 interface Props {
   state: MeetingState;
-  recusada: boolean;
   notaExiste: boolean;
-  onComecar: () => void;
+  rascunhoNota: string;
+  estadoDaNota: EstadoDaGravacao;
+  onEscreverNota: (meetingId: string, texto: string) => void;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
   onAbrirHome: (recordId?: string) => void;
 }
 
 export function Reuniao({
   state,
-  recusada,
   notaExiste,
-  onComecar,
+  rascunhoNota,
+  estadoDaNota,
+  onEscreverNota,
   onPerguntarSobre,
   onAbrirHome,
 }: Props) {
   const platform = usePlatform();
   const sessao = state.session;
   const fase = state.phase;
-  const viva = fase === 'recording' || fase === 'paused';
+
+  /*
+   * Aberto ou recolhido é estado desta tela, e sobrevive a trocar de seletor
+   * porque a seção inteira continua montada (ver `Painel` em App.tsx). O
+   * TEXTO da nota não mora aqui de propósito — ver o cabeçalho de Notas.tsx.
+   */
+  const [notaAberta, setNotaAberta] = useState(false);
+  const [printAberto, setPrintAberto] = useState(false);
+  const [prints, setPrints] = useState<Print[]>([]);
+
+  const meetingId = sessao?.meetingId ?? null;
+  useEffect(() => {
+    if (meetingId === null) return;
+    return observarPrints((todos) =>
+      setPrints(todos.filter((p) => p.meetingId === meetingId)),
+    );
+  }, [meetingId]);
 
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
@@ -78,28 +108,7 @@ export function Reuniao({
     return () => clearInterval(t);
   }, [fase]);
 
-  // ---------- sem captura ----------
-
-  if (!sessao || fase === 'idle') {
-    return (
-      <div className="tq-vazio-centro">
-        <div className="tq-marca-redonda">
-          <Wave size={20} tone="dim" />
-        </div>
-        <h2>{recusada ? 'Captura desligada' : 'Nenhuma reunião em curso'}</h2>
-        <p>
-          {recusada
-            ? 'Esta reunião não está sendo registrada. Você pode começar quando quiser.'
-            : 'Entre numa reunião do Google Meet e o TaqCiti pergunta se deve registrá-la.'}
-        </p>
-        {recusada && (
-          <button type="button" className="tq-botao-principal" onClick={onComecar}>
-            Começar a registrar
-          </button>
-        )}
-      </div>
-    );
-  }
+  if (!sessao || fase === 'idle') return null;
 
   if (fase === 'captionsRequired') {
     return (
@@ -107,8 +116,8 @@ export function Reuniao({
         <span className="tq-girando" aria-hidden="true" />
         <h2>Preparando a transcrição…</h2>
         <p>
-          Ligando as legendas do Meet e escondendo-as da tela. A captura começa
-          assim que elas aparecerem.
+          Ligando as legendas do Meet e escondendo-as da tela. A captura começa assim que
+          elas aparecerem.
         </p>
       </div>
     );
@@ -116,17 +125,65 @@ export function Reuniao({
 
   const registro = buildMeetingRecord(sessao, fase === 'ended' ? 'ready' : 'recording');
   const duracao = formatElapsedClock((sessao.endedAt ?? agora) - sessao.startedAt);
+  const viva = fase === 'recording' || fase === 'paused';
+  const interrompida = fase === 'recording' && sessao.captureHealthy === false;
 
-  if (fase === 'ended') {
-    return (
-      <div className="tq-rolavel">
-        <div className="tq-reuniao-topo">
-          <h2>{sessao.title}</h2>
-          <p className="tq-fino">
-            Transcrição salva · {duracao} · {sessao.segments.length}{' '}
-            {sessao.segments.length === 1 ? 'fala' : 'falas'}
-          </p>
-        </div>
+  const perguntarSobreAReuniao = () =>
+    onPerguntarSobre({ meetingId: sessao.meetingId, meetingTitle: sessao.title });
+
+  return (
+    <div className="tq-rolavel">
+      <div className="tq-reuniao-topo">
+        <h2>{sessao.title}</h2>
+        <p className="tq-fino">
+          {fase === 'ended'
+            ? 'Transcrição salva'
+            : interrompida
+              ? 'Captura interrompida'
+              : fase === 'recording'
+                ? 'Transcrevendo'
+                : 'Pausado'}{' '}
+          · {duracao} · {sessao.segments.length}{' '}
+          {sessao.segments.length === 1 ? 'fala' : 'falas'}
+          {notaExiste && ' · com nota'}
+        </p>
+      </div>
+
+      <AcoesDaReuniao
+        viva={viva}
+        pausada={fase === 'paused'}
+        printAberto={printAberto}
+        quantosPrints={prints.length}
+        onPrint={() => setPrintAberto((v) => !v)}
+        onPausar={() =>
+          void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
+        }
+        onPerguntar={perguntarSobreAReuniao}
+        onFinalizar={() => void platform.send({ type: 'ui/finish' })}
+      />
+
+      {printAberto && <Prints meetingId={sessao.meetingId} prints={prints} />}
+
+      {fase === 'paused' && (
+        <p className="tq-aviso-caixa">
+          Captura pausada. O que já foi transcrito continua guardado; nada novo entra até
+          você retomar.
+        </p>
+      )}
+
+      {/*
+       * A interrupção tem aviso próprio, e não um "transcrevendo" mais
+       * pálido: há legenda na tela que a captura não consegue ler, e
+       * continuar comunicando captura normal seria mentir com a interface.
+       */}
+      {interrompida && (
+        <p className="tq-aviso-caixa tq-aviso-atencao" role="status">
+          A captura parou de ler as legendas do Meet. O TaqCiti está tentando religar
+          sozinho — o que já foi transcrito continua guardado.
+        </p>
+      )}
+
+      {fase === 'ended' && (
         <div className="tq-acoes-linha">
           <button
             type="button"
@@ -144,81 +201,82 @@ export function Reuniao({
             Baixar .txt
           </button>
         </div>
-        {sessao.segments.length === 0 ? (
-          <p className="tq-aviso-caixa">
-            Nenhuma fala foi capturada nesta reunião — as legendas do Meet não
-            chegaram a produzir texto.
-          </p>
-        ) : (
-          <ListaDeFalas
-            meetingId={sessao.meetingId}
-            titulo={sessao.title}
-            segmentos={sessao.segments}
-            onPerguntarSobre={onPerguntarSobre}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // ---------- captura viva ----------
-
-  return (
-    <div className="tq-rolavel">
-      <div className="tq-reuniao-topo">
-        <h2>{sessao.title}</h2>
-        <p className="tq-fino">
-          {fase === 'recording' ? 'Transcrevendo' : 'Pausado'} · {duracao} ·{' '}
-          {sessao.segments.length} {sessao.segments.length === 1 ? 'fala' : 'falas'}
-          {notaExiste && ' · com nota'}
-        </p>
-      </div>
-
-      <div className="tq-acoes-linha">
-        <button
-          type="button"
-          className="tq-botao-fantasma"
-          onClick={() =>
-            void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
-          }
-        >
-          <Icon name={fase === 'paused' ? 'play' : 'pause'} size={14} />
-          {fase === 'paused' ? 'Retomar' : 'Pausar transcrição'}
-        </button>
-        <button
-          type="button"
-          className="tq-botao-fantasma"
-          onClick={() => void platform.send({ type: 'ui/finish' })}
-        >
-          <Icon name="stop" size={13} />
-          Finalizar
-        </button>
-      </div>
-
-      {fase === 'paused' && (
-        <p className="tq-aviso-caixa">
-          Captura pausada. O que já foi transcrito continua guardado; nada novo
-          entra até você retomar.
-        </p>
       )}
-
-      <AvisoNoChat
-        meetingId={sessao.meetingId}
-        inicio={sessao.startedAt}
-        capturando={fase === 'recording'}
-      />
-
-      <Prints meetingId={sessao.meetingId} />
 
       {viva && (
-        <ListaDeFalas
+        <AvisoNoChat
           meetingId={sessao.meetingId}
-          titulo={sessao.title}
-          segmentos={sessao.segments}
-          onPerguntarSobre={onPerguntarSobre}
+          inicio={sessao.startedAt}
+          capturando={fase === 'recording'}
         />
       )}
+
+      <AbasDaReuniao
+        notas={notaAberta}
+        notaExiste={notaExiste}
+        onNotas={setNotaAberta}
+      />
+      <div className="tq-reuniao-alternada">
+        <ParteDaReuniao ativa={notaAberta}>
+          <EditorDeNota
+            ativa={notaAberta}
+            meetingId={sessao.meetingId}
+            texto={rascunhoNota}
+            estado={estadoDaNota}
+            onEscrever={onEscreverNota}
+            onRecolher={() => setNotaAberta(false)}
+          />
+        </ParteDaReuniao>
+        <ParteDaReuniao ativa={!notaAberta}>
+          {/*
+           * A onda é ancorada AQUI, no pé da transcrição, e não atrás do campo
+           * de escrita da conversa: ela é o sinal de que há captura correndo, e
+           * o lugar em que isso se lê é a lista de falas. Fica atrás do texto,
+           * decorativa, sem capturar o ponteiro.
+           */}
+          <div className="tq-transcricao-palco">
+            {sessao.segments.length === 0 ? (
+              <p className="tq-fino tq-centrado">
+                {fase === 'ended'
+                  ? 'Nenhuma fala foi capturada nesta reunião — as legendas do Meet não chegaram a produzir texto.'
+                  : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
+              </p>
+            ) : (
+              <ListaDeFalas
+                meetingId={sessao.meetingId}
+                titulo={sessao.title}
+                segmentos={sessao.segments}
+                selfName={hostName(sessao.participants)}
+                onPerguntarSobre={onPerguntarSobre}
+              />
+            )}
+            <OndaDaTranscricao capturando={fase === 'recording'} />
+          </div>
+        </ParteDaReuniao>
+      </div>
     </div>
+  );
+}
+
+// ---------- a onda, no pé da transcrição ----------
+
+/**
+ * O fundo vivo da transcrição.
+ *
+ * `captando` só enquanto a captura corre de verdade — uma onda subindo com a
+ * reunião pausada seria a animação contando uma história que não está
+ * acontecendo. E ela NÃO mede áudio: a extensão nunca ouviu microfone nenhum, e
+ * o que a faz reagir é a chegada de um trecho novo (ver `OndaDaCaptura.tsx`).
+ */
+function OndaDaTranscricao({ capturando }: { capturando: boolean }) {
+  const { animando, movimentoReduzido } = useAnimacao(false);
+  return (
+    <WaveField
+      estado={capturando && !movimentoReduzido ? 'captando' : 'repouso'}
+      animando={animando}
+      pulso={0}
+      discreta
+    />
   );
 }
 
@@ -228,16 +286,19 @@ function ListaDeFalas({
   meetingId,
   titulo,
   segmentos,
+  selfName,
   onPerguntarSobre,
 }: {
   meetingId: string;
   titulo: string;
   segmentos: readonly LiveSegment[];
+  /** Quem é "eu" nesta reunião: a fala dessa pessoa é desenhada em verde. */
+  selfName: string | null;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
 }) {
   const [marcas, setMarcas] = useState<MarcasDaReuniao>({});
   const [selecionado, setSelecionado] = useState<string | null>(null);
-  const fimRef = useRef<HTMLDivElement | null>(null);
+  const listaRef = useRef<HTMLDivElement | null>(null);
   const noFim = useRef(true);
 
   useEffect(() => {
@@ -245,10 +306,20 @@ function ListaDeFalas({
     return observarMarcas((mapa) => setMarcas(mapa[meetingId] ?? {}));
   }, [meetingId]);
 
-  // Acompanha o fim só se já estava no fim: ler uma fala de trás enquanto a
-  // reunião corre não pode ser interrompido pela próxima linha.
+  /*
+   * Acompanha o fim só se já estava no fim: ler uma fala de trás enquanto a
+   * reunião corre não pode ser interrompido pela próxima linha.
+   *
+   * E acompanha mexendo no `scrollTop` DESTA lista, não com `scrollIntoView`.
+   * `scrollIntoView` rola todos os ancestrais roláveis até o elemento aparecer
+   * — e o ancestral aqui é a coluna inteira da reunião. O efeito era a fileira
+   * de ações e o título subirem para fora da tela sozinhos, a cada fala nova,
+   * poucos segundos depois de a reunião começar. Ancorar as ações no topo é
+   * metade do motivo de elas terem vindo para cá.
+   */
   useEffect(() => {
-    if (noFim.current) fimRef.current?.scrollIntoView({ block: 'end' });
+    const lista = listaRef.current;
+    if (lista && noFim.current) lista.scrollTop = lista.scrollHeight;
   }, [segmentos.length]);
 
   const aoRolar = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -256,23 +327,27 @@ function ListaDeFalas({
     noFim.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 64;
   }, []);
 
-  if (segmentos.length === 0) {
-    return (
-      <p className="tq-fino tq-centrado">
-        Capturando. As falas aparecem aqui conforme as legendas chegam.
-      </p>
-    );
-  }
-
   return (
-    <div className="tq-falas" onScroll={aoRolar}>
+    <div className="tq-falas" ref={listaRef} onScroll={aoRolar}>
       {segmentos.map((s) => {
         const marca = marcas[s.captionId];
         const aberto = selecionado === s.captionId;
+        /*
+         * Quem falou. O "(Eu)" é o mesmo rótulo do histórico na HOME, e sai da
+         * MESMA conta: "eu" é o participante marcado como anfitrião (ver
+         * `hostName`). A comparação é a de `speakerLabel`, e não uma segunda
+         * regra escrita aqui — duas contas de "sou eu" divergiriam na primeira
+         * reunião em que o nome viesse com espaço a mais.
+         */
+        const nome = s.speaker ?? 'Alguém';
+        const rotulo = speakerLabel(nome, selfName);
+        const ehVoce = rotulo !== nome;
         return (
           <article
             key={s.captionId}
-            className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}`}
+            className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}${
+              ehVoce ? ' minha' : ''
+            }`}
           >
             <button
               type="button"
@@ -281,7 +356,7 @@ function ListaDeFalas({
               onClick={() => setSelecionado(aberto ? null : s.captionId)}
             >
               <span className="tq-fala-quem">
-                {s.speaker ?? 'Alguém'}
+                {rotulo}
                 <span className="tq-fala-hora">{formatOffset(s.startOffsetMs)}</span>
                 {marca && (
                   <span
@@ -306,7 +381,11 @@ function ListaDeFalas({
                     aria-label={marca === t.id ? `Remover ${t.rotulo}` : t.rotulo}
                     aria-pressed={marca === t.id}
                     onClick={() =>
-                      void marcarTrecho(meetingId, s.captionId, marca === t.id ? null : t.id)
+                      void marcarTrecho(
+                        meetingId,
+                        s.captionId,
+                        marca === t.id ? null : t.id,
+                      )
                     }
                   >
                     <span aria-hidden="true">{t.simbolo}</span>
@@ -332,7 +411,6 @@ function ListaDeFalas({
           </article>
         );
       })}
-      <div ref={fimRef} />
     </div>
   );
 }
@@ -444,9 +522,7 @@ function AvisoNoChat({
           {enviando ? 'Enviando…' : 'Enviar ao chat'}
         </button>
         {!saindo && (
-          <span className="tq-fino tq-contagem">
-            {segundosRestantes(inicio, agora)}s
-          </span>
+          <span className="tq-fino tq-contagem">{segundosRestantes(inicio, agora)}s</span>
         )}
       </div>
       {falhou && (
@@ -462,7 +538,7 @@ function AvisoNoChat({
                 .catch(() => setCopiado(false));
             }}
           >
-            {copiado ? 'Copiado ✓' : 'Copiar o texto'}
+            {copiado ? 'Copiado' : 'Copiar o texto'}
           </button>
         </p>
       )}
@@ -483,17 +559,11 @@ function AvisoNoChat({
  * A prévia existe porque salvar sem mostrar seria a pessoa descobrir o que
  * capturou depois. Nada é guardado antes do "Salvar", e nada vai para a IA.
  */
-function Prints({ meetingId }: { meetingId: string }) {
+function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
   const platform = usePlatform();
-  const [prints, setPrints] = useState<Print[]>([]);
   const [previa, setPrevia] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
-
-  useEffect(
-    () => observarPrints((todos) => setPrints(todos.filter((p) => p.meetingId === meetingId))),
-    [meetingId],
-  );
 
   const tirar = async () => {
     setOcupado(true);
@@ -531,7 +601,7 @@ function Prints({ meetingId }: { meetingId: string }) {
           disabled={ocupado}
         >
           <Icon name="image" size={14} />
-          {ocupado ? 'Capturando…' : 'Tirar print'}
+          {ocupado ? 'Capturando…' : 'Capturar a aba da reunião'}
         </button>
         {prints.length > 0 && (
           <span className="tq-fino">
@@ -550,7 +620,11 @@ function Prints({ meetingId }: { meetingId: string }) {
         <div className="tq-previa">
           <img src={previa} alt="Prévia do print da reunião" />
           <div className="tq-acoes-linha">
-            <button type="button" className="tq-botao-principal" onClick={() => void salvar()}>
+            <button
+              type="button"
+              className="tq-botao-principal"
+              onClick={() => void salvar()}
+            >
               Salvar
             </button>
             <button
@@ -568,7 +642,10 @@ function Prints({ meetingId }: { meetingId: string }) {
         <ul className="tq-print-tiras">
           {prints.map((p) => (
             <li key={p.id}>
-              <img src={p.dataUrl} alt={`Print de ${new Date(p.at).toLocaleTimeString('pt-BR')}`} />
+              <img
+                src={p.dataUrl}
+                alt={`Print de ${new Date(p.at).toLocaleTimeString('pt-BR')}`}
+              />
               <button
                 type="button"
                 title="Apagar este print"

@@ -148,7 +148,7 @@ interface SectionRenderer {
    * carta. Só Tópicos discutidos, Decisões, Outcomes, Outputs e Conclusão
    * ganham cabeçalho.
    *
-   * É a única divergência deliberada entre o HTML e o markdown do Escritor: o
+   * É a única divergência deliberada entre o HTML e o markdown: o
    * markdown é rascunho de tela e mantém todos os cabeçalhos, para a pessoa
    * saber o que veio de onde. O que NÃO pode divergir — texto de lacuna e
    * regra de seção vazia — está preso por teste.
@@ -214,7 +214,7 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
   decisoes: {
     cabecalho: true,
     // Só `text`. A concordância ancorada é evidência para a auditoria, não
-    // conteúdo da ata — e o markdown do Escritor também não a imprime.
+    // conteúdo da ata — e o markdown também não a imprime.
     render: (data) => lista((data.decisions ?? []).map((d) => escapeHtml(d.text))),
   },
 
@@ -349,7 +349,7 @@ export function renderHtml(input: RenderHtmlInput): string {
       const spec = specForSection(section);
       const renderer = SECTION_RENDERERS[section.id] ?? GENERIC_RENDERER;
 
-      // A MESMA regra de vazio que o Escritor usa (`serialize` devolvendo
+      // A MESMA regra de vazio que o markdown usa (`serialize` devolvendo
       // null). Duas definições de "vazio" fariam o HTML e o markdown
       // discordarem sobre quais seções existem.
       const vazia = spec.serialize(input.data, section.id) === null;
@@ -483,7 +483,7 @@ function rodape(): string {
  * Lacunas que nenhum campo colocou no texto — tipicamente as de afirmação
  * descartada pelo Auditor, que não têm um campo próprio para ocupar.
  *
- * Vão para o fim da seção em vez de sumirem. Mesma decisão do Escritor: fim
+ * Vão para o fim da seção em vez de sumirem. Mesma decisão do markdown: fim
  * é pior que o lugar certo, e lacuna colada no parágrafo errado vira
  * afirmação errada.
  */

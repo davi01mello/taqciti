@@ -1,4 +1,4 @@
-# TaqCITi — servidor de geração de documento
+# TaqCiti — servidor de geração de documento
 
 Servidor Next.js (App Router) independente do resto do repositório, usado
 pela extensão na fase 2 do fluxo "Continuar fluxo": recebe a transcrição de
@@ -18,18 +18,17 @@ npm install
 npm run dev
 ```
 
-Configuração ativa, dividida por natureza da tarefa:
+Um documento custa **duas chamadas de modelo** (ver `lib/generateStep.ts`):
 
-| agente | modelo | por quê |
+| agente | modelo | o que faz |
 |---|---|---|
-| `pensante` | `gemini-3.5-flash` | raciocínio sobre a transcrição, com `thinkingLevel: HIGH` |
-| `auditor` | `gemini-3.5-flash-lite` | verificação binária, a chamada mais frequente |
-| `escritor` | `gemini-3.5-flash` | geração de prosa |
+| `leitor` | `gemini-3.5-flash` | lê a transcrição UMA vez e devolve os dados de todas as seções num JSON só, com `thinkingLevel: HIGH` |
+| `auditor` | `gemini-3.5-flash-lite` | confere numa chamada todas as afirmações das seções `strict` (participantes, decisões), cada uma contra o próprio trecho |
 
-O nível de raciocínio é por modelo (`THINKING_LEVEL` em
-`lib/ai/providers/google.ts`), não uniforme: raciocínio custa token de saída e
-latência, e conferir um trecho curto é trabalho mecânico enquanto decidir o que
-entra numa seção é julgamento.
+Todo o resto é código: âncora das citações, lacunas, descarte do que o Auditor
+rejeita, e o markdown, o HTML e o PDF, montados do mesmo `DocumentData`. Antes
+eram 20 a 30 chamadas (um Pensante por seção e um Escritor que reescrevia os
+dados em prosa); o porquê de cada corte está em `lib/agents/leitor.ts`.
 
 > ⚠️ **Política de dados é do PLANO DA CHAVE, não do modelo.** Uma chave de
 > free tier do Gemini manda o conteúdo para treinamento em qualquer modelo —
@@ -50,14 +49,15 @@ nada que exija hospedagem especial. `npm run build` já compila as rotas de
 API como dinâmicas (confirmado: `next build` gera `/api/generate` e as
 outras como `ƒ`, não `○`), então qualquer host Node/Next serve.
 
-**Produção hoje roda no Railway**, em
-`https://taqciti-production.up.railway.app`, com redeploy automático a cada
-push em `main`. Seja qual for o host, aponte o **Root Directory para
+**Produção hoje roda na Vercel**, em
+`https://server-psi-liart-81.vercel.app`, e **o deploy é manual** — nenhum push
+publica sozinho. Seja qual for o host, aponte o **Root Directory para
 `server/`** (é um projeto Next.js à parte dentro do monorepo) e configure as
 variáveis abaixo no painel dele.
 
-O runbook completo — incluindo por que o teto de 300s que o código ainda
-declara não vale aqui — está em [`docs/deploy.md`](docs/deploy.md).
+O runbook em [`docs/deploy.md`](docs/deploy.md) ainda descreve o **Railway**,
+o host anterior, e tem um aviso no topo dizendo isso: vale como referência do
+que precisa estar configurado, não de onde clicar.
 
 ### Variáveis no host
 
@@ -72,10 +72,10 @@ deploy em vez de arquivo:
   que se declare `"sintetica": true`); tire a linha quando a chave virar
   paga.
 - `ANTHROPIC_API_KEY` / `XAI_API_KEY` — só entram em cena se algum agente for
-  apontado pra esses provedores via `DOCCITI_PENSANTE`/`DOCCITI_AUDITOR`/
-  `DOCCITI_ESCRITOR`. A configuração ativa em `lib/ai/config.ts` usa só
-  `google` nos três agentes, então deixar essas duas vazias é o normal, não
-  uma pendência.
+  apontado pra esses provedores via `DOCCITI_LEITOR`/`DOCCITI_AUDITOR`
+  (`DOCCITI_PENSANTE` ainda vale pelo Leitor; `DOCCITI_ESCRITOR` não faz mais
+  nada). A configuração ativa em `lib/ai/config.ts` usa só `google` nos dois
+  agentes, então deixar essas duas vazias é o normal, não uma pendência.
 
 ### Apontando a extensão pra esse servidor
 
@@ -86,7 +86,7 @@ deployado, defina as duas variáveis **na build da extensão** (raiz do repo,
 não aqui):
 
 ```powershell
-$env:VITE_DOCCITI_SERVER_URL = 'https://taqciti-production.up.railway.app'
+$env:VITE_DOCCITI_SERVER_URL = 'https://server-psi-liart-81.vercel.app'
 $env:VITE_DOCCITI_SHARED_KEY = '<o mesmo valor de DOCCITI_SHARED_KEY no host>'
 npm run build
 ```
@@ -162,10 +162,9 @@ A resposta traz um campo `naoVerificado` com o que o smoke **não** prova:
 - **Cache.** Uma chamada única não exercita cache. O breakpoint de
   `cache_control` e o cache implícito só rendem no segundo request com o mesmo
   prefixo, e o prefixo aqui é curto demais para atingir o mínimo cacheável de
-  qualquer provedor. `cachedInputTokens: 0` é o esperado e não prova nada. Como
-  o ganho de cache entra direto na conta de custo por documento, isso só se
-  resolve medindo as nove chamadas do Pensante, que repetem a transcrição
-  inteira como prefixo.
+  qualquer provedor. `cachedInputTokens: 0` é o esperado e não prova nada. No
+  Gemini isso deixou de pesar: o documento lê a transcrição uma vez só, então
+  não há prefixo repetido para cachear.
 - **Espera por 429.** Tem teste unitário, mas nenhuma chamada real tomou 429
   ainda.
 
@@ -208,12 +207,13 @@ em código quando o provedor não tem a nativa — ver [`lib/ai/types.ts`](lib/a
 ```ts
 import { complete } from '@/lib/ai';
 
-const result = await complete('pensante', {
+const result = await complete('leitor', {
   system: '...',
-  messages: [{ role: 'user', content: pedidoDaSecao }],
-  maxTokens: 8000,
+  messages: [{ role: 'user', content: pedidoDoDocumento }],
+  maxTokens: 48000,
   jsonSchema: SCHEMA,            // sempre funciona nos três
-  cacheablePrefix: transcript,   // otimização opcional
+  cacheablePrefix: transcript,   // conteúdo estável primeiro
+  reasoning: 'high',             // 'low' | 'medium' | 'high'; quem não tem botão ignora
 });
 ```
 
@@ -251,7 +251,7 @@ Sem isso não há comparação de custo possível. `lib/ai/pricing.ts` converte
 ### Trocando provedor sem recompilar
 
 ```
-DOCCITI_ANALISTA=google:gemini-3.6-flash
+DOCCITI_LEITOR=google:gemini-3.6-flash
 DOCCITI_AUDITOR=xai:grok-4.3
 ```
 
@@ -288,7 +288,7 @@ As duas entradas ⚠️ são `experimental: true` e ficam **fora** de
 sobre os candidatos a produção — as experimentais respondem perguntas
 laterais em vez de disputar a decisão, e por isso podem repetir tier.
 
-Configuração mista (Pensante caro, Auditor barato) é otimização de uma
+Configuração mista (Leitor caro, Auditor barato) é otimização de uma
 segunda rodada, depois de saber onde cada fornecedor quebra.
 
 ### `gemini-2.5-flash` — configuração de desenvolvimento
@@ -336,10 +336,10 @@ a 3.x não custaria. É isso que `repaired` vai mostrar.
 
 ### Espera por 429
 
-Uma geração completa faz de 20 a 30 chamadas (9 Pensante + N Auditor +
-9 Escritor). Em free tier isso estoura o limite por minuto com
-facilidade, e sem espera a primeira geração morre no meio — parecendo bug de
-lógica, que é o diagnóstico errado e caro.
+Uma geração faz duas chamadas hoje, mas já fez de 20 a 30, e em free tier
+aquilo estourava o limite por minuto com facilidade: sem espera, a primeira
+geração morria no meio — parecendo bug de lógica, que é o diagnóstico errado
+e caro.
 
 O laço vive em `providers/shared.ts` e é o mesmo para os três: exponencial
 com jitter, teto de 60s por espera, honrando `retry-after` quando o provedor
@@ -360,29 +360,51 @@ razão principal foi medida, não estimada:
 - **a compactação impedia o cache que a tornaria desnecessária.** O contexto
   compactado tinha ~1.000 tokens, abaixo do piso de cache implícito do provedor
   (2.048 na família 2.5 do Gemini, mais nas 3.x), e `cachedInputTokens` voltava
-  zero nas nove chamadas. A transcrição bruta passa folgado desse piso e vai
-  como `cacheablePrefix` idêntico nas nove seções;
-- **o Pensante raciocinava sobre a paráfrase de outro modelo**, e o Auditor
+  zero nas nove chamadas;
+- **quem decidia raciocinava sobre a paráfrase de outro modelo**, e o Auditor
   gastava folga tentando reconstruir a vizinhança que a compactação jogou fora;
 - **a evidência de concordância não tinha como ser ancorada.** Com a
-  transcrição em mãos, o Pensante aponta a citação da concordância, e é isso
+  transcrição em mãos, o Leitor aponta a citação da concordância, e é isso
   que separa decisão de proposta (ver abaixo).
 
 Com o Analista foram embora o janelamento e a deduplicação entre janelas — o
 teto de 400 mil caracteres do endpoint continua valendo, e uma transcrição
 acima da janela do modelo agora falha alto em vez de ser fatiada.
 
-## Pensante e Auditor (Fases 3 e 4)
+## Por que não existe mais Pensante nem Escritor
 
-`lib/agents/pensante.ts` recebe a **transcrição bruta**, um `SectionSpec` e as
-respostas já dadas, e devolve **dados estruturados** (`lib/documentData.ts`) —
-não prosa.
+O pipeline tinha um **Pensante** que lia a transcrição inteira uma vez POR
+SEÇÃO (nove leituras, nove raciocínios HIGH) e um **Escritor** que reescrevia
+os dados de cada seção em prosa. Os dois eram compensação por limitação que o
+Gemini atual não tem:
 
-As regras de cada seção vêm do `guidance` do `SectionSpec`, repassadas
-íntegras. Não são reescritas — regra que mora em dois lugares diverge. Elas vão
-na mensagem de usuário, **depois** da transcrição: o prompt de sistema precisa
-ser byte-idêntico nas nove seções, ou o prefixo comum acaba antes da
-transcrição e o cache não pega.
+- **contexto de 1M de tokens** — uma reunião de uma hora são ~15 mil; não há o
+  que dividir em seções;
+- **saída estruturada nativa** — o schema do documento inteiro é um objeto com
+  uma chave por seção, e o provedor garante a forma;
+- **raciocínio nativo** — o modelo já pensa antes de responder. Nove Pensantes
+  pagavam esse raciocínio nove vezes, e cada seção via as outras só por um
+  resumo serializado;
+- **o Escritor era lido por ninguém que importa** — o HTML e o PDF, que são o
+  que o cliente recebe, sempre saíram direto de `DocumentData`. A prosa dele
+  só existia no markdown da extensão, e podia discordar do PDF.
+
+No lugar: o **Leitor** (`lib/agents/leitor.ts`) lê a transcrição UMA vez e
+devolve os dados de todas as seções, já com o texto final. As regras de cada
+seção continuam vindo do `guidance` do `SectionSpec`, íntegras, na mensagem de
+usuário depois da transcrição. O markdown é montado em código
+(`SectionDataSpec.markdown`), do mesmo `DocumentData` que o HTML e o PDF.
+
+O que ficou, e por quê: o **Auditor**. Ele não é redundante com o Leitor —
+julga cada afirmação vendo SÓ o trecho citado, o que pega o erro que quem leu
+a reunião inteira não vê em si mesmo (o cargo deduzido do tom, a concordância
+que era de outro assunto). Ficou mais barato: uma chamada para todas as
+afirmações, em vez de uma por afirmação.
+
+O que se perdeu: a **segunda passada**. Afirmação rejeitada vira lacuna
+direto, em vez de voltar ao Pensante com o motivo. Refazer significaria reler
+a reunião inteira por causa de um cargo, e a lacuna é respondida de graça em
+`POST /api/answers`.
 
 ### O modelo não informa offsets
 
@@ -405,7 +427,7 @@ primeira ocorrência, e o Auditor leria o trecho errado.
 
 `QuoteStats` acompanha cada seção: total, exatas, normalizadas, não
 localizadas, e a **taxa de âncoras**. É o principal indicador de saúde do
-Pensante — foi a única métrica que pegou um modelo devolvendo citação
+Leitor — foi a única métrica que pegou um modelo devolvendo citação
 corrompida. As citações não localizadas voltam inteiras em `unlocatable`;
 nenhuma some em silêncio.
 
@@ -416,17 +438,17 @@ ORIGINAL, recortado pelas âncoras com folga, e **dentro do recorte o que foi
 citado vem marcado entre `⟦ ⟧`** — a folga dá vizinhança legível, a marcação
 diz o que é evidência.
 
-O laço vive em `lib/agents/sectionPipeline.ts`, com **teto de duas passadas**:
-Pensante propõe → Auditor rejeita → Pensante refaz com a justificativa → se
-rejeitar de novo, a afirmação é descartada e vira lacuna. Nunca entra no
-documento.
+Todas as afirmações vão numa chamada só, cada uma com o próprio trecho, e o
+prompt proíbe usar o trecho de uma como evidência de outra. Veredito ausente
+conta como rejeição. Afirmação rejeitada é descartada e vira lacuna (ver
+`apurar` em `lib/generateStep.ts`). Nunca entra no documento.
 
 ### A armadilha de decisão
 
 `EXCERPT_PADDING_CHARS` é 400, e a folga sozinha não distingue proposta de
 decisão. Numa reunião onde quase toda fala é seguida de concordância, 400
 caracteres quase sempre alcançam **alguma** concordância, inclusive de outro
-assunto. Foi observado: o Pensante propôs "Avaliar desnormalizações específicas
+assunto. Foi observado: o antigo Pensante propôs "Avaliar desnormalizações específicas
 após testes de desempenho" como decisão, e o Auditor aprovou justificando com
 "Ana sugerindo e Carlos concordando" — concordância que a transcrição não tem,
 porque depois do "Podemos avaliar" da Ana o Carlos muda de assunto.
@@ -470,8 +492,8 @@ que não acontece.
 ## O pipeline está de pé
 
 `generateDocument` em `lib/generateDocument.ts` não é mais stub: chama
-`generateStep` em laço pelas nove seções (Pensante → Auditor → Escritor,
-ver `lib/agents/`), monta o markdown na ordem do template e devolve
+`generateStep` (Leitor → Auditor, duas chamadas, ver `lib/agents/`), monta o
+markdown na ordem do template e devolve
 `documentData` + `html` junto. `/api/generate` expõe isso como "documento
 inteiro numa tacada"; quem quiser controle fino (uma seção por vez,
 perguntas, respostas) usa `generateStep` ou `/api/ai/secao` direto. Ver

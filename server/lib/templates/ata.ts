@@ -241,6 +241,9 @@ export const ata: DocumentTemplate = {
       required: true,
       audit: 'none',
       omitWhenEmpty: false,
+      // Quem assina é quem gera a ata, e a transcrição não diz isso. Vira
+      // pergunta direto, sem ler a reunião — ver `fromUserOnly`.
+      fromUserOnly: true,
       needs: ['nome de quem assina', 'cargo de quem assina'],
       guidance: [
         'Fechamento no formato: "Atenciosamente," seguido de [Nome] – [Cargo].',

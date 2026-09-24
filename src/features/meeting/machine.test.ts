@@ -387,6 +387,52 @@ describe('presença, histórico de participação e falantes observados', () => 
     expect(degraded.session?.captureDegradedCount).toBe(1);
   });
 
+  /*
+   * ── A interrupção precisa ter VOLTA ──────────────────────────────────────
+   *
+   * O contador diz quantas vezes a captura já tropeçou; `captureHealthy` diz
+   * se ela está tropeçada AGORA. É este segundo fato que a sidebar mostra — e
+   * sem a volta ela ficaria avisando de uma interrupção já resolvida até o fim
+   * da reunião.
+   */
+  it('a sessão nasce com a captura saudável', () => {
+    expect(recordingState().session?.captureHealthy).toBe(true);
+  });
+
+  it('CAPTURE_DEGRADED marca a captura como não saudável', () => {
+    const degraded = transition(recordingState(), {
+      type: 'CAPTURE_DEGRADED',
+      at: T0 + 4_000,
+    });
+    expect(degraded.session?.captureHealthy).toBe(false);
+  });
+
+  it('CAPTURE_RECOVERED devolve a saúde sem esperar o próximo trecho', () => {
+    const degraded = transition(recordingState(), {
+      type: 'CAPTURE_DEGRADED',
+      at: T0 + 4_000,
+    });
+    const recovered = transition(degraded, { type: 'CAPTURE_RECOVERED' });
+    expect(recovered.session?.captureHealthy).toBe(true);
+    // Silêncio de verdade não é falha: a volta não inventa trecho nenhum.
+    expect(recovered.session?.segments).toHaveLength(0);
+  });
+
+  /* Um trecho aplicado é a prova de que a captura lê as legendas. */
+  it('um trecho novo também encerra a interrupção', () => {
+    const degraded = transition(recordingState(), {
+      type: 'CAPTURE_DEGRADED',
+      at: T0 + 4_000,
+    });
+    const comFala = transition(degraded, chunk('depois', 'voltou a chegar legenda'));
+    expect(comFala.session?.captureHealthy).toBe(true);
+  });
+
+  it('CAPTURE_RECOVERED numa captura saudável não produz estado novo', () => {
+    const rec = recordingState();
+    expect(transition(rec, { type: 'CAPTURE_RECOVERED' })).toBe(rec);
+  });
+
   // ---- aviso de idioma da legenda ----
 
   it('idioma da legenda só é reavaliado a cada LANGUAGE_DETECTION_CHUNK_INTERVAL chunks aplicados', () => {

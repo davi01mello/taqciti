@@ -15,6 +15,7 @@ import { Wave } from './Wave';
 import { assignSpeakerColors, formatOffset, speakerLabel } from './format';
 
 interface TranscriptViewProps {
+  neutral?: boolean;
   segments: readonly LiveSegment[];
   /** Nome de quem está tocando a reunião: ganha "(Eu)" ao lado. */
   selfName?: string | null;
@@ -53,6 +54,7 @@ const STICK_THRESHOLD_PX = 56;
 const TRACKPAD_NOISE_PX = 4;
 
 export function TranscriptView({
+  neutral = false,
   segments,
   selfName = null,
   live = false,
@@ -269,10 +271,10 @@ export function TranscriptView({
                 >
                   {!grouped && (
                     <div className="mb-1.5 flex min-w-0 items-center gap-2">
-                      <Avatar name={name} size={22} />
+                      <Avatar name={name} size={22} neutral={neutral} />
                       <span
                         className="min-w-0 truncate text-body font-semibold"
-                        style={{ color: speakerColors.get(name) }}
+                        style={{ color: neutral ? '#c9cdd2' : speakerColors.get(name) }}
                       >
                         {speakerLabel(name, selfName)}
                       </span>

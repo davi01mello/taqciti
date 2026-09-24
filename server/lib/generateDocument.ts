@@ -22,7 +22,7 @@ import {
   type Question,
   type RenderedSection,
 } from './generateStep';
-import { assertSemVazamento } from './agents/escritor';
+import { assertSemVazamento } from './vazamento';
 import { formatarDataDaReuniao } from './dataDaReuniao';
 import { renderHtml } from './render/html';
 import { renderPdf } from './render/pdf';
@@ -115,9 +115,9 @@ export async function generateDocument(
 
   const html = renderHtml({ documentType: input.documentType, data: documentData, gaps, title });
 
-  // O HTML sai do `DocumentData`, que veio do Pensante — outro caminho que o
-  // do Escritor, e portanto uma segunda porta por onde a instrução de autoria
-  // do PDF poderia chegar ao cliente. A guarda vale para os dois.
+  // O HTML sai do `DocumentData` por outro renderizador que o do markdown, e
+  // portanto é uma segunda porta por onde a instrução de autoria do PDF
+  // poderia chegar ao cliente. A guarda vale para os dois.
   assertSemVazamento(html, 'o HTML do documento');
 
   // Sem `assertSemVazamento` própria aqui: o PDF desenha exatamente os

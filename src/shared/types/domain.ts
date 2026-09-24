@@ -149,6 +149,16 @@ export interface MeetingSessionState {
   reconnectCount: number;
   /** Entradas no modo degradado (parser sem estrutura ou lacuna observada). */
   captureDegradedCount?: number;
+  /**
+   * `false` = há legenda na tela que a captura NÃO está conseguindo ler.
+   *
+   * O contador acima diz quantas vezes isso já aconteceu; este diz se está
+   * acontecendo AGORA, que é a pergunta que a interface precisa responder. Sem
+   * ele, a única superfície que sabia da interrupção era a cápsula, dentro da
+   * aba do Meet — a sidebar continuava dizendo "transcrevendo" enquanto nada
+   * entrava. Opcional para não rejeitar estado gravado por versão anterior.
+   */
+  captureHealthy?: boolean;
   /** Último trecho recebido, sem expor seu conteúdo em diagnóstico/log. */
   lastChunkAt?: number | null;
   wasDiscardedAndRestarted: boolean;

@@ -315,11 +315,6 @@ export function timeFromIso(text: string): CivilTime | null {
   return time.hour <= 23 && time.minute <= 59 ? time : null;
 }
 
-/** Hora civil → "14:30". */
-export function timeToIso(time: CivilTime): string {
-  return `${pad2(time.hour)}:${pad2(time.minute)}`;
-}
-
 // ─── Contexto temporal ─────────────────────────────────────────────────────
 
 /**

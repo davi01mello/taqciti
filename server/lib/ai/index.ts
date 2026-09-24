@@ -5,25 +5,32 @@
  * Trocar o provedor de um agente é editar `config.ts` ou exportar uma
  * variável de ambiente — nenhum outro arquivo muda.
  */
+import { API_KEY_ENV_VAR, hasApiKey } from './availability';
 import { AGENT_CONFIG, activeProviders, type MatrixEntry } from './config';
 import { estimateCost, type CostBreakdown } from './pricing';
 import { anthropicProvider } from './providers/anthropic';
 import { googleProvider } from './providers/google';
+import { mockProvider } from './providers/mock';
+import { openaiProvider } from './providers/openai';
 import { xaiProvider } from './providers/xai';
 import {
   PROVIDER_IDS,
+  ProviderError,
   type AgentName,
   type Capability,
   type CompletionRequest,
   type CompletionResult,
+  type JsonSchema,
   type Provider,
   type ProviderId,
 } from './types';
 
 const PROVIDERS: Record<ProviderId, Provider> = {
   anthropic: anthropicProvider,
+  openai: openaiProvider,
   google: googleProvider,
   xai: xaiProvider,
+  mock: mockProvider,
 };
 
 export function getProvider(id: ProviderId): Provider {
@@ -42,6 +49,38 @@ export async function complete(
 ): Promise<CompletionResult> {
   const { provider, model } = resolveAgent(agent);
   return provider.complete(model, req);
+}
+
+/**
+ * Inferência com FORMA garantida.
+ *
+ * A diferença para `complete` não é o schema — `CompletionRequest.jsonSchema`
+ * já existe — e sim o que volta: aqui o valor já validado, tipado, em vez de
+ * `result.parsed?: unknown` que todo chamador teria de estreitar por conta
+ * própria. Isso importa porque `parsed` só é preenchido quando houve schema, e
+ * um `as T` espalhado por cada chamada é a forma mais fácil de essa garantia
+ * virar mentira.
+ *
+ * O `T` é uma afirmação de quem chama, e não uma prova: quem valida a FORMA é
+ * `parseAndValidate`, contra o schema. Manter os dois juntos — schema e tipo —
+ * na mesma chamada é o que impede que eles divirjam em silêncio.
+ */
+export async function completeStructured<T = unknown>(
+  agent: AgentName,
+  req: CompletionRequest & { jsonSchema: JsonSchema },
+): Promise<{ value: T; result: CompletionResult }> {
+  const result = await complete(agent, req);
+  if (result.parsed === undefined) {
+    // Inalcançável pelo caminho normal: `runCompletion` já teria levantado
+    // ProviderError. Existe para o dia em que um adaptador novo esquecer de
+    // passar por ele — melhor falhar aqui que devolver `undefined as T`.
+    throw new ProviderError(
+      result.meta.provider,
+      result.meta.model,
+      'resposta estruturada pedida, mas nada foi validado contra o schema.',
+    );
+  }
+  return { value: result.parsed as T, result };
 }
 
 /** Janela de contexto do modelo deste agente — o janelamento da Fase 2
@@ -110,15 +149,9 @@ export function capabilityTable(): CapabilityRow[] {
  * nada — o objetivo é comparar os três sem ser obrigado a assinar os três.
  */
 export function assertConfiguredProvidersHaveKeys(): void {
-  const envVarByProvider: Record<ProviderId, string> = {
-    anthropic: 'ANTHROPIC_API_KEY',
-    google: 'GOOGLE_API_KEY',
-    xai: 'XAI_API_KEY',
-  };
-
   const missing = activeProviders()
-    .filter((id) => !process.env[envVarByProvider[id]]?.trim())
-    .map((id) => `${envVarByProvider[id]} (provedor ${id})`);
+    .filter((id) => !hasApiKey(id))
+    .map((id) => `${API_KEY_ENV_VAR[id]} (provedor ${id})`);
 
   if (missing.length > 0) {
     throw new Error(

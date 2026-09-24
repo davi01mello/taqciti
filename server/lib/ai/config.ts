@@ -9,7 +9,7 @@
  *
  * Sobrescrevível por variável de ambiente, pra trocar provedor sem
  * recompilar:
- *   DOCCITI_PENSANTE=google:gemini-3.6-flash
+ *   DOCCITI_LEITOR=google:gemini-3.6-flash
  *   DOCCITI_AUDITOR=xai:grok-4.3
  */
 import { AGENT_NAMES, isProviderId, type AgentName, type ProviderId } from './types';
@@ -20,59 +20,33 @@ export interface AgentModelConfig {
 }
 
 /**
- * Configuração ATIVA. Hoje é `gemini-2.5-flash` nos quatro agentes, no free
- * tier — a única que roda sem cartão enquanto só há chave do Google.
- *
- * **Isto não é a configuração boa, é a que funciona.** Três coisas erradas
- * com ela, todas conhecidas e nenhuma acidental:
- *
- * - manda conteúdo para treinamento do provedor, com revisão humana; enquanto
- *   for a ativa, SÓ TRANSCRIÇÃO SINTÉTICA (ver `activeDataPolicyWarning`);
- * - é geração anterior, então não serve para comparar fornecedores;
- * - põe o mesmo modelo no Pensante e no Auditor, o que a matriz existe
- *   justamente para questionar.
+ * Configuração ATIVA: Gemini, `flash` na leitura e `lite` na conferência.
+ * São DUAS chamadas por documento — ver `generateStep.ts`.
  *
  * A configuração de produção pretendida está em `COMPARISON_MATRIX` e é
- * decidida pelo harness da Fase 8, não aqui. Quando houver chave paga,
- * trocar é editar este bloco ou exportar `DOCCITI_*`.
+ * decidida pelo harness da Fase 8, não aqui. Trocar é editar este bloco ou
+ * exportar `DOCCITI_*`.
  *
  * Referência das opções (IDs conferidos na documentação oficial em
- * 2026-08-12): Anthropic `claude-sonnet-5` para Pensante/Escritor e
- * `claude-haiku-4-5` para o Auditor; Google `gemini-3.6-flash` e
- * `gemini-3.5-flash-lite`.
+ * 2026-08-12): Anthropic `claude-sonnet-5` para o Leitor e `claude-haiku-4-5`
+ * para o Auditor; Google `gemini-3.6-flash` e `gemini-3.5-flash-lite`.
  */
 const DEFAULT_AGENT_CONFIG: Record<AgentName, AgentModelConfig> = {
-  // RACIOCÍNIO — lê a transcrição bruta e decide o que entra na seção, com
-  // raciocínio ligado em HIGH (ver THINKING_LEVEL em providers/google.ts).
+  // A LEITURA — uma chamada por documento, com raciocínio HIGH. É a que
+  // separa proposta de decisão e a que escreve o texto final, então fica no
+  // `flash`: sendo a única, descer de modelo aqui economiza centavos e arrisca
+  // justamente o que o produto existe para acertar.
   //
-  // ATENÇÃO ao trocar este modelo: desde o corte da compactação é ELE que
-  // produz `quote`, e portanto é a taxa de âncoras dele que sustenta a
-  // auditoria inteira. `gemini-3.5-flash` já foi visto devolvendo "gesto"
-  // onde a transcrição diz "gestão" numa execução do bench, derrubando a
-  // taxa de 100% para 29% — intermitente, amostra de duas execuções. É a
-  // dívida #5 do handoff, e agora ela pesa aqui.
-  pensante: { provider: 'google', model: 'gemini-3.5-flash' },
+  // ATENÇÃO ao trocar este modelo: é ELE que produz `quote`, e portanto é a
+  // taxa de âncoras dele que sustenta a auditoria inteira. `gemini-3.5-flash`
+  // já foi visto devolvendo "gesto" onde a transcrição diz "gestão" numa
+  // execução do bench, derrubando a taxa de 100% para 29% — intermitente,
+  // amostra de duas execuções. É a dívida #5 do handoff.
+  leitor: { provider: 'google', model: 'gemini-3.5-flash' },
 
-  // EXTRAÇÃO — julgamento binário sobre excerto curto, e a chamada mais
-  // frequente do pipeline. É verificação, não deliberação.
+  // A CONFERÊNCIA — julgamento binário sobre excertos curtos, todos numa
+  // chamada. É verificação, não deliberação.
   auditor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
-
-  // Redação final. Desceu para `lite` — era a linha que o comentário anterior
-  // já apontava como a primeira a descer, e a especificação observa que a
-  // redação é a parte mais fácil.
-  //
-  // O que forçou a descida foi ARITMÉTICA, e vale registrar: no free tier o
-  // teto é de 20 requisições por dia, por projeto, POR MODELO. Uma Ata faz 9
-  // chamadas do Pensante e 9 do Escritor; com os dois no `flash` isso é 18 a
-  // 20 e a geração morre no meio — foi medido três vezes. Com o Escritor no
-  // `lite`, o `flash` carrega só o Pensante (9, ou 11 com as segundas
-  // passadas das seções `strict`), e o documento fecha.
-  //
-  // O risco de acento corrompido do `lite` não vem junto: ele foi observado
-  // na PARÁFRASE do Pensante, e na mesma chamada as citações vieram intactas.
-  // O Escritor não produz citação, e a prosa que ele gerou no `lite` nas
-  // execuções de 14/08 saiu acentuada.
-  escritor: { provider: 'google', model: 'gemini-3.5-flash-lite' },
 };
 
 // ---------------------------------------------------------------------------
@@ -242,6 +216,24 @@ export function matrixFor(provider: ProviderId): MatrixEntry[] {
 }
 
 /**
+ * Os provedores que a matriz de comparação cobre — DERIVADO dela, nunca escrito
+ * à mão, senão a lista e a matriz divergem no primeiro acréscimo.
+ *
+ * Nem todo provedor implementado está aqui, e isso é estado legítimo:
+ *
+ *  - `mock` nunca entra. Ele não é um fornecedor a comparar; pô-lo na matriz
+ *    faria o harness "medir" um provedor que devolve texto inventado de graça,
+ *    e ele ganharia todas as métricas de custo.
+ *  - `openai` ainda não entrou. Entrar exige escolher os modelos e conferir os
+ *    preços na documentação oficial, e a fase que escreveu o adaptador não
+ *    consulta a rede. Enquanto o preço não estiver na tabela, uma entrada aqui
+ *    produziria custo `undefined` no relatório — ver `estimateCost`.
+ */
+export function providersNaMatriz(): ProviderId[] {
+  return [...new Set(COMPARISON_MATRIX.map((entry) => entry.provider))];
+}
+
+/**
  * Só o que é candidato a produção — exclui preview e free tier. É sobre
  * este conjunto que vale a regra de um teto e um piso por fornecedor: as
  * entradas experimentais existem para responder perguntas laterais, não
@@ -266,9 +258,18 @@ export function cheapestProductionEntry(provider: ProviderId): MatrixEntry {
 // ---------------------------------------------------------------------------
 
 const ENV_VAR_BY_AGENT: Record<AgentName, string> = {
-  pensante: 'DOCCITI_PENSANTE',
+  leitor: 'DOCCITI_LEITOR',
   auditor: 'DOCCITI_AUDITOR',
-  escritor: 'DOCCITI_ESCRITOR',
+};
+
+/**
+ * Nomes antigos que ainda valem, para uma variável já configurada no deploy
+ * não parar de funcionar em silêncio. `DOCCITI_PENSANTE` apontava o modelo que
+ * lia a transcrição — é o mesmo papel do Leitor. `DOCCITI_ESCRITOR` não tem
+ * sucessor: o agente não existe mais.
+ */
+const LEGACY_ENV_VAR_BY_AGENT: Partial<Record<AgentName, string>> = {
+  leitor: 'DOCCITI_PENSANTE',
 };
 
 /** Formato aceito: `provedor:modelo`, ex. `google:gemini-3.6-flash`. */
@@ -277,14 +278,17 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   if (separator === -1) {
     throw new Error(
       `${envVar}="${raw}" está mal formado. Use "provedor:modelo", ` +
-        'ex. DOCCITI_PENSANTE=google:gemini-3.6-flash.',
+        'ex. DOCCITI_LEITOR=google:gemini-3.6-flash.',
     );
   }
   const provider = raw.slice(0, separator).trim();
   const model = raw.slice(separator + 1).trim();
 
   if (!isProviderId(provider)) {
-    throw new Error(`${envVar}: provedor "${provider}" desconhecido. Use anthropic, google ou xai.`);
+    throw new Error(
+      `${envVar}: provedor "${provider}" desconhecido. ` +
+        'Use anthropic, openai, google, xai ou mock.',
+    );
   }
   if (!model) {
     throw new Error(`${envVar}="${raw}": o modelo está vazio.`);
@@ -292,13 +296,131 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   return { provider, model };
 }
 
+// ---------------------------------------------------------------------------
+// Troca global de provedor
+// ---------------------------------------------------------------------------
+
+/**
+ * `LLM_PROVIDER` — o nome COMERCIAL, não o interno.
+ *
+ * Quem escreve a variável pensa em "Claude" e "GPT"; quem lê o código pensa em
+ * `anthropic` e `openai`. Este mapa é a tradução, e ele existe num lugar só
+ * para os dois vocabulários não vazarem um no outro. Os ids internos também são
+ * aceitos — quem já conhece a camada não deveria ser corrigido por ela.
+ */
+const APELIDO_DE_PROVEDOR: Record<string, ProviderId> = {
+  claude: 'anthropic',
+  anthropic: 'anthropic',
+  gpt: 'openai',
+  openai: 'openai',
+  gemini: 'google',
+  google: 'google',
+  grok: 'xai',
+  xai: 'xai',
+  mock: 'mock',
+  fake: 'mock',
+};
+
+/** O modelo usado quando só o PROVEDOR foi escolhido, sem dizer qual modelo. */
+const MODELO_PADRAO_POR_PROVEDOR: Record<ProviderId, string> = {
+  anthropic: 'claude-sonnet-5',
+  // Sem modelo decidido ainda — ver o README da fase e a lista de pendências.
+  openai: 'gpt-4.1-mini',
+  google: 'gemini-3.5-flash',
+  xai: 'grok-4.3',
+  mock: 'mock-1',
+};
+
+export function parseProviderAlias(raw: string, envVar: string): ProviderId {
+  const provedor = APELIDO_DE_PROVEDOR[raw.trim().toLowerCase()];
+  if (!provedor) {
+    throw new Error(
+      `${envVar}="${raw}" desconhecido. Use claude, openai (ou gpt), google, xai ou mock.`,
+    );
+  }
+  return provedor;
+}
+
+/**
+ * Quando o mock é o padrão — e por que não é sempre que `NODE_ENV !==
+ * 'production'`.
+ *
+ * A regra pedida é "mock por padrão em desenvolvimento local". Tomada ao pé da
+ * letra, ela sequestraria o `next dev` de quem TEM chave configurada e está
+ * justamente testando a geração de verdade: o servidor subiria respondendo
+ * `[mock]` sem ninguém ter pedido, e o sintoma (um documento de texto falso)
+ * levaria um tempo até ser entendido.
+ *
+ * A regra implementada é a mesma intenção sem esse efeito: fora de produção, o
+ * mock assume quando NÃO HÁ CHAVE do provedor configurado. Quem não tem chave
+ * ganha um servidor que funciona; quem tem continua com o que configurou. E
+ * `MOCK_LLM=true` força o mock em qualquer ambiente, inclusive com chave — é o
+ * botão explícito, e o que a suíte de testes usa.
+ */
+export function mockPadrao(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.MOCK_LLM?.trim().toLowerCase() === 'true') return true;
+  if (env.NODE_ENV === 'production') return false;
+  if (env.LLM_PROVIDER?.trim()) return false;
+  // Uma chave de qualquer provedor basta: a configuração padrão é por agente e
+  // pode misturar fornecedores.
+  const chaves = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_API_KEY', 'XAI_API_KEY'];
+  return !chaves.some((chave) => env[chave]?.trim());
+}
+
+/**
+ * A precedência, do mais forte para o mais fraco:
+ *
+ *   1. `MOCK_LLM=true`            — o botão de pânico; ignora todo o resto
+ *   2. `DOCCITI_<AGENTE>`         — provedor+modelo de UM agente
+ *                                   (`DOCCITI_PENSANTE` ainda vale pelo Leitor)
+ *   3. `LLM_PROVIDER`             — o provedor de TODOS os agentes
+ *   4. `DEFAULT_AGENT_CONFIG`     — ou o mock, quando não há chave nenhuma
+ *
+ * O override por agente vence o global porque é o mais específico: quem
+ * escreveu `DOCCITI_AUDITOR=mock:mock-1` com `LLM_PROVIDER=claude` está
+ * dizendo "tudo no Claude, menos o auditor", e a ordem inversa tornaria essa
+ * frase impossível de escrever.
+ */
 function buildAgentConfig(): Record<AgentName, AgentModelConfig> {
-  const config = { ...DEFAULT_AGENT_CONFIG };
+  if (process.env.MOCK_LLM?.trim().toLowerCase() === 'true') {
+    return agentConfigFor({
+      id: 'mock',
+      provider: 'mock',
+      tier: 'barato',
+      model: MODELO_PADRAO_POR_PROVEDOR.mock,
+    });
+  }
+
+  const global = process.env.LLM_PROVIDER?.trim();
+  let config: Record<AgentName, AgentModelConfig>;
+
+  if (global) {
+    const provider = parseProviderAlias(global, 'LLM_PROVIDER');
+    config = agentConfigFor({
+      id: `global:${provider}`,
+      provider,
+      tier: 'barato',
+      model: MODELO_PADRAO_POR_PROVEDOR[provider],
+    });
+  } else if (mockPadrao()) {
+    config = agentConfigFor({
+      id: 'mock',
+      provider: 'mock',
+      tier: 'barato',
+      model: MODELO_PADRAO_POR_PROVEDOR.mock,
+    });
+  } else {
+    config = { ...DEFAULT_AGENT_CONFIG };
+  }
+
   for (const agent of AGENT_NAMES) {
-    const raw = process.env[ENV_VAR_BY_AGENT[agent]];
-    if (raw && raw.trim()) {
-      config[agent] = parseOverride(raw.trim(), ENV_VAR_BY_AGENT[agent]);
-    }
+    const legado = LEGACY_ENV_VAR_BY_AGENT[agent];
+    const envVar = process.env[ENV_VAR_BY_AGENT[agent]]?.trim()
+      ? ENV_VAR_BY_AGENT[agent]
+      : legado && process.env[legado]?.trim()
+        ? legado
+        : undefined;
+    if (envVar) config[agent] = parseOverride(process.env[envVar]!.trim(), envVar);
   }
   return config;
 }

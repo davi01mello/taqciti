@@ -42,8 +42,8 @@ mkdir -p "$PAYLOAD_DIR/dist" "$PAYLOAD_DIR/guide" "$SCRIPTS_DIR"
 cp -R "$ROOT_DIR/dist"/. "$PAYLOAD_DIR/dist"/
 # O MESMO guia que vai na raiz do pacote baixado. O postinstall o copia byte a
 # byte e grava o caminho real num install-path.js ao lado — nunca reescreve o
-# HTML. Ver assetsingestion/README.md.
-cp "$ROOT_DIR/assetsingestion/COMECE_AQUI.html" "$PAYLOAD_DIR/guide/COMECE_AQUI.html"
+# HTML. Ver installer/guide/README.md.
+cp "$ROOT_DIR/installer/guide/COMECE_AQUI.html" "$PAYLOAD_DIR/guide/COMECE_AQUI.html"
 cp "$SCRIPT_DIR/postinstall" "$SCRIPTS_DIR/postinstall"
 chmod +x "$SCRIPTS_DIR/postinstall"
 

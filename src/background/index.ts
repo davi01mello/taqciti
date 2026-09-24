@@ -16,7 +16,7 @@ import {
   hydrate,
   recoverInterruptedMeetings,
 } from './sessionController';
-import { deleteRecord, patchRecord } from './history';
+import { patchRecord } from './history';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { backfillOpenTabs } from './injectPanel';
@@ -24,7 +24,10 @@ import { openHome } from './homeTab';
 import { abrirPainel, abrirPainelNaJanela, ligarAberturaPeloIcone } from './sidePanel';
 import { capturarAbaDaReuniao } from './captura';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
+import { liberarSessionParaContentScripts } from './sessionAccess';
+import { limparVinculosDaReuniao } from '@/features/annotations/vinculos';
 import { ensurePanelPrefs } from '@/features/panel/prefsStore';
+import { ligarSincronizacaoAutomatica } from '@/features/sync/sincronizacao';
 
 /**
  * A inicialização, e o que ela garante ANTES de a primeira mensagem chegar.
@@ -39,7 +42,15 @@ import { ensurePanelPrefs } from '@/features/panel/prefsStore';
  * que nunca respondem. O erro fica visível no log, e o estado padrão — que
  * `ensurePanelPrefs` e `getState` garantem — continua de pé.
  */
-const ready: Promise<void> = migrateLocalStorage()
+const ready: Promise<void> = liberarSessionParaContentScripts()
+  /*
+   * PRIMEIRO de tudo, e antes de qualquer leitura de estado.
+   *
+   * Sem esta liberação o content script não consegue tocar o
+   * `chrome.storage.session`, e o portão da captura — a pergunta "deseja
+   * registrar esta reunião?" — não chega a existir. Ver `sessionAccess.ts`.
+   */
+  .then(() => migrateLocalStorage())
   .then(() => hydrate())
   .then(() => recoverInterruptedMeetings())
   .then(() => ensurePanelPrefs())
@@ -75,6 +86,20 @@ chrome.runtime.onInstalled.addListener(() => {
     logger.info('primeira execução: abas alcançadas', { attempts: reached });
   })();
 });
+
+/*
+ * O espelho do acervo no servidor, quando a pessoa ligou isso em Conexões.
+ *
+ * Registrado no escopo do módulo — e não dentro de um `onInstalled` — porque
+ * é registro de LISTENER: o service worker do MV3 morre por ociosidade e
+ * renasce a cada evento, e um listener registrado dentro de um callback
+ * assíncrono pode não existir quando o evento que deveria acordá-lo chega.
+ *
+ * Nada acontece enquanto a sincronização estiver desligada: a primeira coisa
+ * que `sincronizar()` faz é conferir o "sim" guardado. Ver
+ * `features/sync/sincronizacao.ts`.
+ */
+ligarSincronizacaoAutomatica();
 
 /*
  * Rede de segurança do clique no ícone.
@@ -189,13 +214,19 @@ onMessage((message, sender) => {
           ...(message.reason === 'parser' ? { parserFailuresTotal: 1 } : {}),
         });
         return dispatch({ type: 'CAPTURE_DEGRADED', at: now });
+      case 'meet/captureRecovered':
+        return dispatch({ type: 'CAPTURE_RECOVERED' });
       case 'ui/print': {
         const sessao = getState().session;
         const captura = await capturarAbaDaReuniao(sessao?.tabId);
         // A imagem sobe para quem pediu; quem GRAVA é o painel, que conhece o
         // `meetingId` e trata a cota. O background não guarda print.
         return captura.ok
-          ? { ok: true as const, dataUrl: captura.dataUrl, meetingId: sessao?.meetingId ?? null }
+          ? {
+              ok: true as const,
+              dataUrl: captura.dataUrl,
+              meetingId: sessao?.meetingId ?? null,
+            }
           : { ok: false as const, motivo: captura.motivo };
       }
 
@@ -257,11 +288,24 @@ onMessage((message, sender) => {
       // ---- Histórico ----
       case 'ui/history/delete': {
         const current = getState();
+        if (
+          current.session?.meetingId === message.id &&
+          current.phase !== 'ended' &&
+          current.phase !== 'idle'
+        )
+          return { ok: false, error: 'meeting-active' };
+        /*
+         * O que estava preso à reunião sai com ela — nota, marcações e prints —
+         * e os documentos ficam, sem o vínculo. Antes nada disso era tocado: os
+         * anexos continuavam no storage indexados por um `meetingId` que não
+         * existia mais, invisíveis para toda a interface. Ver
+         * `features/annotations/vinculos.ts`.
+         */
+        const limpeza = await limparVinculosDaReuniao(message.id);
         if (current.session?.meetingId === message.id && current.phase === 'ended') {
           await dispatch({ type: 'RESET' });
         }
-        await deleteRecord(message.id);
-        return { ok: true };
+        return { ok: true, limpeza };
       }
       case 'ui/history/rename': {
         await patchRecord(message.id, { title: message.title });

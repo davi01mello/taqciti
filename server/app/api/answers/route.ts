@@ -21,7 +21,7 @@ import { renderHtml } from '@/lib/render/html';
 import { renderPdf } from '@/lib/render/pdf';
 import { isDocumentType } from '@/lib/documentTypes';
 import { TEMPLATES } from '@/lib/templates';
-import { assertSemVazamento } from '@/lib/agents/escritor';
+import { assertSemVazamento } from '@/lib/vazamento';
 import type { DocumentData, Gap } from '@/lib/documentData';
 import type { Answer, Question } from '@/lib/generateStep';
 

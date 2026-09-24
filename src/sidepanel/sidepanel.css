@@ -11,20 +11,25 @@
  * ── O que é diferente, e por quê ─────────────────────────────────────────
  *
  * A HOME é uma tela; isto é uma coluna de 260 a 500px que a pessoa arrasta.
- * Então: nada de onda de fundo (ela precisa de largura para ser uma forma e
- * não uma listra), nada de cursor desenhado (o painel é moldura do navegador,
- * e um cursor próprio aqui brigaria com o resto do Chrome), e nenhuma medida
- * fixa em px na horizontal. A altura é que manda — o cabeçalho e as abas não
- * rolam, o corpo rola.
+ * Cabeçalho e navegação ficam na moldura. Na conversa, mensagens, compositor
+ * e onda compartilham a mesma rolagem. A onda da HOME é reduzida ao palco
+ * da escrita; o grafite continua sendo a superfície dominante.
  */
 
 .tq-side {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   background: rgb(17 18 19);
   color: rgb(237 238 239);
-  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -41,6 +46,22 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.tq-side button:not(:disabled):active {
+  transform: scale(0.97);
+}
+.tq-side button:disabled {
+  cursor: default;
+}
+.tq-side button svg {
+  flex-shrink: 0;
 }
 
 .tq-side h2 {
@@ -70,13 +91,16 @@
 .tq-linkish {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
+  gap: 8px;
+  font-size: 12px;
   color: rgb(163 166 170);
-  padding: 3px 2px;
+  padding: 6px 8px;
+  min-height: 40px;
+  border-radius: 10px;
 }
 
 .tq-linkish:hover {
+  background: rgb(255 255 255 / 0.045);
   color: rgb(238 240 242);
 }
 
@@ -88,38 +112,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 12px 8px;
-  border-bottom: 1px solid rgb(255 255 255 / 0.05);
-}
-
-.tq-side-topo-direita {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.tq-selo {
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  color: rgb(155 158 162);
-  background: rgb(255 255 255 / 0.06);
-  border-radius: 999px;
-  padding: 3px 8px;
-  white-space: nowrap;
-}
-
-/* O único selo verde: algo está acontecendo AGORA. */
-.tq-selo.vivo {
-  color: rgb(var(--c-glow));
-  background: rgb(var(--c-primary) / 0.12);
+  padding: 18px 16px 12px;
+  flex-wrap: wrap;
 }
 
 .tq-icone {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   border-radius: 50%;
   color: rgb(152 155 159);
@@ -133,36 +134,140 @@
   color: rgb(238 240 242);
 }
 
-/* ----------------------------------------------------------------- abas */
+/* O botão das brasas fica ao lado do de ir para a HOME, não embaixo dele. */
+.tq-side-topo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 
-.tq-abas {
+/* Mesma linguagem do `.tq-motion.desligado` da HOME: continua clicável, só
+   esmaecido — não é `:disabled`, é "desligado e pronto para religar". */
+.tq-icone.desligado {
+  opacity: 0.4;
+}
+
+/* ------------------------------------------------------------- seletores */
+
+/*
+ * Os dois modos, e a distinção que eles precisam sustentar: SELEÇÃO é luz
+ * neutra (o realce branco de "você está aqui"); ATIVIDADE é a animação e a
+ * palavra ao lado do nome, onde o verde só aparece quando algo acontece.
+ *
+ * Cada botão é uma grade de duas linhas: a onda e o nome em cima, a palavra do
+ * estado embaixo. Duas linhas porque a 260px não cabem lado a lado sem cortar
+ * "Interrompida" — e a palavra do estado é justamente a parte que não pode
+ * sumir, já que é ela que substitui a cor para quem não a distingue.
+ */
+.tq-modos {
   flex: 0 0 auto;
   display: flex;
-  gap: 2px;
-  padding: 8px 10px 0;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 16px 8px;
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.035);
 }
 
-.tq-abas button {
+.tq-modo {
   flex: 1;
   min-width: 0;
-  padding: 7px 4px 9px;
-  font-size: 11.5px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 7px;
+  padding: 7px 9px;
+  min-height: 48px;
+  border-radius: 12px;
+  border: 0;
+  text-align: left;
   color: rgb(150 153 157);
-  border-bottom: 2px solid transparent;
-  transition:
-    color 0.2s,
-    border-color 0.2s;
 }
 
-.tq-abas button:hover {
+.tq-modo canvas {
+  grid-row: 1 / span 2;
+}
+
+.tq-modo-nome {
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-modo-estado {
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(132 136 141);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 12px;
+}
+
+/* Verde: acontecendo AGORA. Âmbar: parado, e por um motivo que importa. */
+.tq-modo-estado.vivo {
+  color: rgb(var(--c-glow));
+}
+
+.tq-modo-estado.atencao {
+  color: rgb(230 192 158);
+}
+
+.tq-modo:hover {
+  background: rgb(255 255 255 / 0.045);
   color: rgb(224 226 229);
 }
 
-/* A aba atual: branca, com o traço verde embaixo — o mesmo vocabulário da
-   seção escolhida na navegação da HOME. */
-.tq-abas button.atual {
+/* A seleção usa luz neutra; o verde permanece na marca e na atividade. */
+.tq-modo.atual {
   color: rgb(246 248 250);
-  border-bottom-color: rgb(var(--c-primary));
+  background: rgb(255 255 255 / 0.09);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.06),
+    0 2px 6px rgb(0 0 0 / 0.12);
+}
+
+/* Dito só para quem ouve: a palavra curta da tela não basta fora dela. */
+.tq-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- palco */
+
+/*
+ * As duas seções vivem ao mesmo tempo, empilhadas. A que não está em uso fica
+ * invisível — `visibility`, e não `display: none`, porque `display: none`
+ * destrói a caixa e leva o `scrollTop` junto. Ver o cabeçalho de App.tsx.
+ */
+.tq-palco {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.tq-painel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 14px;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.tq-painel.ativo {
+  visibility: visible;
 }
 
 /* ---------------------------------------------------------------- corpo */
@@ -172,7 +277,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 8px 16px 14px;
+  overflow: hidden;
 }
 
 .tq-rolavel {
@@ -238,8 +344,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 34px;
+  gap: 9px;
+  min-height: 44px;
   padding: 0 14px;
   border-radius: 999px;
   font-size: 12px;
@@ -251,7 +357,7 @@
     opacity 0.2s;
 }
 
-.tq-botao-principal {
+.tq-side .tq-botao-principal {
   background: rgb(var(--c-primary) / 0.16);
   border-color: rgb(var(--c-primary) / 0.45);
   color: rgb(var(--c-glow));
@@ -262,9 +368,11 @@
   border-color: rgb(var(--c-primary) / 0.7);
 }
 
-.tq-botao-fantasma {
+.tq-side .tq-botao-fantasma {
   border-color: rgb(255 255 255 / 0.1);
   color: rgb(206 209 213);
+  background: rgb(255 255 255 / 0.025);
+  border: 1px solid rgb(255 255 255 / 0.08);
 }
 
 .tq-botao-fantasma:hover:not(:disabled) {
@@ -284,6 +392,80 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+/* ------------------------------------------------------- ações da reunião */
+
+/*
+ * Três alvos, numa linha só.
+ *
+ * Eram quatro em duas colunas — duas FILEIRAS, ocupando ~100px de altura antes
+ * de a primeira fala aparecer. Com a nota devolvida às abas sobraram três, e
+ * três cabem lado a lado mesmo a 260px: ~82px cada, o suficiente para o nome
+ * inteiro ao lado do ícone. A altura caiu para 40px e a fileira passou a ser
+ * uma; o que sobrou foi para a transcrição, que é o que se lê durante a
+ * reunião.
+ *
+ * 40px e não 44: continua sendo alvo confortável de dedo, e é o mesmo número
+ * das abas logo abaixo, para as duas fileiras lerem como uma faixa só.
+ */
+.tq-acoes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tq-side .tq-acao {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 12px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.035);
+  color: rgb(216 219 223);
+  font-size: 12px;
+}
+
+.tq-side .tq-acao:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.08);
+  border-color: rgb(255 255 255 / 0.16);
+  color: rgb(243 245 247);
+}
+
+.tq-side .tq-acao:disabled {
+  opacity: 0.4;
+}
+
+/* Aberto fica MARCADO: o segundo clique precisa ser obviamente o que recolhe. */
+.tq-side .tq-acao.aberta {
+  background: rgb(255 255 255 / 0.11);
+  border-color: rgb(255 255 255 / 0.22);
+  color: rgb(246 248 250);
+}
+
+/* Já existe nota guardada. Verde porque é conteúdo vivo desta reunião. */
+.tq-acao-selo {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+}
+
+.tq-acao-conta {
+  font-size: 10px;
+  color: rgb(146 149 153);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Um aviso que pede atenção sem ser falha: a captura parou de ler. */
+.tq-aviso-caixa.tq-aviso-atencao {
+  border-color: rgb(230 192 158 / 0.35);
+  background: rgb(230 192 158 / 0.07);
+  color: rgb(226 205 186);
 }
 
 /* ------------------------------------------------------------- pergunta */
@@ -441,7 +623,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 6px;
 }
 
@@ -464,12 +646,12 @@
   right: 3px;
   display: grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: rgb(0 0 0 / 0.6);
   color: rgb(230 232 235);
-  opacity: 0;
+  opacity: 0.8;
   transition: opacity 0.2s;
 }
 
@@ -507,7 +689,8 @@
   display: block;
   width: 100%;
   text-align: left;
-  padding: 7px 9px;
+  padding: 12px 10px;
+  min-height: 44px;
   border-radius: 9px;
 }
 
@@ -545,12 +728,26 @@
   color: rgb(var(--c-glow));
 }
 
+/*
+ * A COR DA FALA diz de quem ela é: verde para quem está na reunião, cinza para
+ * os demais. A cor está no TEXTO, e só nele — o nome e o horário continuam no
+ * cinza claro de `.tq-fala-quem`, porque eles são etiqueta, não conteúdo, e
+ * pintá-los junto faria duas informações diferentes competirem pelo mesmo
+ * sinal.
+ *
+ * E a cor nunca vem sozinha: quem fala já está escrito por extenso, com "(Eu)"
+ * ao lado do próprio nome. Quem não distingue as duas cores lê a mesma coisa.
+ */
 .tq-fala-texto {
   display: block;
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: rgb(219 222 226);
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgb(176 180 185);
   overflow-wrap: anywhere;
+}
+
+.tq-fala.minha .tq-fala-texto {
+  color: rgb(var(--c-glow));
 }
 
 .tq-fala-acoes {
@@ -564,8 +761,8 @@
 .tq-fala-acoes .marca {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 40px;
+  height: 40px;
   border-radius: 7px;
   border: 1px solid rgb(255 255 255 / 0.1);
   font-size: 12px;
@@ -593,9 +790,17 @@
 
 /* ---------------------------------------------------------------- notas */
 
+/*
+ * A nota tem altura PRÓPRIA, e não "o que sobrar".
+ *
+ * Com `flex: 1` dentro de uma coluna rolável, quando o espaço acabava a seção
+ * era espremida até quase zero enquanto o campo lá dentro continuava com os
+ * seus 160px — e o texto da nota aparecia desenhado POR CIMA da transcrição
+ * logo abaixo. Numa sidebar estreita, com o painel de desenvolvimento aberto,
+ * isso era o caso comum, não a exceção.
+ */
 .tq-notas {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -616,6 +821,44 @@
   white-space: nowrap;
 }
 
+.tq-notas-topo-direita {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.tq-side .tq-icone-pequeno {
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: rgb(152 155 159);
+}
+
+.tq-side .tq-icone-pequeno:hover {
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(238 240 242);
+}
+
+/*
+ * O editor de nota dentro da reunião não empurra a transcrição para fora: ele
+ * tem altura própria e modesta. Como aba ele ocupava a coluna inteira; aqui a
+ * transcrição continua visível abaixo, que é o ponto de ele ter virado painel.
+ */
+.tq-notas-inline {
+  flex: 0 0 auto;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: rgb(255 255 255 / 0.02);
+}
+
+.tq-notas-campo-inline {
+  min-height: 92px;
+  max-height: 180px;
+}
+
 .tq-notas-estado {
   flex: 0 0 auto;
   font-size: 10px;
@@ -628,8 +871,9 @@
 }
 
 .tq-notas-campo {
-  flex: 1;
-  min-height: 160px;
+  flex: 0 0 auto;
+  min-height: 140px;
+  max-height: 300px;
   width: 100%;
   resize: none;
   padding: 10px 11px;
@@ -659,7 +903,19 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  /*
+   * A rolagem que acompanha a resposta chegando (ver `Conversa.tsx`) já
+   * calcula o alvo na mão a cada trecho novo. A ANCORAGEM NATIVA do
+   * navegador tenta fazer a mesma coisa por conta própria sempre que o
+   * texto cresce e o layout se ajusta — e as duas contas brigam: o
+   * navegador corrige a rolagem para trás no meio da correção que o JS
+   * acabou de fazer para frente, e o resultado é o salto que quebra e
+   * volta abruptamente. Desligada aqui porque só há UM dono da rolagem.
+   */
+  overflow-anchor: none;
 }
 
 .tq-conversa-topo {
@@ -671,6 +927,47 @@
 
 .tq-conversa-topo .tq-linkish {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+/*
+ * O seletor de conversas: etiqueta fixa em cima, nome da conversa embaixo.
+ *
+ * A etiqueta é o que impede o botão de ser lido pelo nome da conversa aberta —
+ * uma conversa chamada "agente" fazia o seletor parecer um botão de agente. Ver
+ * o comentário em `Conversa.tsx`.
+ */
+.tq-side .tq-seletor-conversa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: rgb(224 227 231);
+  text-align: left;
+}
+.tq-side .tq-seletor-conversa:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+.tq-seletor-textos {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.tq-seletor-textos small {
+  font-size: 9.5px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: rgb(140 144 149);
+}
+.tq-seletor-textos > span {
+  font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -731,38 +1028,16 @@
   white-space: nowrap;
 }
 
-/*
- * O estado da IA, dito antes de a pessoa escrever. Âmbar, e não vermelho: não
- * é um erro, é uma parte do produto que ainda não existe. E não é verde, para
- * não se confundir com "conectado".
- */
+/* Disponibilidade neutra, sempre antes da escrita; explicação sob demanda. */
 .tq-sem-ia {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 0;
-  padding: 7px 10px;
-  border-radius: 10px;
-  border: 1px solid rgb(240 198 160 / 0.22);
-  background: rgb(240 198 160 / 0.06);
-  font-size: 10.5px;
-  line-height: 1.55;
-  color: rgb(224 200 172);
-}
-
-.tq-sem-ia svg {
-  flex: 0 0 auto;
-  margin-top: 2px;
-  opacity: 0.8;
+  font-size: 11px;
+  color: rgb(156 159 163);
 }
 
 .tq-fluxo {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  flex: 1 0 auto;
   display: grid;
-  gap: 14px;
+  gap: 22px;
   align-content: start;
   padding-right: 2px;
 }
@@ -776,7 +1051,7 @@
   justify-self: end;
   max-width: 92%;
   margin: 0;
-  font-size: 12.5px;
+  font-size: 14px;
   line-height: 1.7;
   color: rgb(203 206 210);
   white-space: pre-wrap;
@@ -823,11 +1098,20 @@
   margin-bottom: 3px;
 }
 
+/*
+ * `pre-wrap`: as quebras de linha da resposta são dela.
+ *
+ * Sem isto, uma resposta com lista vira um parágrafo único com marcadores no
+ * meio da frase — que foi exatamente como a resposta de demonstração apareceu
+ * na primeira conferência em tela. O mesmo tratamento que a mensagem de quem
+ * escreve já recebia.
+ */
 .tq-msg-ia {
   font-size: 12.5px;
   line-height: 1.75;
   color: rgb(207 210 214);
   margin: 0;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
@@ -872,8 +1156,8 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   color: rgb(163 166 170);
 }
@@ -888,23 +1172,22 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid rgb(255 255 255 / 0.06);
+  gap: 12px;
+  padding: 16px 2px 8px;
 }
 
 .tq-compositor textarea {
   width: 100%;
   resize: none;
-  min-height: 32px;
+  min-height: 48px;
   max-height: 140px;
   overflow-y: auto;
-  padding: 6px 2px;
+  padding: 12px 4px;
   border: 0;
   background: none;
   color: rgb(238 240 242);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   caret-color: rgb(var(--c-glow));
 }
@@ -914,14 +1197,14 @@
 }
 
 .tq-compositor textarea::placeholder {
-  color: rgb(128 131 135);
+  color: rgb(162 165 169);
 }
 
 .tq-enviar {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   color: rgb(163 166 170);
   transition:
@@ -940,26 +1223,7 @@
   cursor: default;
 }
 
-/* ------------------------------------------------------------ histórico */
-
-.tq-guias {
-  display: flex;
-  gap: 4px;
-}
-
-.tq-guias button {
-  padding: 5px 11px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  color: rgb(150 153 157);
-  border: 1px solid transparent;
-}
-
-.tq-guias button.atual {
-  color: rgb(240 242 244);
-  background: rgb(255 255 255 / 0.07);
-  border-color: rgb(255 255 255 / 0.1);
-}
+/* ------------------------------------------------------------ reuniões */
 
 .tq-lista {
   list-style: none;
@@ -1000,6 +1264,7 @@
 }
 
 .tq-voltar {
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1038,6 +1303,467 @@
  */
 .tq-compositor textarea:focus-visible {
   outline: none;
+}
+
+.tq-conversa-conteudo {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  min-height: 0;
+  gap: 8px;
+  padding: 0 3px 0 1px;
+}
+.tq-conversa-topo .tq-linkish span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tq-side .tq-nova {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.065);
+  font-size: 12px;
+}
+.tq-side .tq-nova:hover {
+  background: rgb(255 255 255 / 0.11);
+}
+.tq-disponibilidade {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+}
+.tq-ajuda {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.tq-side .tq-ajuda {
+  color: rgb(151 155 160);
+}
+.tq-side .tq-ajuda:hover {
+  color: rgb(237 238 239);
+  background: rgb(255 255 255 / 0.06);
+}
+.tq-ajuda-texto {
+  margin: 0 8px 12px;
+  color: rgb(168 171 175);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.tq-conversa-vazio {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  text-align: center;
+  transition:
+    grid-template-rows 220ms ease,
+    opacity 180ms ease;
+}
+.tq-conversa-vazio > div {
+  overflow: hidden;
+}
+.tq-conversa-vazio.recolhido {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.tq-conversa-vazio img {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  margin: 0 auto 22px;
+  animation: tq-presenca 7s ease-in-out infinite;
+}
+.tq-conversa-vazio h2 {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+}
+.tq-conversa-vazio p {
+  font-size: 12px;
+  color: rgb(156 159 163);
+  margin: 9px auto 0;
+  max-width: 27ch;
+}
+.vazia .tq-fluxo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 220px;
+  padding: 24px 0;
+}
+@keyframes tq-presenca {
+  50% {
+    transform: translateY(-4px);
+    opacity: 0.78;
+  }
+}
+.tq-rascunho-rotulo {
+  justify-self: end;
+  color: rgb(142 146 151);
+  font-size: 10px;
+}
+.tq-escrita-palco {
+  position: relative;
+  isolation: isolate;
+  flex-shrink: 0;
+  padding: 22px 4px 50px;
+  margin-top: 16px;
+}
+.tq-escrita-palco > :not(.tq-wave) {
+  position: relative;
+  z-index: 1;
+}
+.tq-escrita-palco .tq-wave {
+  position: absolute;
+  pointer-events: none;
+  width: 100%;
+  height: 180px;
+  left: 0;
+  bottom: 0;
+  opacity: 0.9;
+  mask-image: linear-gradient(transparent, #000 45%, #000 75%, transparent);
+}
+.tq-side .tq-enviar {
+  background: rgb(255 255 255 / 0.09);
+  color: rgb(230 233 236);
+}
+.tq-escrita-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 8px;
+  min-height: 22px;
+  font-size: 10px;
+  color: rgb(146 150 155);
+}
+.tq-compositor:focus-within {
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.tq-side .tq-botao-principal {
+  border: 1px solid rgb(var(--c-primary) / 0.35);
+}
+.tq-side .tq-captura-controle {
+  background: rgb(255 255 255 / 0.1);
+  border-color: rgb(255 255 255 / 0.14);
+  color: rgb(242 244 246);
+}
+.tq-side .tq-captura-controle:hover {
+  background: rgb(255 255 255 / 0.15);
+}
+.tq-side .tq-botao-principal svg,
+.tq-side .tq-botao-fantasma svg,
+.tq-side .tq-linkish svg,
+.tq-print-tiras button svg {
+  width: 18px;
+  height: 18px;
+}
+.tq-conversa-menu button {
+  min-height: 44px;
+}
+.tq-notas-campo {
+  font-size: 14px;
+  padding: 14px;
+}
+.tq-rolavel > * {
+  flex-shrink: 0;
+}
+.tq-rolavel > .tq-falas {
+  flex-shrink: 1;
+}
+
+.tq-reuniao-abas {
+  display: flex;
+  gap: 8px;
+}
+.tq-reuniao-abas button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: #a9adb2;
+}
+.tq-reuniao-abas button[aria-selected='true'] {
+  background: rgb(255 255 255 / 0.08);
+  color: #eee;
+}
+
+/* O ponto de "já tem nota": era o selo do botão Nota, e veio com ele. */
+.tq-aba-selo {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+}
+
+/*
+ * A transcrição fica com o espaço, porque é o que se lê durante a reunião. O
+ * `flex: 1 1 auto` deixa esta caixa engolir toda a sobra da coluna, e o piso de
+ * 360px garante uma tela de leitura mesmo quando os avisos do topo se acumulam
+ * — o que rola primeiro, aí, é a coluna, não a transcrição espremida a nada.
+ */
+.tq-rolavel > .tq-reuniao-alternada {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 360px;
+}
+
+/*
+ * O palco da transcrição: a lista rola por dentro, e a onda fica ancorada no
+ * pé, atrás dela. `isolation` cria o contexto de empilhamento local, para o
+ * `z-index` da lista valer aqui dentro e não disputar com o resto da sidebar.
+ */
+.tq-transcricao-palco {
+  position: relative;
+  isolation: isolate;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tq-transcricao-palco > :not(.tq-wave) {
+  position: relative;
+  z-index: 1;
+}
+.tq-transcricao-palco .tq-wave {
+  position: absolute;
+  pointer-events: none;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 120px;
+  opacity: 0.55;
+  mask-image: linear-gradient(transparent, #000 55%, #000 100%);
+}
+.tq-reuniao-parte {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+/*
+ * `inherit`, e NUNCA `visible`.
+ *
+ * ── O bug que isto corrige ────────────────────────────────────────────────
+ *
+ * `visibility` é herdada, e um descendente com `visible` reaparece mesmo dentro
+ * de um ancestral `hidden`. As duas seções da sidebar são empilhadas e a que
+ * está fora de uso fica `visibility: hidden` (ver `.tq-painel`) — mas a aba
+ * ativa daqui dizia `visible` em voz alta, e ressuscitava a transcrição DENTRO
+ * do painel escondido. O sintoma era a transcrição ao vivo desenhada por cima
+ * do campo "Escreva sua ideia…" e da onda, na seção Conversa, sempre que havia
+ * captura correndo.
+ *
+ * Com `inherit`, a aba ativa fica visível quando o painel está visível, e some
+ * junto com ele quando não está. A troca de abas continua sendo `visibility` —
+ * e não `display` — para a lista de falas não perder o `scrollTop`.
+ */
+.tq-reuniao-parte.ativa {
+  visibility: inherit;
+}
+.tq-reuniao-parte .tq-notas {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+.tq-reuniao-parte .tq-notas-campo {
+  flex: 1;
+  min-height: 120px;
+  max-height: none;
+}
+/* ------------------------------------------------------------- o agente */
+
+/*
+ * O que o agente está fazendo, no lugar onde a resposta vai nascer. Fica no
+ * fluxo das mensagens, e não numa barra separada, porque é ali que se está
+ * olhando enquanto se espera.
+ */
+.tq-agente-trabalhando {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 96%;
+}
+
+.tq-agente-trabalhando > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tq-agente-dizendo {
+  font-size: 10.5px;
+  color: rgb(150 153 157);
+}
+
+.tq-turno-agente {
+  justify-items: start;
+}
+
+.tq-msg-agente > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tq-agente-nome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+/*
+ * O selo de demonstração.
+ *
+ * Âmbar e por extenso, não um ponto colorido: ele existe para impedir que uma
+ * resposta fictícia seja lida como resposta real, e essa leitura errada é
+ * exatamente o que um sinal discreto não evitaria.
+ */
+.tq-selo-demo {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(236 200 166);
+  background: rgb(230 192 158 / 0.12);
+  border: 1px solid rgb(230 192 158 / 0.3);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+/* ------------------------------------------- controles de desenvolvimento */
+
+/*
+ * Só existem na build de desenvolvimento (ver src/dev). O estilo é deliberado:
+ * âmbar e encostado no rodapé, para nunca ser confundido com o produto.
+ */
+.tq-dev {
+  flex: 0 0 auto;
+  border-top: 1px solid rgb(230 192 158 / 0.25);
+  background: rgb(230 192 158 / 0.04);
+}
+
+.tq-dev-faixa {
+  margin: 0;
+  padding: 7px 12px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: rgb(236 205 178);
+  background: rgb(230 192 158 / 0.12);
+}
+
+.tq-side .tq-dev-abrir {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(203 174 148);
+}
+
+/*
+ * Teto baixo de propósito: o andaime não pode roubar a tela do produto que ele
+ * serve para avaliar. Com 46vh ele ficava com metade da coluna e a reunião
+ * simulada aparecia por uma fresta.
+ */
+.tq-dev-corpo {
+  padding: 4px 12px 12px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.tq-dev-corpo h4 {
+  margin: 12px 0 5px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(203 174 148);
+  font-weight: 600;
+}
+
+.tq-dev-aviso,
+.tq-dev-nota {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: rgb(158 152 145);
+}
+
+.tq-dev-nota code {
+  font-size: 10px;
+  color: rgb(214 190 168);
+}
+
+.tq-dev-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tq-side .tq-dev-botoes button {
+  min-height: 40px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid rgb(230 192 158 / 0.28);
+  background: rgb(230 192 158 / 0.06);
+  color: rgb(226 205 186);
+  font-size: 11.5px;
+}
+
+.tq-side .tq-dev-botoes button:hover:not(:disabled) {
+  background: rgb(230 192 158 / 0.14);
+}
+
+.tq-side .tq-dev-botoes button.atual {
+  background: rgb(230 192 158 / 0.22);
+  border-color: rgb(230 192 158 / 0.5);
+  color: rgb(245 232 219);
+}
+
+.tq-side .tq-dev-botoes button:disabled {
+  opacity: 0.4;
+}
+
+/* Sidebar larga: as quatro ações cabem numa linha só. */
+@media (min-width: 400px) {
+  .tq-acoes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 300px) {
+  .tq-side-topo {
+    padding: 12px 10px 10px;
+    gap: 4px;
+  }
+  .tq-modos {
+    margin-inline: 10px;
+  }
+  .tq-corpo,
+  .tq-painel {
+    padding-inline: 10px;
+  }
+  .tq-side .tq-nova {
+    padding-inline: 9px;
+  }
+  .tq-conversa-vazio h2 {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

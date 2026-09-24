@@ -36,9 +36,10 @@ function conversa(id: string, texto: string): Conversation {
 
 let host: HTMLDivElement;
 let root: Root;
+let storage: ReturnType<typeof installChromeStorageMock>;
 
 async function montar(conversas: Conversation[] = []) {
-  installChromeStorageMock({
+  storage = installChromeStorageMock({
     local: { [STORAGE_KEYS.conversations]: conversas },
     extra: {
       runtime: {
@@ -317,7 +318,11 @@ describe('o menu de conversas', () => {
     await montar([conversa('c1', 'mais nova'), conversa('c2', 'mais velha')]);
 
     await act(async () => q<HTMLButtonElement>('.tq-conversas-botao').click());
-    const itens = Array.from(host.querySelectorAll('.tq-conversas-lista li button'));
+    // `[role="menuitemradio"]`: cada linha tem também um botão de apagar, e o
+    // seletor genérico misturaria os dois papéis numa lista só.
+    const itens = Array.from(
+      host.querySelectorAll('.tq-conversas-lista li button[role="menuitemradio"]'),
+    );
     expect(itens.map((b) => b.querySelector('.tq-conversas-titulo')?.textContent)).toEqual([
       'mais nova',
       'mais velha',
@@ -366,6 +371,109 @@ describe('o menu de conversas', () => {
     await act(async () => q<HTMLButtonElement>('.tq-conversas-botao').click());
     await act(async () => q<HTMLButtonElement>('.tq-conversas-lista li button').click());
     expect(campo().value).toBe('rascunho da c1');
+  });
+});
+
+describe('apagar uma conversa', () => {
+  const abrirMenu = async () => {
+    await act(async () => q<HTMLButtonElement>('.tq-conversas-botao').click());
+  };
+  const linhas = () =>
+    Array.from(host.querySelectorAll('.tq-conversas-lista li'));
+  const guardadas = () =>
+    (storage.local.values[STORAGE_KEYS.conversations] as Conversation[]) ?? [];
+
+  it('pergunta antes, no lugar do próprio item', async () => {
+    await montar([conversa('c1', 'mais nova'), conversa('c2', 'mais velha')]);
+    await abrirMenu();
+
+    await act(async () => {
+      linhas()[1]!.querySelector<HTMLButtonElement>('.tq-conversas-apagar')!.click();
+    });
+
+    // A pergunta ocupa a linha da conversa que vai sumir, e só ela.
+    const confirma = host.querySelectorAll('.tq-conversas-confirma');
+    expect(confirma).toHaveLength(1);
+    expect(confirma[0]!.textContent).toContain('mais velha');
+    // Nada foi apagado ainda.
+    expect(guardadas().map((c) => c.id)).toEqual(['c1', 'c2']);
+  });
+
+  it('cancelar devolve o item intacto', async () => {
+    await montar([conversa('c1', 'uma')]);
+    await abrirMenu();
+
+    await act(async () => {
+      q<HTMLButtonElement>('.tq-conversas-apagar').click();
+    });
+    await act(async () => {
+      Array.from(host.querySelectorAll('.tq-conversas-confirma-acoes button'))
+        .find((b) => b.textContent === 'Cancelar')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(host.querySelector('.tq-conversas-confirma')).toBeNull();
+    expect(guardadas().map((c) => c.id)).toEqual(['c1']);
+  });
+
+  it('confirmar tira a conversa do storage e mantém o menu aberto', async () => {
+    await montar([conversa('c1', 'mais nova'), conversa('c2', 'mais velha')]);
+    await abrirMenu();
+
+    await act(async () => {
+      linhas()[1]!.querySelector<HTMLButtonElement>('.tq-conversas-apagar')!.click();
+    });
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>('.tq-conversas-confirma-acoes .perigo')!
+        .click();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(guardadas().map((c) => c.id)).toEqual(['c1']));
+    });
+    // Quem apaga uma conversa velha costuma apagar duas: a lista continua ali.
+    expect(host.querySelector('.tq-conversas-lista')).not.toBeNull();
+  });
+
+  /* Apagar a conversa ABERTA não pode deixar a tela mostrando as mensagens de
+     algo que não existe mais. */
+  it('apagar a conversa atual cai na mais recente que sobrou', async () => {
+    await montar([conversa('c1', 'aberta agora'), conversa('c2', 'a anterior')]);
+    expect(host.textContent).toContain('aberta agora');
+
+    await abrirMenu();
+    await act(async () => {
+      linhas()[0]!.querySelector<HTMLButtonElement>('.tq-conversas-apagar')!.click();
+    });
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>('.tq-conversas-confirma-acoes .perigo')!
+        .click();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => expect(host.textContent).toContain('a anterior'));
+    });
+    expect(host.querySelector('.tq-turnos')?.textContent).not.toContain('aberta agora');
+  });
+
+  it('Escape desfaz a pergunta antes de fechar o menu', async () => {
+    await montar([conversa('c1', 'uma')]);
+    await abrirMenu();
+
+    await act(async () => q<HTMLButtonElement>('.tq-conversas-apagar').click());
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(host.querySelector('.tq-conversas-confirma')).toBeNull();
+    expect(host.querySelector('.tq-conversas-lista')).not.toBeNull();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(host.querySelector('.tq-conversas-lista')).toBeNull();
   });
 });
 
