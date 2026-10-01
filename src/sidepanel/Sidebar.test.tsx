@@ -179,7 +179,7 @@ describe('os dois seletores', () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();
 
-    expect(estadoDe('Transcrição')).toBe('ON');
+    expect(estadoDe('Transcrição')).toBe('Ao vivo');
     // Sem agente trabalhando não há palavra nenhuma: o silêncio é o estado
     // honesto de um assistente que não está conectado a lugar nenhum.
     expect(estadoDe('Conversa')).toBe('');
@@ -198,7 +198,7 @@ describe('os dois seletores', () => {
 
     expect(seletor('Conversa').getAttribute('aria-current')).toBe('page');
     expect(seletor('Transcrição').getAttribute('aria-current')).toBeNull();
-    expect(estadoDe('Transcrição')).toBe('ON');
+    expect(estadoDe('Transcrição')).toBe('Ao vivo');
   });
 
   it.each([
@@ -213,6 +213,21 @@ describe('os dois seletores', () => {
     expect(estadoDe('Transcrição').toUpperCase()).toBe(palavra);
   });
 
+  /* A encerrada vai para o histórico: a seção não fica presa nela. */
+  it('ao encerrar, a reunião sai da tela e a seção fica no histórico', async () => {
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+    expect(host.textContent).toContain('Finalizar reunião');
+
+    await transmitir({ phase: 'ended', session: sessao({ endedAt: Date.now() }) });
+
+    // A tela ao vivo saiu; no lugar dela, o histórico.
+    expect(host.textContent).not.toContain('Finalizar reunião');
+    expect(host.textContent).not.toContain('Transcrevendo');
+    expect(host.textContent).toContain('Nenhuma reunião em curso');
+    expect(seletor('Transcrição').getAttribute('aria-current')).toBe('page');
+  });
+
   it('sem reunião nenhuma, a captura está desligada', async () => {
     await montar();
     expect(estadoDe('Transcrição').toUpperCase()).toBe('DESLIGADA');
@@ -225,7 +240,8 @@ describe('os dois seletores', () => {
 
     const rotulo = seletor('Transcrição').querySelector('.tq-modo-estado')!;
     expect(rotulo.textContent!.trim().length).toBeGreaterThan(0);
-    expect(seletor('Transcrição').textContent).toContain('captura interrompida');
+    // A frase por extenso é anunciada FORA do botão (senão entra no nome dele).
+    expect(q('.tq-modos').textContent).toContain('Transcrição: captura interrompida');
   });
 });
 
@@ -320,7 +336,7 @@ describe('as ações da reunião', () => {
       { type: 'ui/pause' },
     );
     // A fase só muda quando o background disser que mudou.
-    expect(estadoDe('Transcrição')).toBe('ON');
+    expect(estadoDe('Transcrição')).toBe('Ao vivo');
   });
 
   it('"Perguntar" leva a reunião como contexto e abre a conversa', async () => {

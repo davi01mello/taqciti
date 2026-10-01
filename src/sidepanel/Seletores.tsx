@@ -45,7 +45,7 @@ interface Props {
 
 /** A palavra que acompanha cada estado da captura. Nunca só a cor. */
 const PALAVRA_DA_CAPTURA: Record<EstadoDaCaptura, string> = {
-  capturando: 'ON',
+  capturando: 'Ao vivo',
   preparando: 'Preparando',
   pausada: 'Pausada',
   interrompida: 'Interrompida',
@@ -125,12 +125,13 @@ export function Seletores({
         >
           {PALAVRA_DA_CAPTURA[captura]}
         </span>
-        {/* A frase inteira, só para leitor de tela: a palavra curta acima é
-            suficiente para quem vê, e insuficiente para quem ouve. */}
-        <span className="tq-so-leitor" role="status">
-          Transcrição: {LEITURA_DA_CAPTURA[captura]}
-        </span>
       </button>
+      {/* A frase inteira, só para leitor de tela, e FORA do botão: dentro, ela
+          entrava no nome dele junto com a palavra curta ("Transcrição Ao vivo
+          Transcrição: capturando…"). */}
+      <span className="tq-so-leitor" role="status">
+        Transcrição: {LEITURA_DA_CAPTURA[captura]}
+      </span>
 
       <button
         type="button"
@@ -147,10 +148,10 @@ export function Seletores({
         >
           {palavraAgente}
         </span>
-        <span className="tq-so-leitor" role="status">
-          {LEITURA_DO_AGENTE[agente] ?? 'Conversa: o agente está parado'}
-        </span>
       </button>
+      <span className="tq-so-leitor" role="status">
+        Conversa: {LEITURA_DO_AGENTE[agente] ?? 'o agente está parado'}
+      </span>
     </nav>
   );
 }

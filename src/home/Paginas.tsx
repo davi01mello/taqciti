@@ -190,11 +190,11 @@ export function PaginaReunioes({
                     <strong>{r.title}</strong>
                     <small>
                       {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
-                      {formatDurationHuman(r.durationSeconds)} · {r.segments.length} trecho
-                      {r.segments.length === 1 ? '' : 's'}
+                      {formatDurationHuman(r.durationSeconds)} · {r.segments.length}{' '}
+                      {r.segments.length === 1 ? 'fala' : 'falas'}
                       {notas[r.id] && ' · com nota'}
                       {vinculados > 0 && ' · com documento'}
-                      {r.status === 'recording' ? ' · gravando' : ''}
+                      {r.status === 'recording' ? ' · ao vivo' : ''}
                     </small>
                   </span>
                   <Icon name="arrowUpRight" size={16} />
@@ -267,6 +267,7 @@ function DetalheDaReuniao({
   const platform = usePlatform();
   const cabemDuas = useCabemDuasColunas();
   const [titulo, setTitulo] = useState(registro.title);
+  const cancelouTitulo = useRef(false);
   const [foco, setFoco] = useState<'transcricao' | 'notas'>(() =>
     new URLSearchParams(window.location.search).get('foco') === 'notas'
       ? 'notas'
@@ -311,11 +312,18 @@ function DetalheDaReuniao({
         onKeyDown={(e) => {
           if (e.key === 'Enter') e.currentTarget.blur();
           if (e.key === 'Escape') {
+            // O `blur` roda o `onBlur` NESTE mesmo evento, antes de o estado
+            // desfeito valer: sem a marca, o Escape salvava a edição.
+            cancelouTitulo.current = true;
             setTitulo(registro.title);
             e.currentTarget.blur();
           }
         }}
         onBlur={() => {
+          if (cancelouTitulo.current) {
+            cancelouTitulo.current = false;
+            return;
+          }
           const novo = titulo.trim();
           if (novo.length > 0 && novo !== registro.title) {
             // Renomear não mexe em vínculo nenhum: nota, marcações, prints e
@@ -444,6 +452,9 @@ function DetalheDaReuniao({
 
         <GerarDocumento registro={registro} onAbrirDocumento={onAbrirDocumento} />
 
+        {/* A que está sendo gravada não se apaga, como na lista: a captura
+            ainda escreve nela, e o pedido seria recusado depois de confirmado. */}
+        {registro.status !== 'recording' && (
         <div className="tq-menu-secundario">
           <button
             type="button"
@@ -472,6 +483,7 @@ function DetalheDaReuniao({
             </div>
           )}
         </div>
+        )}
 
         {aviso && (
           <p className="tq-aviso-curto" role="status">
@@ -494,9 +506,11 @@ function DetalheDaReuniao({
             {documentos.length > 0 && (
               <>
                 {' '}
-                Os {documentos.length}{' '}
-                {documentos.length === 1 ? 'documento' : 'documentos'} gerados a partir
-                dela <strong>continuam</strong> em Documentos, sem o vínculo.
+                {documentos.length === 1
+                  ? 'O documento gerado a partir dela '
+                  : `Os ${documentos.length} documentos gerados a partir dela `}
+                <strong>{documentos.length === 1 ? 'continua' : 'continuam'}</strong> em
+                Documentos, sem o vínculo.
               </>
             )}
           </p>

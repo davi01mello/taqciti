@@ -70,7 +70,11 @@ export function EditorDeNota({
    * gesto a mais numa ação que já é "quero escrever agora".
    */
   useEffect(() => {
-    if (ativa) campoRef.current?.focus();
+    if (!ativa) return;
+    // Um quadro depois: o efeito do filho roda ANTES do pai tirar o `inert` da
+    // seção, e um foco dado num elemento inerte é ignorado em silêncio.
+    const q = requestAnimationFrame(() => campoRef.current?.focus());
+    return () => cancelAnimationFrame(q);
   }, [ativa]);
 
   return (

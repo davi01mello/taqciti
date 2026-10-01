@@ -26,8 +26,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LiveSegment, MeetingState } from '@/shared/types/domain';
 import { usePlatform } from '@/shared/platform/context';
-import { buildMeetingRecord } from '@/features/meeting/payload';
-import { downloadTranscript } from '@/features/history/export';
 import type { EstadoDaGravacao } from '@/features/annotations/notes';
 import {
   lerMarcas,
@@ -69,7 +67,6 @@ interface Props {
   estadoDaNota: EstadoDaGravacao;
   onEscreverNota: (meetingId: string, texto: string) => void;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
-  onAbrirHome: (recordId?: string) => void;
 }
 
 export function Reuniao({
@@ -79,7 +76,6 @@ export function Reuniao({
   estadoDaNota,
   onEscreverNota,
   onPerguntarSobre,
-  onAbrirHome,
 }: Props) {
   const platform = usePlatform();
   const sessao = state.session;
@@ -102,9 +98,12 @@ export function Reuniao({
     );
   }, [meetingId]);
 
+  // A duração é de relógio de parede: em pausa ela também corre. Parar o
+  // relógio na pausa congelava o número e o fazia saltar ao retomar.
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
-    if (fase !== 'recording') return;
+    if (fase !== 'recording' && fase !== 'paused') return;
+    setAgora(Date.now());
     const t = setInterval(() => setAgora(Date.now()), 1000);
     return () => clearInterval(t);
   }, [fase]);
@@ -124,7 +123,6 @@ export function Reuniao({
     );
   }
 
-  const registro = buildMeetingRecord(sessao, fase === 'ended' ? 'ready' : 'recording');
   const duracao = formatElapsedClock((sessao.endedAt ?? agora) - sessao.startedAt);
   const viva = fase === 'recording' || fase === 'paused';
   const interrompida = fase === 'recording' && sessao.captureHealthy === false;
@@ -137,13 +135,11 @@ export function Reuniao({
       <div className="tq-reuniao-topo">
         <h2>{sessao.title}</h2>
         <p className="tq-fino">
-          {fase === 'ended'
-            ? 'Transcrição salva'
-            : interrompida
-              ? 'Captura interrompida'
-              : fase === 'recording'
-                ? 'Transcrevendo'
-                : 'Pausado'}{' '}
+          {interrompida
+            ? 'Captura interrompida'
+            : fase === 'recording'
+              ? 'Transcrevendo'
+              : 'Pausada'}{' '}
           · {duracao} · {sessao.segments.length}{' '}
           {sessao.segments.length === 1 ? 'fala' : 'falas'}
           {notaExiste && ' · com nota'}
@@ -184,26 +180,6 @@ export function Reuniao({
         </p>
       )}
 
-      {fase === 'ended' && (
-        <div className="tq-acoes-linha">
-          <button
-            type="button"
-            className="tq-botao-principal"
-            onClick={() => onAbrirHome(registro.id)}
-          >
-            Abrir no TaqCiti
-          </button>
-          <button
-            type="button"
-            className="tq-botao-fantasma"
-            onClick={() => downloadTranscript(registro)}
-            disabled={sessao.segments.length === 0}
-          >
-            Baixar .txt
-          </button>
-        </div>
-      )}
-
       {viva && (
         <AvisoNoChat
           meetingId={sessao.meetingId}
@@ -240,7 +216,11 @@ export function Reuniao({
               <p className="tq-fino tq-centrado">
                 {fase === 'ended'
                   ? 'Nenhuma fala foi capturada nesta reunião — as legendas do Meet não chegaram a produzir texto.'
-                  : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
+                  : fase === 'paused'
+                    ? 'Captura pausada. As falas voltam a aparecer aqui quando você retomar.'
+                    : interrompida
+                      ? 'A captura não está conseguindo ler as legendas. O TaqCiti está tentando religar.'
+                      : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
               </p>
             ) : (
               <ListaDeFalas
@@ -448,7 +428,12 @@ function AvisoNoChat({
   // Um tique por segundo enquanto a janela pode estar aberta, e nem um depois.
   useEffect(() => {
     if (Date.now() - inicio > JANELA_MS) return;
-    const t = setInterval(() => setAgora(Date.now()), 1000);
+    const t = setInterval(() => {
+      const agora = Date.now();
+      setAgora(agora);
+      // A janela venceu: o último tique já pintou a saída, e o relógio para.
+      if (agora - inicio > JANELA_MS) clearInterval(t);
+    }, 1000);
     return () => clearInterval(t);
   }, [inicio]);
 

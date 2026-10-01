@@ -97,7 +97,7 @@ export function Reunioes({
                 <strong>{r.title}</strong>
                 <small>
                   {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
-                  {r.segments.length} trecho{r.segments.length === 1 ? '' : 's'}
+                  {r.segments.length} {r.segments.length === 1 ? 'fala' : 'falas'}
                   {notas[r.id] && ' · com nota'}
                 </small>
               </button>

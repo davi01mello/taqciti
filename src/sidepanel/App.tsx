@@ -37,11 +37,17 @@ import { usePlatform } from '@/shared/platform/context';
 import {
   guardarDecisao,
   observarDecisoes,
+  observarParticipacao,
   observarReuniaoDetectada,
   type DecisaoDeRegistro,
+  type Participacao,
   type ReuniaoDetectada,
 } from '@/features/meeting/consent';
-import { observarAgente, type EstadoDoAgente } from '@/features/agent/atividade';
+import {
+  observarAgente,
+  type AtividadeDoAgente,
+  type EstadoDoAgente,
+} from '@/features/agent/atividade';
 import {
   cancelarTaq,
   desfazerExclusao,
@@ -95,6 +101,14 @@ export interface Sobreposicao {
 /** Chave do rascunho enquanto a conversa nova ainda não existe no storage. */
 const RASCUNHO_NOVA = '\u0000nova';
 
+/** Como uma execução terminou: é disso que só a conversa dela fala. */
+const DESFECHOS: ReadonlySet<AtividadeDoAgente> = new Set<AtividadeDoAgente>([
+  'concluido',
+  'falhou',
+  'cancelado',
+  'interrompido',
+]);
+
 export function App() {
   const platform = usePlatform();
   const estadoReal = useMeetingState();
@@ -116,13 +130,36 @@ export function App() {
 
   useEffect(() => observarReuniaoDetectada(setDetectada), []);
   useEffect(() => observarDecisoes(setDecisoes), []);
+  const [participacao, setParticipacao] = useState<Participacao | null>(null);
+  useEffect(() => observarParticipacao(setParticipacao), []);
   useEffect(() => observarNotas(setNotas), []);
   useEffect(() => observarConversas(setConversas), []);
   useEffect(() => observarAgente(setAgente), []);
 
   const state = sobreposicao?.meeting ?? estadoReal;
-  const sessao = state.session;
-  const emReuniao = sessao !== null && state.phase !== 'idle';
+  /*
+   * A reunião encerrada de ANTES não fica na tela quando já se está noutra
+   * sala: o estado global guarda a última sessão até a aba fechar, e sem este
+   * corte a sidebar mostrava a reunião antiga enquanto a nova esperava.
+   */
+  const emOutraSala =
+    state.phase === 'ended' &&
+    participacao !== null &&
+    participacao.saiuEm === null &&
+    state.session !== null &&
+    participacao.meetingCode !== state.session.meetingCode;
+  const sessao = emOutraSala ? null : state.session;
+  /*
+   * Só a reunião em CURSO ocupa a seção. A encerrada vai para o histórico — a
+   * lista logo abaixo, onde ela já está no topo — em vez de ficar presa na tela
+   * até a aba fechar. (O background ainda a guarda por um tempo, para retomar
+   * se a pessoa voltar à mesma sala; isso não precisa de tela.)
+   */
+  const emReuniao =
+    sessao !== null &&
+    (state.phase === 'recording' ||
+      state.phase === 'paused' ||
+      state.phase === 'captionsRequired');
   /*
    * A decisão é chaveada pela PARTICIPAÇÃO — esta vez em que se entrou nesta
    * sala —, e não pelo código dela. O link do Meet é reutilizado, e chavear
@@ -131,19 +168,33 @@ export function App() {
    */
   const perguntando =
     detectada !== null && decisoes[detectada.participacaoId] === undefined;
+  /*
+   * Da PARTICIPAÇÃO aberta, e não da pergunta anunciada: a pergunta some no
+   * instante em que é respondida, e com ela sumia o "agora não" — a tela
+   * "Captura desligada" nunca chegava a aparecer.
+   */
   const recusada =
-    detectada !== null && decisoes[detectada.participacaoId] === 'recusado';
+    (detectada !== null && decisoes[detectada.participacaoId] === 'recusado') ||
+    (participacao !== null &&
+      participacao.saiuEm === null &&
+      decisoes[participacao.id] === 'recusado');
 
   const [modo, setModo] = useState<Modo>('conversa');
-  // Entrar numa reunião leva para a transcrição; sair devolve para a conversa.
-  // Reage à MUDANÇA de contexto, não a cada render — senão trocar de modo
-  // durante a reunião seria desfeito no quadro seguinte.
+  // Entrar numa reunião leva para a transcrição. Ela ENCERRAR não tira a
+  // pessoa dali: a seção mostra o histórico, com a reunião recém-salva no
+  // topo — é para lá que ela foi. Sair por outro caminho (sem reunião nenhuma)
+  // devolve para a conversa. Reage à MUDANÇA de contexto, não a cada render —
+  // senão trocar de modo durante a reunião seria desfeito no quadro seguinte.
   const contextoAnterior = useRef(emReuniao);
+  const encerrou = state.phase === 'ended';
   useEffect(() => {
     if (contextoAnterior.current !== emReuniao) {
       contextoAnterior.current = emReuniao;
-      setModo(emReuniao ? 'transcricao' : 'conversa');
+      if (emReuniao) setModo('transcricao');
+      else if (!encerrou) setModo('conversa');
     }
+    // `encerrou` é lido no instante da troca; ele sozinho não é troca.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emReuniao]);
 
   // ---------- conversas ----------
@@ -185,6 +236,18 @@ export function App() {
   );
   /** Como a última execução terminou quando não deixou resposta. */
   const [desfecho, setDesfecho] = useState<string | null>(null);
+  /**
+   * A conversa da última execução. O estado do agente é um só para o
+   * navegador, e o desfecho dele ("A resposta falhou…") seguia a pessoa para
+   * qualquer conversa, para a "Nova" e para a sidebar reaberta no dia
+   * seguinte. Ele pertence à conversa em que aconteceu, e só nela aparece.
+   */
+  const [execucaoEm, setExecucaoEm] = useState<string | null>(null);
+  const daOutraConversa =
+    DESFECHOS.has(agente.atividade) && (execucaoEm === null || execucaoEm !== conversa?.id);
+  const agenteVisivel: EstadoDoAgente = daOutraConversa
+    ? { atividade: 'repouso', parcial: '', etapa: null }
+    : agente;
 
   const enviar = useCallback(
     async (texto: string): Promise<boolean> => {
@@ -200,6 +263,7 @@ export function App() {
         // Mesma regra da HOME: gravada a pergunta, o Taq segue sem prender o campo.
         if (taq.fase === 'pronto') {
           setDesfecho(null);
+          setExecucaoEm(id);
           void perguntarAoTaq({
             conversaId: id,
             texto,
@@ -332,7 +396,7 @@ export function App() {
   }
 
   const meetingId = sessao?.meetingId ?? null;
-  const captura = estadoDaCaptura(state);
+  const captura = sessao === null ? 'desligada' : estadoDaCaptura(state);
 
   return (
     <div className="tq-side">
@@ -349,14 +413,19 @@ export function App() {
         captura={captura}
         /* Contar falas é o sinal honesto mais próximo de "chegou trecho novo". */
         pulso={sessao?.segments.length ?? 0}
-        agente={agente.atividade}
-        sinalDoAgente={agente.parcial ? agente.parcial.length : (agente.etapa ?? '')}
+        agente={agenteVisivel.atividade}
+        sinalDoAgente={
+          agenteVisivel.parcial ? agenteVisivel.parcial.length : (agenteVisivel.etapa ?? '')
+        }
       />
 
       <div className="tq-palco">
         <Painel ativo={modo === 'transcricao'} rotulo="Transcrição">
           {emReuniao && sessao ? (
             <Reuniao
+              // Uma sessão nova é uma tela nova: prints, marcas e seções
+              // abertas da reunião anterior não atravessam a troca.
+              key={sessao.meetingId}
               state={state}
               notaExiste={meetingId !== null && Boolean(notas[meetingId])}
               rascunhoNota={
@@ -367,7 +436,6 @@ export function App() {
               estadoDaNota={estadoDaNota}
               onEscreverNota={escreverNota}
               onPerguntarSobre={perguntarSobre}
-              onAbrirHome={abrirHome}
             />
           ) : (
             <Reunioes
@@ -389,7 +457,7 @@ export function App() {
             conversas={conversas}
             gravando={gravandoMensagem}
             erro={erroEnvio}
-            agente={agente}
+            agente={agenteVisivel}
             contexto={contexto}
             registros={records}
             rascunho={rascunhosConversa[chaveRascunho] ?? ''}
@@ -401,7 +469,7 @@ export function App() {
             onNova={novaConversa}
             onEscolher={escolherConversa}
             taq={taq}
-            desfecho={desfecho}
+            desfecho={daOutraConversa ? null : desfecho}
             onCancelar={cancelarTaq}
             onAbrirFonte={abrirFonte}
             onAbrirDocumento={abrirDocumento}
@@ -438,7 +506,8 @@ function estadoDaCaptura(state: MeetingState): EstadoDaCaptura {
     case 'captionsRequired':
       return 'preparando';
     case 'ended':
-      return 'salva';
+      // Sem nenhuma fala não há transcrição salva: dizer "Salva" seria falso.
+      return (state.session?.segments.length ?? 0) > 0 ? 'salva' : 'desligada';
     default:
       // Sem reunião e "agora não" são o mesmo fato para a captura: ela está
       // desligada. O que os separa é o texto da seção, não o indicador.
