@@ -107,3 +107,67 @@ describe('GoogleMeetProvider — captura degradada explícita', () => {
     expect(health).toContainEqual([false, 'parser']);
   });
 });
+
+describe('GoogleMeetProvider — o fim da chamada', () => {
+  const EM_CHAMADA = '<button aria-label="Sair da chamada">call_end</button>';
+
+  function naSala(): void {
+    window.history.replaceState(null, '', '/abc-defg-hij');
+  }
+
+  it('reconhece a reunião com o botão de sair na tela', () => {
+    naSala();
+    render(EM_CHAMADA);
+    expect(new GoogleMeetProvider().detectMeeting()?.meetingCode).toBe('abc-defg-hij');
+  });
+
+  it('a tela pós-chamada encerra, mesmo com o botão de sair ainda no documento', () => {
+    naSala();
+    render(`${EM_CHAMADA}<button>Participar novamente</button>`);
+    expect(new GoogleMeetProvider().detectMeeting()).toBeNull();
+  });
+
+  it('um botão de sair que não é desenhado não conta como reunião', () => {
+    naSala();
+    render(EM_CHAMADA);
+    const botao = document.querySelector('button')!;
+    botao.checkVisibility = () => false;
+    expect(new GoogleMeetProvider().detectMeeting()).toBeNull();
+  });
+
+  it('sair da chamada dispara o fim depois da confirmação dupla', () => {
+    vi.useFakeTimers();
+    naSala();
+    render(EM_CHAMADA);
+    const provider = new GoogleMeetProvider();
+    const fim = vi.fn();
+    provider.onMeetingEnd(fim);
+    provider.start();
+
+    render('<button>Voltar à tela inicial</button>');
+    vi.advanceTimersByTime(10_000);
+    provider.stop();
+
+    expect(fim).toHaveBeenCalledTimes(1);
+    expect(fim.mock.calls[0]?.[0]).toMatchObject({ meetingCode: 'abc-defg-hij' });
+  });
+});
+
+describe('GoogleMeetProvider — outra sala na mesma aba', () => {
+  it('encerra a sala antiga e abre a nova, sem recarregar a página', () => {
+    vi.useFakeTimers();
+    window.history.replaceState(null, '', '/abc-defg-hij');
+    render('<button aria-label="Sair da chamada">call_end</button>');
+    const provider = new GoogleMeetProvider();
+    const eventos: string[] = [];
+    provider.onMeetingStart((s) => eventos.push(`inicio ${s.meetingCode}`));
+    provider.onMeetingEnd((s) => eventos.push(`fim ${s.meetingCode}`));
+    provider.start();
+
+    window.history.replaceState(null, '', '/xyz-wxyz-xyz');
+    vi.advanceTimersByTime(3_000);
+    provider.stop();
+
+    expect(eventos).toEqual(['inicio abc-defg-hij', 'fim abc-defg-hij', 'inicio xyz-wxyz-xyz']);
+  });
+});

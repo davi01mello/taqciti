@@ -13,6 +13,15 @@ export const LEAVE_CALL_SELECTORS = [
   '[jsname="CQylAd"]',
 ];
 
+/**
+ * A tela depois da chamada ("Você saiu da reunião"). A URL continua a mesma
+ * nela, então é o DOM que decide — e o botão de sair pode continuar no
+ * documento, escondido. Estes botões são o sinal POSITIVO de fim: presentes,
+ * a chamada acabou, haja o que houver escondido na página.
+ */
+export const CALL_ENDED_BUTTON_TEXT =
+  /^(rejoin|participar novamente|voltar à tela inicial|voltar para a tela inicial|return to home screen)$/i;
+
 /** Botão de ativar/desativar legendas. */
 export const CAPTIONS_TOGGLE_SELECTORS = [
   'button[aria-label*="caption" i]',

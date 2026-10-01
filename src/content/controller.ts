@@ -17,7 +17,7 @@ import type {
   Participant,
   Unsubscribe,
 } from '@/shared/types/domain';
-import { DEFAULT_PANEL_PREFS } from '@/shared/types/domain';
+import { DEFAULT_PANEL_PREFS, IDLE_STATE } from '@/shared/types/domain';
 import {
   AUTO_CAPTIONS_MAX_ATTEMPTS,
   MEET_POLL_INTERVAL_MS,
@@ -86,6 +86,15 @@ export class ContentController {
   private reuniaoPendente: MeetingSession | null = null;
   /** A participação atual — a chave da autorização. Ver consent.ts. */
   private participacaoId: string | null = null;
+  /** A sala em que se está agora, para o "sim" que chega num re-render. */
+  private salaAtual: MeetingSession | null = null;
+  /**
+   * A sala que ESTA aba começou a capturar. O estado global é um só para o
+   * navegador; sem saber se ele é desta aba, uma aba do Meet sem "sim" nenhum
+   * escondia as próprias legendas, ligava-as sozinha e mostrava na cápsula o
+   * relógio da reunião de outra aba.
+   */
+  private salaDaCaptura: string | null = null;
 
   private readonly callbacks: CapsulaCallbacks = {
     /*
@@ -131,16 +140,22 @@ export class ContentController {
     this.subscriptions.push(
       this.provider.onMeetingStart((session) => this.considerarReuniaoComLog(session)),
 
-      this.provider.onMeetingEnd(() => {
+      this.provider.onMeetingEnd((encerrada) => {
         // Saiu da sala. A participação é FECHADA, não apagada: voltar em
         // seguida a retoma (queda de conexão), voltar horas depois começa uma
         // nova — com pergunta nova. Ver consent.ts.
-        void fecharParticipacao(Date.now());
+        //
+        // Participação e pergunta são uma chave só para o navegador inteiro:
+        // mexe só se forem DESTA sala. Outra aba pode já ter aberto a sua, e
+        // apagá-la aqui sumia com a pergunta da reunião nova.
+        void fecharParticipacao(Date.now(), encerrada.meetingCode);
         this.salaAnunciada = null;
         this.decisao = null;
         this.reuniaoPendente = null;
         this.participacaoId = null;
-        void esquecerReuniao();
+        this.salaAtual = null;
+        this.captureHealthy = true;
+        void esquecerReuniao(encerrada.meetingCode);
         void sendMessage<MeetingState>({ type: 'meet/ended' }).then((state) =>
           this.applyState(state),
         );
@@ -156,6 +171,8 @@ export class ContentController {
         // DOM — mas um guarda barato aqui cobre a janela entre o clique e o
         // estado novo chegar.
         if (this.lastState?.phase === 'paused') return;
+        // Nada sai desta aba antes do "sim" a ESTA sala.
+        if (this.decisao !== 'aceito') return;
         void sendMessage({ type: 'meet/chunk', chunk });
       }),
 
@@ -230,7 +247,7 @@ export class ContentController {
          * simplesmente não começava. Sem erro, sem aviso, sem nada a
          * investigar.
          */
-        const alvo = sessao ?? this.reuniaoPendente;
+        const alvo = sessao ?? this.reuniaoPendente ?? this.salaAtual;
 
         this.decisao = decisao;
         this.reuniaoPendente = null;
@@ -321,6 +338,7 @@ export class ContentController {
   private async considerarReuniao(session: MeetingSession): Promise<void> {
     if (this.salaAnunciada === session.meetingCode) return;
     this.salaAnunciada = session.meetingCode;
+    this.salaAtual = session;
 
     /*
      * Qual PARTICIPAÇÃO é esta? A mesma de antes se o Meet só re-renderizou ou
@@ -367,6 +385,7 @@ export class ContentController {
 
   /** O único lugar que conta ao background que existe uma reunião a registrar. */
   private iniciarCaptura(session: MeetingSession): void {
+    this.salaDaCaptura = session.meetingCode;
     void sendMessage<MeetingState>({
       type: 'meet/detected',
       meetingCode: session.meetingCode,
@@ -460,7 +479,9 @@ export class ContentController {
     }
     // `setCapturePaused(false)` já recorta por dentro; chamar sempre que a fase
     // sai de pausada cobre também o resume vindo de outra superfície.
-    if (prev?.phase === 'paused' && next.phase === 'recording') {
+    // Qualquer saída da pausa — inclusive direto para o fim —, não só a volta
+    // a gravar: pausar e sair deixava a próxima reunião sem captura.
+    if (prev?.phase === 'paused') {
       this.provider.setCapturePaused(false);
       return;
     }
@@ -489,9 +510,11 @@ export class ContentController {
     this.recutIfNeeded(prev, state);
 
     const inMeeting = this.provider.detectMeeting() !== null;
+    const minha =
+      state.session !== null && state.session.meetingCode === this.salaDaCaptura;
 
-    // Legendas: liga sozinho enquanto a reunião espera por elas.
-    if (state.phase === 'captionsRequired' && inMeeting) {
+    // Legendas: liga sozinho enquanto a reunião (DESTA aba) espera por elas.
+    if (state.phase === 'captionsRequired' && inMeeting && minha) {
       this.ensureCaptionRetries();
     } else if (state.phase !== 'captionsRequired') {
       this.stopCaptionRetries();
@@ -503,13 +526,14 @@ export class ContentController {
       state.phase === 'captionsRequired' ||
       state.phase === 'recording' ||
       state.phase === 'paused';
-    setNativeCaptionsHidden(sessionActive && this.prefs.hideMeetCaptions);
+    setNativeCaptionsHidden(minha && sessionActive && this.prefs.hideMeetCaptions);
 
     // Nada na tela antes de saber COMO ele deve estar. O estado fica guardado e
     // a assinatura das preferências pinta o primeiro quadro já correto.
     if (!this.prefsLoaded) return;
 
-    this.render(state);
+    // A reunião de OUTRA aba não aparece aqui: esta cápsula fala desta sala.
+    this.render(minha ? state : IDLE_STATE);
   }
 
   /**
