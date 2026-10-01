@@ -100,6 +100,7 @@ async function montar(
     largura?: number;
     documentos?: DocumentoGuardado[];
     notas?: Record<string, Nota>;
+    prints?: unknown[];
     url?: string;
   } = {},
 ) {
@@ -112,6 +113,7 @@ async function montar(
       [STORAGE_KEYS.history]: [REUNIAO],
       ...(opcoes.documentos ? { [STORAGE_KEYS.documents]: opcoes.documentos } : {}),
       ...(opcoes.notas ? { [STORAGE_KEYS.notes]: opcoes.notas } : {}),
+      ...(opcoes.prints ? { [STORAGE_KEYS.shots]: opcoes.prints } : {}),
     },
     extra: {
       runtime: {
@@ -183,6 +185,22 @@ describe('a reunião na HOME', () => {
     expect(colunas).toEqual(['Transcrição', 'Notas da reunião']);
     // As duas alcançáveis ao mesmo tempo: nenhuma está escondida.
     expect(todos('.tq-coluna[aria-hidden="true"]')).toHaveLength(0);
+  });
+
+  /* Os prints tirados na sidebar moram com a reunião — e aparecem aqui. */
+  it('mostra os prints da reunião, e só os dela', async () => {
+    const png = 'data:image/jpeg;base64,AAAA';
+    await montar({
+      url: '/?record=m-1',
+      prints: [
+        { id: 'p1', meetingId: 'm-1', dataUrl: png, at: 2, largura: 0, altura: 0 },
+        { id: 'p2', meetingId: 'outra', dataUrl: png, at: 3, largura: 0, altura: 0 },
+      ],
+    });
+
+    expect(todos('.tq-prints-reuniao li')).toHaveLength(1);
+    await clicar(q<HTMLElement>('.tq-prints-reuniao li button'));
+    expect(q('.tq-print-ampliado img').getAttribute('src')).toBe(png);
   });
 
   /* Notas sempre acessíveis, inclusive vazias — sem botão para revelá-las. */

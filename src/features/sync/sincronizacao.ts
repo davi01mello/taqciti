@@ -135,8 +135,33 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
     printsPorReuniao.set(p.meetingId, (printsPorReuniao.get(p.meetingId) ?? 0) + 1);
   }
 
-  for (const [meetingId, nota] of Object.entries(notas)) {
-    if (!nota?.texto?.trim()) continue;
+  /*
+   * Prints e marcações viajam DENTRO do item de nota. Iterar só as notas com
+   * texto fazia uma reunião com prints (ou marcações) e sem nota escrita
+   * mandar zero dos dois: o servidor nunca sabia que existiam. Vale a união,
+   * restrita às reuniões que existem no histórico.
+   */
+  const ultimoPrint = new Map<string, number>();
+  for (const p of prints) {
+    ultimoPrint.set(p.meetingId, Math.max(ultimoPrint.get(p.meetingId) ?? 0, p.at));
+  }
+  const comAnexo = new Set([
+    ...Object.keys(notas),
+    ...printsPorReuniao.keys(),
+    ...Object.keys(marcas),
+  ]);
+  for (const meetingId of comAnexo) {
+    const temTexto = Boolean(notas[meetingId]?.texto?.trim());
+    const temPrint = (printsPorReuniao.get(meetingId) ?? 0) > 0;
+    const temMarca = Object.keys(marcas[meetingId] ?? {}).length > 0;
+    if (!temTexto && !temPrint && !temMarca) continue;
+    // Sem nota escrita, só as reuniões que existem: prints órfãos não sobem.
+    if (!temTexto && !titulos.has(meetingId)) continue;
+    const nota: Nota = notas[meetingId] ?? {
+      meetingId,
+      texto: '',
+      updatedAt: ultimoPrint.get(meetingId) ?? 0,
+    };
     desejado.set(comporId('nota', meetingId), {
       tipo: 'nota',
       item: notaParaOAcervo(

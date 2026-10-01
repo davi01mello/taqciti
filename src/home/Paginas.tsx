@@ -29,6 +29,7 @@ import {
 } from '@/shared/ui/format';
 import { GerarDocumento } from './GerarDocumento';
 import { NotasDaReuniao } from './NotasDaReuniao';
+import { PrintsDaReuniao } from './PrintsDaReuniao';
 import { useCabemDuasColunas } from './useLargura';
 
 function Cabecalho({ titulo, sub }: { titulo: string; sub: string }) {
@@ -356,6 +357,8 @@ function DetalheDaReuniao({
           ))}
         </div>
       )}
+
+      <PrintsDaReuniao meetingId={registro.id} titulo={registro.title} />
 
       {!cabemDuas && (
         <div className="tq-alternar" role="tablist" aria-label="O que mostrar">

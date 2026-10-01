@@ -48,6 +48,7 @@ import {
 import {
   apagarPrint,
   guardarPrint,
+  MAX_POR_REUNIAO,
   observarPrints,
   type Print,
 } from '@/features/annotations/shots';
@@ -162,7 +163,7 @@ export function Reuniao({
         onFinalizar={() => void platform.send({ type: 'ui/finish' })}
       />
 
-      {printAberto && <Prints meetingId={sessao.meetingId} prints={prints} />}
+      {printAberto && <Prints meetingId={sessao.meetingId} prints={prints} viva={viva} />}
 
       {fase === 'paused' && (
         <p className="tq-aviso-caixa">
@@ -556,24 +557,49 @@ function AvisoNoChat({
  * não a que se pede, e sem essa conferência um print do e-mail de alguém seria
  * guardado como "print da reunião". Ver src/background/captura.ts.
  *
- * A prévia existe porque salvar sem mostrar seria a pessoa descobrir o que
- * capturou depois. Nada é guardado antes do "Salvar", e nada vai para a IA.
+ * O print é GUARDADO no instante da captura, e a prévia mostra o que foi
+ * guardado, com "Descartar" para desfazer. Antes a prévia vivia só na memória
+ * do painel até o "Salvar": ir à aba do TaqCiti, recolher a seção ou o painel
+ * recarregar jogava o print fora, e a pessoa só descobria depois. Nada vai
+ * para a IA.
  */
-function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
+function Prints({
+  meetingId,
+  prints,
+  viva,
+}: {
+  meetingId: string;
+  prints: Print[];
+  /** Só se captura enquanto a reunião está viva; depois, só se vê. */
+  viva: boolean;
+}) {
   const platform = usePlatform();
-  const [previa, setPrevia] = useState<string | null>(null);
+  /** O print que acabou de ser tirado, em destaque até ser visto. */
+  const [recenteId, setRecenteId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const recente = prints.find((p) => p.id === recenteId) ?? null;
 
   const tirar = async () => {
     setOcupado(true);
     setErro(null);
     try {
       const r = await platform.send<
-        { ok: true; dataUrl: string } | { ok: false; motivo: MotivoDeFalha }
+        | { ok: true; dataUrl: string; meetingId?: string | null }
+        | { ok: false; motivo: MotivoDeFalha }
       >({ type: 'ui/print' });
-      if (r && r.ok) setPrevia(r.dataUrl);
-      else setErro(r ? EXPLICACAO[r.motivo] : 'Não foi possível capturar a tela.');
+      if (!r || !r.ok) {
+        setErro(r ? EXPLICACAO[r.motivo] : 'Não foi possível capturar a tela.');
+        return;
+      }
+      try {
+        // A reunião que o BACKGROUND capturou: se a sessão trocou no meio da
+        // captura, o print vai para a reunião em que foi tirado.
+        const guardado = await guardarPrint(r.meetingId ?? meetingId, r.dataUrl, 0, 0);
+        setRecenteId(guardado.id);
+      } catch {
+        setErro('Não coube no armazenamento local. Apague algum print e tente de novo.');
+      }
     } catch {
       setErro('Não foi possível capturar a tela.');
     } finally {
@@ -581,14 +607,10 @@ function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
     }
   };
 
-  const salvar = async () => {
-    if (!previa) return;
-    try {
-      await guardarPrint(meetingId, previa, 0, 0);
-      setPrevia(null);
-    } catch {
-      setErro('Não coube no armazenamento local. Apague algum print e tente de novo.');
-    }
+  const descartar = async () => {
+    if (!recente) return;
+    setRecenteId(null);
+    await apagarPrint(recente.id);
   };
 
   return (
@@ -598,7 +620,10 @@ function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
           type="button"
           className="tq-botao-fantasma"
           onClick={() => void tirar()}
-          disabled={ocupado}
+          // Depois do fim, a aba mostra a tela "você saiu da chamada": um
+          // print dela não é um print da reunião.
+          disabled={ocupado || !viva}
+          title={viva ? undefined : 'A reunião já terminou — não há mais o que capturar.'}
         >
           <Icon name="image" size={14} />
           {ocupado ? 'Capturando…' : 'Capturar a aba da reunião'}
@@ -610,27 +635,36 @@ function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
         )}
       </div>
 
+      {viva && prints.length >= MAX_POR_REUNIAO && (
+        <p className="tq-fino" role="status">
+          Limite de {MAX_POR_REUNIAO} prints por reunião: o próximo substitui o mais antigo.
+        </p>
+      )}
+
       {erro && (
         <p className="tq-aviso-falha" role="status">
           {erro}
         </p>
       )}
 
-      {previa && (
+      {recente && (
         <div className="tq-previa">
-          <img src={previa} alt="Prévia do print da reunião" />
+          <img src={recente.dataUrl} alt="Print que acabou de ser guardado" />
           <div className="tq-acoes-linha">
+            <span className="tq-fino" role="status">
+              Guardado com a reunião
+            </span>
             <button
               type="button"
               className="tq-botao-principal"
-              onClick={() => void salvar()}
+              onClick={() => setRecenteId(null)}
             >
-              Salvar
+              Ok
             </button>
             <button
               type="button"
               className="tq-botao-fantasma"
-              onClick={() => setPrevia(null)}
+              onClick={() => void descartar()}
             >
               Descartar
             </button>
@@ -640,7 +674,7 @@ function Prints({ meetingId, prints }: { meetingId: string; prints: Print[] }) {
 
       {prints.length > 0 && (
         <ul className="tq-print-tiras">
-          {prints.map((p) => (
+          {prints.filter((p) => p.id !== recenteId).map((p) => (
             <li key={p.id}>
               <img
                 src={p.dataUrl}

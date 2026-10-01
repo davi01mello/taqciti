@@ -1619,6 +1619,116 @@ html {
   color: rgb(243 245 247);
 }
 
+/* ------------------------------------------------- prints da reunião */
+
+/* Uma faixa de miniaturas, na mesma altura de leitura dos documentos: parte
+   do registro, não uma galeria disputando a página. */
+.tq-prints-reuniao {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  min-width: 0;
+}
+
+.tq-prints-reuniao-rotulo {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgb(150 153 157);
+}
+
+.tq-prints-reuniao ul {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.tq-prints-reuniao li button {
+  display: block;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.09);
+  border-radius: 9px;
+  overflow: hidden;
+  cursor: zoom-in;
+  transition:
+    border-color 0.25s,
+    transform 0.25s cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+
+.tq-prints-reuniao li button:hover,
+.tq-prints-reuniao li button:focus-visible {
+  border-color: rgb(255 255 255 / 0.28);
+  transform: translateY(-1px);
+}
+
+.tq-prints-reuniao img {
+  display: block;
+  width: 88px;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+.tq-print-ampliado {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgb(6 8 10 / 0.78);
+  backdrop-filter: blur(6px);
+  animation: tq-print-entrar 0.22s ease-out;
+}
+
+.tq-print-ampliado figure {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  width: min(1200px, 100%);
+}
+
+.tq-print-ampliado img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 120px);
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 0.5);
+}
+
+.tq-print-ampliado figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgb(190 194 198);
+}
+
+.tq-print-ampliado figcaption span {
+  margin-right: auto;
+}
+
+@keyframes tq-print-entrar {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-print-ampliado {
+    animation: none;
+  }
+}
+
 /* ------------------------------------------------- ações do rodapé */
 
 /*
