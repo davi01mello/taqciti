@@ -29,6 +29,7 @@ import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage';
 import { comTravaLocal } from '@/shared/services/storageLock';
 import { desvincularDaConversa } from '@/features/documents/store';
+import type { CartaoDaResposta } from '@/features/taq/contratos';
 
 export type MessageRole = 'user' | 'assistant';
 
@@ -122,6 +123,12 @@ export interface ConversationMessage {
     ok: boolean;
     desfazivel?: boolean;
   }>;
+  /**
+   * Os cartões que as FERRAMENTAS produziram (compromissos, achados, análise,
+   * rascunho, horários, revisão), validados por `cartaoSchema`. O texto do
+   * modelo nunca vira cartão.
+   */
+  cartoes?: CartaoDaResposta[];
 }
 
 /** Uma fonte citada, com o que é preciso para ABRIR a origem. */
@@ -359,6 +366,33 @@ export async function acrescentarResposta(
     ];
     conversa.updatedAt = agora;
     await gravar([conversa, ...conversas.filter((c) => c.id !== conversaId)]);
+  });
+}
+
+/**
+ * Edita o RASCUNHO de mensagem de uma resposta — o cartão que a pessoa ajusta
+ * antes de copiar. Só esse tipo de cartão é editável: os demais refletem
+ * registros e mudam pelas operações deles. Devolve `false` quando a conversa,
+ * a mensagem ou o cartão não existem mais (apagados no meio), e não recria nada.
+ */
+export async function editarRascunhoDaResposta(
+  conversaId: string,
+  mensagemId: string,
+  indice: number,
+  mudanca: { assunto?: string; corpo?: string },
+): Promise<boolean> {
+  return comTravaLocal(STORAGE_KEYS.conversations, async () => {
+    const conversas = await lerConversas();
+    const mensagem = conversas.find((c) => c.id === conversaId)?.messages.find((m) => m.id === mensagemId);
+    const cartao = mensagem?.cartoes?.[indice];
+    if (!mensagem || !cartao || cartao.tipo !== 'rascunho_de_mensagem') return false;
+    mensagem.cartoes![indice] = {
+      ...cartao,
+      ...(mudanca.assunto !== undefined ? { assunto: mudanca.assunto } : {}),
+      ...(mudanca.corpo !== undefined && mudanca.corpo.trim() ? { corpo: mudanca.corpo } : {}),
+    };
+    await gravar(conversas);
+    return true;
   });
 }
 

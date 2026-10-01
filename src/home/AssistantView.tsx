@@ -208,6 +208,7 @@ export function AssistantView({
                     </div>
                     <RespostaDoTaq
                       mensagem={m}
+                      {...(conversa ? { conversaId: conversa.id } : {})}
                       onAbrirFonte={onAbrirFonte}
                       onAbrirDocumento={onAbrirDocumento}
                       onDesfazer={onDesfazer}
@@ -285,6 +286,7 @@ export function AssistantView({
       </ol>
     ),
     [
+      conversa,
       mensagens,
       total,
       gravando,

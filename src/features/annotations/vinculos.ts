@@ -35,6 +35,8 @@ export interface ResultadoDaLimpeza {
   prints: number;
   /** Documentos que perderam o vínculo, mas continuam guardados. */
   documentosDesvinculados: number;
+  /** Análises da reunião, que só existiam sobre a transcrição dela. */
+  analises: number;
 }
 
 /** A exclusão e seus vínculos são confirmados juntos pelo storage. */
@@ -47,6 +49,7 @@ export async function limparVinculosDaReuniao(
     STORAGE_KEYS.marks,
     STORAGE_KEYS.shots,
     STORAGE_KEYS.documents,
+    STORAGE_KEYS.trabalho,
   ].sort();
   const executar = async (): Promise<ResultadoDaLimpeza> => {
     const bruto = Object.fromEntries(
@@ -109,8 +112,20 @@ export async function limparVinculosDaReuniao(
       });
       if (documentosDesvinculados) alteracoes[STORAGE_KEYS.documents] = restantes;
     }
+    // A análise é derivado exclusivo da transcrição: vai junto. Compromissos,
+    // decisões e achados são registros próprios e ficam, com a origem
+    // indisponível — sumir a fonte não cancela um compromisso.
+    let analises = 0;
+    const trabalho = bruto[STORAGE_KEYS.trabalho] as { analises?: unknown } | null | undefined;
+    if (trabalho && typeof trabalho === 'object' && Array.isArray(trabalho.analises)) {
+      const ficam = trabalho.analises.filter(
+        (a: unknown) => !a || typeof a !== 'object' || (a as { reuniaoId?: unknown }).reuniaoId !== meetingId,
+      );
+      analises = trabalho.analises.length - ficam.length;
+      if (analises) alteracoes[STORAGE_KEYS.trabalho] = { ...trabalho, analises: ficam };
+    }
     if (Object.keys(alteracoes).length) await writeLocalBatch(alteracoes);
-    return { nota, marcas, prints, documentosDesvinculados };
+    return { nota, marcas, prints, documentosDesvinculados, analises };
   };
   const travar = (i: number): Promise<ResultadoDaLimpeza> =>
     i === chaves.length ? executar() : comTravaLocal(chaves[i]!, () => travar(i + 1));

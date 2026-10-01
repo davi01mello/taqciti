@@ -9,6 +9,7 @@
  */
 import type { z } from 'zod/v4';
 import type {
+  CartaoDaResposta,
   DocumentoProduzido,
   Efeito,
   FichaDeAgente,
@@ -84,6 +85,8 @@ export interface ContextoDeFerramenta {
   registrarCopiavel: (texto: string) => void;
   /** Registra o que uma operação fez num registro (ok ou não). */
   registrarOperacao: (op: OperacaoRegistrada) => void;
+  /** Um cartão para a interface desenhar — validado contra `cartaoSchema`. */
+  registrarCartao: (cartao: CartaoDaResposta) => void;
   /**
    * A resposta de um especialista já pronta para a pessoa: o runtime encerra
    * com ela, sem gastar outra chamada ao modelo para reescrevê-la.

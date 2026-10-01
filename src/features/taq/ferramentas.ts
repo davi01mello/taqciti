@@ -47,7 +47,7 @@ const dataIso = z
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .describe('Data no formato AAAA-MM-DD.');
 
-function instante(ms: number): string {
+export function instante(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -56,7 +56,7 @@ function instante(ms: number): string {
 }
 
 /** Hash curto e estável (FNV-1a) — para chave de idempotência, não para segurança. */
-function hash(texto: string): string {
+export function hash(texto: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < texto.length; i += 1) {
     h ^= texto.charCodeAt(i);
@@ -65,7 +65,7 @@ function hash(texto: string): string {
   return (h >>> 0).toString(36);
 }
 
-async function reuniaoNoEscopo(
+export async function reuniaoNoEscopo(
   ctx: ContextoDeFerramenta,
   id: string,
 ): Promise<MeetingRecord> {
@@ -80,7 +80,7 @@ async function reuniaoNoEscopo(
   return r;
 }
 
-async function documentoNoEscopo(
+export async function documentoNoEscopo(
   ctx: ContextoDeFerramenta,
   id: string,
 ): Promise<DocumentoGuardado> {
@@ -622,7 +622,7 @@ const criacaoSchema = z.object({
     .describe('O que ficou por confirmar e as fontes não resolvem.'),
 });
 
-function dataBr(ms: number): string {
+export function dataBr(ms: number): string {
   return new Date(ms).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
 
@@ -1032,6 +1032,7 @@ export function criarDelegateTask(
       for (const d of r.documentos) ctx.registrarDocumento(d);
       if (r.informacoesAusentes.length) ctx.registrarAusentes(r.informacoesAusentes);
       for (const op of r.operacoes ?? []) ctx.registrarOperacao(op);
+      for (const c of r.cartoes ?? []) ctx.registrarCartao(c);
       if (r.textoCopiavel) ctx.registrarCopiavel(r.textoCopiavel);
       if (r.pergunta) ctx.registrarPergunta(r.pergunta);
       else if (r.resposta && (r.estado === 'concluido' || r.estado === 'parcial')) {

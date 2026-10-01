@@ -260,6 +260,7 @@ export function Conversa({
                 </p>
                 <RespostaDoTaq
                   mensagem={m}
+                  {...(conversa ? { conversaId: conversa.id } : {})}
                   onAbrirFonte={onAbrirFonte}
                   onAbrirDocumento={onAbrirDocumento}
                   onDesfazer={onDesfazer}
@@ -301,6 +302,7 @@ export function Conversa({
         ),
       ),
     [
+      conversa,
       mensagens,
       ultimaId,
       estadoDaUltima,

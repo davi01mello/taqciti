@@ -50,6 +50,18 @@ export class LivroDeEvidencias {
     return this.porId.get(id);
   }
 
+  /**
+   * Os segmentos de uma reunião que esta execução LEU — é daqui que sai a
+   * cobertura de uma análise, e não do que o modelo diz ter lido.
+   */
+  segmentosLidos(reuniaoId: string): Set<number> {
+    const lidos = new Set<number>();
+    for (const ref of this.porId.values())
+      if (ref.tipo === 'reuniao' && ref.registroId === reuniaoId && ref.local.segmento !== undefined)
+        lidos.add(ref.local.segmento);
+    return lidos;
+  }
+
   get tamanho(): number {
     return this.porId.size;
   }

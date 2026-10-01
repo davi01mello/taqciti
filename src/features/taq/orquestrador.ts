@@ -1,10 +1,9 @@
 /**
- * Orchestrator — o Taq. O único agente de IA ativo nesta versão.
+ * Orchestrator — o Taq, o único assistente que a pessoa vê.
  *
  * Ele interpreta o pedido, usa as ferramentas autorizadas, delega a um
- * especialista quando houver um DISPONÍVEL (hoje não há nenhum) e consolida a
- * resposta. Funciona sozinho: buscar, ler, responder com fontes e criar ou
- * editar documentos são coisas que ele faz com as próprias ferramentas.
+ * especialista DISPONÍVEL quando o pedido é dele (ver `especialistas.ts`) e
+ * consolida a resposta. Buscar, ler e responder com fontes ele faz sozinho.
  *
  * Cada `executar` monta, do zero, tudo o que a execução usa:
  *
@@ -41,6 +40,7 @@ import {
   perguntaDeTipo,
 } from './ferramentas';
 import { FERRAMENTAS_DE_APP } from './ferramentasDeApp';
+import { FERRAMENTAS_DE_TRABALHO } from './ferramentasDeTrabalho';
 import { ativarEspecialistas } from './especialistas';
 import {
   INSTRUCOES_ESPERADAS,
@@ -117,10 +117,9 @@ export const TAQ: DefinicaoDeAgente = {
   },
 };
 
-/** O registro de produção: o Taq disponível e o catálogo inteiro `planned`. */
 /**
  * O registro de produção: o Taq, o catálogo inteiro, e os especialistas que JÁ
- * têm implementação (`documents` e `app_assistant`) ligados. Com
+ * têm implementação ligados (`especialistas.ts`). Com
  * `{ especialistas: false }`, só o catálogo — todos `planned` —, e o Taq faz
  * sozinho o trabalho de documento com as próprias ferramentas.
  */
@@ -212,7 +211,8 @@ export function criarOrquestrador(deps: {
         limites.maxProfundidadeDeDelegacao > 0 && especialistas.length > 0;
 
       const ferramentas = new RegistroDeFerramentas();
-      for (const f of [...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP]) ferramentas.registrar(f);
+      for (const f of [...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP, ...FERRAMENTAS_DE_TRABALHO])
+        ferramentas.registrar(f);
       if (especialistas.length) ferramentas.registrar(criarDelegateTask(especialistas));
 
       // O foco da conversa, revalidado: registro apagado ou fora do escopo não entra.

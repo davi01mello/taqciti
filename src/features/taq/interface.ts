@@ -292,6 +292,9 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
       ...(r.limitacoes.length ? { limitacoes: r.limitacoes } : {}),
       ...(r.informacoesAusentes.length ? { emAberto: r.informacoesAusentes } : {}),
       ...(r.operacoes?.length ? { operacoes: r.operacoes } : {}),
+      // Os cartões ficam mesmo se a execução parou depois: o que a ferramenta
+      // registrou aconteceu, e o cartão é como a pessoa chega até ele.
+      ...(r.cartoes?.length ? { cartoes: r.cartoes } : {}),
     };
 
     if (r.resposta && (r.estado === 'concluido' || r.estado === 'parcial')) {
@@ -305,7 +308,7 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
           : {}),
         ...(r.textoCopiavel ? { copiavel: r.textoCopiavel } : {}),
       });
-    } else if (r.documentos.length || r.operacoes?.some((o) => o.ok)) {
+    } else if (r.documentos.length || r.operacoes?.some((o) => o.ok) || r.cartoes?.length) {
       // Parou sem responder, mas uma ferramenta já tinha agido: o registro diz
       // o que as ferramentas CONFIRMARAM, e nada além disso.
       const feitos = [
@@ -318,7 +321,9 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
       ];
       await acrescentarResposta(p.conversaId, {
         ...comum,
-        text: `${mensagemDoDesfecho(r)} Antes de parar, o Taq ${feitos.join(' e ')}.`,
+        text: feitos.length
+          ? `${mensagemDoDesfecho(r)} Antes de parar, o Taq ${feitos.join(' e ')}.`
+          : `${mensagemDoDesfecho(r)} O que já tinha sido preparado está abaixo.`,
         desfecho: 'interrompido',
       });
     }

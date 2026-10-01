@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** A versão padrão do orquestrador. */
-export const VERSAO_DAS_INSTRUCOES = 'taq-v6';
+export const VERSAO_DAS_INSTRUCOES = 'taq-v7';
 
 const ARQUIVO_POR_VERSAO: Record<string, string> = {
   'taq-v1': 'v1.md',
@@ -39,6 +39,19 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   /** v6 e v4: memória e contexto da conversa; apagar conversas. */
   'taq-v6': 'v6.md',
   'app-assistant-v4': 'app-assistant-v4.md',
+  /** v7: os especialistas de trabalho (análise, compromissos, continuidade, passagem, comunicação…). */
+  'taq-v7': 'v7.md',
+  /** v3: revisar com check_document; refazer cria documento novo, sem sobrescrever a edição humana. */
+  'documents-v3': 'documents-v3.md',
+  'analyst-v1': 'analyst-v1.md',
+  'commitments-v1': 'commitments-v1.md',
+  'continuity-v1': 'continuity-v1.md',
+  'handoff-v1': 'handoff-v1.md',
+  'communication-v1': 'communication-v1.md',
+  'scheduling-v1': 'scheduling-v1.md',
+  'memory-v1': 'memory-v1.md',
+  'context-v1': 'context-v1.md',
+  'copilot-v1': 'copilot-v1.md',
 };
 
 const cache = new Map<string, string>();

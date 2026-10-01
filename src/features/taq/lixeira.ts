@@ -39,6 +39,8 @@ export interface ItemDaLixeira {
   prints: unknown[];
   /** Documentos que perderam o vínculo e devem recuperá-lo. */
   documentos: string[];
+  /** As análises da reunião (`taq:trabalho`), que saem junto com ela. */
+  analises?: unknown[];
 }
 
 function pertence(chave: string, valor: unknown, meetingId: string): boolean {
@@ -89,12 +91,19 @@ export async function lerLixeira(agora: number = Date.now()): Promise<ItemDaLixe
 
 /** Guarda o retrato da reunião ANTES de ela ser apagada. */
 export async function guardarNaLixeira(registro: MeetingRecord): Promise<ItemDaLixeira> {
-  const [notas, marcas, shots, documentos] = await Promise.all([
+  const [notas, marcas, shots, documentos, trabalho] = await Promise.all([
     readLocal<unknown>(STORAGE_KEYS.notes),
     readLocal<unknown>(STORAGE_KEYS.marks),
     readLocal<unknown>(STORAGE_KEYS.shots),
     readLocal<unknown>(STORAGE_KEYS.documents),
+    readLocal<{ analises?: unknown }>(STORAGE_KEYS.trabalho),
   ]);
+  const analises = Array.isArray(trabalho?.analises)
+    ? trabalho.analises.filter(
+        (a: unknown) =>
+          !!a && typeof a === 'object' && (a as { reuniaoId?: unknown }).reuniaoId === registro.id,
+      )
+    : [];
   const agora = Date.now();
   const item: ItemDaLixeira = {
     id: registro.id,
@@ -122,6 +131,7 @@ export async function guardarNaLixeira(registro: MeetingRecord): Promise<ItemDaL
           )
           .map((d) => (d as { id: string }).id)
       : [],
+    ...(analises.length ? { analises } : {}),
   };
   await comTravaLocal(STORAGE_KEYS.taqLixeira, async () => {
     const itens = (await lerItens()).filter((i) => i.id !== item.id);
@@ -176,6 +186,7 @@ export async function restaurarDaLixeira(
     STORAGE_KEYS.marks,
     STORAGE_KEYS.shots,
     STORAGE_KEYS.documents,
+    STORAGE_KEYS.trabalho,
   ].sort();
   const devolver = async () => {
     const bruto = Object.fromEntries(
@@ -204,7 +215,21 @@ export async function restaurarDaLixeira(
     const documentos = Array.isArray(bruto[STORAGE_KEYS.documents])
       ? (bruto[STORAGE_KEYS.documents] as Array<Record<string, unknown>>)
       : [];
+    // A análise volta só se nenhuma outra foi feita para a reunião nesse meio-tempo.
+    const trabalho = bruto[STORAGE_KEYS.trabalho] as { analises?: unknown } | null | undefined;
+    const analisesAtuais = Array.isArray(trabalho?.analises) ? (trabalho.analises as unknown[]) : [];
+    const devolverAnalises =
+      item.analises?.length &&
+      !analisesAtuais.some((a) => (a as { reuniaoId?: unknown })?.reuniaoId === meetingId);
     await writeLocalBatch({
+      ...(devolverAnalises
+        ? {
+            [STORAGE_KEYS.trabalho]: {
+              ...(trabalho && typeof trabalho === 'object' ? trabalho : {}),
+              analises: [...item.analises!, ...analisesAtuais],
+            },
+          }
+        : {}),
       [STORAGE_KEYS.notes]: mesclarMapa(bruto[STORAGE_KEYS.notes], item.notas),
       [STORAGE_KEYS.marks]: mesclarMapa(bruto[STORAGE_KEYS.marks], item.marcas),
       [STORAGE_KEYS.shots]: [

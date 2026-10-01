@@ -64,6 +64,17 @@ const VERBOS_DE_OPERACAO =
   /\b(apag(?:ue|ar|a)|exclu(?:a|ir|i)|delet(?:e|ar)|remov(?:a|er)|renome(?:ie|ar|ia)|troqu?e o nome|mud(?:e|ar) o nome)\b/;
 const OBJETOS_DE_OPERACAO =
   /\b(reuniao|reunioes|transcricao|documento|doc|ata|registro|conversa|conversas)\b/;
+/**
+ * Trabalho sobre os registros de acompanhamento: registrar compromissos,
+ * marcar como concluído, resolver um achado, analisar (salvar a análise de)
+ * uma reunião. O objeto precisa estar na frase — "o que decidimos?" não é
+ * pedido de escrita; "registre a decisão" é.
+ */
+const VERBOS_DE_TRABALHO =
+  /\b(registr(?:e|ar|a)|anot(?:e|ar|a)|marqu?e|marcar|conclu(?:a|ir|i)|reabr(?:a|ir|e)|resolv(?:a|er|e)|descart(?:e|ar|a)|vincul(?:e|ar|a)|lig(?:ue|ar)|analis(?:e|ar|a)|extra(?:ia|ir|i)|organiz(?:e|ar|a)|atribu(?:a|ir|i)|defin(?:a|ir|e)|salv(?:e|ar|a))\b/;
+const OBJETOS_DE_TRABALHO =
+  /\b(compromissos?|tarefas?|proximos passos|pendencias?|entregas?|acoes|decisao|decisoes|achados?|desalinhamentos?|divergencias?|dependencias?|analise|reuniao|responsavel|prazo|concluid[oa]s?|feit[oa]s?)\b/;
+
 /** Desfazer uma exclusão: pedido de escrita mesmo sem nomear o objeto ("desfaça"). */
 const VERBOS_DE_RESTAURACAO = /\b(desfa(?:ca|zer|z)|restaur(?:e|ar|a)|recuper(?:e|ar|a)|volt(?:e|ar) com)\b/;
 /** Ações só na tela: abrir, mostrar, exportar, baixar. */
@@ -93,6 +104,7 @@ export function efeitosDoPedido(texto: string, continua?: MotivoDePergunta): Efe
   if (
     pedeEscrita(texto) ||
     (VERBOS_DE_OPERACAO.test(t) && OBJETOS_DE_OPERACAO.test(t)) ||
+    (VERBOS_DE_TRABALHO.test(t) && OBJETOS_DE_TRABALHO.test(t)) ||
     VERBOS_DE_RESTAURACAO.test(t) ||
     continuaPedido
   ) {

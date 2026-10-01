@@ -186,6 +186,123 @@ export const perguntaSchema = z.object({
 });
 export type Pergunta = z.infer<typeof perguntaSchema>;
 
+// --------------------------------------------------------------- cartões
+
+/**
+ * Os CARTÕES de uma resposta — o que a interface desenha como componente, e
+ * não como texto. Só as ferramentas os produzem (`registrarCartao`), validados
+ * aqui; o texto do modelo nunca vira cartão, botão ou confirmação de escrita.
+ *
+ * Os cartões de registro (compromissos, decisões, achados, análise) levam só
+ * IDS: a tela os desenha a partir do armazenamento, no estado de AGORA — um
+ * compromisso concluído depois aparece concluído, um apagado aparece como
+ * indisponível. Os demais (rascunho, sugestão de horário, revisão) são o
+ * próprio resultado, guardado com a mensagem.
+ */
+export const evidenciaDoCartaoSchema = z.object({
+  tipo: tipoDeRegistroSchema,
+  registroId: z.string().min(1),
+  titulo: z.string(),
+  versao: z.string(),
+  trecho: z.string(),
+  segmento: z.number().int().nonnegative().optional(),
+  offsetMs: z.number().int().nonnegative().optional(),
+});
+
+const idsDeRegistro = z.array(z.string().min(1)).min(1).max(40);
+
+export const cartaoSchema = z.discriminatedUnion('tipo', [
+  z.object({ tipo: z.literal('compromissos'), ids: idsDeRegistro }),
+  z.object({
+    tipo: z.literal('sugestoes_de_compromisso'),
+    reuniaoId: z.string().optional(),
+    itens: z
+      .array(
+        z.object({
+          descricao: z.string().min(1),
+          responsavel: z.string().nullable(),
+          prazo: z.string().nullable(),
+          prazoData: z.string().optional(),
+          evidencias: z.array(evidenciaDoCartaoSchema).min(1),
+        }),
+      )
+      .min(1)
+      .max(30),
+  }),
+  z.object({ tipo: z.literal('decisoes'), ids: idsDeRegistro }),
+  z.object({ tipo: z.literal('achados'), ids: idsDeRegistro }),
+  z.object({ tipo: z.literal('analise'), id: z.string().min(1) }),
+  z.object({
+    tipo: z.literal('rascunho_de_mensagem'),
+    canal: z.enum(['email', 'chat', 'outro']),
+    publico: z.enum(['interno', 'externo']),
+    destinatarios: z.array(
+      z.object({
+        nome: z.string().min(1),
+        endereco: z.string().optional(),
+        /** `verificado`: nome achado nos participantes; `informado`: endereço dito pela pessoa. */
+        situacao: z.enum(['verificado', 'informado', 'nao_encontrado', 'ambiguo']),
+        candidatos: z.array(z.string()).optional(),
+      }),
+    ),
+    assunto: z.string().optional(),
+    corpo: z.string().min(1),
+    alertas: z.array(z.string()),
+  }),
+  z.object({
+    tipo: z.literal('sugestao_de_evento'),
+    titulo: z.string().min(1),
+    descricao: z.string().optional(),
+    duracaoMin: z.number().int().min(5).max(480),
+    fuso: z.string().min(1),
+    participantes: z.array(z.string()),
+    opcoes: z
+      .array(z.object({ inicio: z.string(), fim: z.string(), rotulo: z.string() }))
+      .min(1)
+      .max(6),
+  }),
+  z.object({
+    tipo: z.literal('estado_da_captura'),
+    reuniaoId: z.string().min(1),
+    titulo: z.string(),
+    situacao: z.enum([
+      'capturando',
+      'pausada',
+      'aguardando_legendas',
+      'problema_na_captura',
+      'encerrada',
+      'desconhecida',
+    ]),
+    avaliacao: z.enum(['sem_problemas_detectados', 'com_ressalvas', 'problemas_detectados']),
+    sinais: z.array(z.string()),
+    intervalos: z.array(z.object({ deMs: z.number(), ateMs: z.number() })),
+    ultimaAtualizacao: z.number().optional(),
+    segmentos: z.number().int().nonnegative(),
+  }),
+  z.object({
+    tipo: z.literal('revisao_de_documento'),
+    documentoId: z.string().min(1),
+    titulo: z.string(),
+    versao: z.string(),
+    problemas: z.array(
+      z.object({
+        gravidade: z.enum(['alta', 'media', 'baixa']),
+        tipo: z.string(),
+        texto: z.string(),
+      }),
+    ),
+    fontes: z.array(
+      z.object({
+        numero: z.number().int(),
+        /** `conferida`: o trecho ainda está na fonte. Não diz se a frase o interpreta bem. */
+        situacao: z.enum(['conferida', 'alterada', 'indisponivel', 'nao_conferivel']),
+        texto: z.string(),
+      }),
+    ),
+  }),
+]);
+export type CartaoDaResposta = z.infer<typeof cartaoSchema>;
+
 export const resultadoDoAgenteSchema = z.object({
   estado: estadoDeExecucaoSchema,
   /** Texto para a pessoa. Ausente quando a execução não chegou a responder. */
@@ -216,6 +333,8 @@ export const resultadoDoAgenteSchema = z.object({
     .optional(),
   /** Texto preparado para a pessoa copiar e levar a outro lugar. Nada é enviado. */
   textoCopiavel: z.string().optional(),
+  /** Cartões que as ferramentas produziram — ver `cartaoSchema`. */
+  cartoes: z.array(cartaoSchema).optional(),
 });
 export type ResultadoDoAgente = z.infer<typeof resultadoDoAgenteSchema>;
 

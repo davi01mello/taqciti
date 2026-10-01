@@ -16,9 +16,19 @@
  * memória, e a extensão contra o `chrome.storage`.
  */
 import { STORAGE_KEYS } from '@/shared/config/constants';
-import { readLocal, writeLocal } from '@/shared/services/storage';
+import { readLocal, readSession, writeLocal } from '@/shared/services/storage';
 import { comTravaLocal } from '@/shared/services/storageLock';
-import type { MeetingRecord } from '@/shared/types/domain';
+import type { MeetingRecord, MeetingState } from '@/shared/types/domain';
+import {
+  atualizarCompromisso,
+  guardarAchado,
+  guardarAnalise,
+  lerTrabalho,
+  mudarEstadoDoAchado,
+  registrarCompromissos,
+  registrarDecisao,
+  vincularDependencia,
+} from '@/features/trabalho/store';
 import {
   atualizarDocumentoNaVersao,
   guardarDocumentoUnico,
@@ -55,6 +65,25 @@ export interface ArmazenamentoDoTaq {
   listarConversas(): Promise<readonly Conversation[]>;
   /** A exclusão da tela (`apagarConversas`): conversa sai, reuniões e documentos ficam. */
   apagarConversas(ids: readonly string[]): Promise<ResultadoDaExclusao>;
+  /** Os registros de trabalho e as escritas seguras deles (`features/trabalho/store.ts`). */
+  trabalho: PortaDoTrabalho;
+  /**
+   * O estado VIVO da captura (fase, saúde, último trecho), do `storage.session`
+   * que o background escreve. `null` quando não há reunião em curso ou a
+   * superfície não alcança esse storage — e aí ninguém afirma nada sobre ele.
+   */
+  lerEstadoAoVivo(): Promise<MeetingState | null>;
+}
+
+export interface PortaDoTrabalho {
+  ler: typeof lerTrabalho;
+  registrarCompromissos: typeof registrarCompromissos;
+  atualizarCompromisso: typeof atualizarCompromisso;
+  vincularDependencia: typeof vincularDependencia;
+  registrarDecisao: typeof registrarDecisao;
+  guardarAchado: typeof guardarAchado;
+  mudarEstadoDoAchado: typeof mudarEstadoDoAchado;
+  guardarAnalise: typeof guardarAnalise;
 }
 
 /** Versão de uma reunião: muda enquanto a captura acrescenta falas. */
@@ -89,6 +118,24 @@ export const armazenamentoLocal: ArmazenamentoDoTaq = {
   editarDocumento: atualizarDocumentoNaVersao,
   listarConversas: lerConversas,
   apagarConversas,
+  trabalho: {
+    ler: lerTrabalho,
+    registrarCompromissos,
+    atualizarCompromisso,
+    vincularDependencia,
+    registrarDecisao,
+    guardarAchado,
+    mudarEstadoDoAchado,
+    guardarAnalise,
+  },
+  async lerEstadoAoVivo() {
+    try {
+      const s = await readSession<MeetingState>(STORAGE_KEYS.state);
+      return s && typeof s === 'object' && typeof s.phase === 'string' ? s : null;
+    } catch {
+      return null;
+    }
+  },
   async gravarExecucao(registro) {
     // A execução pode ter apagado a própria conversa (ou ela ter sido apagada
     // no meio): o registro fica, mas sem apontar para uma conversa que não

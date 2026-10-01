@@ -61,6 +61,7 @@ import { ConversasMenu } from './ConversasMenu';
 import { PaginaDocumentos } from './Documentos';
 import { PaginaReunioes } from './Paginas';
 import { PaginaConexoes } from './Conexoes';
+import { PaginaAcompanhamento } from './Acompanhamento';
 import { PointerLayer } from './PointerLayer';
 import { lerPedidoDaHome, type Secao } from './rota';
 import { SideNav } from './SideNav';
@@ -531,7 +532,9 @@ export function HomePage() {
           />
         )}
 
-        {secao === 'conexoes' && <PaginaConexoes registros={records} />}
+        {secao === 'acompanhamento' && <PaginaAcompanhamento onAbrirFonte={abrirFonte} />}
+
+        {secao === 'conexoes' && <PaginaConexoes registros={records} taq={taq} />}
       </main>
 
       {motivo === 'preferencia' && (

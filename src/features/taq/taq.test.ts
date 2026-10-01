@@ -707,9 +707,10 @@ describe('especialistas', () => {
     const oferecida = pedidos[0]!.ferramentas.find((f) => f.nome === 'delegate_task')!;
     expect(oferecida.descricao).toContain('meeting_analyst');
     expect(oferecida.descricao).not.toContain('commitments');
-    // Interseção: o analista declara read_meeting e search_records; nada de escrita, nada de delegar.
+    // Interseção: as de LEITURA que o analista declara; save_analysis (escrita) sai,
+    // porque o pedido não pede escrita; e nada de delegar.
     expect(vistos[0]).toMatchObject({
-      ferramentas: ['read_meeting', 'search_records'],
+      ferramentas: ['read_meeting', 'search_records', 'read_analysis', 'get_capture_state'],
       profundidade: 1,
     });
     expect(vistos[0]!.superior).toBeTruthy();

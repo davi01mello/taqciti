@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { guardarDocumento, lerDocumentos } from '@/features/documents/store';
+import { guardarAnalise, lerTrabalho, registrarCompromissos } from '@/features/trabalho/store';
 import { limparVinculosDaReuniao } from './vinculos';
 
 let storage: ReturnType<typeof installChromeStorageMock>;
@@ -75,6 +76,53 @@ describe('limparVinculosDaReuniao', () => {
       marcas: 0,
       prints: 0,
       documentosDesvinculados: 0,
+      analises: 0,
     });
+  });
+
+  /* A análise morre com a reunião; o compromisso, que é registro próprio, fica. */
+  it('leva a análise da reunião e preserva os compromissos dela', async () => {
+    const evidencia = {
+      tipo: 'reuniao' as const,
+      registroId: 'm-1',
+      titulo: 'Reunião 1',
+      versao: '1:3',
+      trecho: 'Ana envia o relatório',
+      segmento: 0,
+    };
+    await registrarCompromissos(
+      [{ descricao: 'Enviar o relatório', responsavel: null, prazo: null, reuniaoId: 'm-1', evidencias: [evidencia] }],
+      { origem: 'pessoa' },
+    );
+    await guardarAnalise(
+      {
+        reuniaoId: 'm-1',
+        versaoDaReuniao: '1:3',
+        instrucoes: 'analyst-v1',
+        cobertura: { lidos: 3, total: 3 },
+        secoes: { visaoGeral: [], decisoes: [], questoes: [], riscos: [], proximosPassos: [] },
+        lacunas: [],
+      },
+      { origem: 'taq' },
+    );
+    await guardarAnalise(
+      {
+        reuniaoId: 'm-2',
+        versaoDaReuniao: '1:1',
+        instrucoes: 'analyst-v1',
+        cobertura: { lidos: 1, total: 1 },
+        secoes: { visaoGeral: [], decisoes: [], questoes: [], riscos: [], proximosPassos: [] },
+        lacunas: [],
+      },
+      { origem: 'taq' },
+    );
+
+    const resultado = await limparVinculosDaReuniao('m-1');
+
+    expect(resultado.analises).toBe(1);
+    const trabalho = await lerTrabalho();
+    expect(trabalho.analises.map((a) => a.reuniaoId)).toEqual(['m-2']);
+    expect(trabalho.compromissos).toHaveLength(1);
+    expect(trabalho.compromissos[0]!.estado).toBe('aberto');
   });
 });

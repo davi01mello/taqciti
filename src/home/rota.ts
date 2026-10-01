@@ -13,9 +13,9 @@
  * Puro de propósito: recebe a search string, não toca em `window`. É o que
  * permite testar as combinações sem um navegador no meio.
  */
-export type Secao = 'assistente' | 'reunioes' | 'documentos' | 'conexoes';
+export type Secao = 'assistente' | 'reunioes' | 'documentos' | 'acompanhamento' | 'conexoes';
 
-const SECOES: readonly Secao[] = ['assistente', 'reunioes', 'documentos', 'conexoes'];
+const SECOES: readonly Secao[] = ['assistente', 'reunioes', 'documentos', 'acompanhamento', 'conexoes'];
 
 export interface PedidoDaHome {
   secao: Secao;

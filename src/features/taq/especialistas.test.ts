@@ -190,7 +190,7 @@ describe('app_assistant — operações', () => {
     ]);
     // Três chamadas, não quatro: o Taq não reescreve a resposta do especialista.
     expect(pedidos.map((p) => p.instrucoes)).toEqual([
-      'taq-v6',
+      'taq-v7',
       'app-assistant-v4',
       'app-assistant-v4',
     ]);
@@ -408,9 +408,9 @@ describe('documents', () => {
     ]);
     const r = await executar('Crie uma ata da sprint 12, projeto Orbital', modelo);
     expect(pedidos.map((p) => p.instrucoes)).toEqual([
-      'taq-v6',
-      'documents-v2',
-      'documents-v2',
+      'taq-v7',
+      'documents-v3',
+      'documents-v3',
     ]);
     expect(r.documentos).toHaveLength(1);
     expect(

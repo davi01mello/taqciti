@@ -28,7 +28,9 @@
  * cancelamento não tem esse último turno — não há o que esperar.
  */
 import {
+  cartaoSchema,
   resultadoDoAgenteSchema,
+  type CartaoDaResposta,
   type DocumentoProduzido,
   type ErroEstruturado,
   type EstadoDeExecucao,
@@ -158,6 +160,7 @@ export async function executarCiclo(
   let textoCopiavel: string | undefined;
   let respostaFinal: { texto: string; parcial: boolean } | undefined;
   const operacoes: OperacaoRegistrada[] = [];
+  const cartoes: CartaoDaResposta[] = [];
   const usosPorFerramenta = new Map<string, number>();
   const assinaturas = new Map<string, number>();
 
@@ -190,6 +193,13 @@ export async function executarCiclo(
     },
     registrarRespostaFinal: (texto, parcial) => {
       respostaFinal = { texto, parcial };
+    },
+    registrarCartao: (c) => {
+      // Validado aqui: cartão fora do contrato é erro de ferramenta, não tela quebrada.
+      const lido = cartaoSchema.parse(c);
+      const assinatura = JSON.stringify(lido);
+      const repetido = cartoes.findIndex((x) => JSON.stringify(x) === assinatura);
+      if (repetido === -1) cartoes.push(lido);
     },
     ...(ambiente.acoes ? { acoes: ambiente.acoes } : {}),
     ...(ofertadas.some((f) => f.requisitos.includes('agentes'))
@@ -229,6 +239,7 @@ export async function executarCiclo(
       ...(pergunta ? { pergunta } : {}),
       ...(textoCopiavel ? { textoCopiavel } : {}),
       ...(operacoes.length ? { operacoes } : {}),
+      ...(cartoes.length ? { cartoes } : {}),
     });
   };
 

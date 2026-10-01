@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Conexões — ligar a sincronização e entregar o endereço do conector.
  *
  * Esta página dizia, honestamente, que nenhuma integração existia, e oferecia
@@ -50,6 +50,9 @@ import {
   listarTokensDoConector,
   revogarTokenDoConector,
 } from '@/shared/services/conector';
+
+import { Capacidades } from './Capacidades';
+import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
 
 function Cabecalho({ titulo, sub }: { titulo: string; sub: string }) {
   return (
@@ -241,7 +244,14 @@ function ComoConectar() {
 
 // ----------------------------------------------------------------- a página
 
-export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
+export function PaginaConexoes({
+  registros,
+  taq,
+}: {
+  registros: MeetingRecord[];
+  /** O estado do assistente — ver Capacidades. Ausente: o painel não aparece. */
+  taq?: DisponibilidadeDoTaq;
+}) {
   const [estado, setEstado] = useState<EstadoDaSincronizacao | null>(null);
   const [tokens, setTokens] = useState<TokenDoConector[]>([]);
   const [email, setEmail] = useState<string | null>(null);
@@ -664,6 +674,8 @@ export function PaginaConexoes({ registros }: { registros: MeetingRecord[] }) {
           )}
         </details>
       </div>
+
+      {taq && <Capacidades taq={taq} />}
     </div>
   );
 }

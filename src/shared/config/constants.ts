@@ -125,6 +125,14 @@ export const STORAGE_KEYS = {
    * dias, para "Desfazer". Ver `features/taq/lixeira.ts`.
    */
   taqLixeira: 'taq:lixeira',
+
+  /**
+   * chrome.storage.local — os registros de TRABALHO: compromissos, decisões,
+   * achados e análises de reunião. Registros próprios, ligados às fontes por id
+   * e versão; apagar a reunião leva só as análises dela (derivado exclusivo).
+   * Ver `features/trabalho/store.ts`.
+   */
+  trabalho: 'taq:trabalho',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

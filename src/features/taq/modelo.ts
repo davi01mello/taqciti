@@ -87,7 +87,7 @@ export const estadoDoTaqSchema = z.object({
 export type EstadoDoTaq = z.infer<typeof estadoDoTaqSchema>;
 
 /** A versão de instruções que esta build espera do servidor. */
-export const INSTRUCOES_ESPERADAS = 'taq-v6';
+export const INSTRUCOES_ESPERADAS = 'taq-v7';
 
 // ---------------------------------------------------------------- erros
 

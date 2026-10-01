@@ -17,9 +17,12 @@ import {
 } from './ajuda';
 import { FERRAMENTAS_BASE } from './ferramentas';
 import { FERRAMENTAS_DE_APP } from './ferramentasDeApp';
+import { FERRAMENTAS_DE_TRABALHO } from './ferramentasDeTrabalho';
 import { criarRegistroPadrao } from './orquestrador';
 
-const REGISTRADAS = new Set([...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP].map((f) => f.nome));
+const REGISTRADAS = new Set(
+  [...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP, ...FERRAMENTAS_DE_TRABALHO].map((f) => f.nome),
+);
 /** Ferramentas que não são operação de funcionalidade: leitura de conteúdo e a própria ajuda. */
 const SEM_FUNCIONALIDADE = new Set([
   'read_meeting',
@@ -30,6 +33,14 @@ const SEM_FUNCIONALIDADE = new Set([
   'delegate_task',
   'get_app_capabilities',
   'get_usage_guide',
+  // Leituras e passos intermediários dos especialistas de trabalho: a operação
+  // de tela correspondente é a do registro/atualização.
+  'read_analysis',
+  'list_commitments',
+  'list_decisions',
+  'list_findings',
+  'suggest_commitments',
+  'link_dependency',
 ]);
 
 const titulosDe = (r: ReturnType<typeof guiaDeUso>) => r.guias.map((g) => g.titulo);
@@ -168,12 +179,22 @@ describe('get_usage_guide', () => {
     expect(jira.aviso).toMatch(/não está documentado/);
   });
 
-  it('recurso planejado: sai como planejado, nunca como passo de uso', () => {
+  it('o que existe pela metade sai pela metade: rascunho sim, envio não; sugestão sim, evento não', () => {
     const email = guiaDeUso('Dá para mandar a ata por e-mail para o cliente?', REGISTRADAS);
-    expect(email.fora_do_app[0]).toMatchObject({ situacao: 'planejado' });
-    expect(email.fora_do_app[0]!.resposta).toMatch(/ainda não existe/);
+    expect(idsDe(email)).toContain('rascunho_de_mensagem');
+    expect(email.fora_do_app[0]).toMatchObject({ situacao: 'indisponivel' });
+    expect(email.fora_do_app[0]!.resposta).toMatch(/não envia/);
     const agenda = guiaDeUso('Consigo agendar a próxima reunião pelo TaqCiti?', REGISTRADAS);
-    expect(agenda.fora_do_app.map((x) => x.situacao)).toContain('planejado');
+    expect(idsDe(agenda)).toContain('sugerir_horario');
+    expect(agenda.fora_do_app.map((x) => x.resposta).join(' ')).toMatch(/não consulta a agenda/);
+  });
+
+  it('compromissos: guia com os nomes da tela, e o agente executa', () => {
+    const g = guiaDeUso('Como acompanho os compromissos da reunião?', REGISTRADAS);
+    expect(idsDe(g)).toEqual(expect.arrayContaining(['registrar_compromissos']));
+    const reg = g.guias.find((x) => idDoTitulo(x.titulo) === 'registrar_compromissos')!;
+    expect(reg).toMatchObject({ o_agente_executa: true, ferramenta: 'register_commitments' });
+    expect(reg.passos.join(' ')).toMatch(/“Registrar selecionados”/);
   });
 
   it('manual sem ferramenta: o guia diz que o agente não executa', () => {
@@ -193,7 +214,9 @@ describe('get_app_capabilities', () => {
     expect(por('apagar_documento')).toMatchObject({ o_agente_executa: false });
     expect(por('baixar_documento')).toMatchObject({ o_agente_executa: false });
     expect(por('enviar_google_docs')).toMatchObject({ o_agente_executa: false });
-    expect(c.fora_do_app.some((x) => x.situacao === 'planejado')).toBe(true);
+    expect(por('acompanhar_compromissos')).toMatchObject({ o_agente_executa: true, ferramenta: 'update_commitment' });
+    // Todos os especialistas do catálogo estão ativos: nada sobra como "planejado".
+    expect(c.fora_do_app.some((x) => x.situacao === 'planejado')).toBe(false);
   });
 
   it('ferramenta fora do registro não conta como operação do agente', () => {

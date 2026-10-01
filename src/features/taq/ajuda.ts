@@ -44,7 +44,7 @@
 import { termosDe } from './busca';
 
 /** Sobe quando o conteúdo muda — vai no resultado da consulta. */
-export const VERSAO_DA_REFERENCIA = '2026-09-23';
+export const VERSAO_DA_REFERENCIA = '2026-10-01';
 
 export const ASSUNTOS = [
   'captura',
@@ -54,6 +54,7 @@ export const ASSUNTOS = [
   'exportacao',
   'configuracoes',
   'navegacao',
+  'acompanhamento',
 ] as const;
 export type Assunto = (typeof ASSUNTOS)[number];
 
@@ -65,6 +66,7 @@ export const NOME_DO_ASSUNTO: Record<Assunto, string> = {
   exportacao: 'Exportar e enviar',
   configuracoes: 'Conexões e configurações',
   navegacao: 'Onde fica cada coisa',
+  acompanhamento: 'Compromissos, decisões e achados',
 };
 
 export type Verificacao = 'interface' | 'codigo' | 'nao_verificada';
@@ -127,6 +129,11 @@ const COPIAR = 'src/shared/ui/BotaoCopiar.tsx';
 const CATALOGO_DOCS = 'src/features/documents/catalogo.ts';
 const MARCAS = 'src/features/annotations/marks.ts';
 const EXPORTAR = 'src/features/history/export.ts';
+const CARTOES = 'src/shared/ui/CartoesDoTaq.tsx';
+const ACOMPANHAMENTO = 'src/home/Acompanhamento.tsx';
+const TRABALHO = 'src/features/trabalho/store.ts';
+const CAPTURA_TAQ = 'src/features/taq/captura.ts';
+const CAPACIDADES = 'src/home/Capacidades.tsx';
 
 export const FUNCIONALIDADES: readonly Funcionalidade[] = [
   // ------------------------------------------------------------------ captura
@@ -818,6 +825,250 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     verificacao: 'interface',
     palavras: ['brasas', 'fundo', 'animacao', 'movimento', 'efeito', 'visual', 'aparencia'],
   },
+  {
+    id: 'capacidades_do_taq',
+    assunto: 'configuracoes',
+    titulo: 'Ver o que o Taq faz e o que depende de configuração',
+    oQueFaz:
+      'Lista cada capacidade do Taq com o estado dela (disponível, precisa de configuração do servidor de IA) e as integrações que não existem nesta versão.',
+    onde: 'HOME → Conexões, no fim da página',
+    passos: ['Na HOME, abra “Conexões”.', 'Role até “O que o Taq faz” e “Integrações”.'],
+    limitacoes: [
+      'Não há botão para conectar e-mail ou calendário: essas integrações não existem nesta versão.',
+    ],
+    rotulos: ['Conexões', 'O que o Taq faz', 'Integrações'],
+    implementacao: [CAPACIDADES, NAV],
+    verificacao: 'codigo',
+    palavras: ['capacidades', 'o que o taq faz', 'funcoes do taq', 'recursos do taq'],
+  },
+  // ------------------------------------------------------------ acompanhamento
+  {
+    id: 'analisar_reuniao',
+    assunto: 'reunioes',
+    titulo: 'Analisar uma reunião (decisões, questões, riscos, próximos passos)',
+    oQueFaz:
+      'O Taq lê a transcrição e guarda uma análise com visão geral, decisões, questões abertas, riscos e próximos passos, cada item com o trecho de origem.',
+    onde: 'Conversa com o Taq, na HOME ou na sidebar',
+    passos: [
+      'Na conversa, peça: ‘analise a reunião’ e o nome dela (ou abra a conversa a partir da reunião).',
+      'A análise aparece num cartão com “Visão geral”, “Decisões”, “Questões abertas”, “Riscos” e “Próximos passos”. Cada item abre o trecho de onde saiu.',
+      'Para corrigir um item, clique em “Corrigir” ao lado dele. A transcrição não muda.',
+    ],
+    preRequisitos: ['O Taq precisa estar conectado ao servidor de IA.'],
+    limitacoes: [
+      'A análise diz quantos segmentos foram lidos; em reunião longa a cobertura pode ser parcial.',
+      'Se a transcrição mudar depois, o cartão marca a análise como desatualizada.',
+      'Apagar a reunião apaga a análise dela.',
+    ],
+    rotulos: ['Visão geral', 'Decisões', 'Questões abertas', 'Riscos', 'Próximos passos', 'Corrigir'],
+    implementacao: [CARTOES, TRABALHO],
+    verificacao: 'codigo',
+    ferramenta: 'save_analysis',
+    comoPedir: 'Peça na conversa: “analise a reunião X”.',
+    palavras: ['analisar', 'analise', 'riscos', 'questoes abertas', 'estruturar', 'pontos principais'],
+  },
+  {
+    id: 'registrar_compromissos',
+    assunto: 'acompanhamento',
+    titulo: 'Registrar os compromissos e próximos passos de uma reunião',
+    oQueFaz:
+      'Guarda o que foi combinado — o que, quem e até quando — como compromissos, sem duplicar o que já estava registrado.',
+    onde: 'Conversa com o Taq; os registrados ficam em HOME → Acompanhamento',
+    passos: [
+      'Peça ao Taq: ‘organize os próximos passos da reunião X’. Ele mostra o cartão “Compromissos sugeridos”, ainda sem gravar nada.',
+      'Desmarque o que não quiser e clique em “Registrar selecionados”.',
+      'Se você já pedir ‘registre os próximos passos’, o Taq registra direto.',
+      'Os registrados aparecem em “Acompanhamento”.',
+    ],
+    limitacoes: [
+      'Responsável e prazo só entram quando aparecem no trecho da reunião; sem isso, ficam “Sem responsável definido” e “Sem prazo acordado”.',
+      'Não há lembrete nem cobrança automática.',
+    ],
+    rotulos: ['Compromissos sugeridos', 'Registrar selecionados', 'Acompanhamento'],
+    implementacao: [CARTOES, ACOMPANHAMENTO, NAV],
+    verificacao: 'codigo',
+    ferramenta: 'register_commitments',
+    comoPedir: 'Peça: “registre os próximos passos da reunião X”.',
+    palavras: ['compromissos', 'compromisso', 'tarefas', 'tarefa', 'proximos passos', 'pendencias', 'combinado', 'registrar tarefas'],
+  },
+  {
+    id: 'acompanhar_compromissos',
+    assunto: 'acompanhamento',
+    titulo: 'Acompanhar compromissos e marcar como concluído',
+    oQueFaz: 'Mostra os compromissos registrados, com responsável, prazo, estado e histórico, e permite concluir ou reabrir.',
+    onde: 'HOME → Acompanhamento → Compromissos',
+    passos: [
+      'Na HOME, abra “Acompanhamento”.',
+      'Filtre por “Abertos”, “Prazo passou — a confirmar” ou “Todos”, e pelo nome do responsável.',
+      'Em cada compromisso, use “Marcar como concluído” ou “Reabrir”. Pelo Taq: ‘marque como concluído o envio do relatório’.',
+    ],
+    limitacoes: [
+      'Prazo vencido não vira “atrasado”: aparece como “Prazo passou — situação a confirmar”, porque ninguém disse se terminou.',
+    ],
+    rotulos: ['Acompanhamento', 'Abertos', 'Prazo passou — a confirmar', 'Todos', 'Marcar como concluído', 'Reabrir'],
+    implementacao: [ACOMPANHAMENTO, CARTOES, NAV],
+    verificacao: 'codigo',
+    ferramenta: 'update_commitment',
+    comoPedir: 'Peça: “marque como concluído o compromisso X” ou “a Ana assumiu Y”.',
+    palavras: ['concluido', 'concluir', 'acompanhar', 'atrasado', 'prazo', 'responsavel', 'quem ficou de'],
+  },
+  {
+    id: 'registrar_decisao',
+    assunto: 'acompanhamento',
+    titulo: 'Registrar uma decisão, inclusive uma decisão revista',
+    oQueFaz:
+      'Guarda decisões com a fonte. Uma decisão revista substitui a anterior, que fica no histórico ligada à nova e ao motivo.',
+    onde: 'Conversa com o Taq; as decisões ficam em HOME → Acompanhamento → Decisões',
+    passos: [
+      'Peça ao Taq: ‘registre a decisão: …’ — ou, para uma mudança, ‘o PDF ficou para a fase 2, registre’.',
+      'Em “Acompanhamento”, a seção “Decisões” mostra as vigentes; marque “Mostrar também as substituídas” para ver o histórico.',
+    ],
+    rotulos: ['Acompanhamento', 'Decisões', 'Mostrar também as substituídas'],
+    implementacao: [ACOMPANHAMENTO, NAV],
+    verificacao: 'codigo',
+    ferramenta: 'record_decision',
+    comoPedir: 'Peça: ‘registre a decisão: …’.',
+    palavras: ['decisao', 'decisoes', 'decidimos', 'mudou a decisao', 'substituir decisao', 'registrar decisao'],
+  },
+  {
+    id: 'comparar_fontes',
+    assunto: 'acompanhamento',
+    titulo: 'Comparar fontes e apontar possíveis desalinhamentos entre áreas',
+    oQueFaz:
+      'O Taq compara o que reuniões e documentos dizem sobre promessa, escopo, prazo e dependências, e registra cada possível desalinhamento com as duas fontes.',
+    onde: 'Conversa com o Taq; os achados ficam em HOME → Acompanhamento → Achados',
+    passos: [
+      'Peça: ‘compare o que o comercial prometeu com o escopo do produto’ (ou nomeie as reuniões e documentos).',
+      'O cartão “Achados” mostra o entendimento de cada fonte, o impacto como hipótese e uma pergunta para alinhar.',
+    ],
+    limitacoes: [
+      'É possível desalinhamento até haver sustentação: o Taq não decide quem está certo nem julga pessoas.',
+    ],
+    rotulos: ['Achados', 'Acompanhamento'],
+    implementacao: [CARTOES, ACOMPANHAMENTO, NAV],
+    verificacao: 'codigo',
+    ferramenta: 'save_finding',
+    comoPedir: 'Peça: “compare as fontes X e Y e aponte desalinhamentos”.',
+    palavras: ['desalinhamento', 'divergencia', 'comparar', 'passagem', 'handoff', 'escopo', 'prometido', 'alinhamento'],
+  },
+  {
+    id: 'resolver_achado',
+    assunto: 'acompanhamento',
+    titulo: 'Resolver, descartar ou reabrir um achado',
+    oQueFaz: 'Muda o estado de um achado guardando o motivo no histórico.',
+    onde: 'HOME → Acompanhamento → Achados (ou o cartão na conversa)',
+    passos: [
+      'No achado, clique em “Marcar resolvido” ou “Descartar com motivo”.',
+      'Escreva o motivo e clique em “Confirmar”.',
+      'Para ver os já resolvidos, marque “Mostrar também os resolvidos e descartados”.',
+    ],
+    rotulos: ['Marcar resolvido', 'Descartar com motivo', 'Confirmar', 'Mostrar também os resolvidos e descartados'],
+    implementacao: [CARTOES, ACOMPANHAMENTO],
+    verificacao: 'codigo',
+    ferramenta: 'resolve_finding',
+    comoPedir: 'Peça: “o desalinhamento do PDF foi resolvido: ficou para a fase 2”.',
+    palavras: ['resolver achado', 'resolvido', 'descartar', 'achado'],
+  },
+  {
+    id: 'rascunho_de_mensagem',
+    assunto: 'exportacao',
+    titulo: 'Preparar o rascunho de uma mensagem ou e-mail',
+    oQueFaz:
+      'O Taq escreve um rascunho a partir das reuniões, confere os nomes contra os participantes e aponta dado sensível. Você edita, copia ou abre no seu programa de e-mail.',
+    onde: 'Conversa com o Taq',
+    passos: [
+      'Peça: ‘prepare um e-mail para a Ana sobre o prazo da entrega’.',
+      'O rascunho aparece num cartão editável. Use “Copiar”, ou “Abrir no e-mail” quando você mesmo tiver escrito o endereço no pedido.',
+    ],
+    limitacoes: [
+      'O TaqCiti não envia nada: não há integração de e-mail, WhatsApp ou Slack.',
+      'Nome com mais de uma pessoa nos participantes aparece como ambíguo.',
+    ],
+    rotulos: ['Copiar', 'Abrir no e-mail'],
+    implementacao: [CARTOES, COPIAR],
+    verificacao: 'codigo',
+    ferramenta: 'prepare_message',
+    comoPedir: 'Peça: “prepare um e-mail para X sobre Y”.',
+    palavras: ['email', 'e-mail', 'mensagem', 'rascunho', 'mandar', 'enviar', 'recado', 'escrever para'],
+  },
+  {
+    id: 'sugerir_horario',
+    assunto: 'exportacao',
+    titulo: 'Sugerir horários para um encontro',
+    oQueFaz:
+      'O Taq converte "amanhã às 14h" no seu fuso e monta sugestões de horário; cada uma abre o formulário do Google Agenda preenchido, sem convidados.',
+    onde: 'Conversa com o Taq',
+    passos: [
+      'Peça: ‘sugira horários amanhã à tarde para revisar o escopo com a Ana’.',
+      'O cartão “Sugestão de horário — disponibilidade não verificada” traz as opções; “Abrir no Google Agenda” abre o formulário para você criar o evento lá.',
+    ],
+    limitacoes: [
+      'O TaqCiti não consulta a agenda de ninguém nem cria eventos ou convites.',
+    ],
+    rotulos: ['Sugestão de horário — disponibilidade não verificada', 'Abrir no Google Agenda'],
+    implementacao: [CARTOES],
+    verificacao: 'codigo',
+    ferramenta: 'prepare_event',
+    comoPedir: 'Peça: “sugira horários para …”.',
+    palavras: ['agendar', 'horario', 'agenda', 'calendario', 'marcar reuniao', 'proxima reuniao', 'convite'],
+  },
+  {
+    id: 'estado_da_captura',
+    assunto: 'captura',
+    titulo: 'Saber se a captura de uma reunião está confiável',
+    oQueFaz:
+      'Mostra o estado da captura e os sinais que a extensão consegue verificar: trechos descartados, reconexões, legenda ilegível e intervalos sem fala.',
+    onde: 'Conversa com o Taq',
+    passos: [
+      'Pergunte ao Taq: ‘a captura da reunião X está ok?’.',
+      'O cartão mostra a situação (“Capturando”, “Pausada”, “Aguardando legendas”, “Problema na captura” ou “Encerrada”) e os sinais encontrados.',
+    ],
+    limitacoes: [
+      'Intervalo sem fala pode ser silêncio: não é tratado como perda.',
+      '“Nenhum problema detectado” não garante que cada palavra foi transcrita certo.',
+    ],
+    rotulos: ['Capturando', 'Pausada', 'Aguardando legendas', 'Problema na captura', 'Encerrada'],
+    implementacao: [CAPTURA_TAQ, CARTOES],
+    verificacao: 'codigo',
+    ferramenta: 'get_capture_state',
+    comoPedir: 'Pergunte: “a captura desta reunião está ok?”.',
+    palavras: ['captura ok', 'confiavel', 'falhou a captura', 'perdeu', 'lacuna', 'legenda parou'],
+  },
+  {
+    id: 'revisar_documento',
+    assunto: 'documentos',
+    titulo: 'Revisar a estrutura e as fontes de um documento',
+    oQueFaz:
+      'Aponta seção obrigatória ausente ou vazia, pontos “A confirmar”, repetições, notas sem fonte e fontes que mudaram ou não existem mais.',
+    onde: 'Conversa com o Taq',
+    passos: ['Peça: ‘revise a ata X’.', 'O cartão lista os problemas por gravidade; “Abrir documento” leva ao editor.'],
+    limitacoes: ['Confere forma e fontes; não diz se o conteúdo está correto.'],
+    rotulos: ['Abrir documento'],
+    implementacao: [CARTOES],
+    verificacao: 'codigo',
+    ferramenta: 'check_document',
+    comoPedir: 'Peça: “revise o documento X”.',
+    palavras: ['revisar', 'revisao', 'conferir documento', 'faltando', 'fontes do documento', 'qualidade'],
+  },
+  {
+    id: 'revisar_exposicao',
+    assunto: 'exportacao',
+    titulo: 'Revisar um texto antes de compartilhar',
+    oQueFaz:
+      'Aponta o que parece dado pessoal ou segredo (e-mail, telefone, CPF, CNPJ, cartão, senha) e prepara uma cópia com esses trechos ocultados.',
+    onde: 'Conversa com o Taq',
+    passos: [
+      'Cole o texto e peça: ‘revise isto antes de eu compartilhar’.',
+      'A cópia com os trechos ocultados aparece com “Copiar texto”.',
+    ],
+    limitacoes: ['Reconhece formatos, não contexto: não garante que o texto esteja limpo.'],
+    rotulos: ['Copiar texto'],
+    implementacao: [RESPOSTA],
+    verificacao: 'codigo',
+    ferramenta: 'review_privacy',
+    comoPedir: 'Peça: “revise este texto antes de eu compartilhar: …”.',
+    palavras: ['privacidade', 'dados pessoais', 'sensivel', 'ocultar', 'anonimizar', 'cpf', 'lgpd'],
+  },
 ];
 
 /** O que o TaqCiti NÃO faz, ou ainda não faz — para dizer isso em vez de inventar. */
@@ -909,38 +1160,34 @@ export const FORA_DO_APP: readonly ForaDoApp[] = [
   {
     id: 'enviar_mensagens',
     titulo: 'Enviar ou compartilhar por e-mail, WhatsApp ou Slack',
-    situacao: 'planejado',
+    situacao: 'indisponivel',
     resposta:
-      'O TaqCiti não envia nem compartilha nada por conta própria. Rascunhar mensagens a partir das reuniões está planejado, mas ainda não existe — e, mesmo planejado, não enviará sozinho. Hoje: baixe o arquivo e compartilhe por fora.',
-    agentePlanejado: 'communication',
+      'O TaqCiti não envia nem compartilha nada por conta própria: não há integração de e-mail, WhatsApp ou Slack. O Taq prepara um rascunho, que você copia ou abre no seu programa de e-mail.',
     palavras: ['email', 'e-mail', 'enviar', 'mandar', 'compartilhar', 'whatsapp', 'slack', 'mensagem para'],
   },
   {
     id: 'agenda',
-    titulo: 'Agendar reuniões ou mexer no calendário',
-    situacao: 'planejado',
+    titulo: 'Consultar agendas ou criar eventos no calendário',
+    situacao: 'indisponivel',
     resposta:
-      'O TaqCiti não agenda reuniões nem mexe no calendário. Algo nessa linha está planejado, mas ainda não existe.',
-    agentePlanejado: 'scheduling',
-    palavras: ['agendar', 'agenda', 'calendario', 'convite', 'marcar reuniao', 'disponibilidade'],
+      'O TaqCiti não consulta a agenda de ninguém nem cria eventos ou convites. O Taq sugere horários no seu fuso e abre o formulário do Google Agenda preenchido, sem convidados — quem cria o evento é você.',
+    palavras: ['agendar', 'agenda', 'calendario', 'convite', 'marcar reuniao', 'proxima reuniao', 'disponibilidade', 'livre'],
   },
   {
-    id: 'compromissos',
-    titulo: 'Acompanhar compromissos e tarefas entre reuniões',
-    situacao: 'planejado',
+    id: 'lembretes',
+    titulo: 'Lembretes e cobranças automáticas de compromissos',
+    situacao: 'indisponivel',
     resposta:
-      'Um acompanhamento de compromissos e tarefas está planejado, mas ainda não existe. Hoje, dá para perguntar ao Taq o que foi combinado numa reunião.',
-    agentePlanejado: 'commitments',
-    palavras: ['compromissos', 'tarefas', 'pendencias', 'acompanhar', 'cobrar', 'lembrete', 'lembrar'],
+      'O TaqCiti não manda lembretes nem cobranças: não há nada rodando com o navegador fechado. Os compromissos ficam em “Acompanhamento”, e o Taq os mostra quando você pergunta.',
+    palavras: ['lembrete', 'lembrar', 'cobrar', 'cobranca', 'notificacao', 'avisar'],
   },
   {
-    id: 'copiloto_ao_vivo',
-    titulo: 'Apoio automático durante a reunião ao vivo',
-    situacao: 'planejado',
+    id: 'copiloto_automatico',
+    titulo: 'Sugestões automáticas durante a reunião ao vivo',
+    situacao: 'indisponivel',
     resposta:
-      'Um copiloto que acompanha a reunião ao vivo está planejado, mas ainda não existe. Hoje, dá para levar um trecho à conversa com “Perguntar à IA”.',
-    agentePlanejado: 'meeting_copilot',
-    palavras: ['copiloto', 'ao vivo', 'tempo real', 'sugestoes durante'],
+      'Não há sugestões automáticas durante a reunião. Pergunte ao Taq na conversa da reunião (por exemplo, "o que perdi?") ou leve um trecho com “Perguntar à IA”.',
+    palavras: ['copiloto', 'ao vivo', 'tempo real', 'sugestoes durante', 'automatico'],
   },
 ];
 

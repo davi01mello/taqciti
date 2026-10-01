@@ -2255,3 +2255,59 @@ body.tq-pointer-in .tq-halo {
   align-self: flex-end;
   margin-top: -4px;
 }
+
+/* ------------------------------------------------ o que o Taq faz (Conexões) */
+
+.tq-capacidades {
+  margin-top: 28px;
+}
+
+.tq-cap-lista {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.tq-cap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12.5px;
+}
+
+.tq-cap strong {
+  font-weight: 500;
+  color: rgb(232 235 238);
+}
+
+.tq-cap-estado {
+  font-size: 11px;
+  color: rgb(165 170 175);
+}
+
+.tq-cap-ok .tq-cap-estado {
+  color: rgb(170 226 190);
+}
+
+.tq-cap-pendente .tq-cap-estado {
+  color: rgb(240 205 160);
+}
+
+.tq-cap-desc {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgb(150 155 160);
+}
+
+@media (max-width: 520px) {
+  .tq-cap {
+    grid-template-columns: 1fr;
+  }
+}

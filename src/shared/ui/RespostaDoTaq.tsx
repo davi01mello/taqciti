@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { Icon } from './Icon';
 import { Markdown } from './Markdown';
 import { BotaoCopiar } from './BotaoCopiar';
+import { CartoesDoTaq } from './CartoesDoTaq';
 import { semMarcadores } from '@/features/taq/evidencias';
 import './respostaDoTaq.css';
 
@@ -54,6 +55,8 @@ interface Props {
   onAbrirReuniao?: (id: string) => void;
   /** Desfazer uma exclusão que está na lixeira. Resolve `true` se voltou. */
   onDesfazer?: (id: string) => Promise<boolean>;
+  /** A conversa da mensagem — o rascunho de mensagem é editado dentro dela. */
+  conversaId?: string;
 }
 
 export function RespostaDoTaq({
@@ -63,6 +66,7 @@ export function RespostaDoTaq({
   onEscolherOpcao,
   onAbrirReuniao,
   onDesfazer,
+  conversaId,
 }: Props) {
   const {
     fontes = [],
@@ -90,6 +94,16 @@ export function RespostaDoTaq({
           }}
         />
       </div>
+
+      {mensagem.cartoes && mensagem.cartoes.length > 0 && (
+        <CartoesDoTaq
+          cartoes={mensagem.cartoes}
+          mensagemId={mensagem.id}
+          {...(conversaId ? { conversaId } : {})}
+          onAbrirFonte={onAbrirFonte}
+          onAbrirDocumento={onAbrirDocumento}
+        />
+      )}
 
       {pergunta && pergunta.opcoes.length > 0 && (
         <ul className="tq-resp-opcoes" aria-label="Opções">
