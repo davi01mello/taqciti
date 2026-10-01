@@ -63,8 +63,3 @@ export function invalidarPessoa(pessoaId: string): void {
     if (chave.startsWith(prefixo)) cache.delete(chave);
   }
 }
-
-/** Só para teste: zera tudo, para um teste não ver o que outro cacheou. */
-export function limparCache(): void {
-  cache.clear();
-}

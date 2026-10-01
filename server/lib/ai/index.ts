@@ -5,8 +5,7 @@
  * Trocar o provedor de um agente é editar `config.ts` ou exportar uma
  * variável de ambiente — nenhum outro arquivo muda.
  */
-import { API_KEY_ENV_VAR, hasApiKey } from './availability';
-import { AGENT_CONFIG, activeProviders, type MatrixEntry } from './config';
+import { AGENT_CONFIG, type MatrixEntry } from './config';
 import { estimateCost, type CostBreakdown } from './pricing';
 import { anthropicProvider } from './providers/anthropic';
 import { googleProvider } from './providers/google';
@@ -17,7 +16,6 @@ import {
   PROVIDER_IDS,
   ProviderError,
   type AgentName,
-  type Capability,
   type CompletionRequest,
   type CompletionResult,
   type JsonSchema,
@@ -83,17 +81,6 @@ export async function completeStructured<T = unknown>(
   return { value: result.parsed as T, result };
 }
 
-/** Janela de contexto do modelo deste agente — o janelamento da Fase 2
- *  consulta isto em vez de assumir um número. */
-export function maxContextTokensFor(agent: AgentName): number {
-  const { provider, model } = resolveAgent(agent);
-  return provider.maxContextTokens(model);
-}
-
-export function supportsFor(agent: AgentName, capability: Capability): boolean {
-  return resolveAgent(agent).provider.supports(capability);
-}
-
 /** Custo estimado de um resultado, a partir de `meta` + `usage`. */
 export function costOf(result: CompletionResult): CostBreakdown | undefined {
   return estimateCost(result.meta.provider, result.meta.model, result.usage);
@@ -141,24 +128,6 @@ export function capabilityTable(): CapabilityRow[] {
       extendedThinking: provider.supports('extendedThinking'),
     };
   });
-}
-
-/**
- * Falha cedo e alto se um provedor configurado estiver sem chave. A falta
- * das chaves dos provedores NÃO configurados é normal e não pode quebrar
- * nada — o objetivo é comparar os três sem ser obrigado a assinar os três.
- */
-export function assertConfiguredProvidersHaveKeys(): void {
-  const missing = activeProviders()
-    .filter((id) => !hasApiKey(id))
-    .map((id) => `${API_KEY_ENV_VAR[id]} (provedor ${id})`);
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Chave de API ausente para provedor configurado: ${missing.join(', ')}. ` +
-        'Defina em server/.env.local — ver server/.env.example.',
-    );
-  }
 }
 
 export {

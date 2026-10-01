@@ -31,10 +31,6 @@ export async function writeSession<T>(key: string, value: T): Promise<void> {
   await chrome.storage.session.set({ [key]: value });
 }
 
-export async function removeSession(key: string): Promise<void> {
-  await chrome.storage.session.remove(key);
-}
-
 function onChange<T>(
   area: 'local' | 'session',
   key: string,
