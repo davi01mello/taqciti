@@ -83,11 +83,13 @@ it('explica a ausência de IA antes da escrita e salva sem enviar a um processad
   // A onda não mora mais atrás do compositor — ela é o sinal da captura e foi
   // para o pé da transcrição (ver `OndaDaTranscricao`, em Reuniao.tsx).
   expect(q('.tq-wave')).toBeNull();
-  expect(host.textContent).toContain('Rascunho salvo');
+  expect(host.textContent).toContain('Salvo neste computador');
   expect(
     vi
       .mocked(chrome.runtime.sendMessage)
-      .mock.calls.every(([command]) => (command as unknown as { type: string }).type === 'ui/getState'),
+      .mock.calls.every(
+        ([command]) => (command as unknown as { type: string }).type === 'ui/getState',
+      ),
   ).toBe(true);
 });
 
@@ -98,7 +100,7 @@ it('mantém o texto e mostra falha mesmo na primeira gravação', async () => {
   await click('.tq-enviar');
   expect(q<HTMLTextAreaElement>('textarea').value).toBe('Não perder este texto');
   expect(q('[role="alert"]').textContent).toContain('Seu texto continua no campo');
-  expect(host.textContent).not.toContain('Rascunho salvo');
+  expect(host.textContent).not.toContain('Salvo neste computador');
 });
 
 /*

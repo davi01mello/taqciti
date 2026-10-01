@@ -16,7 +16,8 @@ import {
   hydrate,
   recoverInterruptedMeetings,
 } from './sessionController';
-import { patchRecord } from './history';
+import { listHistory, patchRecord, upsertRecord } from './history';
+import type { MeetingRecord } from '@/shared/types/domain';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
 import { backfillOpenTabs } from './injectPanel';
@@ -258,6 +259,7 @@ onMessage((message, sender) => {
           ok: await openHome(sender.tab, {
             ...(message.secao ? { secao: message.secao } : {}),
             recordId: message.recordId ?? null,
+            documentId: message.documentId ?? null,
           }),
         };
       // ---- UIs (HOME / sidebar de reunião) ----
@@ -311,6 +313,18 @@ onMessage((message, sender) => {
         await patchRecord(message.id, { title: message.title });
         if (getState().session?.meetingId === message.id) {
           await dispatch({ type: 'RENAME', title: message.title });
+        }
+        return { ok: true };
+      }
+      case 'ui/history/restore': {
+        // Restaurar nunca sobrescreve: se a reunião já existe (outra aba já
+        // restaurou), a resposta é ok e nada muda.
+        const existente = (await listHistory()).some((r) => r.id === message.record.id);
+        if (!existente) {
+          await upsertRecord({
+            ...(message.record as unknown as MeetingRecord),
+            status: 'ready',
+          });
         }
         return { ok: true };
       }

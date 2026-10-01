@@ -1,4 +1,4 @@
-﻿/**
+/**
  * A SIDEBAR do TaqCiti — no painel lateral nativo do Chrome.
  *
  * ── Duas atividades, sempre visíveis ─────────────────────────────────────
@@ -43,6 +43,13 @@ import {
 } from '@/features/meeting/consent';
 import { observarAgente, type EstadoDoAgente } from '@/features/agent/atividade';
 import {
+  cancelarTaq,
+  desfazerExclusao,
+  mensagemDoDesfecho,
+  perguntarAoTaq,
+  useDisponibilidadeDoTaq,
+} from '@/features/taq/interface';
+import {
   criarGravadorDeNota,
   observarNotas,
   type EstadoDaGravacao,
@@ -53,8 +60,11 @@ import {
   observarConversas,
   type ContextoDaPergunta,
   type Conversation,
+  type FonteDaResposta,
 } from '@/home/conversations';
+import { useConversaAberta } from '@/home/useConversaAberta';
 import type { MeetingState } from '@/shared/types/domain';
+import type { UiCommand } from '@/shared/types/messages';
 import type { EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
 import { Brasas } from '@/shared/ui/Brasas';
 import { Icon } from '@/shared/ui/Icon';
@@ -97,6 +107,7 @@ export function App() {
   const [agente, setAgente] = useState<EstadoDoAgente>({
     atividade: 'repouso',
     parcial: '',
+    etapa: null,
   });
   /** Preenchida apenas pelos controles de desenvolvimento. `null` em produção. */
   const [sobreposicao, setSobreposicao] = useState<Sobreposicao | null>(null);
@@ -137,22 +148,43 @@ export function App() {
 
   // ---------- conversas ----------
 
-  const [conversaId, setConversaId] = useState<string | null>(null);
-  const [iniciandoNova, setIniciandoNova] = useState(false);
+  // A mesma regra da HOME, inclusive quando a conversa aberta é apagada.
+  const {
+    conversa,
+    escolher: escolherConversa,
+    nova: novaConversa,
+  } = useConversaAberta(conversas);
   const [gravandoMensagem, setGravandoMensagem] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
   const [rascunhosConversa, setRascunhosConversa] = useState<Record<string, string>>({});
   /** O que a próxima pergunta vai levar junto. Montado por gesto explícito. */
   const [contexto, setContexto] = useState<ContextoDaPergunta | null>(null);
 
-  const conversa = useMemo(
-    () =>
-      iniciandoNova
-        ? null
-        : (conversas.find((c) => c.id === conversaId) ?? conversas[0] ?? null),
-    [conversas, conversaId, iniciandoNova],
-  );
   const chaveRascunho = conversa?.id ?? RASCUNHO_NOVA;
+
+  const [taq] = useDisponibilidadeDoTaq();
+  /**
+   * Na sidebar, "abrir" é abrir na HOME: é lá que reuniões e documentos têm
+   * tela própria. `enviar` é o mesmo `platform.send` que o resto da sidebar usa.
+   */
+  const acoesDaTela = useMemo(
+    () => ({
+      enviar: (mensagem: { type: string } & Record<string, unknown>) =>
+        platform.send(mensagem as UiCommand),
+      abrirReuniao: (recordId: string) =>
+        void platform.send({ type: 'ui/openHome', recordId }),
+      abrirDocumento: (documentId: string) =>
+        void platform.send({ type: 'ui/openHome', documentId }),
+    }),
+    [platform],
+  );
+  /** Estável: é dependência do histórico memorizado da conversa. */
+  const desfazer = useCallback(
+    (id: string) => desfazerExclusao(id, acoesDaTela),
+    [acoesDaTela],
+  );
+  /** Como a última execução terminou quando não deixou resposta. */
+  const [desfecho, setDesfecho] = useState<string | null>(null);
 
   const enviar = useCallback(
     async (texto: string): Promise<boolean> => {
@@ -163,9 +195,18 @@ export function App() {
           texto,
           ...(contexto ? { contexto, meetingId: contexto.meetingId } : {}),
         });
-        setConversaId(id);
-        setIniciandoNova(false);
+        escolherConversa(id);
         setContexto(null);
+        // Mesma regra da HOME: gravada a pergunta, o Taq segue sem prender o campo.
+        if (taq.fase === 'pronto') {
+          setDesfecho(null);
+          void perguntarAoTaq({
+            conversaId: id,
+            texto,
+            contexto,
+            acoes: acoesDaTela,
+          }).then((r) => setDesfecho(r && !r.resposta ? mensagemDoDesfecho(r) : null));
+        }
         return true;
       } catch {
         setErroEnvio('Não foi possível guardar a mensagem neste computador.');
@@ -174,7 +215,7 @@ export function App() {
         setGravandoMensagem(false);
       }
     },
-    [conversa, contexto],
+    [conversa, contexto, taq.fase, acoesDaTela, escolherConversa],
   );
 
   /** Vem da transcrição: leva o trecho (ou a reunião) para a conversa. */
@@ -248,6 +289,23 @@ export function App() {
     [platform],
   );
 
+  /** A origem de uma fonte abre na HOME — reunião ou documento. */
+  const abrirFonte = useCallback(
+    (fonte: FonteDaResposta) => {
+      void platform.send({
+        type: 'ui/openHome',
+        ...(fonte.tipo === 'reuniao'
+          ? { recordId: fonte.registroId }
+          : { documentId: fonte.registroId }),
+      });
+    },
+    [platform],
+  );
+  const abrirDocumento = useCallback(
+    (id: string) => void platform.send({ type: 'ui/openHome', documentId: id }),
+    [platform],
+  );
+
   // ---------- a tela ----------
 
   /*
@@ -292,6 +350,7 @@ export function App() {
         /* Contar falas é o sinal honesto mais próximo de "chegou trecho novo". */
         pulso={sessao?.segments.length ?? 0}
         agente={agente.atividade}
+        sinalDoAgente={agente.parcial ? agente.parcial.length : (agente.etapa ?? '')}
       />
 
       <div className="tq-palco">
@@ -339,14 +398,14 @@ export function App() {
             }
             onEnviar={enviar}
             onLimparContexto={() => setContexto(null)}
-            onNova={() => {
-              setIniciandoNova(true);
-              setConversaId(null);
-            }}
-            onEscolher={(id) => {
-              setConversaId(id);
-              setIniciandoNova(false);
-            }}
+            onNova={novaConversa}
+            onEscolher={escolherConversa}
+            taq={taq}
+            desfecho={desfecho}
+            onCancelar={cancelarTaq}
+            onAbrirFonte={abrirFonte}
+            onAbrirDocumento={abrirDocumento}
+            onDesfazer={desfazer}
           />
         </Painel>
       </div>
@@ -455,7 +514,9 @@ function Cabecalho({
           className={`tq-icone${brasasVisiveis ? '' : ' desligado'}`}
           onClick={onAlternarBrasas}
           title={brasasVisiveis ? 'Remover brasas do fundo' : 'Trazer brasas de volta'}
-          aria-label={brasasVisiveis ? 'Remover brasas do fundo' : 'Trazer brasas de volta'}
+          aria-label={
+            brasasVisiveis ? 'Remover brasas do fundo' : 'Trazer brasas de volta'
+          }
           aria-pressed={!brasasVisiveis}
         >
           <Icon name="sparkles" size={18} />

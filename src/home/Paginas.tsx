@@ -85,6 +85,23 @@ export function PaginaReunioes({
   useEffect(() => {
     if (abertaId && carregado && !aberta) onAbrir(null);
   }, [abertaId, carregado, aberta, onAbrir]);
+  const platform = usePlatform();
+  /** A reunião cuja lixeira foi apertada na lista: a pergunta ocupa o lugar dela. */
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
+  const [erroDaLista, setErroDaLista] = useState('');
+
+  const apagar = (id: string) => {
+    void platform
+      .send({ type: 'ui/history/delete', id })
+      .then((resposta) => {
+        if (resposta && typeof resposta === 'object' && 'ok' in resposta && resposta.ok) {
+          setConfirmandoId(null);
+        } else {
+          setErroDaLista('Não foi possível apagar. Encerre a captura e tente novamente.');
+        }
+      })
+      .catch(() => setErroDaLista('Não foi possível apagar a reunião.'));
+  };
 
   if (aberta) {
     return (
@@ -115,27 +132,90 @@ export function PaginaReunioes({
         </Vazio>
       ) : (
         <div className="tq-lista">
-          {registros.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className="tq-item"
-              onClick={() => onAbrir(r.id)}
-            >
-              <span>
-                <strong>{r.title}</strong>
-                <small>
-                  {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
-                  {formatDurationHuman(r.durationSeconds)} · {r.segments.length} trecho
-                  {r.segments.length === 1 ? '' : 's'}
-                  {notas[r.id] && ' · com nota'}
-                  {documentosDaReuniao(documentos, r.id).length > 0 && ' · com documento'}
-                  {r.status === 'recording' ? ' · gravando' : ''}
-                </small>
-              </span>
-              <Icon name="arrowUpRight" size={16} />
-            </button>
-          ))}
+          {erroDaLista && <p role="alert">{erroDaLista}</p>}
+          {registros.map((r) => {
+            const vinculados = documentosDaReuniao(documentos, r.id).length;
+
+            /* A pergunta ocupa o LUGAR do item, e não uma caixa por cima: é o
+               que mantém óbvio qual reunião está prestes a sumir. O texto diz o
+               que VAI JUNTO — ver `features/annotations/vinculos.ts`. */
+            if (confirmandoId === r.id) {
+              return (
+                <div
+                  key={r.id}
+                  className="tq-confirma"
+                  role="alertdialog"
+                  aria-label={`Apagar "${r.title}"?`}
+                >
+                  <p>
+                    <strong>Apagar &ldquo;{r.title}&rdquo;?</strong> A transcrição sai
+                    deste computador para sempre, e com ela as notas, as marcações de
+                    trecho e os prints desta reunião.
+                    {vinculados > 0 && (
+                      <>
+                        {' '}
+                        {vinculados === 1
+                          ? 'O documento gerado a partir dela '
+                          : `Os ${vinculados} documentos gerados a partir dela `}
+                        <strong>{vinculados === 1 ? 'continua' : 'continuam'}</strong> em
+                        Documentos, sem o vínculo.
+                      </>
+                    )}
+                  </p>
+                  <div className="tq-acoes">
+                    <button
+                      type="button"
+                      className="tq-acao tq-acao-perigo"
+                      onClick={() => apagar(r.id)}
+                    >
+                      Apagar
+                    </button>
+                    <button
+                      type="button"
+                      className="tq-acao"
+                      onClick={() => setConfirmandoId(null)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div key={r.id} className="tq-item-linha">
+                <button type="button" className="tq-item" onClick={() => onAbrir(r.id)}>
+                  <span>
+                    <strong>{r.title}</strong>
+                    <small>
+                      {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
+                      {formatDurationHuman(r.durationSeconds)} · {r.segments.length} trecho
+                      {r.segments.length === 1 ? '' : 's'}
+                      {notas[r.id] && ' · com nota'}
+                      {vinculados > 0 && ' · com documento'}
+                      {r.status === 'recording' ? ' · gravando' : ''}
+                    </small>
+                  </span>
+                  <Icon name="arrowUpRight" size={16} />
+                </button>
+                {/* A que está sendo gravada não se apaga: a captura ainda escreve nela. */}
+                {r.status !== 'recording' && (
+                  <button
+                    type="button"
+                    className="tq-item-apagar"
+                    title={`Apagar "${r.title}"`}
+                    aria-label={`Apagar "${r.title}"`}
+                    onClick={() => {
+                      setErroDaLista('');
+                      setConfirmandoId(r.id);
+                    }}
+                  >
+                    <Icon name="trash" size={16} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

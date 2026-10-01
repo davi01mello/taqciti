@@ -74,6 +74,13 @@ export interface DocumentoGuardado {
    * Não há `importado`: documento sem conteúdo não vira registro.
    */
   origem: 'gerado' | 'manual' | 'demo';
+  /**
+   * Quando o documento foi criado pelo assistente (Taq): a execução que o criou
+   * e a chave que torna a criação IDEMPOTENTE. Repetir a mesma chamada na mesma
+   * execução devolve este registro em vez de gravar um segundo — ver
+   * `guardarDocumentoUnico`. Ausente em tudo que a pessoa criou à mão.
+   */
+  criadoPor?: { execucaoId: string; chave: string };
 }
 
 function ehDocumento(v: unknown): v is DocumentoGuardado {
@@ -202,6 +209,74 @@ export async function atualizarDocumento(
   });
 }
 
+/**
+ * Guarda um documento a menos que um com a mesma `chave` já exista.
+ *
+ * A verificação acontece DENTRO da trava, junto da gravação: duas chamadas
+ * idênticas que cheguem ao mesmo tempo (o modelo repetindo o pedido, a pessoa
+ * reenviando) não conseguem as duas passar pela checagem antes de uma gravar.
+ */
+export async function guardarDocumentoUnico(
+  novo: NovoDocumento,
+  criadoPor: { execucaoId: string; chave: string },
+): Promise<{ documento: DocumentoGuardado; jaExistia: boolean }> {
+  return comTravaLocal(STORAGE_KEYS.documents, async () => {
+    const todos = await lerDocumentos();
+    const existente = todos.find((d) => d.criadoPor?.chave === criadoPor.chave);
+    if (existente) return { documento: existente, jaExistia: true };
+
+    const agora = Date.now();
+    const documento: DocumentoGuardado = {
+      id: novoId(),
+      title: novo.title.trim() || 'Documento sem título',
+      content: novo.content,
+      formato: novo.formato ?? 'markdown',
+      createdAt: agora,
+      updatedAt: agora,
+      origem: novo.origem ?? 'gerado',
+      criadoPor,
+      ...(novo.meetingId ? { meetingId: novo.meetingId } : {}),
+      ...(novo.conversationId ? { conversationId: novo.conversationId } : {}),
+      ...(novo.tipo ? { tipo: novo.tipo } : {}),
+    };
+    await gravar([documento, ...todos]);
+    return { documento, jaExistia: false };
+  });
+}
+
+export type ResultadoDaEdicaoComVersao =
+  | { tipo: 'ok'; documento: DocumentoGuardado }
+  | { tipo: 'conflito'; atual: DocumentoGuardado }
+  | { tipo: 'inexistente' };
+
+/**
+ * Altera um documento SÓ se ele ainda estiver na versão que quem edita leu.
+ *
+ * A versão é o `updatedAt`: toda gravação o sobe, então "a versão mudou" é
+ * exatamente "alguém gravou depois da sua leitura" — o editor da HOME, outra
+ * aba, outra execução. Em vez de sobrescrever, devolve o atual, para quem pediu
+ * decidir com o conteúdo novo à frente. Sem migração: todo documento já tem
+ * `updatedAt`.
+ */
+export async function atualizarDocumentoNaVersao(
+  id: string,
+  versaoEsperada: number,
+  patch: Partial<Pick<DocumentoGuardado, 'title' | 'content'>>,
+): Promise<ResultadoDaEdicaoComVersao> {
+  return comTravaLocal(STORAGE_KEYS.documents, async () => {
+    const todos = await lerDocumentos();
+    const atual = todos.find((d) => d.id === id);
+    if (!atual) return { tipo: 'inexistente' };
+    if (atual.updatedAt !== versaoEsperada) return { tipo: 'conflito', atual };
+
+    // Nunca a mesma versão duas vezes, nem com duas gravações no mesmo ms.
+    const updatedAt = Math.max(Date.now(), atual.updatedAt + 1);
+    const proximo: DocumentoGuardado = { ...atual, ...patch, updatedAt };
+    await gravar([proximo, ...todos.filter((d) => d.id !== id)]);
+    return { tipo: 'ok', documento: proximo };
+  });
+}
+
 export async function apagarDocumento(id: string): Promise<void> {
   return comTravaLocal(STORAGE_KEYS.documents, async () => {
     const todos = await lerDocumentos();
@@ -244,6 +319,28 @@ export function documentosDaReuniao(
   meetingId: string,
 ) {
   return todos.filter((d) => d.meetingId === meetingId);
+}
+
+/**
+ * Tira o vínculo com conversas apagadas. O documento FICA — ele é registro
+ * próprio, e apagar a conversa de onde saiu não pede apagar o documento.
+ */
+export async function desvincularDaConversa(conversaIds: readonly string[]): Promise<number> {
+  const ids = new Set(conversaIds);
+  return comTravaLocal(STORAGE_KEYS.documents, async () => {
+    const todos = await lerDocumentos();
+    const afetados = todos.filter((d) => d.conversationId && ids.has(d.conversationId));
+    if (!afetados.length) return 0;
+    await gravar(
+      todos.map((d) => {
+        if (!d.conversationId || !ids.has(d.conversationId)) return d;
+        const copia = { ...d };
+        delete copia.conversationId;
+        return copia;
+      }),
+    );
+    return afetados.length;
+  });
 }
 
 export async function desvincularDaReuniao(meetingId: string): Promise<number> {

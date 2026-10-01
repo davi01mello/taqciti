@@ -4,14 +4,14 @@
  * ── O que é real aqui, e o que não é ───────────────────────────────────────
  *
  * As mensagens que você escreve são reais: vão para o `chrome.storage.local`
- * (ver `conversations.ts`) e sobrevivem ao recarregar. **As respostas não
- * existem** — o servidor do TaqCiti gera documento a partir de transcrição, e
- * não tem rota de conversa. Então, no lugar onde a resposta apareceria, esta
- * tela mostra um estado honesto, com a identidade do agente ao lado.
+ * (ver `conversations.ts`) e sobrevivem ao recarregar. As respostas são do Taq
+ * (`features/taq/`), gravadas só quando a execução produziu texto, com as
+ * fontes conferidas e os documentos que as ferramentas confirmaram.
  *
- * A alternativa — inventar uma resposta plausível — foi recusada de propósito.
- * Uma frase genérica ("posso ajudar a organizar as decisões…") é indistinguível
- * de um produto funcionando, e quem testar vai embora achando que conversou.
+ * Sem servidor configurado, não há resposta — e a tela diz isso ANTES da
+ * escrita, com o motivo que o servidor deu. Nenhuma resposta é inventada para a
+ * tela parecer completa: uma frase genérica é indistinguível de um produto
+ * funcionando, e quem testar vai embora achando que conversou.
  *
  * ── Por que não há caixa de rolagem aqui dentro ────────────────────────────
  *
@@ -33,10 +33,16 @@
  * quem ACABOU de enviar: aí a rolagem acompanha, porque ver o que se enviou é
  * o motivo de ter enviado.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { AgentMark } from './AgentMark';
-import type { Conversation } from './conversations';
+import type { EstadoDoAgente } from '@/features/agent/atividade';
+import { anunciarEscrita } from '@/features/agent/escuta';
+import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
+import { EstadoDaExecucao, RespostaDoTaq } from '@/shared/ui/RespostaDoTaq';
+import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
+import { TrilhaDaConversa, marcasDasMensagens } from '@/shared/ui/TrilhaDaConversa';
+import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
+import type { Conversation, FonteDaResposta } from './conversations';
 
 /** Distância do fim, em px, dentro da qual ainda consideramos "no fim". */
 const MARGEM_DO_FIM = 96;
@@ -58,6 +64,18 @@ interface Props {
   onEscrevendo: (escrevendo: boolean) => void;
   /** Sinaliza gesto real da pessoa para a onda do fundo reagir. */
   onPulso: (forca: number) => void;
+  /** O Taq está pronto? Vem do servidor — ver `useDisponibilidadeDoTaq`. */
+  taq: DisponibilidadeDoTaq;
+  onVerificarDeNovo: () => void;
+  /** O que o Taq está fazendo agora. */
+  agente: EstadoDoAgente;
+  /** Como a última execução terminou, quando não deixou resposta. */
+  desfecho: string | null;
+  onCancelar: () => void;
+  onAbrirFonte: (fonte: FonteDaResposta) => void;
+  onAbrirDocumento: (id: string) => void;
+  /** Desfazer uma exclusão feita pelo Taq (lixeira). */
+  onDesfazer?: (id: string) => Promise<boolean>;
 }
 
 export function AssistantView({
@@ -69,7 +87,17 @@ export function AssistantView({
   onEnviar,
   onEscrevendo,
   onPulso,
+  taq,
+  onVerificarDeNovo,
+  agente,
+  desfecho,
+  onCancelar,
+  onAbrirFonte,
+  onAbrirDocumento,
+  onDesfazer,
 }: Props) {
+  const trabalhando =
+    agente.atividade === 'preparando' || agente.atividade === 'escrevendo';
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
   const arquivoRef = useRef<HTMLInputElement | null>(null);
   const noFimRef = useRef(true);
@@ -77,9 +105,16 @@ export function AssistantView({
   const [anexos, setAnexos] = useState<string[]>([]);
   const [menuAberto, setMenuAberto] = useState(false);
 
-  const mensagens = conversa?.messages ?? [];
+  // Pela lista, não pela conversa: a gravação troca o array de mensagens,
+  // mas pode devolver o mesmo objeto de conversa.
+  const mensagensGravadas = conversa?.messages;
+  const mensagens = useMemo(() => mensagensGravadas ?? [], [mensagensGravadas]);
   const total = mensagens.length;
   const vazia = total === 0;
+  /** A resposta acabou de chegar e a execução ainda não voltou ao repouso. */
+  const respostaChegando =
+    mensagens.at(-1)?.role === 'assistant' &&
+    (trabalhando || agente.atividade === 'concluido');
 
   // Onde a página está. Lido do documento, porque é ele que rola agora.
   useEffect(() => {
@@ -107,7 +142,7 @@ export function AssistantView({
       }
     });
     return () => cancelAnimationFrame(id);
-  }, [total, gravando]);
+  }, [total, gravando, agente.atividade, agente.etapa]);
 
   /** Mantém a altura do campo colada no conteúdo, até o teto. */
   const ajustarAltura = (el: HTMLTextAreaElement) => {
@@ -123,7 +158,7 @@ export function AssistantView({
   const enviar = async () => {
     const limpo = rascunho.trim();
     // Mensagem vazia não vai. Nem espaço, nem quebra de linha sozinha.
-    if (!limpo || gravando) return;
+    if (!limpo || gravando || trabalhando) return;
 
     noFimRef.current = true;
     onPulso(1);
@@ -144,62 +179,142 @@ export function AssistantView({
     setMenuAberto(false);
   };
 
+  /*
+   * O histórico, memorizado. Cada tecla muda o rascunho (e a onda do fundo),
+   * e re-renderizar o Markdown de todas as respostas a cada letra derrubava
+   * quadros da marca animada. Digitar não está nas dependências.
+   */
+  const historico = useMemo(
+    () => (
+      <ol className="tq-turnos" aria-label="Histórico da conversa">
+        {mensagens.map((m, i) => {
+          const ultima = i === total - 1;
+          if (m.role === 'assistant') {
+            return (
+              <li key={m.id} className="tq-turno" data-tq-turno={m.id}>
+                <div className="tq-turno-agente">
+                  {/* Só a resposta que acabou de chegar se mexe: ela se
+                          refaz no ícone. As antigas são o ícone parado. */}
+                  <MarcaDoTaq
+                    estado={ultima && respostaChegando ? 'concluido' : 'repouso'}
+                    vivo={ultima && respostaChegando}
+                    ouve={ultima}
+                    tamanho={32}
+                  />
+                  <div className="tq-resposta-texto">
+                    <div className="tq-agente-nome">
+                      Taq
+                      {m.demo && <span className="tq-selo-demo"> · Demonstração</span>}
+                    </div>
+                    <RespostaDoTaq
+                      mensagem={m}
+                      onAbrirFonte={onAbrirFonte}
+                      onAbrirDocumento={onAbrirDocumento}
+                      onDesfazer={onDesfazer}
+                      onAbrirReuniao={(id) =>
+                        onAbrirFonte({
+                          ref: '',
+                          tipo: 'reuniao',
+                          registroId: id,
+                          titulo: '',
+                          trecho: '',
+                        })
+                      }
+                      onEscolherOpcao={
+                        ultima && !trabalhando && !gravando && taq.fase === 'pronto'
+                          ? (texto) => void onEnviar(texto, [])
+                          : undefined
+                      }
+                    />
+                  </div>
+                </div>
+              </li>
+            );
+          }
+          return (
+            <li key={m.id} className="tq-turno tq-turno-voce" data-tq-turno={m.id}>
+              <p className="tq-bolha">{m.text}</p>
+              <div className="tq-voce-acoes">
+                <BotaoCopiar texto={m.text} rotulo="Copiar sua mensagem" />
+              </div>
+              {m.attachments?.length ? (
+                <p className="tq-anexos-msg">
+                  {m.attachments.join(' · ')} — guardado só o nome; o arquivo não foi
+                  enviado a lugar nenhum.
+                </p>
+              ) : null}
+
+              {/* O estado pertence ao ÚLTIMO turno da pessoa: é dele que se
+                      está à espera. */}
+              {ultima && (
+                <div className="tq-turno-agente">
+                  <MarcaDoTaq
+                    estado={gravando ? 'preparando' : agente.atividade}
+                    vivo={gravando || agente.atividade !== 'repouso'}
+                    sinal={agente.parcial ? agente.parcial.length : (agente.etapa ?? '')}
+                    ouve
+                    tamanho={32}
+                  />
+                  <div className="tq-resposta-texto">
+                    <div className="tq-agente-nome">Taq</div>
+                    {gravando ? (
+                      <p className="tq-indisponivel">Guardando sua mensagem…</p>
+                    ) : erro ? (
+                      <p className="tq-indisponivel tq-falhou">
+                        {erro} Seu texto continua no campo abaixo — dá para tentar de
+                        novo.
+                      </p>
+                    ) : taq.fase === 'pronto' ? (
+                      <EstadoDaExecucao
+                        agente={agente}
+                        desfecho={desfecho}
+                        onCancelar={onCancelar}
+                      />
+                    ) : (
+                      <p className="tq-indisponivel">
+                        Sua mensagem ficou salva aqui. O assistente não respondeu porque{' '}
+                        {motivoSemTaq(taq)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    ),
+    [
+      mensagens,
+      total,
+      gravando,
+      trabalhando,
+      erro,
+      taq,
+      agente,
+      desfecho,
+      respostaChegando,
+      onAbrirFonte,
+      onAbrirDocumento,
+      onDesfazer,
+      onEnviar,
+      onCancelar,
+    ],
+  );
+
   return (
     <section className="tq-palco" aria-label="Conversa com o assistente">
       <div className="tq-conversa">
         {vazia ? (
           <div className="tq-abertura">
             <h1>O que vamos organizar?</h1>
-            <p>Suas mensagens ficam salvas neste computador.</p>
+            <p>Pergunte sobre suas reuniões e documentos, ou peça um documento.</p>
           </div>
         ) : (
-          <ol className="tq-turnos" aria-label="Histórico da conversa">
-            {mensagens.map((m, i) => (
-              <li key={m.id} className="tq-turno tq-turno-voce">
-                <p className="tq-bolha">{m.text}</p>
-                {m.attachments?.length ? (
-                  <p className="tq-anexos-msg">
-                    {m.attachments.join(' · ')} — guardado só o nome; o arquivo não
-                    foi enviado a lugar nenhum.
-                  </p>
-                ) : null}
-
-                {/* A resposta pertence ao ÚLTIMO turno: é dela que se está à
-                    espera. Repetir o mesmo aviso sob cada mensagem encheria a
-                    conversa de uma frase que não muda. */}
-                {i === total - 1 && (
-                  <div className="tq-turno-agente">
-                    <MarcaDaResposta processando={gravando} />
-                    <div className="tq-resposta-texto">
-                      <div className="tq-agente-nome">TaqCiti</div>
-                      {gravando ? (
-                        <p className="tq-indisponivel">Guardando sua mensagem…</p>
-                      ) : erro ? (
-                        <p className="tq-indisponivel tq-falhou">
-                          {erro} Seu texto continua no campo abaixo — dá para tentar
-                          de novo.
-                        </p>
-                      ) : (
-                        <>
-                          <p className="tq-indisponivel">
-                            Ainda não há um assistente de conversa ligado a esta
-                            extensão — o servidor do TaqCiti gera documentos a partir
-                            das transcrições, e não responde mensagens. Sua mensagem
-                            ficou salva aqui.
-                          </p>
-                          <p className="tq-indisponivel-dica">
-                            O que já funciona de verdade: <strong>Reuniões</strong>{' '}
-                            com as transcrições capturadas e <strong>Documentos</strong>{' '}
-                            para gerar a ata a partir delas.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
+          historico
+        )}
+        {!vazia && (
+          <TrilhaDaConversa itens={marcasDasMensagens(mensagens)} rolador={null} />
         )}
       </div>
 
@@ -229,6 +344,7 @@ export function AssistantView({
             onChange={(e) => {
               onRascunho(e.target.value);
               ajustarAltura(e.target);
+              anunciarEscrita();
               onEscrevendo(true);
               onPulso(0.4);
             }}
@@ -257,7 +373,7 @@ export function AssistantView({
               type="submit"
               className="tq-enviar"
               aria-label="Enviar mensagem"
-              disabled={!rascunho.trim() || gravando}
+              disabled={!rascunho.trim() || gravando || trabalhando}
             >
               <Icon name="arrowUp" size={16} />
             </button>
@@ -295,10 +411,7 @@ export function AssistantView({
          * é descobrir tarde demais — e faz a tela parecer um chat que falhou,
          * em vez de um chat que ainda não existe.
          */}
-        <p className="tq-sem-ia" role="status">
-          Sem assistente conectado: nada responde por aqui ainda. Sua mensagem
-          fica salva.
-        </p>
+        <AvisoDoTaq taq={taq} onVerificarDeNovo={onVerificarDeNovo} />
         <p className="tq-dica-teclas">Enter envia · Shift+Enter quebra linha</p>
       </form>
 
@@ -317,25 +430,55 @@ export function AssistantView({
   );
 }
 
+/** O motivo de não haver resposta, dito como o servidor disse. */
+function motivoSemTaq(taq: DisponibilidadeDoTaq): string {
+  switch (taq.fase) {
+    case 'verificando':
+      return 'ainda estava verificando o servidor quando você enviou.';
+    case 'pendente':
+      return `a configuração está pendente: ${taq.motivos.join(' ')}`;
+    case 'inalcancavel':
+      return 'o servidor do TaqCiti não respondeu.';
+    default:
+      return '';
+  }
+}
+
 /**
- * O indicador da mensagem da IA, amarrado ao que está ACONTECENDO.
- *
- * Enquanto a operação real corre, a marca animada — ondas girando. Quando ela
- * termina, o ícone oficial do TaqCiti entra por cima, com uma transição de
- * opacidade. Os dois ficam montados e empilhados de propósito: trocar de
- * elemento faria a marca sumir por um quadro antes de o ícone aparecer.
- *
- * Nenhum temporizador participa disso. O que decide é `processando`, que vem do
- * estado real da gravação — não de um `setTimeout` fingindo latência.
+ * O estado da IA, dito ANTES de escrever — e, quando pronto, o que sai do
+ * computador. Guardar localmente não é processar localmente: os trechos que o
+ * Taq consulta vão ao provedor, pelo servidor, e isto precisa estar escrito
+ * onde se escreve.
  */
-function MarcaDaResposta({ processando }: { processando: boolean }) {
+function AvisoDoTaq({
+  taq,
+  onVerificarDeNovo,
+}: {
+  taq: DisponibilidadeDoTaq;
+  onVerificarDeNovo: () => void;
+}) {
+  if (taq.fase === 'pronto') {
+    return (
+      <p className="tq-com-ia" role="status">
+        Taq conectado. Os trechos que ele consulta vão ao provedor de IA.
+      </p>
+    );
+  }
   return (
-    <span
-      className={`tq-marca${processando ? ' processando' : ''}`}
-      aria-hidden="true"
-    >
-      <AgentMark animada={processando} processando={processando} tamanho={32} />
-      <img src={chrome.runtime.getURL('brand/taqciti-mark.png')} alt="" draggable={false} />
-    </span>
+    <p className="tq-sem-ia" role="status">
+      {taq.fase === 'verificando'
+        ? 'Verificando o assistente…'
+        : taq.fase === 'pendente'
+          ? `Taq com configuração pendente: ${taq.motivos.join(' ')}`
+          : 'Taq fora do ar. Sua mensagem fica salva.'}
+      {taq.fase !== 'verificando' && (
+        <>
+          {' '}
+          <button type="button" className="tq-linkish" onClick={onVerificarDeNovo}>
+            verificar de novo
+          </button>
+        </>
+      )}
+    </p>
   );
 }

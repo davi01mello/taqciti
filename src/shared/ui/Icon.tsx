@@ -34,7 +34,9 @@ export type IconName =
   // O menu de conversas da HOME. Duas bolhas, e não um relógio: o que o botão
   // abre são CONVERSAS, e um ícone de histórico já quer dizer "Reuniões" na
   // navegação lateral — dois lugares diferentes não podem ter o mesmo desenho.
-  | 'chats';
+  | 'chats'
+  // Copiar a mensagem ou a resposta da conversa.
+  | 'copy';
 
 interface IconProps {
   name: IconName;
@@ -93,6 +95,12 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   check: <path d="M20 6.5L9.2 17.3 4.5 12.6" />,
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="11" height="11" rx="2.4" />
+      <path d="M15.5 8.5V6.9A2.4 2.4 0 0 0 13.1 4.5H6.9A2.4 2.4 0 0 0 4.5 6.9v6.2a2.4 2.4 0 0 0 2.4 2.4h1.6" />
+    </>
+  ),
   plus: (
     <>
       <path d="M12 5.5v13" />

@@ -23,7 +23,7 @@
  * que satisfaz isso sem voltar a desenhar por cima da página é esta.
  */
 import type { AtividadeDoAgente } from '@/features/agent/atividade';
-import { AgenteOnda } from '@/shared/ui/AgenteOnda';
+import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { OndaDaCaptura, type EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
 
 export type Modo = 'transcricao' | 'conversa';
@@ -35,6 +35,8 @@ interface Props {
   /** Sobe a cada trecho novo: é o que dispara a reação discreta da onda. */
   pulso: number;
   agente: AtividadeDoAgente;
+  /** Muda a cada passo real do agente (etapa, texto): cada um ondula a marca. */
+  sinalDoAgente?: string | number;
 }
 
 /** A palavra que acompanha cada estado da captura. Nunca só a cor. */
@@ -63,6 +65,7 @@ const PALAVRA_DO_AGENTE: Partial<Record<AtividadeDoAgente, string>> = {
   concluido: 'Pronto',
   falhou: 'Falhou',
   cancelado: 'Cancelado',
+  interrompido: 'Interrompido',
 };
 
 const LEITURA_DO_AGENTE: Partial<Record<AtividadeDoAgente, string>> = {
@@ -71,6 +74,7 @@ const LEITURA_DO_AGENTE: Partial<Record<AtividadeDoAgente, string>> = {
   concluido: 'resposta concluída',
   falhou: 'a resposta falhou',
   cancelado: 'a resposta foi cancelada',
+  interrompido: 'a resposta foi interrompida',
 };
 
 /** Verde só quando algo está mesmo acontecendo. */
@@ -83,9 +87,17 @@ const CAPTURA_ATENCAO: ReadonlySet<EstadoDaCaptura> = new Set<EstadoDaCaptura>([
   'preparando',
 ]);
 
-export function Seletores({ modo, onModo, captura, pulso, agente }: Props) {
+export function Seletores({
+  modo,
+  onModo,
+  captura,
+  pulso,
+  agente,
+  sinalDoAgente,
+}: Props) {
   const agenteTrabalhando = agente === 'preparando' || agente === 'escrevendo';
-  const agenteFalhou = agente === 'falhou' || agente === 'cancelado';
+  const agenteFalhou =
+    agente === 'falhou' || agente === 'cancelado' || agente === 'interrompido';
   const palavraAgente = PALAVRA_DO_AGENTE[agente] ?? '';
 
   return (
@@ -122,7 +134,7 @@ export function Seletores({ modo, onModo, captura, pulso, agente }: Props) {
         aria-current={modo === 'conversa' ? 'page' : undefined}
         onClick={() => onModo('conversa')}
       >
-        <AgenteOnda estado={agente} tamanho={22} />
+        <MarcaDoTaq estado={agente} tamanho={24} sinal={sinalDoAgente} ouve />
         <span className="tq-modo-nome">Conversa</span>
         <span
           className={`tq-modo-estado${

@@ -25,12 +25,11 @@
  *
  * ── A escala ───────────────────────────────────────────────────────────────
  *
- * Quatro níveis, e o nível diz o PAPEL, não a aparência:
+ * Três níveis, e o nível diz o PAPEL, não a aparência:
  *
  *   .glass          moldura do app — cabeçalho, barra de controles, modal
  *   .glass-raised   cartão que flutua sobre o fundo
  *   .glass-subtle   item de lista, controle secundário
- *   .glass-sunken   campo de entrada, trecho rebaixado
  *
  * Só os dois primeiros desfocam o fundo. `backdrop-filter` obriga o
  * compositor a rasterizar de novo tudo o que está atrás do elemento a cada
@@ -41,8 +40,7 @@
 
 .glass,
 .glass-raised,
-.glass-subtle,
-.glass-sunken {
+.glass-subtle {
   position: relative;
   /* Sem isto o `z-index: -1` dos pseudo-elementos escapa para trás do
      ancestral mais próximo com contexto de empilhamento, e o fio de luz
@@ -68,11 +66,6 @@
   background: var(--glass-subtle);
 }
 
-.glass-sunken {
-  background: var(--glass-sunken);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
-}
-
 /*
  * O fio de luz. `padding: 1px` + máscara XOR desenha SÓ a moldura de um
  * pixel, acompanhando o `border-radius` herdado — é o único jeito de ter
@@ -81,8 +74,7 @@
  */
 .glass::before,
 .glass-raised::before,
-.glass-subtle::before,
-.glass-sunken::before {
+.glass-subtle::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -125,14 +117,6 @@
     158deg,
     var(--color-border-soft),
     var(--color-border-faint) 60%,
-    var(--color-border-soft)
-  );
-}
-
-.glass-sunken::before {
-  background: linear-gradient(
-    158deg,
-    var(--color-border-faint),
     var(--color-border-soft)
   );
 }

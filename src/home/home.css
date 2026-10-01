@@ -50,6 +50,12 @@ body {
   background: rgb(17 18 19);
 }
 
+/* Sem barra nativa: na conversa quem rola e mostra onde se está é o mapa da
+   `TrilhaDaConversa`, e uma barra ao lado dele fazia o mesmo por cima. */
+html {
+  scrollbar-width: none;
+}
+
 .tq-home {
   position: relative;
   isolation: isolate;
@@ -768,59 +774,12 @@ body {
   color: rgb(240 205 160);
 }
 
-.tq-indisponivel-dica {
-  font-size: 12px;
-  line-height: 1.8;
-  color: rgb(149 152 155);
-  margin: 10px 0 0;
-}
-
-/* Destaque por peso e branco, não por verde: são só nomes de seções. */
-.tq-indisponivel-dica strong {
-  color: rgb(235 237 239);
-  font-weight: 500;
-}
-
 /* --------------------------------------------- a marca da resposta da IA */
 
-/*
- * As duas camadas empilhadas: a animação por baixo, o ícone oficial por cima.
- * Trocar de elemento faria a marca sumir por um quadro; com as duas montadas,
- * a conclusão é uma transição de opacidade — e o ícone estático é o que diz
- * "esta resposta terminou".
- */
-.tq-marca {
-  position: relative;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+/* A marca da resposta (`MarcaDoTaq`) é um desenho só: ela mesma se refaz no
+ * ícone ao concluir, sem camada de imagem por cima. */
+.tq-turno-agente > .tq-marca {
   margin-top: 2px;
-}
-
-.tq-marca canvas,
-.tq-marca img {
-  position: absolute;
-  inset: 0;
-  width: 32px;
-  height: 32px;
-  transition: opacity 0.45s ease;
-}
-
-.tq-marca canvas {
-  opacity: 0;
-}
-
-.tq-marca img {
-  opacity: 0.92;
-  object-fit: contain;
-}
-
-.tq-marca.processando canvas {
-  opacity: 1;
-}
-
-.tq-marca.processando img {
-  opacity: 0;
 }
 
 /* ------------------------------------------------------- campo de escrita */
@@ -2186,4 +2145,22 @@ body.tq-pointer-in .tq-halo {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* O Taq conectado: informação, não alerta — cinza, não âmbar nem verde. */
+.tq-com-ia {
+  margin: 12px 0 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: rgb(150 153 157);
+}
+
+.tq-selo-demo {
+  color: rgb(196 176 152);
+}
+
+/* Copiar a mensagem da pessoa: embaixo da bolha, do mesmo lado dela. */
+.tq-voce-acoes {
+  align-self: flex-end;
+  margin-top: -4px;
 }

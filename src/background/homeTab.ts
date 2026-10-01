@@ -44,6 +44,8 @@ export interface HomeTarget {
   secao?: HomeSection;
   /** Abre já nesta reunião, dentro de "Reuniões". */
   recordId?: string | null;
+  /** Abre já neste documento, dentro de "Documentos". */
+  documentId?: string | null;
 }
 
 export function homeUrl(target?: HomeTarget): string {
@@ -55,6 +57,9 @@ export function homeUrl(target?: HomeTarget): string {
   if (recordId !== null) {
     params.set('secao', 'reunioes');
     params.set('record', recordId);
+  } else if (target?.documentId) {
+    params.set('secao', 'documentos');
+    params.set('documento', target.documentId);
   } else if (target?.secao) {
     params.set('secao', target.secao);
   }
@@ -91,7 +96,7 @@ export async function openHome(
   target?: HomeTarget,
 ): Promise<boolean> {
   const url = homeUrl(target);
-  const temAlvo = Boolean(target?.secao || target?.recordId);
+  const temAlvo = Boolean(target?.secao || target?.recordId || target?.documentId);
 
   try {
     const existente = await findHomeTab();

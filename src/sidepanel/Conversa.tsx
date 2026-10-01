@@ -9,10 +9,12 @@
  *
  * ── O que é real, e o que não é ──────────────────────────────────────────
  *
- * Sem endpoint de conversa, a ação salva um rascunho no mesmo registro usado
- * pela HOME. A disponibilidade aparece antes da escrita e não há turno falso
- * de resposta. Mensagens, campo e onda rolam juntos; novas gravações só
- * acompanham o fim quando a pessoa já estava lá ou acabou de salvar.
+ * Com o Taq pronto no servidor, enviar grava a pergunta e o Taq responde —
+ * com fontes e os documentos que as ferramentas confirmaram. Sem ele, a ação
+ * salva um rascunho no mesmo registro usado pela HOME. A disponibilidade
+ * aparece antes da escrita e não há turno falso de resposta. Mensagens, campo
+ * e onda rolam juntos; novas gravações só acompanham o fim quando a pessoa já
+ * estava lá ou acabou de salvar.
  *
  * ── O contexto é explícito ───────────────────────────────────────────────
  *
@@ -22,12 +24,28 @@
  * prints. Mandar o que estava por perto seria enviar a tela de alguém junto de
  * "como assim?".
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
-import type { ContextoDaPergunta, Conversation } from '@/home/conversations';
+import type {
+  ContextoDaPergunta,
+  Conversation,
+  FonteDaResposta,
+} from '@/home/conversations';
 import type { EstadoDoAgente } from '@/features/agent/atividade';
+import { anunciarEscrita } from '@/features/agent/escuta';
+import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
+import { EstadoDaExecucao, RespostaDoTaq } from '@/shared/ui/RespostaDoTaq';
 import { Icon } from '@/shared/ui/Icon';
-import { AgenteOnda } from '@/shared/ui/AgenteOnda';
+import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
+import { TrilhaDaConversa, marcasDasMensagens } from '@/shared/ui/TrilhaDaConversa';
+import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { formatDate } from '@/shared/ui/format';
 
 interface Props {
@@ -45,6 +63,15 @@ interface Props {
   onLimparContexto: () => void;
   onNova: () => void;
   onEscolher: (id: string) => void;
+  /** O Taq está pronto? Ausente = tratado como não conectado. */
+  taq?: DisponibilidadeDoTaq;
+  /** Como a última execução terminou quando não deixou resposta. */
+  desfecho?: string | null;
+  onCancelar?: () => void;
+  onAbrirFonte?: (fonte: FonteDaResposta) => void;
+  onAbrirDocumento?: (id: string) => void;
+  /** Desfazer uma exclusão feita pelo Taq (lixeira). */
+  onDesfazer?: (id: string) => Promise<boolean>;
 }
 
 const ALTURA_MAXIMA = 140;
@@ -63,9 +90,24 @@ export function Conversa({
   onLimparContexto,
   onNova,
   onEscolher,
+  taq = { fase: 'verificando' },
+  desfecho = null,
+  onCancelar = () => {},
+  onAbrirFonte = () => {},
+  onAbrirDocumento = () => {},
+  onDesfazer,
 }: Props) {
+  const pronto = taq.fase === 'pronto';
+  const trabalhando =
+    agente.atividade === 'preparando' || agente.atividade === 'escrevendo';
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
   const rolagemRef = useRef<HTMLDivElement | null>(null);
+  /** A mesma coluna, como estado: a trilha precisa renderizar quando ela existir. */
+  const [coluna, setColuna] = useState<HTMLDivElement | null>(null);
+  const refDaColuna = useCallback((el: HTMLDivElement | null) => {
+    rolagemRef.current = el;
+    setColuna(el);
+  }, []);
   /** O bloco do agente: enquanto há resposta chegando, é ele que fica à vista. */
   const agenteRef = useRef<HTMLDivElement | null>(null);
   const noFim = useRef(true);
@@ -74,8 +116,20 @@ export function Conversa({
   const [ajudaAberta, setAjudaAberta] = useState(false);
   const [salvo, setSalvo] = useState(false);
 
-  const mensagens = conversa?.messages ?? [];
+  // Pela lista, não pela conversa: a gravação troca o array de mensagens,
+  // mas pode devolver o mesmo objeto de conversa.
+  const mensagensGravadas = conversa?.messages;
+  const mensagens = useMemo(() => mensagensGravadas ?? [], [mensagensGravadas]);
   const total = mensagens.length;
+  /*
+   * A resposta ACABOU de chegar: a última mensagem já é do Taq e a execução
+   * ainda não voltou ao repouso. Nesse intervalo a marca que trabalhava vira a
+   * marca da resposta — um desenho só, que se refaz no ícone —, em vez de dois
+   * ícones empilhados até a acomodação terminar.
+   */
+  const respostaChegando =
+    mensagens.at(-1)?.role === 'assistant' &&
+    (trabalhando || agente.atividade === 'concluido');
 
   /** A reunião que esta conversa representa, quando ela nasceu de uma. */
   const reuniaoDaConversa = conversa?.meetingId
@@ -119,7 +173,8 @@ export function Conversa({
 
     const bloco = agenteRef.current;
     if (bloco) {
-      const sobra = bloco.getBoundingClientRect().bottom - col.getBoundingClientRect().bottom;
+      const sobra =
+        bloco.getBoundingClientRect().bottom - col.getBoundingClientRect().bottom;
       if (sobra > 0) col.scrollTop += sobra + 16;
       return;
     }
@@ -153,7 +208,7 @@ export function Conversa({
 
   const enviar = async () => {
     const limpo = rascunho.trim();
-    if (!limpo || gravando || salvando.current) return;
+    if (!limpo || gravando || trabalhando || salvando.current) return;
     salvando.current = true;
     noFim.current = true;
     const ok = await onEnviar(limpo).finally(() => {
@@ -168,10 +223,99 @@ export function Conversa({
     campoRef.current?.focus();
   };
 
+  /*
+   * O histórico, memorizado. O rascunho mora no `App`, então cada tecla
+   * re-renderiza esta tela inteira — e remontar o Markdown de todas as
+   * respostas a cada letra derrubava quadros da marca que está animando.
+   * Digitar não muda nada aqui dentro; só o que está nas dependências muda.
+   */
+  const ultimaId = mensagens.at(-1)?.id;
+  const podeEscolherOpcao = pronto && !trabalhando && !gravando;
+  const estadoDaUltima = respostaChegando ? 'concluido' : 'repouso';
+  const listaDeMensagens = useMemo(
+    () =>
+      mensagens.map((m) =>
+        m.role === 'assistant' ? (
+          /*
+           * Uma resposta do Taq — real, gravada pelo adaptador de interface
+           * (ver features/taq/interface.ts) — ou uma resposta semeada pela
+           * demonstração de desenvolvimento, e por isso o selo abaixo não é
+           * enfeite: é o que impede uma resposta fictícia de ser lida como
+           * resposta real.
+           */
+          <div key={m.id} className="tq-turno tq-turno-agente" data-tq-turno={m.id}>
+            <div className="tq-msg-agente">
+              {/* Só a resposta que acabou de chegar se mexe: ela se refaz no
+                  ícone. As antigas são o ícone parado, sem laço nenhum. */}
+              <MarcaDoTaq
+                estado={m.id === ultimaId ? estadoDaUltima : 'repouso'}
+                vivo={m.id === ultimaId && estadoDaUltima === 'concluido'}
+                ouve={m.id === ultimaId}
+                tamanho={24}
+              />
+              <div>
+                <p className="tq-agente-nome">
+                  Taq
+                  {m.demo && <span className="tq-selo-demo">Demonstração</span>}
+                </p>
+                <RespostaDoTaq
+                  mensagem={m}
+                  onAbrirFonte={onAbrirFonte}
+                  onAbrirDocumento={onAbrirDocumento}
+                  onDesfazer={onDesfazer}
+                  onAbrirReuniao={(id) =>
+                    onAbrirFonte({
+                      ref: '',
+                      tipo: 'reuniao',
+                      registroId: id,
+                      titulo: '',
+                      trecho: '',
+                    })
+                  }
+                  onEscolherOpcao={
+                    m.id === ultimaId && podeEscolherOpcao
+                      ? (texto) => void onEnviar(texto)
+                      : undefined
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div key={m.id} className="tq-turno" data-tq-turno={m.id}>
+            {m.contexto && (
+              <p className="tq-contexto-msg">
+                <Icon name="history" size={11} /> {m.contexto.meetingTitle}
+                {m.contexto.excerpt && (
+                  <span className="tq-contexto-trecho">
+                    &ldquo;{m.contexto.excerpt}&rdquo;
+                  </span>
+                )}
+              </p>
+            )}
+            <p className="tq-msg-voce">{m.text}</p>
+            <div className="tq-voce-acoes">
+              <BotaoCopiar texto={m.text} rotulo="Copiar sua mensagem" />
+            </div>
+          </div>
+        ),
+      ),
+    [
+      mensagens,
+      ultimaId,
+      estadoDaUltima,
+      podeEscolherOpcao,
+      onAbrirFonte,
+      onAbrirDocumento,
+      onDesfazer,
+      onEnviar,
+    ],
+  );
+
   return (
     <div
       className="tq-conversa-col"
-      ref={rolagemRef}
+      ref={refDaColuna}
       onScroll={(e) => {
         const el = e.currentTarget;
         noFim.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
@@ -205,7 +349,7 @@ export function Conversa({
             <Icon name="chats" size={18} />
             <span className="tq-seletor-textos">
               <small>Conversa</small>
-              <span>{conversa ? conversa.title : 'Nenhuma conversa aberta'}</span>
+              <span>{conversa ? conversa.title : 'Nova conversa'}</span>
             </span>
             <Icon name="chevron" size={16} />
           </button>
@@ -269,11 +413,17 @@ export function Conversa({
          * conversa no servidor, esta linha fica de pé, o tempo todo.
          */}
         <div className="tq-disponibilidade">
-          <span className="tq-sem-ia">Assistente não conectado</span>
+          <span className={pronto ? 'tq-com-ia' : 'tq-sem-ia'}>
+            {pronto
+              ? 'Taq conectado'
+              : taq.fase === 'verificando'
+                ? 'Verificando o assistente…'
+                : 'Assistente não conectado'}
+          </span>
           <button
             type="button"
             className="tq-ajuda"
-            aria-label="Sobre o assistente não conectado"
+            aria-label={pronto ? 'Sobre o Taq' : 'Sobre o assistente não conectado'}
             aria-expanded={ajudaAberta}
             aria-controls="tq-ajuda-ia"
             onClick={() => setAjudaAberta((v) => !v)}
@@ -283,9 +433,25 @@ export function Conversa({
         </div>
         {ajudaAberta && (
           <p className="tq-ajuda-texto" id="tq-ajuda-ia">
-            Ainda não há respostas de IA. Ao salvar, seu texto e o contexto ficam como
-            rascunho neste computador, disponíveis também na HOME. Nada é enviado para
-            processamento.
+            {pronto ? (
+              <>
+                O Taq responde com base nas suas reuniões e documentos ({taq.modelo}).
+                Tudo fica guardado neste computador, mas os trechos que ele consulta para
+                responder são enviados ao provedor de IA pelo servidor do TaqCiti.
+              </>
+            ) : (
+              <>
+                Ainda não há respostas de IA
+                {taq.fase === 'pendente'
+                  ? ` — configuração pendente: ${taq.motivos.join(' ')}`
+                  : ''}
+                {taq.fase === 'inalcancavel'
+                  ? ' — o servidor do TaqCiti não respondeu'
+                  : ''}
+                . Ao salvar, seu texto e o contexto ficam como rascunho neste computador,
+                disponíveis também na HOME. Nada é enviado para processamento.
+              </>
+            )}
           </p>
         )}
 
@@ -295,55 +461,11 @@ export function Conversa({
             aria-hidden={total > 0}
           >
             <div>
-              <img
-                src={chrome.runtime.getURL('brand/taqciti-mark.png')}
-                alt=""
-                draggable={false}
-              />
-              <h2>Uma ideia começa aqui.</h2>
-              <p>Escreva agora. Retome quando quiser.</p>
+              <MarcaDoTaq estado="repouso" tamanho={56} vivo={total === 0} />
+              <h2>Sempre te ouvindo</h2>
             </div>
           </div>
-          {mensagens.map((m) =>
-            m.role === 'assistant' ? (
-              /*
-               * Uma resposta do agente. Em produção esta ramificação não
-               * acontece: sem rota de conversa no servidor, nada grava `role:
-               * 'assistant'` (ver home/conversations.ts). Quem produz estas
-               * mensagens hoje é a população de demonstração, e por isso o selo
-               * abaixo não é enfeite — é o que impede uma resposta fictícia de
-               * ser lida como resposta real.
-               */
-              <div key={m.id} className="tq-turno tq-turno-agente">
-                <div className="tq-msg-agente">
-                  <AgenteOnda estado="repouso" tamanho={22} />
-                  <div>
-                    <p className="tq-agente-nome">
-                      TaqCiti
-                      {m.demo && <span className="tq-selo-demo">Demonstração</span>}
-                    </p>
-                    <p className="tq-msg-ia">{m.text}</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div key={m.id} className="tq-turno">
-                {m.contexto && (
-                  <p className="tq-contexto-msg">
-                    <Icon name="history" size={11} /> {m.contexto.meetingTitle}
-                    {m.contexto.excerpt && (
-                      <span className="tq-contexto-trecho">
-                        &ldquo;{m.contexto.excerpt}&rdquo;
-                      </span>
-                    )}
-                  </p>
-                )}
-                <p className="tq-msg-voce">{m.text}</p>
-
-                <small className="tq-rascunho-rotulo">Rascunho salvo</small>
-              </div>
-            ),
-          )}
+          {listaDeMensagens}
 
           {/*
            * O que o agente está fazendo AGORA — antes de a resposta existir.
@@ -354,21 +476,35 @@ export function Conversa({
            * resposta pela metade não é registro, e não deve ser relida como
            * mensagem se a página fechar no meio.
            */}
-          {agente.atividade !== 'repouso' && (
+          {agente.atividade !== 'repouso' && !respostaChegando && (
             <div className="tq-agente-trabalhando" role="status" ref={agenteRef}>
-              <AgenteOnda estado={agente.atividade} tamanho={26} />
+              <MarcaDoTaq
+                estado={agente.atividade}
+                tamanho={30}
+                sinal={agente.parcial ? agente.parcial.length : (agente.etapa ?? '')}
+              />
               <div>
-                <span className="tq-agente-dizendo">
-                  {agente.atividade === 'preparando'
-                    ? 'Preparando a resposta…'
-                    : agente.atividade === 'escrevendo'
-                      ? 'Escrevendo…'
-                      : agente.atividade === 'concluido'
-                        ? 'Resposta concluída.'
-                        : agente.atividade === 'falhou'
-                          ? 'A resposta falhou. Sua pergunta continua guardada.'
-                          : 'Resposta cancelada.'}
-                </span>
+                {pronto ? (
+                  <EstadoDaExecucao
+                    agente={agente}
+                    desfecho={desfecho}
+                    onCancelar={onCancelar}
+                  />
+                ) : (
+                  <span className="tq-agente-dizendo">
+                    {agente.atividade === 'preparando'
+                      ? 'Preparando a resposta…'
+                      : agente.atividade === 'escrevendo'
+                        ? 'Escrevendo…'
+                        : agente.atividade === 'concluido'
+                          ? 'Resposta concluída.'
+                          : agente.atividade === 'falhou'
+                            ? 'A resposta falhou. Sua pergunta continua guardada.'
+                            : agente.atividade === 'interrompido'
+                              ? 'Resposta interrompida.'
+                              : 'Resposta cancelada.'}
+                  </span>
+                )}
                 {agente.parcial && <p className="tq-msg-ia">{agente.parcial}</p>}
               </div>
             </div>
@@ -410,13 +546,19 @@ export function Conversa({
               ref={campoRef}
               rows={1}
               value={rascunho}
-              aria-label="Escrever rascunho"
-              aria-describedby="tq-destino-rascunho"
+              aria-label={pronto ? 'Mensagem para o Taq' : 'Escrever rascunho'}
               placeholder={
-                contexto ? 'Uma ideia sobre este trecho…' : 'Escreva sua ideia…'
+                pronto
+                  ? contexto
+                    ? 'Pergunte sobre este trecho…'
+                    : 'Pergunte ao Taq…'
+                  : contexto
+                    ? 'Uma ideia sobre este trecho…'
+                    : 'Escreva sua ideia…'
               }
               onChange={(e) => {
                 onRascunho(e.target.value);
+                anunciarEscrita();
                 setSalvo(false);
               }}
               onKeyDown={(e) => {
@@ -429,17 +571,16 @@ export function Conversa({
             <button
               type="submit"
               className="tq-enviar"
-              aria-label="Salvar rascunho"
-              title="Salvar rascunho"
-              disabled={!rascunho.trim() || gravando}
+              aria-label={pronto ? 'Enviar ao Taq' : 'Salvar rascunho'}
+              title={pronto ? 'Enviar ao Taq' : 'Salvar rascunho'}
+              disabled={!rascunho.trim() || gravando || trabalhando}
             >
-              <Icon name={salvo ? 'check' : 'arrowDown'} size={20} />
+              <Icon name={pronto ? 'arrowUp' : salvo ? 'check' : 'arrowDown'} size={20} />
             </button>
           </form>
           <div className="tq-escrita-rodape">
-            <span id="tq-destino-rascunho">Sem IA · salvar rascunho</span>
             <span role="status">
-              {gravando ? 'Salvando…' : salvo ? 'Salvo neste computador' : ''}
+              {gravando ? 'Salvando…' : salvo && !pronto ? 'Salvo neste computador' : ''}
             </span>
           </div>
           {erro && (
@@ -449,6 +590,9 @@ export function Conversa({
           )}
         </div>
       </div>
+      {total > 0 && (
+        <TrilhaDaConversa itens={marcasDasMensagens(mensagens)} rolador={coluna} />
+      )}
     </div>
   );
 }

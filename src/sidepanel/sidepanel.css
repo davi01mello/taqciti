@@ -184,7 +184,7 @@
   color: rgb(150 153 157);
 }
 
-.tq-modo canvas {
+.tq-modo .tq-marca {
   grid-row: 1 / span 2;
 }
 
@@ -311,17 +311,6 @@
   line-height: 1.7;
 }
 
-.tq-marca-redonda {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 1px solid rgb(255 255 255 / 0.09);
-  background: rgb(255 255 255 / 0.03);
-  margin-bottom: 4px;
-}
-
 .tq-girando {
   width: 20px;
   height: 20px;
@@ -445,14 +434,6 @@
   background: rgb(255 255 255 / 0.11);
   border-color: rgb(255 255 255 / 0.22);
   color: rgb(246 248 250);
-}
-
-/* Já existe nota guardada. Verde porque é conteúdo vivo desta reunião. */
-.tq-acao-selo {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgb(var(--c-primary));
 }
 
 .tq-acao-conta {
@@ -905,7 +886,8 @@
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  /* Sem barra nativa: o mapa da `TrilhaDaConversa` faz esse papel. */
+  scrollbar-width: none;
   /*
    * A rolagem que acompanha a resposta chegando (ver `Conversa.tsx`) já
    * calcula o alvo na mão a cada trecho novo. A ANCORAGEM NATIVA do
@@ -1032,6 +1014,12 @@
 .tq-sem-ia {
   font-size: 11px;
   color: rgb(156 159 163);
+}
+
+/* O Taq conectado: o mesmo tamanho, um verde apagado — é estado, não ação. */
+.tq-com-ia {
+  font-size: 11px;
+  color: rgb(170 214 186);
 }
 
 .tq-fluxo {
@@ -1312,6 +1300,12 @@
   min-height: 0;
   gap: 8px;
   padding: 0 3px 0 1px;
+  transition: padding-right 0.2s ease;
+}
+/* Com a trilha à vista, o texto abre espaço para ela: numa coluna estreita os
+   tracinhos caíam em cima das mensagens e do botão de descer. */
+.tq-conversa-col:has(> .tq-trilha) > .tq-conversa-conteudo {
+  padding-right: 26px;
 }
 .tq-conversa-topo .tq-linkish span {
   overflow: hidden;
@@ -1374,23 +1368,13 @@
   grid-template-rows: 0fr;
   opacity: 0;
 }
-.tq-conversa-vazio img {
-  width: 62px;
-  height: 62px;
-  object-fit: contain;
-  margin: 0 auto 22px;
-  animation: tq-presenca 7s ease-in-out infinite;
+.tq-conversa-vazio canvas {
+  margin: 0 auto 18px;
 }
 .tq-conversa-vazio h2 {
   font-size: 17px;
   font-weight: 500;
   letter-spacing: -0.4px;
-}
-.tq-conversa-vazio p {
-  font-size: 12px;
-  color: rgb(156 159 163);
-  margin: 9px auto 0;
-  max-width: 27ch;
 }
 .vazia .tq-fluxo {
   display: flex;
@@ -1398,17 +1382,6 @@
   align-items: center;
   min-height: 220px;
   padding: 24px 0;
-}
-@keyframes tq-presenca {
-  50% {
-    transform: translateY(-4px);
-    opacity: 0.78;
-  }
-}
-.tq-rascunho-rotulo {
-  justify-self: end;
-  color: rgb(142 146 151);
-  font-size: 10px;
 }
 .tq-escrita-palco {
   position: relative;
@@ -1438,7 +1411,7 @@
 .tq-escrita-rodape {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 4px 8px;
   min-height: 22px;
   font-size: 10px;
@@ -1450,14 +1423,6 @@
 }
 .tq-side .tq-botao-principal {
   border: 1px solid rgb(var(--c-primary) / 0.35);
-}
-.tq-side .tq-captura-controle {
-  background: rgb(255 255 255 / 0.1);
-  border-color: rgb(255 255 255 / 0.14);
-  color: rgb(242 244 246);
-}
-.tq-side .tq-captura-controle:hover {
-  background: rgb(255 255 255 / 0.15);
 }
 .tq-side .tq-botao-principal svg,
 .tq-side .tq-botao-fantasma svg,
@@ -1773,4 +1738,10 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Copiar a mensagem da pessoa: embaixo da bolha, do mesmo lado dela. */
+.tq-voce-acoes {
+  justify-self: end;
+  margin-top: -4px;
 }

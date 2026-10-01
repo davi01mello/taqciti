@@ -8,8 +8,6 @@ export const STORAGE_KEYS = {
   state: 'taq:state',
   /** chrome.storage.local — histórico de reuniões (fonte da verdade das transcrições). */
   history: 'taq:history',
-  /** chrome.storage.local — mantido só por compatibilidade de migração; nada escreve aqui nesta versão. */
-  outbox: 'taq:outbox',
   /** chrome.storage.local — métricas locais de observabilidade. */
   metrics: 'taq:metrics',
   /** chrome.storage.local — preferências do painel (borda, posição, legendas). */
@@ -110,6 +108,23 @@ export const STORAGE_KEYS = {
    * reenvio.
    */
   syncEstado: 'taq:syncEstado',
+
+  /**
+   * chrome.storage.local — o registro das execuções do Taq (o assistente).
+   *
+   * Operação, não conteúdo: ids, estado, ferramentas usadas, duração, falhas e o
+   * consumo que o provedor informou. Nenhum trecho de reunião ou documento,
+   * nenhum raciocínio do modelo. Limitado às últimas 50 execuções. Ver
+   * `features/taq/execucoes.ts`.
+   */
+  taqExecucoes: 'taq:execucoes',
+
+  /**
+   * chrome.storage.local — a lixeira das exclusões feitas pelo Taq: um retrato de
+   * cada reunião apagada (registro, nota, marcações, prints, vínculos), por 30
+   * dias, para "Desfazer". Ver `features/taq/lixeira.ts`.
+   */
+  taqLixeira: 'taq:lixeira',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

@@ -118,8 +118,8 @@ describe('a barra lateral não recolhe ao navegar', () => {
     });
     expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
 
-    const reunioes = Array.from(host.querySelectorAll('.tq-navlinks button')).find(
-      (b) => b.textContent?.includes('Reuniões'),
+    const reunioes = Array.from(host.querySelectorAll('.tq-navlinks button')).find((b) =>
+      b.textContent?.includes('Reuniões'),
     ) as HTMLButtonElement;
     await act(async () => {
       reunioes.click();
@@ -156,7 +156,11 @@ describe('a barra lateral não recolhe ao navegar', () => {
       // O ponteiro vai embora, bem além da barra.
       await act(async () => {
         window.dispatchEvent(
-          new PointerEvent('pointermove', { clientX: 900, clientY: 400, pointerType: 'mouse' }),
+          new PointerEvent('pointermove', {
+            clientX: 900,
+            clientY: 400,
+            pointerType: 'mouse',
+          }),
         );
       });
       await act(async () => {
@@ -177,7 +181,11 @@ describe('a barra lateral não recolhe ao navegar', () => {
       await montar();
       await act(async () => {
         window.dispatchEvent(
-          new PointerEvent('pointermove', { clientX: 10, clientY: 400, pointerType: 'mouse' }),
+          new PointerEvent('pointermove', {
+            clientX: 10,
+            clientY: 400,
+            pointerType: 'mouse',
+          }),
         );
       });
       expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
@@ -186,7 +194,11 @@ describe('a barra lateral não recolhe ao navegar', () => {
       // rouba o alvo e a barra recebe um `pointerleave`.
       await act(async () => {
         window.dispatchEvent(
-          new PointerEvent('pointermove', { clientX: 120, clientY: 40, pointerType: 'mouse' }),
+          new PointerEvent('pointermove', {
+            clientX: 120,
+            clientY: 40,
+            pointerType: 'mouse',
+          }),
         );
         q('#tq-nav').dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
       });
@@ -295,7 +307,9 @@ describe('o compositor', () => {
     expect(campo().value).toBe('primeira');
 
     await act(async () => {
-      campo().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      campo().dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      );
     });
     expect(campo().value).toBe('');
     expect(host.textContent).toContain('primeira');
@@ -323,10 +337,9 @@ describe('o menu de conversas', () => {
     const itens = Array.from(
       host.querySelectorAll('.tq-conversas-lista li button[role="menuitemradio"]'),
     );
-    expect(itens.map((b) => b.querySelector('.tq-conversas-titulo')?.textContent)).toEqual([
-      'mais nova',
-      'mais velha',
-    ]);
+    expect(
+      itens.map((b) => b.querySelector('.tq-conversas-titulo')?.textContent),
+    ).toEqual(['mais nova', 'mais velha']);
     expect(itens[0]?.getAttribute('aria-checked')).toBe('true');
   });
 
@@ -338,7 +351,9 @@ describe('o menu de conversas', () => {
     expect(host.querySelector('.tq-conversas-lista')).not.toBeNull();
 
     await act(async () => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
     });
     expect(host.querySelector('.tq-conversas-lista')).toBeNull();
     expect(document.activeElement).toBe(botao);
@@ -378,8 +393,7 @@ describe('apagar uma conversa', () => {
   const abrirMenu = async () => {
     await act(async () => q<HTMLButtonElement>('.tq-conversas-botao').click());
   };
-  const linhas = () =>
-    Array.from(host.querySelectorAll('.tq-conversas-lista li'));
+  const linhas = () => Array.from(host.querySelectorAll('.tq-conversas-lista li'));
   const guardadas = () =>
     (storage.local.values[STORAGE_KEYS.conversations] as Conversation[]) ?? [];
 
@@ -438,7 +452,7 @@ describe('apagar uma conversa', () => {
 
   /* Apagar a conversa ABERTA não pode deixar a tela mostrando as mensagens de
      algo que não existe mais. */
-  it('apagar a conversa atual cai na mais recente que sobrou', async () => {
+  it('apagar a conversa atual abre uma conversa nova e limpa, sem mostrar outra em silêncio', async () => {
     await montar([conversa('c1', 'aberta agora'), conversa('c2', 'a anterior')]);
     expect(host.textContent).toContain('aberta agora');
 
@@ -453,9 +467,11 @@ describe('apagar uma conversa', () => {
     });
 
     await act(async () => {
-      await vi.waitFor(() => expect(host.textContent).toContain('a anterior'));
+      await vi.waitFor(() => expect(host.querySelector('.tq-abertura')).not.toBeNull());
     });
-    expect(host.querySelector('.tq-turnos')?.textContent).not.toContain('aberta agora');
+    // Nenhuma conversa na tela: nem a apagada, nem a outra no lugar dela.
+    expect(host.querySelector('.tq-turnos')).toBeNull();
+    expect(host.querySelector('.tq-abertura')).not.toBeNull();
   });
 
   it('Escape desfaz a pergunta antes de fechar o menu', async () => {
@@ -464,14 +480,18 @@ describe('apagar uma conversa', () => {
 
     await act(async () => q<HTMLButtonElement>('.tq-conversas-apagar').click());
     await act(async () => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
     });
 
     expect(host.querySelector('.tq-conversas-confirma')).toBeNull();
     expect(host.querySelector('.tq-conversas-lista')).not.toBeNull();
 
     await act(async () => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
     });
     expect(host.querySelector('.tq-conversas-lista')).toBeNull();
   });

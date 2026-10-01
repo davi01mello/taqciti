@@ -13,6 +13,7 @@ import {
   estaTrabalhando,
   observarAgente,
   publicarAtividade,
+  publicarEtapa,
   publicarParcial,
 } from './atividade';
 
@@ -28,14 +29,14 @@ afterEach(() => {
 
 describe('o estado do agente', () => {
   it('nasce em repouso — que é o estado de produção hoje', () => {
-    expect(agenteAgora()).toEqual({ atividade: 'repouso', parcial: '' });
+    expect(agenteAgora()).toEqual({ atividade: 'repouso', parcial: '', etapa: null });
     expect(estaTrabalhando('repouso')).toBe(false);
   });
 
   it('emite o valor atual ao assinar, como os demais observadores', () => {
     const visto = vi.fn();
     observarAgente(visto);
-    expect(visto).toHaveBeenCalledWith({ atividade: 'repouso', parcial: '' });
+    expect(visto).toHaveBeenCalledWith({ atividade: 'repouso', parcial: '', etapa: null });
   });
 
   it('avisa quem assinou a cada mudança, e só nas mudanças', () => {
@@ -81,7 +82,7 @@ describe('o desfecho de uma resposta', () => {
    * esquecendo um desfecho que a pessoa talvez não tenha visto — e o requisito
    * pede justamente que os dois sejam comunicados.
    */
-  it.each(['falhou', 'cancelado'] as const)('%s permanece até o próximo pedido', (fim) => {
+  it.each(['falhou', 'cancelado', 'interrompido'] as const)('%s permanece até o próximo pedido', (fim) => {
     publicarAtividade('preparando');
     publicarAtividade(fim);
 
@@ -145,5 +146,19 @@ describe('o texto que chega em progressão', () => {
     publicarAtividade('falhou');
 
     expect(agenteAgora().parcial).toBe('');
+  });
+});
+
+describe('a etapa em curso', () => {
+  it('só vale durante "preparando", e some quando o estado muda', () => {
+    publicarEtapa('Buscando contexto');
+    expect(agenteAgora().etapa).toBeNull();
+
+    publicarAtividade('preparando');
+    publicarEtapa('Buscando contexto');
+    expect(agenteAgora().etapa).toBe('Buscando contexto');
+
+    publicarAtividade('concluido');
+    expect(agenteAgora().etapa).toBeNull();
   });
 });

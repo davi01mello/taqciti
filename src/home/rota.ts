@@ -21,6 +21,8 @@ export interface PedidoDaHome {
   secao: Secao;
   /** Reunião em que a seção "Reuniões" já nasce aberta. */
   recordId: string | null;
+  /** Documento em que a seção "Documentos" já nasce aberta — o link de uma fonte. */
+  documentoId?: string | null;
 }
 
 export function lerPedidoDaHome(search: string): PedidoDaHome {
@@ -33,5 +35,7 @@ export function lerPedidoDaHome(search: string): PedidoDaHome {
   // isto um link com `?record=…` cairia no Assistente e a reunião pedida
   // simplesmente não apareceria, sem erro nenhum.
   if (recordId) return { secao: 'reunioes', recordId };
+  const documentoId = params.get('documento');
+  if (documentoId) return { secao: 'documentos', recordId: null, documentoId };
   return { secao: secao ?? 'assistente', recordId: null };
 }

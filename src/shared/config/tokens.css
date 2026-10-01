@@ -70,7 +70,7 @@
 
   /* ── Profundidade ───────────────────────────────────────────────────────
    *
-   * Quatro níveis, do mais fundo ao mais próximo do usuário. Cada um é uma
+   * Três níveis, do mais fundo ao mais próximo do usuário. Cada um é uma
    * placa de vidro: quanto mais alto o nível, menos ele deixa passar e mais
    * luz recolhe na borda. É a escala inteira de translucidez do produto —
    * nenhum componente inventa o seu `rgba()`.
@@ -79,7 +79,6 @@
    *           porque é ela que precisa segurar texto sobre conteúdo rolando
    *   raised  cartão/painel que flutua sobre o fundo
    *   subtle  item de lista, controle secundário
-   *   sunken  campo, trecho rebaixado — vidro que AFUNDA em vez de subir
    */
   --glass-chrome: linear-gradient(
     158deg,
@@ -92,7 +91,6 @@
     rgba(255, 255, 255, 0.025)
   );
   --glass-subtle: rgba(255, 255, 255, 0.045);
-  --glass-sunken: rgba(0, 0, 0, 0.22);
 
   /** Verde atravessando vidro — como o acento aparece em quase todo lugar. */
   --tint-primary: rgba(92, 203, 133, 0.14);

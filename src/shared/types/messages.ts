@@ -194,6 +194,8 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
     secao: homeSectionSchema.optional(),
     /** Abre já nesta reunião do histórico, dentro de "Reuniões". */
     recordId: z.string().max(200).optional(),
+    /** Abre já neste documento, dentro de "Documentos" — o link de uma fonte citada. */
+    documentId: z.string().max(200).optional(),
   }),
   /**
    * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
@@ -241,6 +243,22 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('ui/history/rename'),
     id: z.string(),
     title: z.string().min(1).max(200),
+  }),
+  /**
+   * Devolve ao histórico uma reunião que o Taq tinha mandado para a lixeira
+   * (ver `features/taq/lixeira.ts`). Passa pelo background porque ele é o dono
+   * único da escrita do histórico — o mesmo `upsertRecord` da captura.
+   */
+  z.object({
+    type: z.literal('ui/history/restore'),
+    record: z
+      .object({
+        id: z.string().min(1),
+        title: z.string(),
+        startedAt: z.number(),
+        segments: z.array(z.unknown()),
+      })
+      .passthrough(),
   }),
 ]);
 

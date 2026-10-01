@@ -11,15 +11,15 @@
  *
  * ── O que publica aqui, hoje ─────────────────────────────────────────────
  *
- * Nada, em produção. Não existe endpoint de conversa no servidor (ver
- * `src/home/conversations.ts`): o que a interface faz ao enviar é guardar um
- * rascunho local. Enquanto for assim, o estado fica em `repouso` o tempo todo
- * numa build de produção, e o indicador verde da conversa nunca acende — que é
- * a leitura correta, porque não há agente preparando coisa alguma.
+ * O Taq (`src/features/taq/interface.ts`): cada execução do orquestrador anuncia
+ * `preparando` com a ETAPA em curso (buscando contexto, consultando uma reunião,
+ * criando documento), e termina em `concluido`, `falhou`, `cancelado` (a
+ * pessoa desistiu) ou `interrompido` (limite de passos ou de tempo). Sem
+ * servidor configurado, nada publica — o estado fica em `repouso`, que é a
+ * leitura correta.
  *
- * Quem publica hoje é APENAS o simulador de desenvolvimento (`src/dev`), e ele
- * não entra na build de produção. O dia em que houver rota de conversa, quem
- * chama `publicar` é o cliente dela — e nenhuma tela precisa mudar.
+ * O simulador de desenvolvimento (`src/dev`) também publica, e não entra na
+ * build de produção.
  *
  * ── Por que um store e não um `useState` ─────────────────────────────────
  *
@@ -41,7 +41,9 @@ export type AtividadeDoAgente =
   /** O pedido falhou. Permanece até o próximo pedido — a tela precisa dizer. */
   | 'falhou'
   /** Quem perguntou desistiu. Também permanece, pelo mesmo motivo. */
-  | 'cancelado';
+  | 'cancelado'
+  /** Parou num limite (passos, tempo, contexto). Permanece, como os dois acima. */
+  | 'interrompido';
 
 export interface EstadoDoAgente {
   atividade: AtividadeDoAgente;
@@ -54,6 +56,11 @@ export interface EstadoDoAgente {
    * respostas truncadas no histórico se a página fechasse no meio.
    */
   parcial: string;
+  /**
+   * O que está sendo feito AGORA, em palavras de quem lê (`Buscando contexto`).
+   * Vale durante `preparando`; `null` no resto.
+   */
+  etapa: string | null;
 }
 
 /**
@@ -64,7 +71,7 @@ export interface EstadoDoAgente {
  */
 export const ACOMODAR_MS = 1400;
 
-const INICIAL: EstadoDoAgente = { atividade: 'repouso', parcial: '' };
+const INICIAL: EstadoDoAgente = { atividade: 'repouso', parcial: '', etapa: null };
 
 let atual: EstadoDoAgente = INICIAL;
 const ouvintes = new Set<(estado: EstadoDoAgente) => void>();
@@ -97,7 +104,7 @@ export function publicarAtividade(atividade: AtividadeDoAgente): void {
   // continuação dela o descarta. Mantê-lo em `concluido` é o que deixa o texto
   // na tela durante a acomodação.
   const parcial = atividade === 'escrevendo' || atividade === 'concluido' ? atual.parcial : '';
-  atual = { atividade, parcial };
+  atual = { atividade, parcial, etapa: null };
   emitir();
 
   if (atividade === 'concluido') {
@@ -108,6 +115,13 @@ export function publicarAtividade(atividade: AtividadeDoAgente): void {
       emitir();
     }, ACOMODAR_MS);
   }
+}
+
+/** A etapa em curso. Só vale durante `preparando` — fora dele é ignorada. */
+export function publicarEtapa(etapa: string): void {
+  if (atual.atividade !== 'preparando' || atual.etapa === etapa) return;
+  atual = { ...atual, etapa };
+  emitir();
 }
 
 /** O texto que está chegando. Só vale durante `escrevendo`. */

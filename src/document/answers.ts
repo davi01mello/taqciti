@@ -1,17 +1,10 @@
 /**
- * Manda as respostas do usuário ao servidor e recebe o documento atualizado.
+ * As lacunas e perguntas que o servidor devolve junto com um documento gerado.
  *
- * **Nenhum modelo roda nisso.** As perguntas são sobre campos que ficaram
- * ausentes, a resposta É o valor do campo, e o HTML é reconstruído a partir da
- * estrutura. Responder é instantâneo e não custa nada — e o texto que a pessoa
- * digitou entra exatamente como ela digitou, sem passar por reescrita.
+ * Só os tipos: a tela que respondia essas perguntas na extensão saiu com a
+ * página antiga de documento (ver `main.tsx`). O servidor continua mandando
+ * os campos, e `generateDocument.ts` os carrega adiante.
  */
-import {
-  SERVER_BASE_URL,
-  SERVER_SHARED_KEY,
-  SERVER_SHARED_KEY_HEADER,
-} from '@/shared/config/serverConfig';
-import type { DocumentType } from './generateDocument';
 
 export interface Pergunta {
   id: string;
@@ -27,66 +20,4 @@ export interface Lacuna {
   field: string;
   question: string;
   why: string;
-}
-
-export interface Resposta {
-  questionId: string;
-  answer: string;
-}
-
-export type AplicarRespostasResult =
-  | {
-      status: 'success';
-      html: string;
-      /** Base64. Ausente quando o servidor não conseguiu gerar o PDF
-       *  daquela vez — o download cai pro HTML nesse caso. */
-      pdf?: string;
-      documentData: unknown;
-      gaps: Lacuna[];
-      questions: Pergunta[];
-      /** Respostas que não tinham onde entrar. Nunca somem em silêncio. */
-      naoAplicadas: Resposta[];
-    }
-  | { status: 'error'; message: string };
-
-export async function aplicarRespostas(input: {
-  documentType: DocumentType;
-  documentData: unknown;
-  gaps: Lacuna[];
-  answers: Resposta[];
-  title: string;
-}): Promise<AplicarRespostasResult> {
-  try {
-    const response = await fetch(`${SERVER_BASE_URL}/api/answers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        [SERVER_SHARED_KEY_HEADER]: SERVER_SHARED_KEY,
-      },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      const corpo = (await response.json().catch(() => ({}))) as { error?: string };
-      return {
-        status: 'error',
-        message: corpo.error ?? `O servidor respondeu com erro (${response.status}).`,
-      };
-    }
-
-    const data = (await response.json()) as Omit<
-      Extract<AplicarRespostasResult, { status: 'success' }>,
-      'status'
-    >;
-    return { status: 'success', ...data };
-  } catch {
-    // Mesmos dois motivos de `requestGeneration` — ver a nota lá.
-    return {
-      status: 'error',
-      message:
-        'Não foi possível falar com o servidor para salvar as respostas. ' +
-        'Ele pode estar fora do ar, ou o navegador pode ter bloqueado a chamada — ' +
-        'o console desta página (F12) diz qual dos dois.',
-    };
-  }
 }

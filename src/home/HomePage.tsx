@@ -30,6 +30,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryState } from '@/features/history/useHistory';
+import { usePlatform } from '@/shared/platform/context';
+import type { UiCommand } from '@/shared/types/messages';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
 import {
   apagarNota,
@@ -39,6 +41,18 @@ import {
   type Nota,
 } from '@/features/annotations/notes';
 import { observarDocumentos, type DocumentoGuardado } from '@/features/documents/store';
+import {
+  agenteAgora,
+  observarAgente,
+  type EstadoDoAgente,
+} from '@/features/agent/atividade';
+import {
+  cancelarTaq,
+  desfazerExclusao,
+  mensagemDoDesfecho,
+  perguntarAoTaq,
+  useDisponibilidadeDoTaq,
+} from '@/features/taq/interface';
 import { prepararSaida, protegerEdicao } from '@/shared/services/navigation';
 import { Brasas } from '@/shared/ui/Brasas';
 import { Icon } from '@/shared/ui/Icon';
@@ -57,7 +71,9 @@ import {
   apagarConversa,
   observarConversas,
   type Conversation,
+  type FonteDaResposta,
 } from './conversations';
+import { useConversaAberta } from './useConversaAberta';
 
 /** Chave do rascunho enquanto a conversa nova ainda não existe no storage. */
 const RASCUNHO_NOVA = '\u0000nova';
@@ -84,11 +100,15 @@ export function HomePage() {
   const [pulso, setPulso] = useState(0);
 
   const [conversas, setConversas] = useState<Conversation[]>([]);
-  const [conversaId, setConversaId] = useState<string | null>(null);
   /** "Nova conversa" é um estado, não um id: a conversa ainda não existe no
    *  storage, e só passa a existir quando a primeira mensagem for gravada.
-   *  É isso que faz criar uma conversa nova NÃO apagar a anterior. */
-  const [iniciandoNova, setIniciandoNova] = useState(false);
+   *  É isso que faz criar uma conversa nova NÃO apagar a anterior. A regra de
+   *  qual está aberta (e do que acontece quando ela é apagada) é do hook. */
+  const {
+    conversa,
+    escolher: escolherConversa,
+    nova: novaConversa,
+  } = useConversaAberta(conversas);
   const [menuConversas, setMenuConversas] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
@@ -105,7 +125,9 @@ export function HomePage() {
    * ida dessas voltaria para a lista.
    */
   const [reuniaoAberta, setReuniaoAberta] = useState<string | null>(pedido.recordId);
-  const [documentoAberto, setDocumentoAberto] = useState<string | null>(null);
+  const [documentoAberto, setDocumentoAberto] = useState<string | null>(
+    pedido.documentoId ?? null,
+  );
 
   const [notas, setNotas] = useState<Record<string, Nota>>({});
   const [documentos, setDocumentos] = useState<DocumentoGuardado[]>([]);
@@ -114,6 +136,12 @@ export function HomePage() {
   const [tentativaLeitura, setTentativaLeitura] = useState(0);
 
   const { records, loaded } = useHistoryState();
+  const platform = usePlatform();
+  const [taq, verificarTaqDeNovo] = useDisponibilidadeDoTaq();
+  const [agente, setAgente] = useState<EstadoDoAgente>(agenteAgora);
+  /** Como a última execução terminou quando não deixou resposta. */
+  const [desfecho, setDesfecho] = useState<string | null>(null);
+  useEffect(() => observarAgente(setAgente), []);
   const meeting = useMeetingState();
   const { animando, movimentoReduzido, motivo } = useAnimacao(pausadoPeloUsuario);
 
@@ -222,27 +250,23 @@ export function HomePage() {
    * de uma conversa que não existe mais só faria ele reaparecer, sem dono, na
    * próxima conversa que herdasse a chave.
    *
-   * `conversaId` volta a `null` quando a apagada era a escolhida — e não é
-   * apontado para outra à força: `null` já significa "a mais recente", que é a
-   * escolha certa aqui.
+   * Apagada a que estava aberta, a tela vai para uma conversa nova, limpa
+   * (ver `useConversaAberta`) — nunca passa a mostrar outra em silêncio. Uma
+   * resposta do Taq em curso nela é cancelada (ver `perguntarAoTaq`).
    */
-  const apagarConversaEscolhida = useCallback(
-    async (id: string) => {
-      try {
-        await apagarConversa(id);
-        setRascunhos((atual) => {
-          const proximo = { ...atual };
-          delete proximo[id];
-          return proximo;
-        });
-        if (conversaId === id) setConversaId(null);
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [conversaId],
-  );
+  const apagarConversaEscolhida = useCallback(async (id: string) => {
+    try {
+      await apagarConversa(id);
+      setRascunhos((atual) => {
+        const proximo = { ...atual };
+        delete proximo[id];
+        return proximo;
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   const abrirDocumento = useCallback(
     (id: string) => {
@@ -264,17 +288,6 @@ export function HomePage() {
     [navegar],
   );
 
-  // Sem conversa escolhida, a mais recente é a conversa. Só isso já dá
-  // continuidade entre sessões sem inventar um conceito de "conversa ativa"
-  // guardado à parte.
-  const conversa = useMemo(
-    () =>
-      iniciandoNova
-        ? null
-        : (conversas.find((c) => c.id === conversaId) ?? conversas[0] ?? null),
-    [conversas, conversaId, iniciandoNova],
-  );
-
   const chaveRascunho = conversa?.id ?? RASCUNHO_NOVA;
   const rascunho = rascunhos[chaveRascunho] ?? '';
   const definirRascunho = useCallback(
@@ -288,6 +301,23 @@ export function HomePage() {
       ? 'captando'
       : 'repouso';
 
+  /** O que o Taq pode fazer NESTA tela: abrir registros e falar com o background. */
+  const acoesDaTela = useMemo(
+    () => ({
+      enviar: (mensagem: { type: string } & Record<string, unknown>) =>
+        platform.send(mensagem as UiCommand),
+      abrirReuniao: irParaReuniao,
+      abrirDocumento,
+    }),
+    [platform, irParaReuniao, abrirDocumento],
+  );
+
+  /** Estável: é dependência do histórico memorizado do Assistente. */
+  const desfazer = useCallback(
+    (id: string) => desfazerExclusao(id, acoesDaTela),
+    [acoesDaTela],
+  );
+
   const enviar = useCallback(
     async (texto: string, anexos: string[]): Promise<boolean> => {
       setGravando(true);
@@ -297,8 +327,19 @@ export function HomePage() {
           texto,
           attachments: anexos,
         });
-        setConversaId(id);
-        setIniciandoNova(false);
+        escolherConversa(id);
+        /*
+         * Com o Taq pronto, a pergunta segue para ele. Sem esperar: a mensagem
+         * JÁ está gravada, o campo pode limpar, e o progresso aparece no turno.
+         * Sem Taq, fica como estava — salva, e a tela diz por que não há
+         * resposta.
+         */
+        if (taq.fase === 'pronto') {
+          setDesfecho(null);
+          void perguntarAoTaq({ conversaId: id, texto, acoes: acoesDaTela }).then((r) =>
+            setDesfecho(r && !r.resposta ? mensagemDoDesfecho(r) : null),
+          );
+        }
         /*
          * A onda volta ao repouso no envio, mesmo com o campo ainda em foco: o
          * estado "escrevendo" acabou quando a mensagem saiu. A próxima tecla
@@ -313,7 +354,15 @@ export function HomePage() {
         setGravando(false);
       }
     },
-    [conversa],
+    [conversa, taq.fase, acoesDaTela, escolherConversa],
+  );
+
+  const abrirFonte = useCallback(
+    (fonte: FonteDaResposta) =>
+      fonte.tipo === 'reuniao'
+        ? irParaReuniao(fonte.registroId)
+        : abrirDocumento(fonte.registroId),
+    [irParaReuniao, abrirDocumento],
   );
 
   const emitirPulso = useCallback((forca: number) => {
@@ -351,7 +400,9 @@ export function HomePage() {
           <button
             type="button"
             className={`tq-motion${brasasVisiveis ? '' : ' desligado'}`}
-            aria-label={brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'}
+            aria-label={
+              brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'
+            }
             aria-pressed={!brasasVisiveis}
             title={brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'}
             onClick={() => setBrasasVisiveis((v) => !v)}
@@ -379,17 +430,15 @@ export function HomePage() {
               cabem sem virar uma barra. */}
           <ConversasMenu
             conversas={conversas}
-            atualId={iniciandoNova ? null : (conversa?.id ?? null)}
+            atualId={conversa?.id ?? null}
             aberto={menuConversas}
             onAbrir={setMenuConversas}
             onNova={() => {
-              setIniciandoNova(true);
-              setConversaId(null);
+              novaConversa();
               setSecao('assistente');
             }}
             onEscolher={(id) => {
-              setConversaId(id);
-              setIniciandoNova(false);
+              escolherConversa(id);
               setSecao('assistente');
             }}
             onApagar={apagarConversaEscolhida}
@@ -422,7 +471,12 @@ export function HomePage() {
          * inteiro fora do palco da conversa.
          */}
         {secao === 'assistente' && (
-          <WaveField estado={estadoDaOnda} animando={animando} pulso={pulso} discreta={false} />
+          <WaveField
+            estado={estadoDaOnda}
+            animando={animando}
+            pulso={pulso}
+            discreta={false}
+          />
         )}
 
         {secao === 'assistente' && (
@@ -435,6 +489,14 @@ export function HomePage() {
             onEnviar={enviar}
             onEscrevendo={setEscrevendo}
             onPulso={emitirPulso}
+            taq={taq}
+            onVerificarDeNovo={verificarTaqDeNovo}
+            agente={agente}
+            desfecho={desfecho}
+            onCancelar={cancelarTaq}
+            onAbrirFonte={abrirFonte}
+            onAbrirDocumento={abrirDocumento}
+            onDesfazer={desfazer}
           />
         )}
 

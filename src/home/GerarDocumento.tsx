@@ -21,17 +21,19 @@
  *
  * ── O que NÃO mudou ──────────────────────────────────────────────────────
  *
- * A geração em si: mesmo `requestGeneration`, mesmo `/api/generate`, mesmo
- * formulário de lacunas. Nenhuma arquitetura de agente nova entrou aqui.
+ * A geração em si: mesmo `requestGeneration`, mesmo `/api/generate`.
  *
- * As perguntas continuam ANTES da gravação: responder depois exigiria
- * regenerar o HTML de um documento já guardado. O que ficar sem resposta vira
- * marcação `**[A preencher: …]**` no conteúdo — e, como o conteúdo agora é
- * editável no editor, dá para completar à mão depois.
+ * ── As perguntas não param o documento ───────────────────────────────────
+ *
+ * O documento é gerado e salvo DIRETO. O que a transcrição não trouxe sai
+ * como marcação `**[A preencher: …]**` no conteúdo. As perguntas da geração
+ * vão para uma conversa nova com o Taq (`abrirConversaDoTaq`): é ele quem
+ * pergunta, na interface de conversa, e quem atualiza o texto editável quando a
+ * pessoa responder. O HTML/PDF guardados continuam os da geração; o download
+ * do editor leva o texto atualizado.
  */
 import { useEffect, useRef, useState } from 'react';
 import { protegerEdicao } from '@/shared/services/navigation';
-import { textoDoHtml } from '@/document/textoDoHtml';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { Icon } from '@/shared/ui/Icon';
 import { guardarDocumento, type DocumentoGuardado } from '@/features/documents/store';
@@ -41,24 +43,28 @@ import {
   nomeDoDocumento,
   requestGeneration,
   type DocumentType,
-  type GenerationResult,
 } from '@/document/generateDocument';
-import { aplicarRespostas, type Resposta } from '@/document/answers';
-import { QuestionsForm } from '@/document/QuestionsForm';
 import {
   baixarComoHtml,
   baixarComoPdf,
   baixarComoTexto,
 } from '@/document/baixarDocumento';
 import { oauthConfigurado } from '@/document/googleDocs';
+import { abrirConversaDoTaq } from '@/home/conversations';
+import { CATALOGO_DE_DOCUMENTOS } from '@/features/documents/catalogo';
 
-/** Só os dois tipos com pipeline de verdade no servidor (ver server/lib/templates/). */
-const TIPOS: ReadonlyArray<{ tipo: DocumentType; rotulo: string }> = [
-  { tipo: 'ata', rotulo: DOCUMENT_TYPE_LABELS.ata },
-  { tipo: 'x1', rotulo: DOCUMENT_TYPE_LABELS.x1 },
-];
+/**
+ * Os tipos vêm do CATÁLOGO — o mesmo que o Taq oferece (ver
+ * `features/documents/catalogo.ts`). São os dois com pipeline de verdade no
+ * servidor, e um teste de lá confere que o catálogo e os templates batem.
+ */
+const TIPOS: ReadonlyArray<{ tipo: DocumentType; rotulo: string; finalidade: string }> =
+  CATALOGO_DE_DOCUMENTOS.map((t) => ({
+    tipo: t.id,
+    rotulo: t.nome,
+    finalidade: t.finalidade,
+  }));
 
-type Sucesso = Extract<GenerationResult, { status: 'success' }>;
 
 /** O que sobrou de uma geração que ainda não conseguiu ser guardada. */
 interface Pendente {
@@ -73,7 +79,6 @@ interface Pendente {
 type Estado =
   | { fase: 'parado' }
   | { fase: 'gerando'; tipo: DocumentType }
-  | { fase: 'perguntando'; tipo: DocumentType; geracao: Sucesso; aplicando: boolean }
   | { fase: 'salvando'; tipo: DocumentType }
   | { fase: 'salvo'; documento: DocumentoGuardado; pendente: Pendente }
   | { fase: 'erroNaGeracao'; mensagem: string }
@@ -88,13 +93,11 @@ interface Props {
 export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
   const [aberto, setAberto] = useState(false);
   const [estado, setEstado] = useState<Estado>({ fase: 'parado' });
-  const [avisoRespostas, setAvisoRespostas] = useState('');
+  /** Quantas perguntas foram para a conversa com o Taq, na última geração. */
+  const [perguntasNoTaq, setPerguntasNoTaq] = useState(0);
   const caixaRef = useRef<HTMLDivElement>(null);
 
-  const ocupado =
-    estado.fase === 'gerando' ||
-    estado.fase === 'salvando' ||
-    estado.fase === 'perguntando';
+  const ocupado = estado.fase === 'gerando' || estado.fase === 'salvando';
 
   useEffect(
     () => protegerEdicao(async () => !ocupado && estado.fase !== 'erroAoSalvar'),
@@ -126,7 +129,7 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
   }, [aberto, ocupado]);
 
   /** Guarda o documento. É AQUI que "salvo" passa a ser verdade. */
-  const salvar = async (pendente: Pendente) => {
+  const salvar = async (pendente: Pendente): Promise<DocumentoGuardado | null> => {
     setEstado({ fase: 'salvando', tipo: pendente.tipo });
     try {
       const documento = await guardarDocumento({
@@ -140,6 +143,7 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
       });
       setAberto(false);
       setEstado({ fase: 'salvo', documento, pendente });
+      return documento;
     } catch {
       // O texto gerado NÃO se perde por causa de uma falha de gravação.
       setEstado({
@@ -149,82 +153,53 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
           'O documento foi gerado, mas não foi possível salvá-lo neste computador. ' +
           'Ele continua aqui: tente salvar de novo ou baixe o arquivo.',
       });
+      return null;
     }
   };
 
-  const finalizar = (
-    tipo: DocumentType,
-    geracao: Sucesso,
-    html: string,
-    pdf: string | undefined,
-    conteudo: string,
-  ) => {
-    void salvar({ tipo, titulo: geracao.title, conteudo, html, pdf });
-  };
-
+  /*
+   * Gerar é gerar e SALVAR, sem parar para perguntar.
+   *
+   * O que a transcrição não trouxe sai no documento como "A preencher" (é o que
+   * a geração já produz quando não há resposta). As perguntas que a geração
+   * fez não viram formulário na frente do documento: vão para uma conversa
+   * nova com o Taq, que atualiza o documento quando a pessoa responder lá.
+   */
   const gerar = (tipo: DocumentType) => {
     if (ocupado) return;
-    setAvisoRespostas('');
+    setPerguntasNoTaq(0);
     setEstado({ fase: 'gerando', tipo });
 
-    void requestGeneration(registro, tipo).then((geracao) => {
+    void requestGeneration(registro, tipo).then(async (geracao) => {
       if (geracao.status !== 'success') {
         setEstado({ fase: 'erroNaGeracao', mensagem: geracao.message });
         return;
       }
-      if (geracao.questions.length > 0) {
-        setAberto(false);
-        setEstado({ fase: 'perguntando', tipo, geracao, aplicando: false });
-        return;
-      }
-      finalizar(tipo, geracao, geracao.html, geracao.pdf, geracao.content);
-    });
-  };
-
-  const responder = (tipo: DocumentType, geracao: Sucesso, respostas: Resposta[]) => {
-    if (respostas.length === 0) {
-      finalizar(tipo, geracao, geracao.html, geracao.pdf, geracao.content);
-      return;
-    }
-    setEstado({ fase: 'perguntando', tipo, geracao, aplicando: true });
-
-    void aplicarRespostas({
-      documentType: tipo,
-      documentData: geracao.documentData,
-      gaps: geracao.gaps,
-      answers: respostas,
-      title: geracao.title,
-    }).then((resultado) => {
-      if (resultado.status !== 'success') {
-        setAvisoRespostas(
-          'Não foi possível aplicar as respostas ao documento. Elas foram preservadas no fim do texto editável.',
-        );
-        const adicionais = respostas
-          .map(
-            (r) =>
-              `${geracao.questions.find((q) => q.id === r.questionId)?.question ?? r.questionId}\n${r.answer}`,
-          )
-          .join('\n\n');
-        finalizar(
-          tipo,
-          geracao,
-          '',
-          undefined,
-          `${geracao.content}\n\n## Respostas informadas\n\n${adicionais}`,
-        );
-        return;
-      }
-      void salvar({
+      const documento = await salvar({
         tipo,
         titulo: geracao.title,
-        html: resultado.html,
-        pdf: resultado.pdf,
-        conteudo: textoDoHtml(resultado.html),
-        formato: 'texto',
+        conteudo: geracao.content,
+        html: geracao.html,
+        pdf: geracao.pdf,
       });
+      if (!documento || geracao.questions.length === 0) return;
+      try {
+        await abrirConversaDoTaq({
+          titulo: `Pendências de ${documento.title}`,
+          meetingId: registro.id,
+          documento: { id: documento.id, titulo: documento.title },
+          texto:
+            `Gerei “${documento.title}” e já salvei em Documentos. O que a reunião não ` +
+            `deixou claro ficou marcado para preencher. Se souber, me responda aqui que eu ` +
+            `atualizo o documento:\n\n` +
+            geracao.questions.map((q) => `- ${q.question}`).join('\n'),
+        });
+        setPerguntasNoTaq(geracao.questions.length);
+      } catch {
+        /* sem a conversa, o documento continua salvo com as marcações */
+      }
     });
   };
-
   const baixar = (pendente: Pendente) => {
     const nome = nomeDoDocumento(registro, pendente.tipo, undefined);
     if (pendente.pdf) baixarComoPdf(pendente.pdf, nome);
@@ -266,7 +241,7 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
 
       {aberto && (
         <div className="tq-gerar-menu" role="menu">
-          {TIPOS.map(({ tipo, rotulo }) => {
+          {TIPOS.map(({ tipo, rotulo, finalidade }) => {
             const emCurso =
               (estado.fase === 'gerando' || estado.fase === 'salvando') &&
               estado.tipo === tipo;
@@ -277,6 +252,7 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
                 role="menuitem"
                 aria-disabled={ocupado}
                 className={ocupado ? 'ocupado' : undefined}
+                title={finalidade}
                 onClick={() => gerar(tipo)}
               >
                 {emCurso
@@ -293,26 +269,6 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
         </div>
       )}
 
-      {estado.fase === 'perguntando' && (
-        <div className="tq-gerar-perguntas">
-          <QuestionsForm
-            perguntas={estado.geracao.questions}
-            salvando={estado.aplicando}
-            ampla
-            onConfirmar={(respostas) => responder(estado.tipo, estado.geracao, respostas)}
-            onPular={() =>
-              finalizar(
-                estado.tipo,
-                estado.geracao,
-                estado.geracao.html,
-                estado.geracao.pdf,
-                estado.geracao.content,
-              )
-            }
-          />
-        </div>
-      )}
-
       {/* Só depois de a gravação ter resolvido. */}
       {estado.fase === 'salvo' && (
         <div className="tq-gerar-resultado" role="status">
@@ -320,7 +276,12 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
             <Icon name="check" size={13} />
             <strong>Salvo em Documentos</strong> · {estado.documento.title}
           </p>
-          {avisoRespostas && <p role="alert">{avisoRespostas}</p>}
+          {perguntasNoTaq > 0 && (
+            <p>
+              {perguntasNoTaq === 1 ? 'Uma pergunta ficou' : `${perguntasNoTaq} perguntas ficaram`}{' '}
+              na conversa com o Taq, na seção Assistente — responda lá que ele atualiza o documento.
+            </p>
+          )}
           <div className="tq-acoes">
             <button
               type="button"

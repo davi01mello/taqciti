@@ -325,6 +325,43 @@ describe('a reunião na HOME', () => {
       id: 'm-1',
     });
   });
+
+  /* Da LISTA também: sem precisar abrir a reunião para se livrar dela. */
+  it('apaga direto da lista, depois de perguntar e dizer o que vai junto', async () => {
+    await montar({ url: '/?secao=reunioes', documentos: [DOCUMENTO] });
+
+    const linha = q<HTMLElement>('.tq-item-linha');
+    expect(linha.textContent).toContain('Planning da semana');
+    await clicar(linha.querySelector<HTMLElement>('.tq-item-apagar')!);
+
+    // A pergunta ocupa o lugar do item, e diz o que vai e o que fica.
+    expect(host.querySelector('.tq-item-linha')).toBeNull();
+    const aviso = q('.tq-confirma').textContent ?? '';
+    expect(aviso).toContain('Planning da semana');
+    expect(aviso).toContain('notas');
+    expect(aviso).toContain('continua');
+
+    sendMessage.mockImplementation(async () => ({ ok: true }));
+    await clicar(porTexto('.tq-confirma .tq-acao-perigo', 'Apagar'));
+    expect(sendMessage.mock.calls.map(([m]) => m)).toContainEqual({
+      type: 'ui/history/delete',
+      id: 'm-1',
+    });
+    expect(host.querySelector('.tq-confirma')).toBeNull();
+  });
+
+  it('cancelar na lista devolve a reunião sem apagar nada', async () => {
+    await montar({ url: '/?secao=reunioes' });
+
+    await clicar(q<HTMLElement>('.tq-item-apagar'));
+    await clicar(porTexto('.tq-confirma .tq-acao', 'Cancelar'));
+
+    expect(host.querySelector('.tq-confirma')).toBeNull();
+    expect(q('.tq-item-linha').textContent).toContain('Planning da semana');
+    expect(sendMessage.mock.calls.map(([m]) => m)).not.toContainEqual(
+      expect.objectContaining({ type: 'ui/history/delete' }),
+    );
+  });
 });
 
 describe('em largura estreita', () => {
