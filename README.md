@@ -20,6 +20,11 @@ partir do que foi dito.
 - **Gera documentos** (ata, x1, …) a partir da transcrição, pelo servidor em
   `server/` — este é o único caminho que sai do computador, e ele começa com um
   clique explícito.
+- **Responde pelo Taq**, o assistente: busca e lê reuniões e documentos por
+  ferramentas, responde com fontes conferidas e gera Ata ou X1 a partir do
+  catálogo de documentos. O ciclo roda na extensão, e só os trechos consultados
+  vão ao provedor, pelo servidor. Arquitetura, contratos e especialistas
+  planejados em [`docs/taq-agentes.md`](docs/taq-agentes.md).
 - **Sincroniza e expõe um conector**, opcionalmente: a seção Conexões liga a
   sincronização com o servidor e entrega o endereço do conector MCP, para um
   cliente de IA ler as reuniões. Desligado é um estado completo — quem nunca
