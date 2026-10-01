@@ -66,6 +66,7 @@ import { lerPedidoDaHome, type Secao } from './rota';
 import { SideNav } from './SideNav';
 import { useAnimacao } from './useAnimacao';
 import { WaveField, type EstadoDaOnda } from './WaveField';
+import { MarcaDaEscuta } from '@/shared/ui/MarcaDaEscuta';
 import {
   acrescentarMensagem,
   apagarConversa,
@@ -394,6 +395,7 @@ export function HomePage() {
         <div className="tq-topo-direita">
           {meeting.phase === 'recording' && (
             <span className="tq-captando" role="status">
+              <MarcaDaEscuta estado="capturando" pulso={meeting.session?.segments.length} tamanho={18} />
               capturando legendas
             </span>
           )}

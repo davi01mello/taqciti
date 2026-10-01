@@ -23,6 +23,9 @@
  * As respostas antigas (`vivo={false}`) são o ícone parado; passar o mouse
  * sobre a resposta faz a marca "repetir a fala" uma vez.
  *
+ * A transcrição tem um glifo IRMÃO, e não este: `MarcaDaEscuta.tsx` — a mesma
+ * tinta e o mesmo traço, outro desenho (a onda virando escrita).
+ *
  * ── Por que CSS no compositor, e não canvas ──────────────────────────────
  *
  * O canvas era pintado a cada quadro na thread principal — a mesma que
@@ -117,6 +120,14 @@ const BASE: readonly Cor[] = [
   [110, 70, 225],
   [80, 70, 220],
 ];
+
+/**
+ * A tinta da marca na posição `u` (0..1, da esquerda para a direita): a cor do
+ * topo e a da base. É o que faz o glifo da escuta ser da mesma família.
+ */
+export function tintaDaMarca(u: number): readonly [string, string] {
+  return [amostrar(TOPO, u), amostrar(BASE, u)];
+}
 
 function amostrar(paleta: readonly Cor[], u: number): string {
   const p = Math.min(0.9999, Math.max(0, u)) * (paleta.length - 1);

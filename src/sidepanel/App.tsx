@@ -65,7 +65,7 @@ import {
 import { useConversaAberta } from '@/home/useConversaAberta';
 import type { MeetingState } from '@/shared/types/domain';
 import type { UiCommand } from '@/shared/types/messages';
-import type { EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
+import type { EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
 import { Brasas } from '@/shared/ui/Brasas';
 import { Icon } from '@/shared/ui/Icon';
 import { Wordmark } from '@/shared/ui/Wordmark';

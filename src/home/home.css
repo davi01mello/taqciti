@@ -195,25 +195,6 @@ html {
   margin-right: 6px;
 }
 
-.tq-captando::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgb(var(--c-primary));
-  animation: tq-pulsar 1.8s ease-in-out infinite;
-}
-
-@keyframes tq-pulsar {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
 .tq-motion,
 .tq-conversas-botao {
   width: 32px;

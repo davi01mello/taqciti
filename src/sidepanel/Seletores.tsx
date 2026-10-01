@@ -16,6 +16,10 @@
  *     acontece de verdade, e nunca sozinho: sempre acompanhado de texto, porque
  *     um ponto colorido não diz nada a quem não distingue a cor.
  *
+ * Os dois desenhos são irmãos, e não o mesmo: a conversa é a marca do Taq (a
+ * voz dele); a transcrição é a onda virando escrita (`MarcaDaEscuta.tsx`). O
+ * mesmo traço e a mesma tinta; cada um com seu gesto.
+ *
  * ── Por que a animação mora aqui ─────────────────────────────────────────
  *
  * Porque o seletor está sempre na tela. O requisito proíbe que o sinal de
@@ -24,7 +28,7 @@
  */
 import type { AtividadeDoAgente } from '@/features/agent/atividade';
 import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
-import { OndaDaCaptura, type EstadoDaCaptura } from '@/shared/ui/OndaDaCaptura';
+import { MarcaDaEscuta, type EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
 
 export type Modo = 'transcricao' | 'conversa';
 
@@ -108,7 +112,7 @@ export function Seletores({
         aria-current={modo === 'transcricao' ? 'page' : undefined}
         onClick={() => onModo('transcricao')}
       >
-        <OndaDaCaptura estado={captura} pulso={pulso} largura={24} altura={15} />
+        <MarcaDaEscuta estado={captura} pulso={pulso} tamanho={24} />
         <span className="tq-modo-nome">Transcrição</span>
         <span
           className={`tq-modo-estado${

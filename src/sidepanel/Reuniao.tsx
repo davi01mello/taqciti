@@ -267,7 +267,7 @@ export function Reuniao({
  * `captando` só enquanto a captura corre de verdade — uma onda subindo com a
  * reunião pausada seria a animação contando uma história que não está
  * acontecendo. E ela NÃO mede áudio: a extensão nunca ouviu microfone nenhum, e
- * o que a faz reagir é a chegada de um trecho novo (ver `OndaDaCaptura.tsx`).
+ * o que a faz reagir é a chegada de um trecho novo (ver `MarcaDaEscuta.tsx`).
  */
 function OndaDaTranscricao({ capturando }: { capturando: boolean }) {
   const { animando, movimentoReduzido } = useAnimacao(false);

@@ -184,7 +184,8 @@
   color: rgb(150 153 157);
 }
 
-.tq-modo .tq-marca {
+.tq-modo .tq-marca,
+.tq-modo .tq-escuta {
   grid-row: 1 / span 2;
 }
 
