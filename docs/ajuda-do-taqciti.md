@@ -109,3 +109,17 @@ Corrigidas na referência, e não no código (fora do escopo):
   documento: passos pela tela, documento intacto, nada afirmado como feito).
   Todo nome entre aspas na resposta é conferido contra a referência. Com a
   cota por minuto do Groq, os casos rodaram um de cada vez.
+
+## Atualização de 01/10/2026 — especialistas de trabalho
+
+Novo assunto **acompanhamento** e 12 entradas novas (`codigo`, conferidas nos
+componentes; os rótulos também foram vistos na tela por
+`scripts/verify-trabalho.cjs`, em `docs/verification/trabalho/`): analisar
+reunião, registrar e acompanhar compromissos, registrar decisão, comparar
+fontes, resolver achado, rascunho de mensagem, sugerir horário, estado da
+captura, revisar documento, revisar exposição e "O que o Taq faz".
+
+"Enviar e-mail", "agenda", "lembretes" e "copiloto automático" deixaram de ser
+**planejado** e passaram a **indisponível**, com a resposta do que existe no
+lugar (rascunho copiável, sugestão de horário, Acompanhamento, pergunta sob
+pedido). Nenhum especialista do catálogo segue `planned`.

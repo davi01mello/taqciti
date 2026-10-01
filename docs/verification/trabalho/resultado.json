@@ -1,0 +1,61 @@
+{
+  "quando": "2026-10-01T22:39:25.745Z",
+  "verificacoes": {
+    "cartoes_na_home": [
+      "Análise — [TESTE] Escopo do Painel Aurora",
+      "Compromissos sugeridos",
+      "Compromissos registrados",
+      "Decisões",
+      "Achados",
+      "Rascunho de e-mail",
+      "[TESTE] Revisão do escopo",
+      "Captura — [TESTE] Escopo do Painel Aurora"
+    ],
+    "botao_enviar_ausente": true,
+    "botao_agendar_ausente": true,
+    "agenda_sem_convidados": true,
+    "compromisso_concluido_persistiu": true,
+    "reabrir_visivel_apos_recarregar": true,
+    "trecho_visivel": true,
+    "acompanhamento_secoes": [
+      "Compromissos (1)",
+      "Decisões (1)",
+      "Achados (1)"
+    ],
+    "achado_resolvido_some_dos_abertos": true,
+    "capacidades": [
+      "Monitor de captura",
+      "Preparador de contexto",
+      "Copiloto de reunião",
+      "Analista de reunião",
+      "Verificador de evidências",
+      "Compromissos",
+      "Documentos",
+      "Operações e ajuda",
+      "Comunicação",
+      "Agendamento",
+      "Memória organizacional",
+      "Continuidade",
+      "Análise de passagem",
+      "Revisão de qualidade",
+      "Revisão de privacidade",
+      "Envio de e-mail e mensagens",
+      "Calendário"
+    ],
+    "sem_botao_conectar_email": true,
+    "sem_rolagem_lateral_390": true,
+    "acompanhamento_sem_rolagem_lateral_390": true,
+    "sidebar_cartoes": [
+      "Análise — [TESTE] Escopo do Painel Aurora",
+      "Compromissos sugeridos",
+      "Compromissos registrados",
+      "Decisões",
+      "Achados",
+      "Rascunho de e-mail",
+      "[TESTE] Revisão do escopo",
+      "Captura — [TESTE] Escopo do Painel Aurora"
+    ],
+    "sidebar_sem_rolagem_lateral": true
+  },
+  "falhas": []
+}

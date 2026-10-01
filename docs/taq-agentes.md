@@ -2,10 +2,10 @@
 
 A interface tem um assistente só: o **Taq**. Internamente ele é um
 **orquestrador** que usa ferramentas sobre os registros locais e delega a
-**especialistas**. Estão **ativos** o orquestrador e dois especialistas:
-`documents` (documentos do catálogo) e `app_assistant` (operações no app e
-ajuda). Os outros 13 estão catalogados como `planned`, sem executor, e não
-aparecem ao modelo.
+**especialistas**. Os **15 especialistas do catálogo estão ativos** (ver
+"Especialistas de trabalho", abaixo): 11 de modelo, com instruções próprias, e
+4 determinísticos, que respondem sem chamar modelo. Progresso e matriz de
+cobertura: `docs/taq-progresso.md`.
 
 ## Fronteira de execução
 
@@ -237,17 +237,59 @@ dependem do que a pessoa pediu leem `tarefa.pedidoOriginal`, nunca o
 É o fluxo do catálogo descrito acima, agora conduzido pelo especialista. Quando
 ele está ativo, o Taq não tem `create_document`: tem só a delegação.
 
-## Especialistas planejados (`features/taq/catalogo.ts`)
+## Especialistas de trabalho
 
-`capture_monitor`* · `context` · `meeting_copilot` · `meeting_analyst` ·
-`evidence_verifier` · `commitments` · `communication` · `scheduling` ·
-`organizational_memory` · `continuity` · `handoff_analysis` · `quality_review`
-· `privacy_review`
+| Especialista | Tipo | Instruções | Ferramentas próprias |
+| --- | --- | --- | --- |
+| `meeting_analyst` | modelo | `analyst-v1` | `read_analysis`, `save_analysis`, `get_capture_state` |
+| `commitments` | modelo | `commitments-v1` | `list_commitments`, `suggest_commitments`, `register_commitments`, `update_commitment`, `link_dependency` |
+| `continuity` | modelo | `continuity-v1` | `list_decisions`, `record_decision`, `list_findings`, `resolve_finding` |
+| `handoff_analysis` | modelo | `handoff-v1` | `save_finding`, `list_findings`, `resolve_finding` |
+| `communication` | modelo | `communication-v1` | `prepare_message` (só rascunho) |
+| `scheduling` | modelo | `scheduling-v1` | `prepare_event` (só sugestão) |
+| `organizational_memory` | modelo | `memory-v1` | leitura + `list_decisions` |
+| `context` | modelo | `context-v1` | leitura + compromissos, decisões, achados, análise |
+| `meeting_copilot` | modelo | `copilot-v1` | `read_meeting`, `get_capture_state`, `list_decisions` |
+| `capture_monitor` | determinístico | — | `get_capture_state` (`captura.ts`) |
+| `quality_review` | determinístico | — | `check_document` (`revisao.ts`, parte de forma) |
+| `evidence_verifier` | determinístico | — | `check_document` (`revisao.ts`, parte de fontes) |
+| `privacy_review` | determinístico | — | `review_privacy` (`privacidade.ts`) |
 
-Cada um tem finalidade, entradas, saídas, limites, **fronteiras** com os
-vizinhos e schemas mínimos. *`capture_monitor` está marcado `usaModelo: false`:
-deve ser serviço determinístico. `privacy_review` aponta conteúdo sensível, mas
-não substitui a política de acesso.
+**Registros** (`features/trabalho/store.ts`, chave `taq:trabalho`): compromissos,
+decisões, achados e análises. Cada um tem id, `chave` de idempotência,
+`revisao`, evidências (registro, versão, trecho, segmento — copiadas do livro da
+execução, nunca do texto do modelo) e histórico com a origem de cada mudança.
+Toda escrita é transação sob `comTravaLocal`; edição confere a revisão.
+
+**Travas em código** (`ferramentasDeTrabalho.ts`):
+
+- evidência é `rN` do livro desta execução; `rN` desconhecido é recusado;
+- responsável e prazo só entram se aparecem no trecho citado, em quem o falou
+  ou no pedido da pessoa; senão viram `null` e o descarte é dito;
+- item cuja fonte está fora do escopo não aparece em lista, contagem ou cartão;
+- decisão revista exige decisão confirmada e mantém a anterior como
+  `substituida`, ligada e com motivo; dependência não fecha ciclo;
+- prazo vencido é `prazo_passou_a_confirmar`, nunca atraso;
+- análise: cobertura contada pelos segmentos que o livro registrou; item sem
+  fonte recusado; capturas com ressalva entram como lacuna;
+- rascunho: endereço só se a pessoa o escreveu; nome com mais de um
+  participante vira `ambiguo`; alerta de dado sensível. Nada é enviado;
+- horário: data/hora local convertida no fuso de quem usa por `Intl`; horário
+  passado recusado; o link do Google Agenda não leva convidados.
+
+**Cartões** (`cartaoSchema` em `contratos.ts`; `shared/ui/CartoesDoTaq.tsx`):
+só ferramentas os produzem (`registrarCartao`), o runtime valida, a delegação
+os propaga e a resposta os guarda (`ConversationMessage.cartoes`). Os de
+registro levam só ids e são desenhados do storage no estado atual. Botões:
+concluir/reabrir, registrar selecionados, resolver/descartar/reabrir com
+motivo, corrigir item da análise, editar/copiar rascunho, abrir no e-mail,
+abrir no Google Agenda. A HOME tem a página **Acompanhamento** com os mesmos
+itens, e **Conexões → O que o Taq faz** lista o estado de cada capacidade a
+partir do mesmo registro do orquestrador.
+
+**Exclusões:** apagar a reunião leva só as análises dela (a lixeira do Taq as
+guarda e devolve); compromissos, decisões e achados ficam com a origem
+"indisponível". Apagar a conversa leva o rascunho, que mora na mensagem.
 ### Adicionar um especialista
 
 ```ts
