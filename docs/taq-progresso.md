@@ -109,6 +109,20 @@ e o 20b também chama ferramentas. Modelo menor: vale como evidência do FLUXO
   Groq, já tratada), decisão revista com a nova trava, rascunho, horário e
   captura — a cota diária do 20b também acabou no fim.
 
+### Rodada de 02/10/2026 — delegação direta (Groq `gpt-oss-20b`)
+
+Com a delegação direta (`b6ab9ca`), **os 9 pedidos da demonstração foram
+para o especialista certo sem passar pelo turno do Taq** (compromissos ×3,
+analista, passagem, continuidade, comunicação, agenda, captura). A captura
+respondeu em 1 ms, sem chamada ao modelo, achando a reunião pelo título dito.
+Os demais casos pararam na cota: a do Groq é de **200 mil tokens por dia por
+modelo, em janela móvel de 24 h** (mensagem do provedor: "Limit 200000, Used
+197434… try again in 18m"), e as rodadas de ontem ainda ocupam a janela.
+
+**Para fechar a validação ao vivo** é preciso cota: esperar a janela liberar
+(as rodadas de ontem saem dela à noite), ou o Dev Tier do Groq, ou uma chave
+Gemini paga com política privada.
+
 ## Verificação visual
 
 `scripts/verify-trabalho.cjs` (Edge, perfil isolado, dados `[TESTE]`, sem IA)
