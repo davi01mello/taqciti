@@ -65,10 +65,22 @@ export function hash(texto: string): string {
   return (h >>> 0).toString(36);
 }
 
+/**
+ * O índice do contexto mostra "reuniao <id>"; visto ao vivo, o modelo às vezes
+ * passa o prefixo junto ("reuniao demo-produto"). Tira só esse prefixo.
+ */
+export function limparId(id: string): string {
+  return id
+    .trim()
+    .replace(/^(reuniao|reunião|documento|conversa)[\s:=]+/i, '')
+    .replace(/^id[\s:=]+/i, '');
+}
+
 export async function reuniaoNoEscopo(
   ctx: ContextoDeFerramenta,
-  id: string,
+  bruto: string,
 ): Promise<MeetingRecord> {
+  const id = limparId(bruto);
   exigirReuniao(ctx.tarefa.escopo, id);
   const r = await ctx.armazenamento.obterReuniao(id);
   if (!r) {
@@ -82,8 +94,9 @@ export async function reuniaoNoEscopo(
 
 export async function documentoNoEscopo(
   ctx: ContextoDeFerramenta,
-  id: string,
+  bruto: string,
 ): Promise<DocumentoGuardado> {
+  const id = limparId(bruto);
   const d = await ctx.armazenamento.obterDocumento(id);
   if (!d) {
     throw new ErroDeFerramenta(
@@ -1033,6 +1046,7 @@ export function criarDelegateTask(
       if (r.informacoesAusentes.length) ctx.registrarAusentes(r.informacoesAusentes);
       for (const op of r.operacoes ?? []) ctx.registrarOperacao(op);
       for (const c of r.cartoes ?? []) ctx.registrarCartao(c);
+      if (r.escritas) ctx.registrarEscritas(r.escritas);
       if (r.textoCopiavel) ctx.registrarCopiavel(r.textoCopiavel);
       if (r.pergunta) ctx.registrarPergunta(r.pergunta);
       else if (r.resposta && (r.estado === 'concluido' || r.estado === 'parcial')) {

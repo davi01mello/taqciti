@@ -85,6 +85,8 @@ export interface ContextoDeFerramenta {
   registrarCopiavel: (texto: string) => void;
   /** Registra o que uma operação fez num registro (ok ou não). */
   registrarOperacao: (op: OperacaoRegistrada) => void;
+  /** Escritas confirmadas por um especialista delegado — contam para esta tarefa. */
+  registrarEscritas: (n: number) => void;
   /** Um cartão para a interface desenhar — validado contra `cartaoSchema`. */
   registrarCartao: (cartao: CartaoDaResposta) => void;
   /**

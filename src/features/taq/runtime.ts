@@ -39,6 +39,7 @@ import {
   type ResultadoDoAgente,
   type Tarefa,
 } from './contratos';
+import { normalizar } from './busca';
 import { conferirCitacoes } from './evidencias';
 import {
   ErroDoModelo,
@@ -135,6 +136,10 @@ async function chamarModelo(
   }
 }
 
+/** O texto diz que gravou algo? (registrei, salvei, criei, resolvi o achado…) */
+const AFIRMA_ESCRITA =
+  /(?<!\bnao )\b(registrei|salvei|gravei|criei|atualizei|resolvi|marquei como|apaguei)\b|(?<!\bnao )\b(nov[ao]s?|foi|foram|esta|estao|ja) (\w+ )?(registrad|salv|gravad|criad)[ao]s?\b/;
+
 const AVISO_ULTIMO_PASSO =
   'Aviso do runtime: este é o último turno disponível para esta execução. Responda agora ' +
   'com o que já foi obtido, dizendo claramente o que ficou incompleto. Não há mais ferramentas.';
@@ -170,6 +175,8 @@ export async function executarCiclo(
   let respostaFinal: { texto: string; parcial: boolean } | undefined;
   const operacoes: OperacaoRegistrada[] = [];
   const cartoes: CartaoDaResposta[] = [];
+  /** Escritas locais que uma ferramenta confirmou nesta tarefa. */
+  let escritasConfirmadas = 0;
   const usosPorFerramenta = new Map<string, number>();
   const assinaturas = new Map<string, number>();
 
@@ -203,6 +210,9 @@ export async function executarCiclo(
     registrarRespostaFinal: (texto, parcial) => {
       respostaFinal = { texto, parcial };
     },
+    registrarEscritas: (n) => {
+      escritasConfirmadas += n;
+    },
     registrarCartao: (c) => {
       // Validado aqui: cartão fora do contrato é erro de ferramenta, não tela quebrada.
       const lido = cartaoSchema.parse(c);
@@ -230,6 +240,17 @@ export async function executarCiclo(
     extra: { resposta?: string; evidencias?: ReferenciaDeEvidencia[] } = {},
   ): ResultadoDoAgente => {
     ambiente.emitir({ tipo: 'fim', tarefaId: tarefa.tarefaId, estado });
+    // Visto ao vivo (gpt-oss-20b, 01/10/2026): "Decisão nova registrada" sem
+    // nenhuma ferramenta de escrita ter rodado. O texto do modelo não grava
+    // nada — então, se ele diz que gravou e nenhuma escrita foi confirmada,
+    // a resposta sai com o aviso, e não como um registro que não existe.
+    if (extra.resposta && escritasConfirmadas === 0 && AFIRMA_ESCRITA.test(normalizar(extra.resposta))) {
+      limitacoes.push('A resposta fala em registrar ou salvar, mas nada foi gravado nesta execução.');
+      extra = {
+        ...extra,
+        resposta: `\n\n_Atenção: nada foi gravado nesta execução — nenhum registro foi criado ou alterado._`,
+      };
+    }
     return resultadoDoAgenteSchema.parse({
       estado,
       ...(extra.resposta ? { resposta: extra.resposta } : {}),
@@ -249,6 +270,7 @@ export async function executarCiclo(
       ...(textoCopiavel ? { textoCopiavel } : {}),
       ...(operacoes.length ? { operacoes } : {}),
       ...(cartoes.length ? { cartoes } : {}),
+      ...(escritasConfirmadas ? { escritas: escritasConfirmadas } : {}),
     });
   };
 
@@ -428,6 +450,7 @@ export async function executarCiclo(
           duracaoMs: Date.now() - t0,
           resumo: r.ok && def ? def.resumir(r.conteudo) : `erro: ${r.codigoDeErro}`,
         });
+        if (r.ok && def?.efeito === 'escrita_local') escritasConfirmadas += 1;
         if (!r.ok && r.codigoDeErro) {
           erros.push({
             codigo: r.codigoDeErro,

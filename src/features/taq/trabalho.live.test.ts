@@ -153,7 +153,7 @@ describe.skipIf(!vivo).sequential('demonstração ao vivo — especialistas de t
     mostrar('sugerir compromissos', r);
     expect(['concluido', 'parcial']).toContain(r.estado);
     expect((await lerTrabalho()).compromissos).toHaveLength(0);
-  }, 320_000);
+  }, 420_000);
 
   it('registrar os próximos passos: grava com fonte, sem dono inventado', async () => {
     const r = await executar('Registre os próximos passos da reunião de escopo do Painel Aurora.');
@@ -166,14 +166,14 @@ describe.skipIf(!vivo).sequential('demonstração ao vivo — especialistas de t
     }
     const criterios = compromissos.find((c) => normalizar(c.descricao).includes('criterio'));
     if (criterios) expect(criterios.responsavel).toBeNull();
-  }, 320_000);
+  }, 420_000);
 
   it('registrar de novo não duplica', async () => {
     const antes = (await lerTrabalho()).compromissos.length;
     const r = await executar('Registre os próximos passos da reunião de escopo do Painel Aurora.');
     mostrar('registrar de novo', r);
     expect((await lerTrabalho()).compromissos.length).toBeLessThanOrEqual(antes + 1);
-  }, 320_000);
+  }, 420_000);
 
   it('analisar a reunião de dados: análise salva com cobertura', async () => {
     const r = await executar('Analise a reunião de integração de dados do Painel Aurora.');
@@ -181,7 +181,7 @@ describe.skipIf(!vivo).sequential('demonstração ao vivo — especialistas de t
     const a = (await lerTrabalho()).analises.find((x) => x.reuniaoId === 'demo-dados');
     expect(a).toBeTruthy();
     expect(a!.cobertura.total).toBe(3);
-  }, 320_000);
+  }, 420_000);
 
   it('comparar Comercial e Produto: achado com as duas fontes', async () => {
     const r = await executar(
@@ -192,7 +192,7 @@ describe.skipIf(!vivo).sequential('demonstração ao vivo — especialistas de t
     expect(achados.length).toBeGreaterThan(0);
     const fontes = new Set(achados[0]!.entendimentos.map((e) => e.evidencia.registroId));
     expect(fontes.size).toBeGreaterThanOrEqual(2);
-  }, 320_000);
+  }, 420_000);
 
   it('decisão revista resolve o achado, preservando o histórico', async () => {
     const r = await executar(
@@ -203,25 +203,25 @@ describe.skipIf(!vivo).sequential('demonstração ao vivo — especialistas de t
     expect(decisoes.some((d) => normalizar(d.texto).includes('fase 2'))).toBe(true);
     const resolvido = achados.find((a) => a.estado === 'resolvido');
     expect(resolvido?.historico.length).toBeGreaterThan(1);
-  }, 320_000);
+  }, 420_000);
 
   it('rascunho de mensagem: nada é enviado', async () => {
     const r = await executar('Prepare um e-mail para a Rita explicando que o PDF ficou para a fase 2.');
     mostrar('rascunho', r);
     expect(r.cartoes?.some((c) => c.tipo === 'rascunho_de_mensagem')).toBe(true);
     expect(normalizar(r.resposta ?? '')).not.toMatch(/\b(enviei|foi enviado|mandei)\b/);
-  }, 320_000);
+  }, 420_000);
 
   it('horário: sugestão no fuso, sem evento criado', async () => {
     const r = await executar('Sugira um horário amanhã à tarde para revisar o escopo do Painel Aurora com a Júlia.');
     mostrar('horário', r);
     expect(r.cartoes?.some((c) => c.tipo === 'sugestao_de_evento')).toBe(true);
     expect(normalizar(r.resposta ?? '')).not.toMatch(/\b(agendei|evento criado|convite enviado)\b/);
-  }, 320_000);
+  }, 420_000);
 
   it('captura: estado da reunião de dados, sem chamada extra ao modelo', async () => {
     const r = await executar('A captura da reunião de integração de dados está confiável?');
     mostrar('captura', r);
     expect(r.cartoes?.some((c) => c.tipo === 'estado_da_captura')).toBe(true);
-  }, 320_000);
+  }, 420_000);
 });

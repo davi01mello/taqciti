@@ -86,6 +86,29 @@ antiga estava revogada; uma nova foi configurada).
 - **Pendentes ao vivo** (reabrir amanhã): comparar fontes, decisão revista,
   rascunho, horário e captura com as correções acima.
 
+### Rodada com Groq `openai/gpt-oss-20b` (01/10/2026, noite)
+
+A cota diária do `gpt-oss-120b` acabou; o Groq tem cota separada por modelo,
+e o 20b também chama ferramentas. Modelo menor: vale como evidência do FLUXO
+(roteamento, ferramentas, travas), não da qualidade final do texto.
+
+- **Passaram ao vivo, com as correções de roteamento:** sugerir compromissos
+  (cartão de sugestões, nada gravado), registrar compromissos (gravados com
+  fonte, sem dono inventado; Taq → `commitments`) e analisar a reunião
+  (Taq → `meeting_analyst`, análise salva com cobertura).
+- **Achado grave, corrigido em código:** em "decisão revista" o especialista
+  respondeu "**Decisão nova registrada**" sem chamar `record_decision` —
+  nada foi gravado. O runtime agora conta as escritas que as ferramentas
+  confirmaram (inclusive as dos especialistas, em `escritas`) e, se o texto
+  afirma ter registrado/salvo/criado sem nenhuma escrita confirmada, acrescenta
+  "nada foi gravado nesta execução" e uma limitação.
+- **Outros corrigidos:** id com o prefixo do índice ("reuniao demo-produto")
+  passa a ser aceito (`limparId`); "Failed to parse tool call arguments as
+  JSON" do Groq volta como transitório.
+- **Pendentes ao vivo:** comparar fontes (estourou o tempo após a recusa do
+  Groq, já tratada), decisão revista com a nova trava, rascunho, horário e
+  captura — a cota diária do 20b também acabou no fim.
+
 ## Verificação visual
 
 `scripts/verify-trabalho.cjs` (Edge, perfil isolado, dados `[TESTE]`, sem IA)

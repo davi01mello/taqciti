@@ -414,3 +414,47 @@ describe('cota por minuto do provedor', () => {
     expect(Date.now() - t0).toBeLessThan(2_000);
   });
 });
+
+describe('afirmação de escrita sem escrita (visto ao vivo)', () => {
+  it('"Decisão nova registrada" sem ferramenta de escrita sai com o aviso', async () => {
+    const { modelo } = roteiro([
+      pede('delegate_task', { agente: 'continuity', objetivo: 'registrar a decisão' }),
+      final('**Decisão nova registrada**: o PDF fica para a fase 2.'),
+    ]);
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Ficou decidido que o PDF fica para a fase 2. Registre essa decisão.'),
+    );
+    expect(r.resposta).toMatch(/nada foi gravado nesta execução/);
+    expect(r.limitacoes.join(' ')).toMatch(/nada foi gravado/);
+    expect((await lerTrabalho()).decisoes).toHaveLength(0);
+  });
+
+  it('com a escrita confirmada pelo especialista, sem aviso', async () => {
+    const { modelo } = roteiro([
+      pede('delegate_task', { agente: 'continuity', objetivo: 'registrar a decisão' }),
+      pede('record_decision', {
+        assunto: 'Exportação',
+        texto: 'PDF fica para a fase 2',
+        estado: 'confirmada',
+        origem: 'pedido_da_pessoa',
+      }),
+      final('Registrei a decisão: o PDF fica para a fase 2.'),
+    ]);
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Ficou decidido que o PDF fica para a fase 2. Registre essa decisão.'),
+    );
+    expect(r.resposta).not.toMatch(/nada foi gravado/);
+    expect((await lerTrabalho()).decisoes).toHaveLength(1);
+  });
+
+  it('id com o prefixo do índice ("reuniao m-plan") é aceito', async () => {
+    const { modelo } = roteiro([
+      pede('read_meeting', { reuniao_id: 'reuniao m-plan' }),
+      (p) => {
+        expect(resultadoDe(p, 'read_meeting')).toMatchObject({ reuniao: { id: 'm-plan' } });
+        return final('ok');
+      },
+    ]);
+    await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(pedido('O que falamos no planejamento?'));
+  });
+});

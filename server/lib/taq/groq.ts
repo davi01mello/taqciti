@@ -152,7 +152,7 @@ async function erroDoGroq(modelo: string, resposta: Response): Promise<Error> {
   // schema ("tool call validation failed") ou quando não havia ferramenta
   // ("Tool choice is none"). Visto ao vivo: é sorteio do modelo, e repetir
   // costuma passar — então volta como transitório, não como falha final.
-  if (resposta.status === 400 && /tool call validation failed|tool choice is none|failed to call a function/i.test(mensagem)) {
+  if (resposta.status === 400 && /tool call validation failed|tool choice is none|failed to call a function|failed to parse tool call/i.test(mensagem)) {
     return new ErroDeChamadaDoModelo(modelo, mensagem);
   }
   if (resposta.status === 503 || resposta.status === 502) {

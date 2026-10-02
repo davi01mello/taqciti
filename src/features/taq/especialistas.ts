@@ -121,6 +121,7 @@ function executorDeterministico(
       },
       registrarOperacao: () => undefined,
       registrarRespostaFinal: () => undefined,
+      registrarEscritas: () => undefined,
       registrarCartao: (c) => {
         coletado.cartoes.push(c);
       },

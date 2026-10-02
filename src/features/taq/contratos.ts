@@ -335,6 +335,8 @@ export const resultadoDoAgenteSchema = z.object({
   textoCopiavel: z.string().optional(),
   /** Cartões que as ferramentas produziram — ver `cartaoSchema`. */
   cartoes: z.array(cartaoSchema).optional(),
+  /** Quantas escritas locais as ferramentas CONFIRMARAM (inclui as dos especialistas). */
+  escritas: z.number().int().nonnegative().optional(),
 });
 export type ResultadoDoAgente = z.infer<typeof resultadoDoAgenteSchema>;
 
