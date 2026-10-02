@@ -56,7 +56,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
 import { WaveField } from '@/home/WaveField';
 import { useAnimacao } from '@/home/useAnimacao';
-import { AcoesDaReuniao } from './AcoesDaReuniao';
+import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao } from './AbasDaReuniao';
 
@@ -132,17 +132,31 @@ export function Reuniao({
 
   return (
     <div className="tq-rolavel">
+      {/*
+       * O título e, embaixo, o estado com o relógio. O relógio é o único
+       * número que muda sozinho na tela, e é o que se procura ao olhar para o
+       * painel no meio da reunião ("quanto tempo já foi?") — por isso ele tem
+       * peso próprio, e o resto da linha é cinza. Sem "·" entre as partes: o
+       * espaço já separa, e o ponto do meio é ruído numa linha de 260px.
+       */}
       <div className="tq-reuniao-topo">
         <h2>{sessao.title}</h2>
-        <p className="tq-fino">
-          {interrompida
-            ? 'Captura interrompida'
-            : fase === 'recording'
-              ? 'Transcrevendo'
-              : 'Pausada'}{' '}
-          · {duracao} · {sessao.segments.length}{' '}
-          {sessao.segments.length === 1 ? 'fala' : 'falas'}
-          {notaExiste && ' · com nota'}
+        <p className="tq-reuniao-meta">
+          <span
+            className={`tq-captura-estado${
+              interrompida ? ' atencao' : fase === 'recording' ? ' vivo' : ' atencao'
+            }`}
+          >
+            {interrompida
+              ? 'Captura interrompida'
+              : fase === 'recording'
+                ? 'Transcrevendo'
+                : 'Pausada'}
+          </span>
+          <span className="tq-relogio">{duracao}</span>
+          <span>
+            {sessao.segments.length} {sessao.segments.length === 1 ? 'fala' : 'falas'}
+          </span>
         </p>
       </div>
 
@@ -156,7 +170,6 @@ export function Reuniao({
           void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
         }
         onPerguntar={perguntarSobreAReuniao}
-        onFinalizar={() => void platform.send({ type: 'ui/finish' })}
       />
 
       {printAberto && <Prints meetingId={sessao.meetingId} prints={prints} viva={viva} />}
@@ -188,11 +201,18 @@ export function Reuniao({
         />
       )}
 
-      <AbasDaReuniao
-        notas={notaAberta}
-        notaExiste={notaExiste}
-        onNotas={setNotaAberta}
-      />
+      {/* As abas e, na ponta, o fim da reunião: longe do Print e da Pausa, que
+          são os botões que se aperta sem pensar. */}
+      <div className="tq-reuniao-faixa">
+        <AbasDaReuniao
+          notas={notaAberta}
+          notaExiste={notaExiste}
+          onNotas={setNotaAberta}
+        />
+        {viva && (
+          <FinalizarReuniao onFinalizar={() => void platform.send({ type: 'ui/finish' })} />
+        )}
+      </div>
       <div className="tq-reuniao-alternada">
         <ParteDaReuniao ativa={notaAberta}>
           <EditorDeNota
@@ -273,7 +293,7 @@ function ListaDeFalas({
   meetingId: string;
   titulo: string;
   segmentos: readonly LiveSegment[];
-  /** Quem é "eu" nesta reunião: a fala dessa pessoa é desenhada em verde. */
+  /** Quem é "eu" nesta reunião: a fala dessa pessoa ganha o fio verde. */
   selfName: string | null;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
 }) {
@@ -310,9 +330,16 @@ function ListaDeFalas({
 
   return (
     <div className="tq-falas" ref={listaRef} onScroll={aoRolar}>
-      {segmentos.map((s) => {
+      {segmentos.map((s, i) => {
         const marca = marcas[s.captionId];
         const aberto = selecionado === s.captionId;
+        /*
+         * Fala SEGUIDA da mesma pessoa: o nome não se repete. Numa coluna
+         * estreita, "Ana Duarte (Eu)" em cima de cada frase de um mesmo
+         * raciocínio dobrava a altura da lista sem dizer nada novo. O horário
+         * continua lá, só mais apagado — ver `.tq-fala.seguida`.
+         */
+        const seguida = i > 0 && segmentos[i - 1]?.speaker === s.speaker;
         /*
          * Quem falou. O "(Eu)" é o mesmo rótulo do histórico na HOME, e sai da
          * MESMA conta: "eu" é o participante marcado como anfitrião (ver
@@ -328,7 +355,7 @@ function ListaDeFalas({
             key={s.captionId}
             className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}${
               ehVoce ? ' minha' : ''
-            }`}
+            }${seguida ? ' seguida' : ''}`}
           >
             <button
               type="button"
@@ -337,7 +364,7 @@ function ListaDeFalas({
               onClick={() => setSelecionado(aberto ? null : s.captionId)}
             >
               <span className="tq-fala-quem">
-                {rotulo}
+                <span className="tq-fala-nome">{rotulo}</span>
                 <span className="tq-fala-hora">{formatOffset(s.startOffsetMs)}</span>
                 {marca && (
                   <span
@@ -385,7 +412,8 @@ function ListaDeFalas({
                     setSelecionado(null);
                   }}
                 >
-                  Perguntar à IA
+                  <Icon name="sparkles" size={14} />
+                  Perguntar sobre o trecho
                 </button>
               </div>
             )}

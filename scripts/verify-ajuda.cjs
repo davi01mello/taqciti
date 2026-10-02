@@ -282,7 +282,7 @@ const CONVERSA = {
       await side.keyboard.press('Escape');
     });
     await tentar('sidebar: reuniões', async () => {
-      await side.getByRole('button', { name: /^Transcrição/ }).first().click();
+      await side.getByRole('button', { name: /^Reunião/ }).first().click();
       await side.getByText(REUNIAO.title).first().click();
       await side.waitForTimeout(400);
       await colher(side, 'sidebar · reunião guardada');
@@ -292,7 +292,7 @@ const CONVERSA = {
       await side.getByRole('button', { name: /^Desenvolvimento/ }).click();
       await clicar(side, 'Capturando');
       await side.getByRole('button', { name: /^Desenvolvimento/ }).click();
-      await side.getByRole('button', { name: /^Transcrição/ }).first().click();
+      await side.getByRole('button', { name: /^Reunião/ }).first().click();
       await side.waitForTimeout(800);
       await colher(side, 'sidebar · reunião simulada');
       await side.screenshot({ path: path.join(saida, 'sidebar-ao-vivo.png') });
@@ -301,12 +301,14 @@ const CONVERSA = {
       await side.locator('.tq-fala-corpo').first().click();
       await side.waitForTimeout(300);
       await colher(side, 'sidebar · trecho selecionado');
-      await clicar(side, 'Perguntar à IA');
+      await clicar(side, 'Perguntar sobre o trecho');
       await colher(side, 'sidebar · pergunta com contexto');
+      await side.screenshot({ path: path.join(saida, 'sidebar-conversa-contexto.png') });
+      await side.screenshot({ path: path.join(saida, 'sidebar-conversa-contexto.png') });
       await side.getByRole('button', { name: /^Desenvolvimento/ }).click();
       await clicar(side, 'Pausada');
       await side.getByRole('button', { name: /^Desenvolvimento/ }).click();
-      await side.getByRole('button', { name: /^Transcrição/ }).first().click();
+      await side.getByRole('button', { name: /^Reunião/ }).first().click();
       await side.waitForTimeout(400);
       await colher(side, 'sidebar · reunião simulada pausada');
     });

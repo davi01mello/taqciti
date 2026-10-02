@@ -16,22 +16,48 @@
  * da escrita; o grafite continua sendo a superfície dominante.
  */
 
+/*
+ * ── A paleta da coluna, com nome ─────────────────────────────────────────
+ *
+ * O grafite e os cinzas eram escritos à mão, regra por regra — mais de trinta
+ * `rgb()` diferentes para o que são cinco papéis. Estes nomes são esses papéis.
+ * O verde continua vindo de `tokens.css`, e só aparece onde algo está
+ * ACONTECENDO (captura, resposta chegando), SELECIONADO, ou é a ação principal.
+ *
+ *   --s-fundo    o grafite da coluna
+ *   --s-placa    o que flutua: botão, cartão, a sua mensagem
+ *   --s-texto    o conteúdo
+ *   --s-texto-2  o conteúdo que não é o foco (a fala dos outros, a resposta)
+ *   --s-cinza    etiqueta: nome de quem fala, horário, contagem
+ *   --s-traco    o limite de uma placa
+ *   --s-atencao  âmbar: parado por um motivo que importa
+ *   --s-perigo   o que não se desfaz
+ */
 .tq-side {
+  --s-fundo: rgb(17 18 19);
+  --s-placa: rgb(255 255 255 / 0.045);
+  --s-placa-forte: rgb(255 255 255 / 0.085);
+  --s-texto: rgb(237 238 239);
+  --s-texto-2: rgb(196 200 205);
+  --s-cinza: rgb(150 155 161);
+  --s-traco: rgb(255 255 255 / 0.08);
+  --s-atencao: rgb(232 196 160);
+  --s-perigo: rgb(var(--c-danger));
+
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: rgb(17 18 19);
-  color: rgb(237 238 239);
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  font-size: 13px;
+  background: var(--s-fundo);
+  color: var(--s-texto);
+  font-family: var(--font-texto);
+  font-size: var(--fs-corpo);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  /* A coluna é um contêiner: os seletores e as ações se rearranjam pela
+     largura DO PAINEL, que a pessoa arrasta, e não pela da janela. */
+  container-type: inline-size;
+  container-name: coluna;
 }
 
 .tq-side *,
@@ -64,24 +90,101 @@
   flex-shrink: 0;
 }
 
+/*
+ * Título de tela na Barlow — a voz da ata. 17px da Barlow ocupa a largura de
+ * ~15px da fonte do sistema: o nome da reunião cresce em presença sem crescer
+ * em largura, que é o recurso escasso aqui.
+ */
 .tq-side h2 {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  font-family: var(--font-titulo);
+  font-size: var(--fs-titulo);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.1px;
   margin: 0;
+  text-wrap: balance;
 }
 
 .tq-side h3 {
-  font-size: 12px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   margin: 0;
 }
 
 .tq-fino {
-  font-size: 11.5px;
-  line-height: 1.65;
-  color: rgb(150 153 157);
+  font-size: var(--fs-ui);
+  line-height: 1.6;
+  color: var(--s-cinza);
   margin: 6px 0 0;
+  text-wrap: pretty;
+}
+
+/*
+ * A linha de informações embaixo de um título: partes separadas por ESPAÇO, e
+ * não por "·". O horário é tabular, para o relógio ao vivo não tremer a linha
+ * a cada segundo.
+ */
+.tq-reuniao-meta,
+.tq-meta-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 4px 0 0;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--s-cinza);
+}
+
+.tq-relogio {
+  font-variant-numeric: tabular-nums;
+  color: var(--s-texto-2);
+  font-weight: 500;
+}
+
+/*
+ * O estado da captura, com o ponto à esquerda. O ponto PULSA só enquanto se
+ * transcreve de verdade: é o único movimento automático da coluna, e por isso
+ * ele significa alguma coisa.
+ */
+.tq-captura-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tq-captura-estado::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.tq-captura-estado.vivo {
+  color: rgb(var(--c-glow));
+}
+
+.tq-captura-estado.vivo::before {
+  background: rgb(var(--c-primary));
+  box-shadow: 0 0 0 0 rgb(var(--c-primary) / 0.5);
+  animation: tq-pulso-vivo 2.2s ease-out infinite;
+}
+
+.tq-captura-estado.atencao {
+  color: var(--s-atencao);
+}
+
+@keyframes tq-pulso-vivo {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--c-primary) / 0.55);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px rgb(var(--c-primary) / 0);
+  }
 }
 
 .tq-centrado {
@@ -91,47 +194,51 @@
 .tq-linkish {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: rgb(163 166 170);
-  padding: 6px 8px;
-  min-height: 40px;
+  gap: 6px;
+  font-size: var(--fs-ui);
+  color: var(--s-texto-2);
+  padding: 6px 10px;
+  min-height: 36px;
   border-radius: 10px;
 }
 
 .tq-linkish:hover {
-  background: rgb(255 255 255 / 0.045);
-  color: rgb(238 240 242);
+  background: var(--s-placa);
+  color: var(--s-texto);
 }
 
 /* ------------------------------------------------------------ cabeçalho */
 
+/*
+ * O cabeçalho encolheu de 74px para 52px. A marca é a mesma; o que saiu foi o
+ * respiro de 18px em cima e os alvos de 44px que faziam a linha ser mais alta
+ * do que tudo o que havia nela.
+ */
 .tq-side-topo {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 18px 16px 12px;
-  flex-wrap: wrap;
+  padding: 10px 10px 6px 16px;
 }
 
 .tq-icone {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
-  border-radius: 50%;
-  color: rgb(152 155 159);
+  border-radius: 10px;
+  color: var(--s-cinza);
   transition:
     background 0.2s,
     color 0.2s;
 }
 
 .tq-icone:hover {
-  background: rgb(255 255 255 / 0.07);
-  color: rgb(238 240 242);
+  background: var(--s-placa-forte);
+  color: var(--s-texto);
 }
 
 /* O botão das brasas fica ao lado do de ir para a HOME, não embaixo dele. */
@@ -159,38 +266,40 @@
  * "Interrompida" — e a palavra do estado é justamente a parte que não pode
  * sumir, já que é ela que substitui a cor para quem não a distingue.
  */
+/*
+ * Uma linha só, quando cabe: [marca] Nome ......... estado. Com a coluna
+ * estreita (abaixo de 330px) o estado desce para baixo do nome, porque
+ * "Interrompida" não pode ser cortada — é a palavra que substitui a cor.
+ */
 .tq-modos {
   flex: 0 0 auto;
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  margin: 0 16px 8px;
-  border-radius: 16px;
+  gap: 3px;
+  padding: 3px;
+  margin: 0 16px 6px;
+  border-radius: 14px;
   background: rgb(255 255 255 / 0.035);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.03);
 }
 
 .tq-modo {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 2px 7px;
-  padding: 7px 9px;
-  min-height: 48px;
-  border-radius: 12px;
+  gap: 0 8px;
+  padding: 6px 10px;
+  min-height: 40px;
+  border-radius: 11px;
   border: 0;
   text-align: left;
-  color: rgb(150 153 157);
-}
-
-.tq-modo .tq-marca,
-.tq-modo .tq-escuta {
-  grid-row: 1 / span 2;
+  color: var(--s-cinza);
 }
 
 .tq-modo-nome {
-  font-size: 12px;
+  font-size: var(--fs-ui);
+  font-weight: 600;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,14 +307,32 @@
 }
 
 .tq-modo-estado {
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgb(132 136 141);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
   white-space: nowrap;
-  min-height: 12px;
+  justify-self: end;
+}
+
+@container coluna (max-width: 330px) {
+  .tq-modo {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0 7px;
+    padding: 5px 9px;
+  }
+  .tq-modo .tq-marca,
+  .tq-modo .tq-escuta {
+    grid-row: 1 / span 2;
+  }
+  .tq-modo-estado {
+    justify-self: start;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .tq-modo-estado:empty {
+    display: none;
+  }
 }
 
 /* Verde: acontecendo AGORA. Âmbar: parado, e por um motivo que importa. */
@@ -214,12 +341,12 @@
 }
 
 .tq-modo-estado.atencao {
-  color: rgb(230 192 158);
+  color: var(--s-atencao);
 }
 
 .tq-modo:hover {
-  background: rgb(255 255 255 / 0.045);
-  color: rgb(224 226 229);
+  background: var(--s-placa);
+  color: var(--s-texto);
 }
 
 /* A seleção usa luz neutra; o verde permanece na marca e na atividade. */
@@ -227,8 +354,13 @@
   color: rgb(246 248 250);
   background: rgb(255 255 255 / 0.09);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 2px 6px rgb(0 0 0 / 0.12);
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+/* O estado de quem está selecionado continua na sua cor — a seleção não o apaga. */
+.tq-modo.atual .tq-modo-estado:not(.vivo):not(.atencao) {
+  color: rgb(170 175 181);
 }
 
 /* Dito só para quem ouve: a palavra curta da tela não basta fora dela. */
@@ -262,7 +394,7 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: 8px 16px 14px;
+  padding: 10px 16px 12px;
   overflow: hidden;
   visibility: hidden;
 }
@@ -290,7 +422,7 @@
   scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .tq-vazio-centro {
@@ -305,8 +437,8 @@
 }
 
 .tq-vazio-centro p {
-  font-size: 12px;
-  color: rgb(150 153 157);
+  font-size: var(--fs-ui);
+  color: var(--s-cinza);
   margin: 0;
   max-width: 34ch;
   line-height: 1.7;
@@ -334,11 +466,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 999px;
-  font-size: 12px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: var(--fs-ui);
+  font-weight: 500;
   border: 1px solid transparent;
   transition:
     background 0.2s,
@@ -347,28 +480,34 @@
     opacity 0.2s;
 }
 
+/*
+ * A ação principal é o verde CHEIO, com o texto no verde profundo por cima
+ * (contraste 4.6:1, ver `--c-primary-deep`). Antes era um verde a 16% com
+ * texto verde — lia como mais um botão tingido, e numa tela com "Registrar" e
+ * "Agora não" lado a lado as duas escolhas pesavam quase o mesmo.
+ */
 .tq-side .tq-botao-principal {
-  background: rgb(var(--c-primary) / 0.16);
-  border-color: rgb(var(--c-primary) / 0.45);
-  color: rgb(var(--c-glow));
+  background: rgb(var(--c-primary));
+  border-color: rgb(var(--c-primary));
+  color: rgb(var(--c-primary-deep));
+  font-weight: 600;
 }
 
 .tq-botao-principal:hover:not(:disabled) {
-  background: rgb(var(--c-primary) / 0.24);
-  border-color: rgb(var(--c-primary) / 0.7);
+  background: rgb(var(--c-glow));
+  border-color: rgb(var(--c-glow));
 }
 
 .tq-side .tq-botao-fantasma {
-  border-color: rgb(255 255 255 / 0.1);
-  color: rgb(206 209 213);
-  background: rgb(255 255 255 / 0.025);
-  border: 1px solid rgb(255 255 255 / 0.08);
+  color: var(--s-texto-2);
+  background: var(--s-placa);
+  border: 1px solid var(--s-traco);
 }
 
 .tq-botao-fantasma:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.07);
-  border-color: rgb(255 255 255 / 0.18);
-  color: rgb(243 245 247);
+  background: var(--s-placa-forte);
+  border-color: rgb(255 255 255 / 0.16);
+  color: var(--s-texto);
 }
 
 .tq-botao-principal:disabled,
@@ -411,19 +550,21 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 38px;
   padding: 0 8px;
-  border-radius: 12px;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.035);
-  color: rgb(216 219 223);
-  font-size: 12px;
+  border-radius: 11px;
+  border: 1px solid var(--s-traco);
+  background: var(--s-placa);
+  color: var(--s-texto-2);
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .tq-side .tq-acao:hover:not(:disabled) {
-  background: rgb(255 255 255 / 0.08);
+  background: var(--s-placa-forte);
   border-color: rgb(255 255 255 / 0.16);
-  color: rgb(243 245 247);
+  color: var(--s-texto);
 }
 
 .tq-side .tq-acao:disabled {
@@ -437,68 +578,167 @@
   color: rgb(246 248 250);
 }
 
+/*
+ * Pausada, "Retomar" é a ação que se procura: ela ganha o verde, porque é o
+ * caminho de volta para o que estava acontecendo.
+ */
+.tq-side .tq-acao.retomar {
+  border-color: rgb(var(--c-primary) / 0.45);
+  background: rgb(var(--c-primary) / 0.12);
+  color: rgb(var(--c-glow));
+}
+
 .tq-acao-conta {
-  font-size: 10px;
-  color: rgb(146 149 153);
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  font-size: var(--fs-meta);
+  line-height: 18px;
+  color: var(--s-texto);
   font-variant-numeric: tabular-nums;
+}
+
+/* A 260px os três nomes não cabem ao lado dos ícones. Sai o ÍCONE, e não o
+   nome: "Perguntar" escrito se entende sozinho; uma estrela sozinha, não. */
+@container coluna (max-width: 290px) {
+  .tq-side .tq-acao {
+    padding: 0 4px;
+  }
+  .tq-side .tq-acao svg {
+    display: none;
+  }
+}
+
+/*
+ * A faixa das abas: Transcrição e Notas à esquerda, "Finalizar" na ponta
+ * direita. Um traço fino embaixo separa a moldura (o que fica parado) do
+ * conteúdo (o que rola).
+ */
+.tq-reuniao-faixa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--s-traco);
+  margin-top: 2px;
+}
+
+/*
+ * Finalizar: texto vermelho, sem placa. Ele não compete com as ações de cima,
+ * e a cor diz que é diferente delas antes de qualquer leitura. Armado, ele vira
+ * uma placa vermelha que diz o que o próximo toque faz.
+ */
+.tq-side .tq-finalizar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  margin-bottom: 4px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  color: rgb(var(--c-danger) / 0.85);
+  white-space: nowrap;
+}
+
+.tq-side .tq-finalizar:hover {
+  background: var(--tint-danger);
+  color: var(--s-perigo);
+}
+
+.tq-side .tq-finalizar.armado {
+  background: rgb(var(--c-danger) / 0.16);
+  border-color: rgb(var(--c-danger) / 0.5);
+  color: rgb(255 214 214);
 }
 
 /* Um aviso que pede atenção sem ser falha: a captura parou de ler. */
 .tq-aviso-caixa.tq-aviso-atencao {
   border-color: rgb(230 192 158 / 0.35);
   background: rgb(230 192 158 / 0.07);
-  color: rgb(226 205 186);
+  color: rgb(236 214 194);
 }
 
 /* ------------------------------------------------------------- pergunta */
 
+/*
+ * A pergunta começa no TOPO, logo abaixo da marca, e não flutua no meio da
+ * coluna: centralizada, ela deixava 280px de vazio em cima e a resposta ficava
+ * longe do olho, que chega ao painel pelo canto de cima. O nome da sala é a
+ * informação que decide ("é ESTA reunião?"), e por isso ele vem numa placa
+ * própria, com o sinal da escuta ao lado.
+ */
 .tq-pergunta {
-  justify-content: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 0;
+  padding-top: 18px;
+  overflow-y: auto;
+}
+
+.tq-pergunta h2 {
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.tq-pergunta-sala {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--s-placa);
+  border: 1px solid var(--s-traco);
+  font-size: var(--fs-corpo);
+  font-weight: 500;
+  color: var(--s-texto);
+  overflow-wrap: anywhere;
 }
 
 .tq-pergunta-marca {
   display: grid;
   place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 1px solid rgb(var(--c-primary) / 0.3);
-  background: rgb(var(--c-primary) / 0.07);
-  margin-bottom: 10px;
-}
-
-.tq-pergunta-sala {
-  font-size: 12.5px;
-  color: rgb(232 234 237);
-  margin: 6px 0 0;
-  overflow-wrap: anywhere;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: rgb(var(--c-primary) / 0.1);
 }
 
 .tq-pergunta-texto {
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: rgb(186 189 193);
-  margin: 10px 0 0;
+  font-size: var(--fs-leitura);
+  line-height: 1.6;
+  color: var(--s-texto-2);
+  margin: 16px 0 0;
+  text-wrap: pretty;
 }
 
 .tq-pergunta-fino {
-  font-size: 11px;
-  line-height: 1.65;
-  color: rgb(146 149 153);
-  margin: 10px 0 0;
+  font-size: var(--fs-ui);
+  line-height: 1.6;
+  color: var(--s-cinza);
+  margin: 8px 0 0;
+  text-wrap: pretty;
 }
 
 .tq-pergunta-fino strong {
-  color: rgb(224 227 230);
+  color: var(--s-texto);
   font-weight: 500;
 }
 
 .tq-pergunta-acoes {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.tq-pergunta-acoes button {
+  min-height: 44px;
+  font-size: var(--fs-corpo);
 }
 
 /* ------------------------------------------------------------- reunião */
@@ -508,20 +748,21 @@
 }
 
 .tq-aviso-caixa {
-  font-size: 11.5px;
-  line-height: 1.65;
-  color: rgb(186 189 193);
-  background: rgb(255 255 255 / 0.035);
-  border: 1px solid rgb(255 255 255 / 0.07);
-  border-radius: 10px;
-  padding: 9px 11px;
+  font-size: var(--fs-ui);
+  line-height: 1.6;
+  color: var(--s-texto-2);
+  background: var(--s-placa);
+  border: 1px solid var(--s-traco);
+  border-radius: 11px;
+  padding: 9px 12px;
   margin: 0;
+  text-wrap: pretty;
 }
 
 .tq-aviso-falha {
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   line-height: 1.6;
-  color: rgb(240 198 160);
+  color: var(--s-atencao);
   margin: 6px 0 0;
 }
 
@@ -529,7 +770,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: rgb(var(--c-glow));
   margin: 0;
 }
@@ -568,8 +809,13 @@
 }
 
 .tq-aviso-chat-texto {
-  font-size: 12.5px;
-  color: rgb(232 234 237);
+  font-size: var(--fs-corpo);
+  font-weight: 500;
+  color: var(--s-texto);
+  margin: 0;
+}
+
+.tq-aviso-chat .tq-fino {
   margin: 0;
 }
 
@@ -650,8 +896,9 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   display: grid;
-  gap: 2px;
+  gap: 0;
   align-content: start;
+  padding-top: 6px;
 }
 
 .tq-falas-estatica {
@@ -659,21 +906,48 @@
   min-height: 0;
 }
 
+/*
+ * ── O ritmo da transcrição ───────────────────────────────────────────────
+ *
+ * Um espaço só entre falas, igual ao vivo e no histórico (antes eram 24px de
+ * um lado e zero do outro). Quando a MESMA pessoa continua falando, o espaço
+ * encolhe e o nome some: as frases de um raciocínio leem como um parágrafo,
+ * e a troca de quem fala é que ganha o respiro.
+ */
 .tq-fala {
-  border-radius: 9px;
+  position: relative;
+  border-radius: 10px;
   border: 1px solid transparent;
+  margin-top: 6px;
   transition:
     background 0.2s,
     border-color 0.2s;
+}
+
+.tq-fala.seguida {
+  margin-top: 0;
 }
 
 .tq-fala-corpo {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 12px 10px;
-  min-height: 44px;
-  border-radius: 9px;
+  padding: 8px 10px 8px 12px;
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.tq-fala.seguida .tq-fala-corpo {
+  padding-top: 2px;
+}
+
+/* No histórico a fala não é botão: o mesmo respiro vai direto no artigo. */
+.tq-falas-estatica .tq-fala {
+  padding: 8px 10px 8px 12px;
+}
+
+.tq-falas-estatica .tq-fala.seguida {
+  padding-top: 2px;
 }
 
 .tq-fala:hover {
@@ -686,50 +960,108 @@
   border-color: rgb(var(--c-primary) / 0.4);
 }
 
-.tq-fala.marcada .tq-fala-quem {
+.tq-fala.marcada .tq-fala-nome {
   color: rgb(var(--c-glow));
 }
 
 .tq-fala-quem {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  font-size: 10.5px;
-  color: rgb(146 149 153);
+  gap: 8px;
+  font-size: var(--fs-ui);
+  line-height: 1.4;
+  color: var(--s-cinza);
   margin-bottom: 2px;
 }
 
+.tq-fala-nome {
+  font-weight: 600;
+  color: rgb(178 183 189);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tq-fala-hora {
+  font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
-  opacity: 0.7;
+  opacity: 0.75;
+  flex: 0 0 auto;
+}
+
+/*
+ * Na fala seguida, a linha de cima perde o nome e fica só com o horário — e o
+ * horário só aparece quando se aponta para a fala ou ela está escolhida. Ele
+ * continua no DOM: leitor de tela e busca do navegador o acham.
+ */
+.tq-fala.seguida .tq-fala-nome {
+  display: none;
+}
+
+.tq-fala.seguida .tq-fala-quem {
+  position: absolute;
+  top: 3px;
+  right: 10px;
+  margin: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tq-fala.seguida:hover .tq-fala-quem,
+.tq-fala.seguida.selecionada .tq-fala-quem,
+.tq-fala.seguida.marcada .tq-fala-quem {
+  opacity: 1;
 }
 
 .tq-fala-marca {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-ui);
   color: rgb(var(--c-glow));
 }
 
 /*
- * A COR DA FALA diz de quem ela é: verde para quem está na reunião, cinza para
- * os demais. A cor está no TEXTO, e só nele — o nome e o horário continuam no
- * cinza claro de `.tq-fala-quem`, porque eles são etiqueta, não conteúdo, e
- * pintá-los junto faria duas informações diferentes competirem pelo mesmo
- * sinal.
+ * ── De quem é a fala ─────────────────────────────────────────────────────
  *
- * E a cor nunca vem sozinha: quem fala já está escrito por extenso, com "(Eu)"
- * ao lado do próprio nome. Quem não distingue as duas cores lê a mesma coisa.
+ * A SUA fala ganha um fio verde à esquerda, e o texto fica no mesmo branco
+ * das outras. Antes o texto inteiro era verde: metade da transcrição pintada
+ * com a cor que, no resto do painel, quer dizer "acontecendo agora" — o verde
+ * deixava de significar alguma coisa. O fio diz "esta é você" sem disputar a
+ * leitura.
+ *
+ * E a marca nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome.
+ * Quem não distingue a cor lê a mesma coisa.
  */
 .tq-fala-texto {
   display: block;
-  font-size: 14px;
+  font-size: var(--fs-leitura);
   line-height: 1.6;
-  color: rgb(176 180 185);
+  color: var(--s-texto-2);
   overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.tq-fala.minha::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: rgb(var(--c-primary) / 0.75);
+}
+
+.tq-fala.minha.seguida::before {
+  top: 4px;
 }
 
 .tq-fala.minha .tq-fala-texto {
-  color: rgb(var(--c-glow));
+  color: var(--s-texto);
+}
+
+.tq-fala.minha .tq-fala-nome {
+  color: rgb(var(--c-glow) / 0.9);
 }
 
 .tq-fala-acoes {
@@ -737,18 +1069,18 @@
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
-  padding: 0 9px 8px;
+  padding: 0 8px 8px 10px;
 }
 
 .tq-fala-acoes .marca {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 7px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  font-size: 12px;
-  color: rgb(186 189 193);
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--s-traco);
+  font-size: var(--fs-ui);
+  color: var(--s-texto-2);
   transition:
     background 0.2s,
     border-color 0.2s,
@@ -756,8 +1088,8 @@
 }
 
 .tq-fala-acoes .marca:hover {
-  background: rgb(255 255 255 / 0.07);
-  color: rgb(240 242 244);
+  background: var(--s-placa-forte);
+  color: var(--s-texto);
 }
 
 .tq-fala-acoes .marca.atual {
@@ -811,16 +1143,16 @@
 }
 
 .tq-side .tq-icone-pequeno {
-  min-height: 40px;
+  min-height: 32px;
   padding: 0 10px;
-  border-radius: 10px;
-  font-size: 11px;
-  color: rgb(152 155 159);
+  border-radius: 9px;
+  font-size: var(--fs-ui);
+  color: var(--s-cinza);
 }
 
 .tq-side .tq-icone-pequeno:hover {
-  background: rgb(255 255 255 / 0.07);
-  color: rgb(238 240 242);
+  background: var(--s-placa-forte);
+  color: var(--s-texto);
 }
 
 /*
@@ -843,39 +1175,49 @@
 
 .tq-notas-estado {
   flex: 0 0 auto;
-  font-size: 10px;
-  color: rgb(140 143 147);
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
   transition: color 0.2s;
 }
 
 .tq-notas-estado.falhou {
-  color: rgb(240 198 160);
+  color: var(--s-atencao);
 }
 
+/*
+ * O campo da nota é papel, não formulário: sem moldura verde ao focar, só a
+ * borda que acende um pouco. Uma caixa de 600px de altura contornada de verde
+ * era a maior mancha de cor da coluna inteira, e era só um campo vazio.
+ */
 .tq-notas-campo {
   flex: 0 0 auto;
   min-height: 140px;
   max-height: 300px;
   width: 100%;
   resize: none;
-  padding: 10px 11px;
-  border-radius: 11px;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  background: rgb(255 255 255 / 0.025);
-  color: rgb(232 234 237);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--s-traco);
+  background: rgb(255 255 255 / 0.03);
+  color: var(--s-texto);
   font: inherit;
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: var(--fs-leitura);
+  line-height: 1.65;
   caret-color: rgb(var(--c-glow));
 }
 
 .tq-notas-campo::placeholder {
-  color: rgb(128 131 135);
+  color: rgb(128 133 139);
 }
 
 .tq-notas-campo:focus {
   outline: none;
-  border-color: rgb(var(--c-primary) / 0.45);
+  border-color: rgb(255 255 255 / 0.2);
+  background: rgb(255 255 255 / 0.045);
+}
+
+.tq-side .tq-notas-campo:focus-visible {
+  outline: none;
 }
 
 /* ------------------------------------------------------------- conversa */
@@ -929,10 +1271,11 @@
   gap: 8px;
   flex: 1;
   min-width: 0;
-  min-height: 44px;
-  padding: 4px 10px;
+  min-height: 40px;
+  padding: 2px 8px;
+  margin-left: -8px;
   border-radius: 12px;
-  color: rgb(224 227 231);
+  color: var(--s-texto);
   text-align: left;
 }
 .tq-side .tq-seletor-conversa:hover {
@@ -943,14 +1286,15 @@
   min-width: 0;
   line-height: 1.25;
 }
+/* A etiqueta continua (ver acima por quê), mas em caixa normal e no tamanho
+   mínimo da escala: ela é contexto, e não um letreiro. */
 .tq-seletor-textos small {
-  font-size: 9.5px;
-  letter-spacing: 0.9px;
-  text-transform: uppercase;
-  color: rgb(140 144 149);
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
 }
 .tq-seletor-textos > span {
-  font-size: 13px;
+  font-size: var(--fs-corpo);
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -976,16 +1320,16 @@
 }
 
 .tq-conversa-menu button span {
-  font-size: 12px;
-  color: rgb(224 226 229);
+  font-size: var(--fs-ui);
+  color: var(--s-texto);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tq-conversa-menu button small {
-  font-size: 10px;
-  color: rgb(146 149 153);
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
 }
 
 .tq-conversa-menu button:hover {
@@ -999,10 +1343,10 @@
 .tq-contexto-fixo {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
-  color: rgb(var(--c-glow));
-  background: rgb(var(--c-primary) / 0.08);
+  gap: 6px;
+  font-size: var(--fs-meta);
+  color: var(--s-texto-2);
+  background: var(--s-placa);
   border-radius: 999px;
   padding: 4px 10px;
   margin: 0;
@@ -1013,36 +1357,46 @@
 
 /* Disponibilidade neutra, sempre antes da escrita; explicação sob demanda. */
 .tq-sem-ia {
-  font-size: 11px;
-  color: rgb(156 159 163);
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
 }
 
 /* O Taq conectado: o mesmo tamanho, um verde apagado — é estado, não ação. */
 .tq-com-ia {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: rgb(170 214 186);
 }
 
 .tq-fluxo {
   flex: 1 0 auto;
   display: grid;
-  gap: 22px;
+  gap: 20px;
   align-content: start;
   padding-right: 2px;
 }
 
 .tq-turno {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
+/*
+ * A SUA mensagem é uma placa, alinhada à direita; a do Taq é texto direto
+ * sobre o fundo, à esquerda. Antes as duas eram texto solto e só o ícone do
+ * Taq dizia quem falava — numa coluna de 300px, rolando rápido, a conversa
+ * virava uma parede só. O canto de baixo à direita é o único reto: ele aponta
+ * para quem escreveu.
+ */
 .tq-msg-voce {
   justify-self: end;
-  max-width: 92%;
+  max-width: 88%;
   margin: 0;
-  font-size: 14px;
-  line-height: 1.7;
-  color: rgb(203 206 210);
+  padding: 9px 13px;
+  border-radius: 16px 16px 5px 16px;
+  background: var(--s-placa-forte);
+  font-size: var(--fs-leitura);
+  line-height: 1.55;
+  color: var(--s-texto);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1053,23 +1407,23 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-  max-width: 92%;
+  max-width: 88%;
   margin: 0;
-  font-size: 10px;
-  color: rgb(146 149 153);
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
 }
 
 .tq-contexto-trecho {
   font-style: italic;
-  color: rgb(163 166 170);
+  color: var(--s-texto-2);
   overflow-wrap: anywhere;
 }
 
 .tq-msg-agente {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
-  max-width: 96%;
+  gap: 10px;
+  max-width: 100%;
 }
 
 .tq-msg-agente img {
@@ -1081,10 +1435,10 @@
 }
 
 .tq-agente-nome {
-  font-size: 9.5px;
-  letter-spacing: 0.05em;
-  color: rgb(150 153 157);
-  margin-bottom: 3px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--s-cinza);
+  margin-bottom: 2px;
 }
 
 /*
@@ -1096,9 +1450,9 @@
  * escreve já recebia.
  */
 .tq-msg-ia {
-  font-size: 12.5px;
-  line-height: 1.75;
-  color: rgb(207 210 214);
+  font-size: var(--fs-leitura);
+  line-height: 1.65;
+  color: var(--s-texto-2);
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1123,7 +1477,7 @@
   display: grid;
   gap: 3px;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--fs-ui);
 }
 
 .tq-contexto-pendente strong {
@@ -1156,27 +1510,39 @@
   color: rgb(240 242 244);
 }
 
+/*
+ * O compositor é uma placa com o botão de enviar DENTRO dela. Sem placa, o
+ * campo era uma linha de texto cinza solta sobre a onda, e a primeira vez que
+ * se abria a conversa não era óbvio onde clicar para escrever.
+ */
 .tq-compositor {
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: 12px;
-  padding: 16px 2px 8px;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 18px;
+  background: rgb(26 28 30 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .tq-compositor textarea {
   width: 100%;
   resize: none;
-  min-height: 48px;
+  min-height: 44px;
   max-height: 140px;
   overflow-y: auto;
-  padding: 12px 4px;
+  padding: 11px 4px;
   border: 0;
   background: none;
-  color: rgb(238 240 242);
+  color: var(--s-texto);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--fs-leitura);
   line-height: 1.6;
   caret-color: rgb(var(--c-glow));
 }
@@ -1192,9 +1558,10 @@
 .tq-enviar {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 12px;
   color: rgb(163 166 170);
   transition:
     background 0.2s,
@@ -1214,57 +1581,88 @@
 
 /* ------------------------------------------------------------ reuniões */
 
+/*
+ * O histórico é uma lista, não uma pilha de cartões: linhas separadas por um
+ * traço, com a seta à direita dizendo que cada uma abre. Cartão em volta de
+ * cada reunião era moldura repetida dez vezes para separar o que um traço
+ * separa.
+ */
 .tq-lista {
   list-style: none;
-  margin: 0;
+  margin: 4px 0 0;
   padding: 0;
   display: grid;
-  gap: 5px;
+}
+
+.tq-lista li + li {
+  border-top: 1px solid rgb(255 255 255 / 0.05);
 }
 
 .tq-lista button {
   display: grid;
-  gap: 3px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
   width: 100%;
   text-align: left;
-  padding: 10px 11px;
-  border-radius: 11px;
-  border: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(255 255 255 / 0.025);
-  transition:
-    background 0.2s,
-    border-color 0.2s;
+  padding: 10px 8px 10px 10px;
+  border-radius: 10px;
+  transition: background 0.2s;
 }
 
 .tq-lista button:hover {
-  background: rgb(255 255 255 / 0.06);
-  border-color: rgb(255 255 255 / 0.12);
+  background: var(--s-placa);
 }
 
 .tq-lista strong {
-  font-size: 12.5px;
+  grid-column: 1;
+  font-size: var(--fs-corpo);
   font-weight: 500;
+  color: var(--s-texto);
   overflow-wrap: anywhere;
 }
 
 .tq-lista small {
-  font-size: 10.5px;
-  color: rgb(146 149 153);
+  grid-column: 1;
+  margin: 0;
+}
+
+.tq-lista-seta {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  transform: rotate(-90deg);
+  color: var(--s-cinza);
+  opacity: 0.6;
+  transition:
+    opacity 0.2s,
+    transform 0.2s var(--motion-flow);
+}
+
+.tq-lista button:hover .tq-lista-seta {
+  opacity: 1;
+  transform: rotate(-90deg) translateY(2px);
+}
+
+.tq-com-nota {
+  color: rgb(var(--c-glow) / 0.85);
 }
 
 .tq-voltar {
-  min-height: 40px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   align-self: start;
-  font-size: 11.5px;
-  color: rgb(154 157 161);
-  padding: 2px;
+  font-size: var(--fs-ui);
+  color: var(--s-cinza);
+  padding: 0 8px 0 2px;
+  margin-left: -2px;
+  border-radius: 8px;
 }
 
 .tq-voltar:hover {
-  color: rgb(238 240 242);
+  color: var(--s-texto);
+  background: var(--s-placa);
 }
 
 .tq-girado {
@@ -1318,11 +1716,12 @@
   justify-content: center;
   flex-shrink: 0;
   gap: 6px;
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: rgb(255 255 255 / 0.065);
-  font-size: 12px;
+  min-height: 40px;
+  padding: 0 12px 0 10px;
+  border-radius: 12px;
+  background: var(--s-placa-forte);
+  font-size: var(--fs-ui);
+  font-weight: 500;
 }
 .tq-side .tq-nova:hover {
   background: rgb(255 255 255 / 0.11);
@@ -1330,8 +1729,8 @@
 .tq-disponibilidade {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-left: 8px;
+  gap: 2px;
+  padding-left: 0;
 }
 .tq-ajuda {
   display: grid;
@@ -1369,13 +1768,15 @@
   grid-template-rows: 0fr;
   opacity: 0;
 }
-.tq-conversa-vazio canvas {
-  margin: 0 auto 18px;
+/* A marca do Taq é um bloco (`.tq-marca`), não mais um canvas: sem margem
+   automática ela encostava à esquerda, fora do eixo do título. */
+.tq-conversa-vazio .tq-marca {
+  margin: 0 auto 16px;
 }
 .tq-conversa-vazio h2 {
-  font-size: 17px;
-  font-weight: 500;
-  letter-spacing: -0.4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
 }
 .vazia .tq-fluxo {
   display: flex;
@@ -1406,24 +1807,33 @@
   mask-image: linear-gradient(transparent, #000 45%, #000 75%, transparent);
 }
 .tq-side .tq-enviar {
-  background: rgb(255 255 255 / 0.09);
-  color: rgb(230 233 236);
+  background: rgb(255 255 255 / 0.08);
+  color: var(--s-texto-2);
+}
+/* Há o que enviar: o botão vira a ação principal da tela. */
+.tq-side .tq-enviar:not(:disabled) {
+  background: rgb(var(--c-primary));
+  color: rgb(var(--c-primary-deep));
+}
+.tq-side .tq-enviar:not(:disabled):hover {
+  background: rgb(var(--c-glow));
+  color: rgb(var(--c-primary-deep));
 }
 .tq-escrita-rodape {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px 8px;
-  min-height: 22px;
-  font-size: 10px;
-  color: rgb(146 150 155);
+  min-height: 20px;
+  padding-top: 4px;
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
 }
 .tq-compositor:focus-within {
-  border-radius: 12px;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.12);
-}
-.tq-side .tq-botao-principal {
-  border: 1px solid rgb(var(--c-primary) / 0.35);
+  border-color: rgb(255 255 255 / 0.22);
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 0.04),
+    0 8px 24px -12px rgb(0 0 0 / 0.6);
 }
 .tq-side .tq-botao-principal svg,
 .tq-side .tq-botao-fantasma svg,
@@ -1435,10 +1845,6 @@
 .tq-conversa-menu button {
   min-height: 44px;
 }
-.tq-notas-campo {
-  font-size: 14px;
-  padding: 14px;
-}
 .tq-rolavel > * {
   flex-shrink: 0;
 }
@@ -1446,22 +1852,48 @@
   flex-shrink: 1;
 }
 
+/*
+ * As abas são TEXTO com um sublinhado, e não pílulas. É isso que as põe um
+ * nível abaixo do seletor Reunião | Conversa: lá a seleção é uma placa; aqui é
+ * um traço. Duas fileiras com a mesma forma pareciam dois controles do mesmo
+ * nível — e ninguém sabia qual mandava em qual.
+ */
 .tq-reuniao-abas {
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  min-width: 0;
 }
-.tq-reuniao-abas button {
+.tq-side .tq-reuniao-abas button {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 40px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  color: #a9adb2;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px;
+  border-radius: 8px 8px 0 0;
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  color: var(--s-cinza);
 }
-.tq-reuniao-abas button[aria-selected='true'] {
-  background: rgb(255 255 255 / 0.08);
-  color: #eee;
+.tq-side .tq-reuniao-abas button:hover {
+  color: var(--s-texto);
+}
+.tq-side .tq-reuniao-abas button[aria-selected='true'] {
+  color: var(--s-texto);
+}
+.tq-reuniao-abas button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--s-texto);
+}
+/* Sem a faixa (no histórico), as abas levam o traço de baixo sozinhas. */
+.tq-rolavel > .tq-reuniao-abas {
+  border-bottom: 1px solid var(--s-traco);
 }
 
 /* O ponto de "já tem nota": era o selo do botão Nota, e veio com ele. */
@@ -1544,6 +1976,15 @@
   flex: 1;
   min-height: 0;
   max-height: none;
+  padding-top: 10px;
+}
+/* Dentro da aba, o editor não leva moldura própria: a aba já é o recorte, e
+   uma caixa dentro da caixa só tirava largura do campo. */
+.tq-reuniao-parte .tq-notas-inline {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 10px 0 0;
 }
 .tq-reuniao-parte .tq-notas-campo {
   flex: 1;
@@ -1571,8 +2012,8 @@
 }
 
 .tq-agente-dizendo {
-  font-size: 10.5px;
-  color: rgb(150 153 157);
+  font-size: var(--fs-ui);
+  color: var(--s-cinza);
 }
 
 .tq-turno-agente {
@@ -1600,9 +2041,8 @@
  * exatamente o que um sinal discreto não evitaria.
  */
 .tq-selo-demo {
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--fs-meta);
+  font-weight: 500;
   color: rgb(236 200 166);
   background: rgb(230 192 158 / 0.12);
   border: 1px solid rgb(230 192 158 / 0.3);
@@ -1705,16 +2145,9 @@
   opacity: 0.4;
 }
 
-/* Sidebar larga: as quatro ações cabem numa linha só. */
-@media (min-width: 400px) {
-  .tq-acoes {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 300px) {
   .tq-side-topo {
-    padding: 12px 10px 10px;
+    padding: 8px 6px 4px 10px;
     gap: 4px;
   }
   .tq-modos {
@@ -1728,7 +2161,7 @@
     padding-inline: 9px;
   }
   .tq-conversa-vazio h2 {
-    font-size: 16px;
+    font-size: var(--fs-titulo);
   }
 }
 

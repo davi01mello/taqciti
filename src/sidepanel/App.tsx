@@ -420,7 +420,7 @@ export function App() {
       />
 
       <div className="tq-palco">
-        <Painel ativo={modo === 'transcricao'} rotulo="Transcrição">
+        <Painel ativo={modo === 'transcricao'} rotulo="Reunião">
           {emReuniao && sessao ? (
             <Reuniao
               // Uma sessão nova é uma tela nova: prints, marcas e seções
@@ -576,7 +576,7 @@ function Cabecalho({
 }) {
   return (
     <header className="tq-side-topo">
-      <Wordmark height={26} />
+      <Wordmark height={20} />
       <div className="tq-side-topo-acoes">
         <button
           type="button"
@@ -588,7 +588,7 @@ function Cabecalho({
           }
           aria-pressed={!brasasVisiveis}
         >
-          <Icon name="sparkles" size={18} />
+          <Icon name="sparkles" size={16} />
         </button>
         <button
           type="button"
@@ -597,7 +597,7 @@ function Cabecalho({
           title="Abrir HOME"
           aria-label="Abrir HOME"
         >
-          <Icon name="home" size={20} />
+          <Icon name="home" size={18} />
         </button>
       </div>
     </header>

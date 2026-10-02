@@ -116,8 +116,8 @@ export function EditorDeNota({
       />
 
       <p className="tq-fino">
-        Guardada separada da transcrição, neste computador. Aparece depois no histórico —
-        aqui e na HOME.
+        Fica neste computador, separada da transcrição. Aparece depois no histórico, aqui e
+        na HOME.
       </p>
     </section>
   );

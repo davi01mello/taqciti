@@ -179,7 +179,7 @@ describe('os dois seletores', () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();
 
-    expect(estadoDe('Transcrição')).toBe('Ao vivo');
+    expect(estadoDe('Reunião')).toBe('Ao vivo');
     // Sem agente trabalhando não há palavra nenhuma: o silêncio é o estado
     // honesto de um assistente que não está conectado a lugar nenhum.
     expect(estadoDe('Conversa')).toBe('');
@@ -197,8 +197,8 @@ describe('os dois seletores', () => {
     await clicar(seletor('Conversa'));
 
     expect(seletor('Conversa').getAttribute('aria-current')).toBe('page');
-    expect(seletor('Transcrição').getAttribute('aria-current')).toBeNull();
-    expect(estadoDe('Transcrição')).toBe('Ao vivo');
+    expect(seletor('Reunião').getAttribute('aria-current')).toBeNull();
+    expect(estadoDe('Reunião')).toBe('Ao vivo');
   });
 
   it.each([
@@ -210,7 +210,7 @@ describe('os dois seletores', () => {
     estado = { phase, session: sessao({ captureHealthy: saudavel }) };
     await montar();
 
-    expect(estadoDe('Transcrição').toUpperCase()).toBe(palavra);
+    expect(estadoDe('Reunião').toUpperCase()).toBe(palavra);
   });
 
   /* A encerrada vai para o histórico: a seção não fica presa nela. */
@@ -225,12 +225,12 @@ describe('os dois seletores', () => {
     expect(host.textContent).not.toContain('Finalizar reunião');
     expect(host.textContent).not.toContain('Transcrevendo');
     expect(host.textContent).toContain('Nenhuma reunião em curso');
-    expect(seletor('Transcrição').getAttribute('aria-current')).toBe('page');
+    expect(seletor('Reunião').getAttribute('aria-current')).toBe('page');
   });
 
   it('sem reunião nenhuma, a captura está desligada', async () => {
     await montar();
-    expect(estadoDe('Transcrição').toUpperCase()).toBe('DESLIGADA');
+    expect(estadoDe('Reunião').toUpperCase()).toBe('DESLIGADA');
   });
 
   /* Cor não é o único canal: a palavra do estado precisa estar lá. */
@@ -238,10 +238,10 @@ describe('os dois seletores', () => {
     estado = { phase: 'recording', session: sessao({ captureHealthy: false }) };
     await montar();
 
-    const rotulo = seletor('Transcrição').querySelector('.tq-modo-estado')!;
+    const rotulo = seletor('Reunião').querySelector('.tq-modo-estado')!;
     expect(rotulo.textContent!.trim().length).toBeGreaterThan(0);
     // A frase por extenso é anunciada FORA do botão (senão entra no nome dele).
-    expect(q('.tq-modos').textContent).toContain('Transcrição: captura interrompida');
+    expect(q('.tq-modos').textContent).toContain('Reunião: captura interrompida');
   });
 });
 
@@ -255,7 +255,7 @@ describe('trocar de seção não custa nada', () => {
 
     const falasAntes = q('.tq-falas');
 
-    await clicar(seletor('Transcrição'));
+    await clicar(seletor('Reunião'));
     await clicar(seletor('Conversa'));
 
     expect(q<HTMLTextAreaElement>('.tq-compositor textarea').value).toBe(
@@ -336,7 +336,27 @@ describe('as ações da reunião', () => {
       { type: 'ui/pause' },
     );
     // A fase só muda quando o background disser que mudou.
-    expect(estadoDe('Transcrição')).toBe('Ao vivo');
+    expect(estadoDe('Reunião')).toBe('Ao vivo');
+  });
+
+  /*
+   * Finalizar é a única ação da reunião que não se desfaz. O primeiro toque só
+   * arma o botão; é o segundo que pede o fim ao background.
+   */
+  it('finalizar pede confirmação antes de encerrar a captura', async () => {
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+
+    const finalizar = q<HTMLButtonElement>('.tq-finalizar');
+    const pedidos = () =>
+      vi.mocked(chrome.runtime.sendMessage).mock.calls.map(([m]) => m);
+
+    await clicar(finalizar);
+    expect(pedidos()).not.toContainEqual({ type: 'ui/finish' });
+    expect(finalizar.textContent).toContain('Encerrar agora');
+
+    await clicar(finalizar);
+    expect(pedidos()).toContainEqual({ type: 'ui/finish' });
   });
 
   it('"Perguntar" leva a reunião como contexto e abre a conversa', async () => {

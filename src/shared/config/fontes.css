@@ -1,0 +1,31 @@
+/*
+ * A Barlow — a mesma fonte da ata que o TaqCiti gera.
+ *
+ * São os MESMOS arquivos que o servidor embute no PDF
+ * (`server/lib/render/assets/fonts`), copiados para cá: o painel e o documento
+ * passam a falar com a mesma voz, e quem abre a ata reconhece o produto que a
+ * escreveu.
+ *
+ * Ela entra só onde o texto é TÍTULO — a marca, o nome da reunião, o título de
+ * um cartão. O corpo continua na fonte do sistema, que é a mais legível em
+ * tamanho pequeno em cada plataforma. A Barlow é estreita, e numa coluna de
+ * 300px isso é o que deixa um título inteiro caber antes das reticências.
+ *
+ * `font-display: block` curto: os arquivos são locais (vêm do próprio pacote da
+ * extensão), então o "flash" de fonte trocada não teria por que acontecer.
+ */
+@font-face {
+  font-family: 'Barlow';
+  src: url('../fonts/Barlow-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Barlow';
+  src: url('../fonts/Barlow-Bold.ttf') format('truetype');
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: block;
+}

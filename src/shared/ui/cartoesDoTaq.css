@@ -13,11 +13,11 @@
 
 .tq-c {
   min-width: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.025);
-  font-size: 12.5px;
+  font-size: var(--fs-corpo);
   line-height: 1.6;
   color: rgb(214 218 222);
   overflow-wrap: anywhere;
@@ -31,15 +31,18 @@
   margin-bottom: 6px;
 }
 
+/* O título do cartão na Barlow, como o título de seção da ata. */
 .tq-c-cab h4 {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-family: var(--font-titulo);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
   color: rgb(240 242 244);
 }
 
 .tq-c-selo {
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.02em;
   color: rgb(240 205 160);
 }
@@ -73,7 +76,7 @@
   flex-wrap: wrap;
   gap: 2px 12px;
   margin: 2px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: rgb(165 170 175);
 }
 
@@ -81,7 +84,7 @@
   padding: 0 7px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   color: rgb(205 210 214);
 }
 
@@ -112,25 +115,34 @@
   min-width: 0;
 }
 
+/*
+ * A FONTE de um item é referência, não ação: cinza, sem fundo, com um
+ * sublinhado pontilhado que diz "isto abre". Antes cada item levava uma
+ * etiqueta verde ("Escopo do Painel Aurora · 0:00") — num cartão de cinco
+ * itens eram cinco manchas verdes, e o verde deixava de apontar para o que de
+ * fato pede gesto (registrar, concluir).
+ */
 .tq-c .tq-c-fonte {
   width: fit-content;
-  padding: 0 6px;
+  padding: 0;
   border: 0;
-  border-radius: 6px;
-  background: rgba(144, 223, 173, 0.1);
-  color: rgb(170 226 190);
+  background: none;
+  color: rgb(150 156 162);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-meta);
+  text-decoration: underline dotted rgba(255, 255, 255, 0.28);
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
 .tq-c .tq-c-fonte:hover {
-  background: rgba(144, 223, 173, 0.2);
+  color: rgb(214 236 222);
+  text-decoration-color: rgba(144, 223, 173, 0.6);
 }
 
 .tq-c .tq-c-fonte-off {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgb(150 155 160);
+  color: rgb(130 136 142);
+  text-decoration: none;
   cursor: default;
 }
 
@@ -138,39 +150,45 @@
   display: grid;
   gap: 2px;
   padding: 4px 8px;
-  border-left: 2px solid rgba(144, 223, 173, 0.35);
-  font-size: 11.5px;
+  border-left: 2px solid rgba(255, 255, 255, 0.16);
+  font-size: var(--fs-ui);
   color: rgb(185 190 195);
 }
 
+/* "Corrigir" e afins: secundários. Cinza até alguém apontar para eles. */
 .tq-c .tq-c-link {
   width: fit-content;
-  padding: 0;
+  padding: 0 2px;
   border: 0;
   background: none;
-  color: rgb(170 226 190);
+  color: rgb(150 156 162);
   font: inherit;
-  font-size: 11px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-size: var(--fs-meta);
+  text-decoration: none;
+  border-radius: 4px;
   cursor: pointer;
+}
+
+.tq-c .tq-c-link:hover {
+  color: rgb(214 236 222);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .tq-c-mudo {
   margin: 6px 0 0;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: rgb(140 145 150);
 }
 
 .tq-c-ok {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: rgb(170 214 186);
 }
 
 .tq-c-erro {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: rgb(240 205 160);
 }
 
@@ -182,16 +200,21 @@
   margin-top: 6px;
 }
 
+/* 30px de alvo, no mínimo: eram ~24px, pequenos demais para um clique sem
+   mirar numa coluna que se lê de relance durante a reunião. */
 .tq-c .tq-c-acoes button,
 .tq-c .tq-c-botao-link,
 .tq-c .tq-c-motivo button {
-  padding: 3px 10px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 3px 12px;
   border-radius: 999px;
   border: 1px solid rgba(144, 223, 173, 0.32);
   background: rgba(144, 223, 173, 0.05);
   color: rgb(214 236 222);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   text-decoration: none;
   cursor: pointer;
 }
@@ -212,13 +235,14 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
+  min-height: 30px;
+  padding: 3px 12px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
   color: rgb(214 218 222);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   cursor: pointer;
 }
 
@@ -234,7 +258,7 @@
   display: grid;
   gap: 2px;
   flex: 1 1 180px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: rgb(165 170 175);
 }
 
@@ -249,7 +273,7 @@
   background: rgba(0, 0, 0, 0.18);
   color: rgb(232 235 238);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-corpo);
   line-height: 1.6;
 }
 
@@ -261,7 +285,7 @@
   display: grid;
   gap: 3px;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: rgb(165 170 175);
 }
 
@@ -272,7 +296,7 @@
 .tq-c-lacunas {
   margin: 6px 0 0;
   padding-left: 18px;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: rgb(214 196 170);
 }
 
@@ -289,7 +313,7 @@
   padding: 0;
   display: grid;
   gap: 2px;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   color: rgb(185 190 195);
 }
 
@@ -302,16 +326,55 @@
   margin-top: 6px;
 }
 
+/*
+ * As seções que abrem e fecham. O triângulo nativo (▶ ▼) saiu: ele tem o
+ * tamanho e a cor da fonte do sistema, não da interface, e lia como controle
+ * de formulário. No lugar, um chevron desenhado que gira ao abrir.
+ */
 .tq-c-secao summary,
 .tq-c-hist summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: fit-content;
+  min-height: 28px;
+  list-style: none;
   cursor: pointer;
   color: rgb(205 210 214);
+  font-weight: 500;
+}
+
+.tq-c-secao summary::-webkit-details-marker,
+.tq-c-hist summary::-webkit-details-marker {
+  display: none;
+}
+
+.tq-c-secao summary::before,
+.tq-c-hist summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  opacity: 0.7;
+  transition: transform 0.2s var(--motion-flow);
+}
+
+.tq-c-secao[open] > summary::before,
+.tq-c-hist[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.tq-c-secao summary:hover,
+.tq-c-hist summary:hover {
+  color: rgb(240 242 244);
 }
 
 .tq-c-hist {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: rgb(150 155 160);
 }
 

@@ -1,5 +1,6 @@
 @import './tokens.css';
 @import './glass.css';
+@import './fontes.css';
 
 @tailwind base;
 @tailwind components;

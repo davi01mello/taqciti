@@ -68,6 +68,7 @@ import { SideNav } from './SideNav';
 import { useAnimacao } from './useAnimacao';
 import { WaveField, type EstadoDaOnda } from './WaveField';
 import { MarcaDaEscuta } from '@/shared/ui/MarcaDaEscuta';
+import { SinalTaqciti } from '@/shared/ui/SinalTaqciti';
 import {
   acrescentarMensagem,
   apagarConversa,
@@ -384,11 +385,7 @@ export function HomePage() {
       {brasasVisiveis && <Brasas pausado={!animando} />}
       <header className="tq-topo">
         <div className="tq-brand" aria-label="TaqCiti">
-          <img
-            src={chrome.runtime.getURL('brand/taqciti-mark.png')}
-            alt=""
-            draggable={false}
-          />
+          <SinalTaqciti altura={22} />
           <span aria-hidden="true">
             Taq<em>Citi</em>
           </span>

@@ -12,7 +12,7 @@
 
 .tq-resp-texto {
   margin: 0;
-  font-size: 13.5px;
+  font-size: var(--fs-leitura);
   line-height: 1.8;
   color: rgb(222 225 228);
 }
@@ -35,7 +35,7 @@
 }
 
 .tq-md h4 {
-  font-size: 13.5px;
+  font-size: var(--fs-leitura);
   color: rgb(214 218 222);
 }
 
@@ -81,7 +81,7 @@
   padding: 1px 5px;
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.07);
-  font-size: 12.5px;
+  font-size: var(--fs-corpo);
 }
 
 .tq-md pre {
@@ -127,7 +127,7 @@
   background: rgba(144, 223, 173, 0.1);
   color: rgb(170 226 190);
   font: inherit;
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
 }
 
@@ -142,7 +142,7 @@
 .tq-resp-selo {
   display: inline-block;
   margin: 0 0 6px;
-  font-size: 10px;
+  font-size: var(--fs-meta);
   letter-spacing: 0.04em;
   color: rgb(240 205 160);
 }
@@ -200,10 +200,36 @@
   color: rgb(160 163 167);
 }
 
+/* O mesmo chevron desenhado das seções dos cartões (ver cartoesDoTaq.css). */
 .tq-resp-fontes summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  list-style: none;
   cursor: pointer;
   width: fit-content;
   padding: 2px 0;
+}
+
+.tq-resp-fontes summary::-webkit-details-marker {
+  display: none;
+}
+
+.tq-resp-fontes summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  opacity: 0.7;
+  transition: transform 0.2s var(--motion-flow);
+}
+
+.tq-resp-fontes[open] > summary::before {
+  transform: rotate(45deg);
 }
 
 .tq-resp-fontes summary:hover {
@@ -247,7 +273,7 @@
 .tq-resp-fontes q {
   grid-column: 2;
   margin-top: 2px;
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   line-height: 1.6;
   color: rgb(150 153 157);
 }
@@ -255,7 +281,7 @@
 .tq-resp-nota,
 .tq-resp-limites {
   margin: 8px 0 0;
-  font-size: 10.5px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   color: rgb(132 135 139);
 }
@@ -285,7 +311,7 @@
 }
 
 .tq-exec-cancelar {
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -317,7 +343,7 @@
   border: 1px solid rgba(144, 223, 173, 0.28);
   background: rgba(144, 223, 173, 0.05);
   color: rgb(222 236 227);
-  font-size: 12.5px;
+  font-size: var(--fs-corpo);
   text-align: left;
   cursor: pointer;
 }
@@ -336,7 +362,7 @@
 }
 
 .tq-resp-opcoes span {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   line-height: 1.5;
   color: rgb(160 170 164);
 }
@@ -353,7 +379,7 @@
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.03);
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   line-height: 1.6;
   color: rgb(205 208 211);
   white-space: pre-wrap;
@@ -361,7 +387,7 @@
 }
 
 .tq-resp-copiavel button {
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   padding: 4px 12px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -380,7 +406,7 @@
 }
 
 .tq-resp-desfazer {
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
   padding: 1px 8px;
   margin-left: 4px;
   border-radius: 999px;
@@ -411,7 +437,7 @@
   background: transparent;
   color: rgb(150 156 162);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   cursor: pointer;
   opacity: 0.55;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;

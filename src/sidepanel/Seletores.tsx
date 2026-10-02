@@ -1,5 +1,13 @@
 /**
- * OS DOIS SELETORES — "Transcrição" e "Conversa", lado a lado.
+ * OS DOIS SELETORES — "Reunião" e "Conversa", lado a lado.
+ *
+ * ── Por que "Reunião" e não "Transcrição" ────────────────────────────────
+ *
+ * Dentro da seção há as abas "Transcrição" e "Notas". Com o seletor também
+ * chamado "Transcrição", a mesma palavra aparecia duas vezes, uma em cima da
+ * outra, com dois sentidos — o modo e o conteúdo —, e não dava para dizer qual
+ * mandava em qual. O assunto da seção é a reunião (a de agora, ou as de antes);
+ * a transcrição é uma das coisas que se lê nela.
  *
  * ── Seleção e atividade são coisas diferentes ────────────────────────────
  *
@@ -112,8 +120,8 @@ export function Seletores({
         aria-current={modo === 'transcricao' ? 'page' : undefined}
         onClick={() => onModo('transcricao')}
       >
-        <MarcaDaEscuta estado={captura} pulso={pulso} tamanho={24} />
-        <span className="tq-modo-nome">Transcrição</span>
+        <MarcaDaEscuta estado={captura} pulso={pulso} tamanho={20} />
+        <span className="tq-modo-nome">Reunião</span>
         <span
           className={`tq-modo-estado${
             CAPTURA_VIVA.has(captura)
@@ -130,7 +138,7 @@ export function Seletores({
           entrava no nome dele junto com a palavra curta ("Transcrição Ao vivo
           Transcrição: capturando…"). */}
       <span className="tq-so-leitor" role="status">
-        Transcrição: {LEITURA_DA_CAPTURA[captura]}
+        Reunião: {LEITURA_DA_CAPTURA[captura]}
       </span>
 
       <button
@@ -139,7 +147,7 @@ export function Seletores({
         aria-current={modo === 'conversa' ? 'page' : undefined}
         onClick={() => onModo('conversa')}
       >
-        <MarcaDoTaq estado={agente} tamanho={24} sinal={sinalDoAgente} ouve />
+        <MarcaDoTaq estado={agente} tamanho={20} sinal={sinalDoAgente} ouve />
         <span className="tq-modo-nome">Conversa</span>
         <span
           className={`tq-modo-estado${

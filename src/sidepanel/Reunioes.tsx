@@ -95,11 +95,15 @@ export function Reunioes({
             <li key={r.id}>
               <button type="button" onClick={() => setAbertaId(r.id)}>
                 <strong>{r.title}</strong>
-                <small>
-                  {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
-                  {r.segments.length} {r.segments.length === 1 ? 'fala' : 'falas'}
-                  {notas[r.id] && ' · com nota'}
+                <small className="tq-meta-linha">
+                  <span>{formatDate(r.startedAt)}</span>
+                  <span className="tq-relogio">{formatTime(r.startedAt)}</span>
+                  <span>
+                    {r.segments.length} {r.segments.length === 1 ? 'fala' : 'falas'}
+                  </span>
+                  {notas[r.id] && <span className="tq-com-nota">com nota</span>}
                 </small>
+                <Icon name="chevron" size={14} className="tq-lista-seta" />
               </button>
             </li>
           ))}
@@ -136,9 +140,10 @@ function DetalheDaReuniao({
 
       <div className="tq-reuniao-topo">
         <h2>{registro.title}</h2>
-        <p className="tq-fino">
-          {formatDate(registro.startedAt)} · {formatTime(registro.startedAt)} ·{' '}
-          {formatDurationHuman(registro.durationSeconds)}
+        <p className="tq-reuniao-meta">
+          <span>{formatDate(registro.startedAt)}</span>
+          <span className="tq-relogio">{formatTime(registro.startedAt)}</span>
+          <span>{formatDurationHuman(registro.durationSeconds)}</span>
         </p>
       </div>
 
@@ -188,17 +193,22 @@ function DetalheDaReuniao({
         <ParteDaReuniao ativa={!notasEmFoco}>
           {!semFala && (
             <section className="tq-falas tq-falas-estatica">
-              {/* Mesma leitura da reunião em curso: a própria fala em verde, as
-                  dos outros em cinza, e o nome sempre no cinza da etiqueta. */}
-              {registro.segments.map((s) => {
+              {/* Mesma leitura da reunião em curso: a própria fala com o fio
+                  verde, falas seguidas da mesma pessoa sem repetir o nome. */}
+              {registro.segments.map((s, i) => {
                 const nome = s.speaker ?? 'Alguém';
                 const rotulo = speakerLabel(nome, hostName(registro.participants));
+                const seguida = i > 0 && registro.segments[i - 1]?.speaker === s.speaker;
                 return (
                   <article
                     key={s.captionId}
-                    className={`tq-fala${rotulo !== nome ? ' minha' : ''}`}
+                    className={`tq-fala${rotulo !== nome ? ' minha' : ''}${
+                      seguida ? ' seguida' : ''
+                    }`}
                   >
-                    <span className="tq-fala-quem">{rotulo}</span>
+                    <span className="tq-fala-quem">
+                      <span className="tq-fala-nome">{rotulo}</span>
+                    </span>
                     <span className="tq-fala-texto">{s.text}</span>
                   </article>
                 );

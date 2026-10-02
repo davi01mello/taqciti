@@ -156,22 +156,23 @@ html {
   padding: 24px 40px 10px;
 }
 
+/* A marca na Barlow, a mesma fonte da ata — ver `Wordmark.tsx`. */
 .tq-brand {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  font-size: 23px;
+  gap: 10px;
+  font-family: var(--font-titulo);
+  font-size: 25px;
   font-weight: 700;
-  letter-spacing: -1.1px;
-  line-height: 1.2;
+  letter-spacing: -0.4px;
+  line-height: 1;
   white-space: nowrap;
   color: rgb(245 246 247);
 }
 
-.tq-brand img {
-  height: 25px;
-  width: auto;
+.tq-brand svg {
   display: block;
+  flex: 0 0 auto;
 }
 
 .tq-brand em {

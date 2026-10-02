@@ -1,13 +1,14 @@
 {
-  "quando": "2026-09-23T21:27:09.373Z",
-  "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\36686a56-6625-4ade-be96-7c3b0effc384\\scratchpad\\dist-ajuda",
-  "browser": "153.0.4234.48",
+  "quando": "2026-10-02T03:52:54.689Z",
+  "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\7d22c2ac-84b7-4d45-aa7f-fd4f504129bb\\scratchpad\\dist-dev",
+  "browser": "154.0.4258.48",
   "dados": "[TESTE] sintéticos; geração simulada, sem IA",
   "vistos": [
     "Abrir HOME",
     "Abrir documento",
     "Abrir na HOME",
     "Abrir navegação",
+    "Acompanhamento",
     "Agora não",
     "Anexar imagem ou documento",
     "Apagar",
@@ -44,10 +45,11 @@
     "Dúvida",
     "Enviar ao Google Docs",
     "Escolher conversa",
-    "Finalizar reunião",
+    "Finalizar",
     "Fontes",
     "Gerar documento",
     "Imagem",
+    "Integrações",
     "Ligar sincronização",
     "Mais ações",
     "Nome da reunião",
@@ -56,14 +58,17 @@
     "Notas da reunião",
     "Nova",
     "Nova conversa",
+    "O que o Taq faz",
+    "Pausada",
     "Pausar",
     "Pausar movimento",
     "Perguntar",
-    "Perguntar à IA",
+    "Perguntar sobre o trecho",
     "Print",
     "Registrar",
     "Remover brasas do fundo",
     "Retomar",
+    "Reunião",
     "Reuniões",
     "Salvar",
     "Sem conectar: o caminho manual",
@@ -89,6 +94,7 @@
     "Desligar": "HOME · Assistente",
     "Desligar brasas do fundo": "HOME · Assistente",
     "Pausar movimento": "HOME · Assistente",
+    "Acompanhamento": "HOME · Assistente",
     "Apagar": "HOME · menu Conversas",
     "Nova conversa": "HOME · menu Conversas",
     "Nova": "HOME · menu Conversas",
@@ -106,6 +112,7 @@
     "Apagar reunião": "HOME · Mais ações da reunião",
     "Cancelar": "HOME · confirmar apagar reunião",
     "Apagar as notas desta reunião": "HOME · notas",
+    "Reunião": "HOME · menu Gerar documento",
     "Ata de Reunião": "HOME · menu Gerar documento",
     "Doc Conversa (X1)": "HOME · menu Gerar documento",
     "Abrir documento": "HOME · resultado da geração",
@@ -118,11 +125,13 @@
     "Baixar rascunho": "HOME · editor com falha",
     "Sem conectar: o caminho manual": "HOME · Conexões",
     "Ligar sincronização": "HOME · Conexões",
+    "O que o Taq faz": "HOME · Conexões",
+    "Integrações": "HOME · Conexões",
     "Abrir HOME": "sidebar · Conversa",
     "Escolher conversa": "sidebar · Conversa",
     "Remover brasas do fundo": "sidebar · Conversa",
     "Abrir na HOME": "sidebar · reunião guardada",
-    "Finalizar reunião": "sidebar · reunião simulada",
+    "Finalizar": "sidebar · reunião simulada",
     "Print": "sidebar · reunião simulada",
     "Perguntar": "sidebar · reunião simulada",
     "Capturar a aba da reunião": "sidebar · prints",
@@ -131,9 +140,10 @@
     "Decisão": "sidebar · trecho selecionado",
     "Ação": "sidebar · trecho selecionado",
     "Ações deste trecho": "sidebar · trecho selecionado",
-    "Perguntar à IA": "sidebar · trecho selecionado",
+    "Perguntar sobre o trecho": "sidebar · trecho selecionado",
     "Tirar o contexto desta pergunta": "sidebar · pergunta com contexto",
     "Retomar": "sidebar · reunião simulada pausada",
+    "Pausada": "sidebar · reunião simulada pausada",
     "Agora não": "sidebar · pergunta de registro",
     "Registrar": "sidebar · pergunta de registro"
   },
@@ -143,6 +153,7 @@
       "vistos": [
         "Agora não",
         "Registrar",
+        "Reunião",
         "Transcrição"
       ],
       "nao_vistos": [
@@ -156,18 +167,20 @@
       "vistos": [
         "Pausar",
         "Retomar",
-        "Transcrição"
+        "Reunião"
       ],
       "nao_vistos": []
     },
     {
       "id": "finalizar_reuniao",
       "vistos": [
-        "Finalizar reunião",
-        "Baixar .txt"
+        "Finalizar",
+        "Reunião",
+        "Baixar .txt",
+        "Abrir na HOME"
       ],
       "nao_vistos": [
-        "Abrir no TaqCiti"
+        "Encerrar agora"
       ]
     },
     {
@@ -187,7 +200,7 @@
         "Print",
         "Capturar a aba da reunião",
         "Salvar",
-        "Transcrição"
+        "Reunião"
       ],
       "nao_vistos": [
         "Descartar",
@@ -212,22 +225,21 @@
       "id": "abrir_sidebar_e_home",
       "vistos": [
         "Abrir HOME",
+        "Abrir na HOME",
         "Assistente",
         "Reuniões",
         "Documentos",
         "Conexões",
         "Abrir navegação"
       ],
-      "nao_vistos": [
-        "Abrir no TaqCiti"
-      ]
+      "nao_vistos": []
     },
     {
       "id": "ver_reunioes",
       "vistos": [
         "Reuniões",
         "Abrir na HOME",
-        "Transcrição"
+        "Reunião"
       ],
       "nao_vistos": []
     },
@@ -279,9 +291,9 @@
     {
       "id": "contexto_da_conversa",
       "vistos": [
-        "Transcrição",
+        "Reunião",
         "Perguntar",
-        "Perguntar à IA",
+        "Perguntar sobre o trecho",
         "Tirar o contexto desta pergunta",
         "Nova conversa",
         "Nova"
@@ -291,7 +303,7 @@
     {
       "id": "perguntar_sobre_trecho",
       "vistos": [
-        "Perguntar à IA",
+        "Perguntar sobre o trecho",
         "Perguntar",
         "Tirar o contexto desta pergunta",
         "Conversa"
@@ -436,11 +448,128 @@
         "Remover brasas do fundo"
       ],
       "nao_vistos": []
+    },
+    {
+      "id": "capacidades_do_taq",
+      "vistos": [
+        "Conexões",
+        "O que o Taq faz",
+        "Integrações"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "analisar_reuniao",
+      "vistos": [],
+      "nao_vistos": [
+        "Visão geral",
+        "Decisões",
+        "Questões abertas",
+        "Riscos",
+        "Próximos passos",
+        "Corrigir"
+      ]
+    },
+    {
+      "id": "registrar_compromissos",
+      "vistos": [
+        "Acompanhamento"
+      ],
+      "nao_vistos": [
+        "Compromissos sugeridos",
+        "Registrar selecionados"
+      ]
+    },
+    {
+      "id": "acompanhar_compromissos",
+      "vistos": [
+        "Acompanhamento"
+      ],
+      "nao_vistos": [
+        "Abertos",
+        "Prazo passou — a confirmar",
+        "Todos",
+        "Marcar como concluído",
+        "Reabrir"
+      ]
+    },
+    {
+      "id": "registrar_decisao",
+      "vistos": [
+        "Acompanhamento"
+      ],
+      "nao_vistos": [
+        "Decisões",
+        "Mostrar também as substituídas"
+      ]
+    },
+    {
+      "id": "comparar_fontes",
+      "vistos": [
+        "Acompanhamento"
+      ],
+      "nao_vistos": [
+        "Achados"
+      ]
+    },
+    {
+      "id": "resolver_achado",
+      "vistos": [],
+      "nao_vistos": [
+        "Marcar resolvido",
+        "Descartar com motivo",
+        "Confirmar",
+        "Mostrar também os resolvidos e descartados"
+      ]
+    },
+    {
+      "id": "rascunho_de_mensagem",
+      "vistos": [
+        "Copiar"
+      ],
+      "nao_vistos": [
+        "Abrir no e-mail"
+      ]
+    },
+    {
+      "id": "sugerir_horario",
+      "vistos": [],
+      "nao_vistos": [
+        "Sugestão de horário — disponibilidade não verificada",
+        "Abrir no Google Agenda"
+      ]
+    },
+    {
+      "id": "estado_da_captura",
+      "vistos": [
+        "Pausada"
+      ],
+      "nao_vistos": [
+        "Capturando",
+        "Aguardando legendas",
+        "Problema na captura",
+        "Encerrada"
+      ]
+    },
+    {
+      "id": "revisar_documento",
+      "vistos": [
+        "Abrir documento"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "revisar_exposicao",
+      "vistos": [
+        "Copiar texto"
+      ],
+      "nao_vistos": []
     }
   ],
   "completas": [
     "pausar_captura",
     "marcar_trecho",
+    "abrir_sidebar_e_home",
     "ver_reunioes",
     "renomear_reuniao",
     "apagar_reuniao",
@@ -461,10 +590,12 @@
     "exportar_transcricao",
     "baixar_documento",
     "enviar_google_docs",
-    "aparencia"
+    "aparencia",
+    "capacidades_do_taq",
+    "revisar_documento",
+    "revisar_exposicao"
   ],
   "verificacoes": {
-    "aviso": "A conversa foi apagada. Reuniões e documentos continuam guardados.",
     "turnos_na_tela": 0,
     "depois_de_recarregar": {
       "conversas": [],

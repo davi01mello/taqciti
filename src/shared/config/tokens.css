@@ -147,4 +147,29 @@
   --dur-fast: 140ms;
   --dur-base: 220ms;
   --dur-slow: 360ms;
+
+  /* ── Tipo ───────────────────────────────────────────────────────────────
+   *
+   * Duas famílias, com papéis que não se cruzam: a Barlow (a fonte da ata,
+   * ver fontes.css) para o que é TÍTULO e marca; a do sistema para todo o
+   * resto, porque em 11–14px nada lê melhor numa tela do que a fonte para a
+   * qual a própria plataforma faz o hinting.
+   *
+   * A escala tem CINCO degraus e nenhum abaixo de 11px. Antes eram treze
+   * tamanhos entre 9px e 17px, e os de 9–10,5px eram ilegíveis no Windows —
+   * eram justamente os que carregavam o estado ("DESLIGADA", "CONVERSA").
+   *
+   *   meta     11  horários, contagens, o estado ao lado de um nome
+   *   ui       12  rótulos de botão, nomes de quem fala, abas
+   *   corpo    13  texto corrido da interface
+   *   leitura  14  o que se LÊ de verdade: falas e mensagens
+   *   titulo   17  o nome da reunião, o título de uma tela (Barlow)
+   */
+  --font-titulo: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --font-texto: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fs-meta: 11px;
+  --fs-ui: 12px;
+  --fs-corpo: 13px;
+  --fs-leitura: 14px;
+  --fs-titulo: 17px;
 }

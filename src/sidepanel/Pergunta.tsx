@@ -20,11 +20,13 @@ interface Props {
 export function Pergunta({ titulo, onAceitar, onRecusar }: Props) {
   return (
     <div className="tq-corpo tq-pergunta">
-      <div className="tq-pergunta-marca">
-        <Wave size={22} tone="green" animated />
-      </div>
       <h2>Registrar esta reunião?</h2>
-      <p className="tq-pergunta-sala">{titulo}</p>
+      <p className="tq-pergunta-sala">
+        <span className="tq-pergunta-marca" aria-hidden="true">
+          <Wave size={18} tone="green" animated />
+        </span>
+        <span>{titulo}</span>
+      </p>
       <p className="tq-pergunta-texto">
         O TaqCiti pode acompanhar esta reunião e guardar a transcrição neste
         computador.
