@@ -280,7 +280,10 @@ export function criarOrquestrador(deps: {
           };
         } else {
           tarefa.entrada = {
-            contexto: await montarContextoInicial(tarefa, deps.armazenamento),
+            contexto: await montarContextoInicial(
+              { ...tarefa, disponiveis: especialistas.map((a) => a.id) },
+              deps.armazenamento,
+            ),
             historico: base.historico,
           };
           resultado = await taq.executor(tarefa, {

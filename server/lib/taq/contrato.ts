@@ -143,7 +143,13 @@ export const CODIGOS_DE_ERRO = [
 export type CodigoDeErro = (typeof CODIGOS_DE_ERRO)[number];
 
 export interface ErroDoTurno {
-  erro: { codigo: CodigoDeErro; mensagem: string; transitorio: boolean };
+  erro: {
+    codigo: CodigoDeErro;
+    mensagem: string;
+    transitorio: boolean;
+    /** Quanto o provedor pediu para esperar antes de tentar de novo, quando disse. */
+    esperarMs?: number;
+  };
 }
 
 /** O que `GET /api/taq/estado` devolve — antes de a pessoa escrever. */

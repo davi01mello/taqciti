@@ -21,6 +21,8 @@ import type { ArmazenamentoDoTaq } from './armazenamento';
 import { semMarcadores } from './evidencias';
 import type { MensagemDoTurno } from './modelo';
 import { linhasDaMemoria, revalidarMemoria } from './memoria';
+import { normalizar } from './busca';
+import { especialistaIndicado } from './roteamento';
 import { podeLerConversa, podeLerDocumento, podeLerReuniao } from './politica';
 
 const RECENTES = 8;
@@ -34,8 +36,16 @@ function dia(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+function pedidoOriginalNomeiaDocumento(pedido: string | undefined): boolean {
+  return !pedido || /\b(ata|x1|doc conversa|documento|minuta)\b/.test(normalizar(pedido));
+}
+
 export async function montarContextoInicial(
-  tarefa: Pick<Tarefa, 'escopo' | 'selecionados' | 'conversaId'>,
+  tarefa: Pick<Tarefa, 'escopo' | 'selecionados' | 'conversaId'> & {
+    pedidoOriginal?: string;
+    /** Os especialistas disponíveis para a dica de roteamento (só o Taq recebe). */
+    disponiveis?: readonly string[];
+  },
   armazenamento: ArmazenamentoDoTaq,
   agora: Date = new Date(),
 ): Promise<string> {
@@ -54,15 +64,23 @@ export async function montarContextoInicial(
     escopo.reunioes === 'todas'
       ? `Escopo: todas as reuniões (${reunioes.length}) e documentos (${documentos.length}) deste computador.`
       : `Escopo: só a reunião desta conversa e os documentos ligados a ela ou a esta conversa (${documentos.length}).`,
-    escopo.efeitos.includes('escrita_local')
-      ? 'Esta mensagem pede escrita: create_document e update_document estão disponíveis. ' +
-        'Tipos de documento do catálogo (os únicos que existem): ' +
-        CATALOGO_DE_DOCUMENTOS.map((t) => `${t.id} = ${t.nome} (${t.finalidade})`).join(
-          '; ',
-        ) +
-        '.'
-      : 'Esta mensagem não pede escrita: só ferramentas de leitura estão disponíveis.',
+    !escopo.efeitos.includes('escrita_local')
+      ? 'Esta mensagem não pede escrita: só ferramentas de leitura estão disponíveis.'
+      : // Só fala de documento quando a pessoa falou de documento: visto ao vivo,
+        // a linha de documento em todo pedido de escrita levava "registre os
+        // próximos passos" para o especialista de documentos.
+        pedidoOriginalNomeiaDocumento(tarefa.pedidoOriginal)
+        ? 'Esta mensagem pede escrita: create_document e update_document estão disponíveis. ' +
+          'Tipos de documento do catálogo (os únicos que existem): ' +
+          CATALOGO_DE_DOCUMENTOS.map((t) => `${t.id} = ${t.nome} (${t.finalidade})`).join('; ') +
+          '.'
+        : 'Esta mensagem pede escrita (registrar, atualizar, resolver ou analisar): use o especialista do ' +
+          'assunto. Não é pedido de documento.',
   ];
+  const indicado = tarefa.pedidoOriginal
+    ? especialistaIndicado(tarefa.pedidoOriginal, tarefa.disponiveis ?? [])
+    : null;
+  if (indicado) linhas.push(`Especialista indicado para este pedido (pelas palavras dele): ${indicado}.`);
 
   if (tarefa.selecionados.length) {
     linhas.push('', 'Selecionados NA TELA para esta pergunta (abertos na interface):');

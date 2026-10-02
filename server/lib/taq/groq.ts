@@ -121,6 +121,14 @@ function segundos(valor: string | null): number | undefined {
   return Number.isFinite(n) ? Math.ceil(n * 1000) : undefined;
 }
 
+/** A chamada de ferramenta gerada pelo modelo foi recusada pelo provedor. Repetir costuma passar. */
+export class ErroDeChamadaDoModelo extends Error {
+  constructor(modelo: string, mensagem: string) {
+    super(`[groq/${modelo}] ${mensagem}`);
+    this.name = 'ErroDeChamadaDoModelo';
+  }
+}
+
 /** O erro HTTP do Groq, traduzido para as classes que `atender.ts` entende. */
 async function erroDoGroq(modelo: string, resposta: Response): Promise<Error> {
   let mensagem = `HTTP ${resposta.status}`;
@@ -139,6 +147,13 @@ async function erroDoGroq(modelo: string, resposta: Response): Promise<Error> {
     // ou "requests per day (RPD)". Por dia não se resolve esperando.
     const porDia = /per day|\b(TPD|RPD)\b/i.test(mensagem);
     return new RateLimitError(GROQ, modelo, mensagem, espera, undefined, porDia);
+  }
+  // O próprio Groq recusa a chamada de ferramenta que o modelo gerou fora do
+  // schema ("tool call validation failed") ou quando não havia ferramenta
+  // ("Tool choice is none"). Visto ao vivo: é sorteio do modelo, e repetir
+  // costuma passar — então volta como transitório, não como falha final.
+  if (resposta.status === 400 && /tool call validation failed|tool choice is none|failed to call a function/i.test(mensagem)) {
+    return new ErroDeChamadaDoModelo(modelo, mensagem);
   }
   if (resposta.status === 503 || resposta.status === 502) {
     return new OverloadedError(GROQ, modelo, mensagem, espera);

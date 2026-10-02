@@ -380,3 +380,37 @@ describe('pela interface', () => {
     }
   });
 });
+
+describe('cota por minuto do provedor', () => {
+  it('espera o tempo que o provedor pediu e tenta de novo, em vez de desistir', async () => {
+    let chamadas = 0;
+    let segundaEm = 0;
+    const inicio = Date.now();
+    const modelo: AdaptadorDeModelo = {
+      turno: vi.fn(async () => {
+        chamadas += 1;
+        if (chamadas === 1) throw new ErroDoModelo('limite_do_provedor', 'espere', true, 300);
+        segundaEm = Date.now();
+        return final('Pronto.');
+      }),
+    };
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(pedido('Oi, tudo bem?'));
+    expect(r.estado).toBe('concluido');
+    expect(chamadas).toBe(2);
+    expect(segundaEm - inicio).toBeGreaterThanOrEqual(300);
+  });
+
+  it('não espera além do prazo da execução', async () => {
+    const modelo: AdaptadorDeModelo = {
+      turno: vi.fn(async () => {
+        throw new ErroDoModelo('limite_do_provedor', 'espere', true, 60_000);
+      }),
+    };
+    const t0 = Date.now();
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal, limites: { tempoMaxMs: 5_000 } }).executar(
+      pedido('Oi, tudo bem?'),
+    );
+    expect(r.estado).toBe('falhou');
+    expect(Date.now() - t0).toBeLessThan(2_000);
+  });
+});

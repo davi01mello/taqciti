@@ -62,6 +62,30 @@ validação ao vivo de registrar compromissos, analisar, comparar fontes,
 decisão revista, horário e captura **continua pendente** — rodar de novo
 quando a cota reabrir (comando em "Como retomar").
 
+### Rodada com Groq (`openai/gpt-oss-120b`, 01/10/2026, a pedido)
+
+`TAQ_ORQUESTRADOR=groq:openai/gpt-oss-120b` no `server/.env.local` (a chave
+antiga estava revogada; uma nova foi configurada).
+
+- **Passaram:** registrar compromissos (a 2ª chamada registrou 1 compromisso,
+  com responsável e prazo que estão na fala, e deixou "critérios de aceite"
+  sem dono — como deve). O Taq respondeu sozinho "organizar os próximos passos"
+  e "analisar", sem delegar (análise não salva).
+- **Erros de roteamento achados ao vivo e corrigidos:** "registre os próximos
+  passos" e "registre a decisão" iam para o especialista de documentos. Causa:
+  o contexto anunciava `create_document` em todo pedido de escrita. Agora só
+  quando a pessoa fala de documento, e uma dica em código
+  (`roteamento.ts`, `Especialista indicado para este pedido`) aponta o
+  especialista do assunto; `taq-v7` manda segui-la.
+- **Recusas do Groq transformadas em tentativa:** "tool call validation
+  failed" e "tool choice is none" derrubavam a delegação; agora voltam como
+  transitórias (`ErroDeChamadaDoModelo`).
+- **Cota:** a cota por minuto (8 mil tokens) estoura em quase toda jornada;
+  o servidor passa `esperarMs` e o runtime espera o tempo pedido, dentro do
+  prazo. No fim da rodada a cota **diária** do Groq também acabou.
+- **Pendentes ao vivo** (reabrir amanhã): comparar fontes, decisão revista,
+  rascunho, horário e captura com as correções acima.
+
 ## Verificação visual
 
 `scripts/verify-trabalho.cjs` (Edge, perfil isolado, dados `[TESTE]`, sem IA)

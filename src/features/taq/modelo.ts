@@ -73,7 +73,12 @@ export const respostaDoTurnoSchema = z.object({
 export type RespostaDoTurno = z.infer<typeof respostaDoTurnoSchema>;
 
 const erroSchema = z.object({
-  erro: z.object({ codigo: z.string(), mensagem: z.string(), transitorio: z.boolean() }),
+  erro: z.object({
+    codigo: z.string(),
+    mensagem: z.string(),
+    transitorio: z.boolean(),
+    esperarMs: z.number().nonnegative().optional(),
+  }),
 });
 
 export const estadoDoTaqSchema = z.object({
@@ -94,12 +99,15 @@ export const INSTRUCOES_ESPERADAS = 'taq-v7';
 export class ErroDoModelo extends Error {
   readonly codigo: string;
   readonly transitorio: boolean;
+  /** Quanto o provedor pediu para esperar antes de tentar de novo (cota por minuto). */
+  readonly esperarMs?: number;
 
-  constructor(codigo: string, mensagem: string, transitorio = false) {
+  constructor(codigo: string, mensagem: string, transitorio = false, esperarMs?: number) {
     super(mensagem);
     this.name = 'ErroDoModelo';
     this.codigo = codigo;
     this.transitorio = transitorio;
+    if (esperarMs !== undefined) this.esperarMs = esperarMs;
   }
 }
 
@@ -165,6 +173,7 @@ export function criarAdaptadorHttp(
           lido.data.erro.codigo,
           lido.data.erro.mensagem,
           lido.data.erro.transitorio,
+          lido.data.erro.esperarMs,
         );
       }
       if (resposta.status === 401) {

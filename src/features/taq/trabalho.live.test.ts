@@ -112,7 +112,7 @@ async function executar(texto: string, meetingId?: string): Promise<ExecucaoDoTa
     modelo: criarAdaptadorHttp({ baseUrl: URL_AO_VIVO!, chave: CHAVE!, sintetica: true }),
     armazenamento: armazenamentoLocal,
     // O free tier é lento; as jornadas encadeiam especialista e leitura.
-    limites: { tempoMaxMs: 300_000, maxPassos: 10, maxChamadasDeFerramenta: 20 },
+    limites: { tempoMaxMs: 300_000, maxPassos: 10, maxChamadasDeFerramenta: 20, maxTentativasTransitorias: 3 },
   });
   return taq.executar({
     conversaId: `demo-live-${conversa}`,

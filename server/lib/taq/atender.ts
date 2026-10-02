@@ -18,6 +18,7 @@ import {
 } from './contrato';
 import { resolverConfiguracao } from './config';
 import { ErroDeConversao, ErroDeLentidao, type AdaptadorDeTurno } from './gemini';
+import { ErroDeChamadaDoModelo } from './groq';
 import { instrucoesDoTaq, versaoSuportada } from './instrucoes';
 
 /** Teto do pedido inteiro, em caracteres. A extensão tem o seu, menor. */
@@ -34,8 +35,17 @@ export interface Resultado {
   corpo: RespostaDoTurno | ErroDoTurno;
 }
 
-function erro(status: number, codigo: CodigoDeErro, mensagem: string, transitorio = false): Resultado {
-  return { status, corpo: { erro: { codigo, mensagem, transitorio } } };
+function erro(
+  status: number,
+  codigo: CodigoDeErro,
+  mensagem: string,
+  transitorio = false,
+  esperarMs?: number,
+): Resultado {
+  return {
+    status,
+    corpo: { erro: { codigo, mensagem, transitorio, ...(esperarMs !== undefined ? { esperarMs } : {}) } },
+  };
 }
 
 export async function atenderTurno(
@@ -115,11 +125,12 @@ export async function atenderTurno(
     if (e instanceof RateLimitError) {
       return e.perDay
         ? erro(429, 'limite_do_provedor', 'A cota diária do provedor acabou. Ela reabre amanhã.')
-        : erro(429, 'limite_do_provedor', 'O provedor pediu para esperar (cota por minuto).', true);
+        : erro(429, 'limite_do_provedor', 'O provedor pediu para esperar (cota por minuto).', true, e.retryAfterMs);
     }
     if (e instanceof OverloadedError) {
-      return erro(503, 'provedor_sobrecarregado', 'O provedor está sobrecarregado agora.', true);
+      return erro(503, 'provedor_sobrecarregado', 'O provedor está sobrecarregado agora.', true, e.retryAfterMs);
     }
+    if (e instanceof ErroDeChamadaDoModelo) return erro(502, 'falha_do_provedor', e.message, true);
     if (e instanceof ProviderError) return erro(502, 'falha_do_provedor', e.message);
     return erro(502, 'falha_do_provedor', (e as Error)?.message ?? 'Falha desconhecida.');
   }

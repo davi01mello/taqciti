@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { OverloadedError, ProviderError, RateLimitError } from '@/lib/ai/types';
 import { resolverConfiguracao } from './config';
-import { criarAdaptadorGroq, paraMensagensOpenAI } from './groq';
+import { criarAdaptadorGroq, ErroDeChamadaDoModelo, paraMensagensOpenAI } from './groq';
+import { atenderTurno } from './atender';
 import type { PedidoAoAdaptador } from './gemini';
 
 const PEDIDO: PedidoAoAdaptador = {
@@ -111,6 +112,29 @@ describe('Groq (temporário)', () => {
     const groq = criarAdaptadorGroq({ chave: () => 'k', fetch: fetchFalso });
     expect((await groq.executar('m', PEDIDO)).texto).toBe('ok');
     expect(fetchFalso).toHaveBeenCalledTimes(2);
+  });
+
+  it('chamada de ferramenta recusada pelo Groq (visto ao vivo) volta como transitória', async () => {
+    const r = await adaptador(
+      resposta(400, {
+        error: {
+          message:
+            'Tool call validation failed: parameters for tool read_meeting did not match schema: errors: [/quantidade: maximum: got 100, want 40]',
+        },
+      }),
+    )
+      .groq.executar('m', PEDIDO)
+      .catch((e: unknown) => e);
+    expect(r).toBeInstanceOf(ErroDeChamadaDoModelo);
+
+    const turno = await atenderTurno(
+      { instrucoes: 'taq-v7', contexto: '', mensagens: [{ papel: 'pessoa', texto: 'oi' }], maxTokensDeSaida: 256 },
+      {
+        adaptadores: { groq: { provedor: 'groq', executar: async () => { throw r; } } },
+        env: { TAQ_ORQUESTRADOR: 'groq:m', GROQ_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv,
+      },
+    );
+    expect(turno.corpo).toMatchObject({ erro: { codigo: 'falha_do_provedor', transitorio: true } });
   });
 
   it('429 por minuto com espera longa volta como erro transitório; por dia não; 503 é sobrecarga', async () => {

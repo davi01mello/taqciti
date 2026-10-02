@@ -100,6 +100,8 @@ function estavel(valor: unknown): string {
 }
 
 const ESPERA_BASE_MS = 600;
+/** Cota por minuto sem esperarMs: o bastante para a janela do provedor virar. */
+const ESPERA_DE_COTA_MS = 15_000;
 
 async function chamarModelo(
   ambiente: AmbienteDeExecucao,
@@ -111,7 +113,14 @@ async function chamarModelo(
       return await ambiente.modelo.turno(pedido, tarefa.sinal);
     } catch (e) {
       const transitorio = e instanceof ErroDoModelo && e.transitorio;
-      const espera = ESPERA_BASE_MS * 2 ** tentativa;
+      // O provedor pode dizer quanto esperar (cota por minuto): vale o maior,
+      // desde que caiba no prazo da execução — senão desiste já.
+      // Cota por minuto sem dizer quanto: uma espera razoável para a janela virar.
+      const pedida =
+        e instanceof ErroDoModelo
+          ? (e.esperarMs ?? (e.codigo === 'limite_do_provedor' ? ESPERA_DE_COTA_MS : 0))
+          : 0;
+      const espera = Math.max(ESPERA_BASE_MS * 2 ** tentativa, pedida + 250);
       const cabe = Date.now() + espera < ambiente.orcamento.prazo;
       if (
         !transitorio ||
