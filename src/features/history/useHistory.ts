@@ -50,8 +50,3 @@ export function useHistoryState(): HistoryState {
 
   return state;
 }
-
-/** O caso comum: só a lista. */
-export function useHistory(): MeetingRecord[] {
-  return useHistoryState().records;
-}

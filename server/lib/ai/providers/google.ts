@@ -13,13 +13,12 @@
  *                      2.5 → `thinkingConfig.thinkingBudget` (tokens;
  *                            0 desliga, -1 é automático)
  *
- * Cache de contexto: o Gemini tem duas formas. A explícita exige criar um
- * recurso `cachedContents`, com TTL e cobrança por hora de armazenamento —
- * estado de servidor que este pipeline não quer administrar. A implícita é
- * automática a partir da família 2.5, casa por prefixo e não cobra escrita.
- * Usamos a implícita: por isso `supports('contextCache')` é false — não
- * existe controle no nível da requisição, só a disciplina de pôr o conteúdo
- * estável primeiro, que shared.ts já garante para os três.
+ * Cache de contexto: não usamos o explícito (`cachedContents`, com TTL e
+ * armazenamento cobrado por hora), e não é por falta de controle — é por
+ * falta de repetição. O documento lê a transcrição UMA vez (ver
+ * `agents/leitor.ts`); cache só economiza o que se lê de novo. Fica o
+ * implícito, automático a partir da família 2.5, que casa por prefixo e não
+ * cobra escrita.
  *
  * O mínimo para o cache implícito bater é de 2.048 tokens (família 2.5) a
  * 4.096 (3.x). Abaixo disso ele silenciosamente não acontece: sem erro,
@@ -34,6 +33,7 @@ import {
   type CompletionRequest,
   type JsonSchema,
   type Provider,
+  type ReasoningEffort,
 } from '../types';
 import { toGeminiSchema } from './geminiSchema';
 import { requireApiKey, runCompletion } from './shared';
@@ -96,7 +96,7 @@ function structuredOutputConfig(model: string, schema: JsonSchema): Partial<Gene
  * O nível é a alavanca contra isso.
  */
 const THINKING_LEVEL: Record<string, ThinkingLevel> = {
-  // Raciocínio: julgamento sobre o contexto compactado e redação final.
+  // Raciocínio: a leitura da reunião, que separa proposta de decisão.
   'gemini-3.5-flash': ThinkingLevel.HIGH,
   'gemini-3.6-flash': ThinkingLevel.HIGH,
   // Extração: mecânico e de alto volume. LOW é o que o bench mediu, com
@@ -106,21 +106,46 @@ const THINKING_LEVEL: Record<string, ThinkingLevel> = {
 
 const DEFAULT_THINKING_LEVEL = ThinkingLevel.LOW;
 
-/** Monta a parte de raciocínio conforme a família do modelo. */
-function thinkingConfigFor(model: string): Partial<GenerateContentConfig> {
+/** O pedido explícito do chamador (`CompletionRequest.reasoning`) na forma 3.x. */
+const LEVEL_BY_EFFORT: Record<ReasoningEffort, ThinkingLevel> = {
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
+  high: ThinkingLevel.HIGH,
+};
+
+/** E na forma 2.5, que é orçamento em tokens. `high` fica no automático. */
+const BUDGET_BY_EFFORT: Record<ReasoningEffort, number> = {
+  low: 1_024,
+  medium: 4_096,
+  high: -1,
+};
+
+/**
+ * Monta a parte de raciocínio conforme a família do modelo. O pedido do
+ * chamador (`CompletionRequest.reasoning`) vence a tabela por modelo: a
+ * tabela é o padrão de quem não disse o que a tarefa pede.
+ */
+export function thinkingConfigFor(
+  model: string,
+  effort?: ReasoningEffort,
+): Partial<GenerateContentConfig> {
   if (familyOf(model) === '3.x') {
     return {
-      thinkingConfig: { thinkingLevel: THINKING_LEVEL[model] ?? DEFAULT_THINKING_LEVEL },
+      thinkingConfig: {
+        thinkingLevel: effort
+          ? LEVEL_BY_EFFORT[effort]
+          : (THINKING_LEVEL[model] ?? DEFAULT_THINKING_LEVEL),
+      },
     };
   }
   // -1 é "automático": deixa o modelo decidir quanto pensar, que é o
   // equivalente mais próximo do adaptativo dos outros provedores. 0
   // desligaria, e nós não queremos essa decisão implícita aqui.
-  return { thinkingConfig: { thinkingBudget: -1 } };
+  return { thinkingConfig: { thinkingBudget: effort ? BUDGET_BY_EFFORT[effort] : -1 } };
 }
 
 /** Reconhece 503/UNAVAILABLE — sobrecarga do provedor, transitória. */
-function asOverloaded(model: string, error: unknown): OverloadedError | undefined {
+export function asOverloaded(model: string, error: unknown): OverloadedError | undefined {
   const status = (error as { status?: unknown })?.status;
   const message = (error as Error)?.message ?? '';
   const overloaded =
@@ -138,7 +163,7 @@ function asOverloaded(model: string, error: unknown): OverloadedError | undefine
 }
 
 /** Reconhece 429 no formato que o SDK do Google levanta. */
-function asRateLimit(model: string, error: unknown): RateLimitError | undefined {
+export function asRateLimit(model: string, error: unknown): RateLimitError | undefined {
   const status = (error as { status?: unknown })?.status;
   const message = (error as Error)?.message ?? '';
   const isRateLimit =
@@ -200,7 +225,7 @@ export const googleProvider: Provider = {
         systemInstruction: invocation.system,
         maxOutputTokens: invocation.maxTokens,
         ...(invocation.jsonSchema ? structuredOutputConfig(model, invocation.jsonSchema) : {}),
-        ...thinkingConfigFor(model),
+        ...thinkingConfigFor(model, req.reasoning),
       };
 
       let response;

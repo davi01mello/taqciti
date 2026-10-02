@@ -28,27 +28,54 @@
  * Nada aqui "escuta" microfone. E a onda é uma camada de fundo: não intercepta
  * clique, seleção nem rolagem (ver `pointer-events` em `home.css`).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryState } from '@/features/history/useHistory';
+import { usePlatform } from '@/shared/platform/context';
+import type { UiCommand } from '@/shared/types/messages';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
+import {
+  apagarNota,
+  criarGravadorDeNota,
+  observarNotas,
+  type EstadoDaGravacao,
+  type Nota,
+} from '@/features/annotations/notes';
+import { observarDocumentos, type DocumentoGuardado } from '@/features/documents/store';
+import {
+  agenteAgora,
+  observarAgente,
+  type EstadoDoAgente,
+} from '@/features/agent/atividade';
+import {
+  cancelarTaq,
+  desfazerExclusao,
+  mensagemDoDesfecho,
+  perguntarAoTaq,
+  useDisponibilidadeDoTaq,
+} from '@/features/taq/interface';
+import { prepararSaida, protegerEdicao } from '@/shared/services/navigation';
+import { Brasas } from '@/shared/ui/Brasas';
 import { Icon } from '@/shared/ui/Icon';
 import { AssistantView } from './AssistantView';
 import { ConversasMenu } from './ConversasMenu';
-import { PaginaConexoes, PaginaDocumentos, PaginaReunioes } from './Paginas';
+import { PaginaDocumentos } from './Documentos';
+import { PaginaReunioes } from './Paginas';
+import { PaginaConexoes } from './Conexoes';
+import { PaginaAcompanhamento } from './Acompanhamento';
 import { PointerLayer } from './PointerLayer';
 import { lerPedidoDaHome, type Secao } from './rota';
 import { SideNav } from './SideNav';
 import { useAnimacao } from './useAnimacao';
 import { WaveField, type EstadoDaOnda } from './WaveField';
+import { MarcaDaEscuta } from '@/shared/ui/MarcaDaEscuta';
 import {
   acrescentarMensagem,
+  apagarConversa,
   observarConversas,
   type Conversation,
+  type FonteDaResposta,
 } from './conversations';
-
-function abrirPagina(caminho: string): void {
-  window.open(chrome.runtime.getURL(caminho), '_blank', 'noopener');
-}
+import { useConversaAberta } from './useConversaAberta';
 
 /** Chave do rascunho enquanto a conversa nova ainda não existe no storage. */
 const RASCUNHO_NOVA = '\u0000nova';
@@ -56,17 +83,34 @@ const RASCUNHO_NOVA = '\u0000nova';
 export function HomePage() {
   const pedido = useMemo(() => lerPedidoDaHome(window.location.search), []);
 
-  const [secao, setSecao] = useState<Secao>(pedido.secao);
+  const [secao, definirSecao] = useState<Secao>(pedido.secao);
+  const [erroNavegacao, setErroNavegacao] = useState('');
+  const navegar = useCallback(async (acao: () => void) => {
+    if (await prepararSaida()) {
+      setErroNavegacao('');
+      acao();
+    } else
+      setErroNavegacao('Conclua a geração ou tente salvar as alterações antes de sair.');
+  }, []);
+  const setSecao = (valor: Secao) => {
+    void navegar(() => definirSecao(valor));
+  };
   const [navAberta, setNavAberta] = useState(false);
   const [pausadoPeloUsuario, setPausado] = useState(false);
+  /** As brasas do fundo, e não a animação inteira — ver o botão ao lado do de pausar. */
+  const [brasasVisiveis, setBrasasVisiveis] = useState(true);
   const [pulso, setPulso] = useState(0);
 
   const [conversas, setConversas] = useState<Conversation[]>([]);
-  const [conversaId, setConversaId] = useState<string | null>(null);
   /** "Nova conversa" é um estado, não um id: a conversa ainda não existe no
    *  storage, e só passa a existir quando a primeira mensagem for gravada.
-   *  É isso que faz criar uma conversa nova NÃO apagar a anterior. */
-  const [iniciandoNova, setIniciandoNova] = useState(false);
+   *  É isso que faz criar uma conversa nova NÃO apagar a anterior. A regra de
+   *  qual está aberta (e do que acontece quando ela é apagada) é do hook. */
+  const {
+    conversa,
+    escolher: escolherConversa,
+    nova: novaConversa,
+  } = useConversaAberta(conversas);
   const [menuConversas, setMenuConversas] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
@@ -74,21 +118,176 @@ export function HomePage() {
   /** Um rascunho por conversa: alternar não pode comer o que estava escrito. */
   const [rascunhos, setRascunhos] = useState<Record<string, string>>({});
 
+  /*
+   * O que a navegação entre seções precisa lembrar.
+   *
+   * Sobem para cá porque a navegação atravessa as seções nos DOIS sentidos:
+   * de uma reunião para o documento gerado a partir dela, e do documento de
+   * volta para a reunião de origem. Com o estado dentro de cada seção, cada
+   * ida dessas voltaria para a lista.
+   */
+  const [reuniaoAberta, setReuniaoAberta] = useState<string | null>(pedido.recordId);
+  const [documentoAberto, setDocumentoAberto] = useState<string | null>(
+    pedido.documentoId ?? null,
+  );
+
+  const [notas, setNotas] = useState<Record<string, Nota>>({});
+  const [documentos, setDocumentos] = useState<DocumentoGuardado[]>([]);
+  const [documentosCarregados, setDocumentosCarregados] = useState(false);
+  const [erroDocumentos, setErroDocumentos] = useState(false);
+  const [tentativaLeitura, setTentativaLeitura] = useState(0);
+
   const { records, loaded } = useHistoryState();
+  const platform = usePlatform();
+  const [taq, verificarTaqDeNovo] = useDisponibilidadeDoTaq();
+  const [agente, setAgente] = useState<EstadoDoAgente>(agenteAgora);
+  /** Como a última execução terminou quando não deixou resposta. */
+  const [desfecho, setDesfecho] = useState<string | null>(null);
+  useEffect(() => observarAgente(setAgente), []);
   const meeting = useMeetingState();
   const { animando, movimentoReduzido, motivo } = useAnimacao(pausadoPeloUsuario);
 
   useEffect(() => observarConversas(setConversas), []);
-
-  // Sem conversa escolhida, a mais recente é a conversa. Só isso já dá
-  // continuidade entre sessões sem inventar um conceito de "conversa ativa"
-  // guardado à parte.
-  const conversa = useMemo(
+  useEffect(() => observarNotas(setNotas), []);
+  useEffect(
     () =>
-      iniciandoNova
-        ? null
-        : (conversas.find((c) => c.id === conversaId) ?? conversas[0] ?? null),
-    [conversas, conversaId, iniciandoNova],
+      observarDocumentos(
+        (lista) => {
+          setDocumentos(lista);
+          setDocumentosCarregados(true);
+          setErroDocumentos(false);
+        },
+        () => setErroDocumentos(true),
+      ),
+    [tentativaLeitura],
+  );
+
+  // ---------- notas ----------
+
+  /*
+   * O rascunho e o gravador moram aqui, e não na coluna de notas.
+   *
+   * A coluna alterna com a transcrição em largura estreita, e a seção inteira
+   * desmonta ao navegar para Documentos — nos dois casos um estado lá dentro
+   * perderia a frase pela metade. O gravador fica fora do React pelo mesmo
+   * motivo de sempre (ver `features/annotations/notes.ts`): a última tecla não
+   * pode morrer junto com o componente.
+   */
+  const [estadoDaNota, setEstadoDaNota] = useState<EstadoDaGravacao>('parado');
+  const [rascunhosNota, setRascunhosNota] = useState<Record<string, string>>({});
+  const gravadorDeNota = useRef(criarGravadorDeNota(setEstadoDaNota));
+
+  useEffect(() => {
+    const atual = gravadorDeNota.current;
+    const aoFechar = () => void atual.descarregar();
+    const antesDeFechar = (e: BeforeUnloadEvent) => {
+      if (atual.temPendente()) {
+        e.preventDefault();
+        e.returnValue = '';
+        void atual.descarregar();
+      }
+    };
+    window.addEventListener('beforeunload', antesDeFechar);
+    window.addEventListener('pagehide', aoFechar);
+    return () => {
+      window.removeEventListener('beforeunload', antesDeFechar);
+      window.removeEventListener('pagehide', aoFechar);
+      void atual.descarregar();
+    };
+  }, []);
+
+  // Rascunhos confirmados deixam de ocultar as edições de outra superfície.
+  useEffect(() => {
+    setRascunhosNota((atual) => {
+      const proximo = { ...atual };
+      for (const [id, texto] of Object.entries(atual)) {
+        if ((notas[id]?.texto ?? '') === texto) delete proximo[id];
+      }
+      return proximo;
+    });
+  }, [notas]);
+
+  useEffect(
+    () =>
+      protegerEdicao(
+        async () =>
+          !gravadorDeNota.current.temPendente() ||
+          (await gravadorDeNota.current.descarregar()),
+      ),
+    [],
+  );
+
+  const escreverNota = useCallback((meetingId: string, texto: string) => {
+    setRascunhosNota((atual) => ({ ...atual, [meetingId]: texto }));
+    gravadorDeNota.current.agendar(meetingId, texto);
+  }, []);
+
+  /*
+   * Apagar a nota: o rascunho pendente é CANCELADO antes, e o local é limpo
+   * depois. Sem o cancelamento, a última tecla digitada ainda estaria na fila
+   * e o gravador a escreveria de volta um instante após a remoção — a nota
+   * apagada reapareceria sozinha. E sem limpar o rascunho, o campo continuaria
+   * mostrando o texto que já não existe no storage.
+   */
+  const apagarNotaDaReuniao = useCallback(async (meetingId: string) => {
+    gravadorDeNota.current.cancelar();
+    try {
+      await apagarNota(meetingId);
+      setRascunhosNota((atual) => {
+        const proximo = { ...atual };
+        delete proximo[meetingId];
+        return proximo;
+      });
+      setEstadoDaNota('parado');
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // ---------- conversas ----------
+
+  /*
+   * Apagar a conversa. O rascunho dela vai junto: guardar o texto não enviado
+   * de uma conversa que não existe mais só faria ele reaparecer, sem dono, na
+   * próxima conversa que herdasse a chave.
+   *
+   * Apagada a que estava aberta, a tela vai para uma conversa nova, limpa
+   * (ver `useConversaAberta`) — nunca passa a mostrar outra em silêncio. Uma
+   * resposta do Taq em curso nela é cancelada (ver `perguntarAoTaq`).
+   */
+  const apagarConversaEscolhida = useCallback(async (id: string) => {
+    try {
+      await apagarConversa(id);
+      setRascunhos((atual) => {
+        const proximo = { ...atual };
+        delete proximo[id];
+        return proximo;
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const abrirDocumento = useCallback(
+    (id: string) => {
+      void navegar(() => {
+        setDocumentoAberto(id);
+        definirSecao('documentos');
+      });
+    },
+    [navegar],
+  );
+
+  const irParaReuniao = useCallback(
+    (meetingId: string) => {
+      void navegar(() => {
+        setReuniaoAberta(meetingId);
+        definirSecao('reunioes');
+      });
+    },
+    [navegar],
   );
 
   const chaveRascunho = conversa?.id ?? RASCUNHO_NOVA;
@@ -104,6 +303,23 @@ export function HomePage() {
       ? 'captando'
       : 'repouso';
 
+  /** O que o Taq pode fazer NESTA tela: abrir registros e falar com o background. */
+  const acoesDaTela = useMemo(
+    () => ({
+      enviar: (mensagem: { type: string } & Record<string, unknown>) =>
+        platform.send(mensagem as UiCommand),
+      abrirReuniao: irParaReuniao,
+      abrirDocumento,
+    }),
+    [platform, irParaReuniao, abrirDocumento],
+  );
+
+  /** Estável: é dependência do histórico memorizado do Assistente. */
+  const desfazer = useCallback(
+    (id: string) => desfazerExclusao(id, acoesDaTela),
+    [acoesDaTela],
+  );
+
   const enviar = useCallback(
     async (texto: string, anexos: string[]): Promise<boolean> => {
       setGravando(true);
@@ -113,8 +329,19 @@ export function HomePage() {
           texto,
           attachments: anexos,
         });
-        setConversaId(id);
-        setIniciandoNova(false);
+        escolherConversa(id);
+        /*
+         * Com o Taq pronto, a pergunta segue para ele. Sem esperar: a mensagem
+         * JÁ está gravada, o campo pode limpar, e o progresso aparece no turno.
+         * Sem Taq, fica como estava — salva, e a tela diz por que não há
+         * resposta.
+         */
+        if (taq.fase === 'pronto') {
+          setDesfecho(null);
+          void perguntarAoTaq({ conversaId: id, texto, acoes: acoesDaTela }).then((r) =>
+            setDesfecho(r && !r.resposta ? mensagemDoDesfecho(r) : null),
+          );
+        }
         /*
          * A onda volta ao repouso no envio, mesmo com o campo ainda em foco: o
          * estado "escrevendo" acabou quando a mensagem saiu. A próxima tecla
@@ -129,7 +356,15 @@ export function HomePage() {
         setGravando(false);
       }
     },
-    [conversa],
+    [conversa, taq.fase, acoesDaTela, escolherConversa],
+  );
+
+  const abrirFonte = useCallback(
+    (fonte: FonteDaResposta) =>
+      fonte.tipo === 'reuniao'
+        ? irParaReuniao(fonte.registroId)
+        : abrirDocumento(fonte.registroId),
+    [irParaReuniao, abrirDocumento],
   );
 
   const emitirPulso = useCallback((forca: number) => {
@@ -146,9 +381,14 @@ export function HomePage() {
 
   return (
     <div className={`tq-home${navAberta ? ' nav-aberta' : ''}`}>
+      {brasasVisiveis && <Brasas pausado={!animando} />}
       <header className="tq-topo">
         <div className="tq-brand" aria-label="TaqCiti">
-          <img src={chrome.runtime.getURL('brand/taqciti-mark.png')} alt="" draggable={false} />
+          <img
+            src={chrome.runtime.getURL('brand/taqciti-mark.png')}
+            alt=""
+            draggable={false}
+          />
           <span aria-hidden="true">
             Taq<em>Citi</em>
           </span>
@@ -156,9 +396,22 @@ export function HomePage() {
         <div className="tq-topo-direita">
           {meeting.phase === 'recording' && (
             <span className="tq-captando" role="status">
+              <MarcaDaEscuta estado="capturando" pulso={meeting.session?.segments.length} tamanho={18} />
               capturando legendas
             </span>
           )}
+          <button
+            type="button"
+            className={`tq-motion${brasasVisiveis ? '' : ' desligado'}`}
+            aria-label={
+              brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'
+            }
+            aria-pressed={!brasasVisiveis}
+            title={brasasVisiveis ? 'Desligar brasas do fundo' : 'Ligar brasas do fundo'}
+            onClick={() => setBrasasVisiveis((v) => !v)}
+          >
+            <Icon name="sparkles" size={15} />
+          </button>
           <button
             type="button"
             className="tq-motion"
@@ -180,37 +433,54 @@ export function HomePage() {
               cabem sem virar uma barra. */}
           <ConversasMenu
             conversas={conversas}
-            atualId={iniciandoNova ? null : (conversa?.id ?? null)}
+            atualId={conversa?.id ?? null}
             aberto={menuConversas}
             onAbrir={setMenuConversas}
             onNova={() => {
-              setIniciandoNova(true);
-              setConversaId(null);
+              novaConversa();
               setSecao('assistente');
             }}
             onEscolher={(id) => {
-              setConversaId(id);
-              setIniciandoNova(false);
+              escolherConversa(id);
               setSecao('assistente');
             }}
+            onApagar={apagarConversaEscolhida}
           />
         </div>
       </header>
 
       <SideNav ativa={secao} aberta={navAberta} onAbrir={setNavAberta} onIr={setSecao} />
 
-      <main className="tq-main">
+      <main
+        className={`tq-main${secao === 'reunioes' && reuniaoAberta ? ' tq-main-reuniao' : ''}`}
+      >
+        {erroNavegacao && (
+          <p className="tq-aviso" role="alert">
+            {erroNavegacao}
+          </p>
+        )}
         {/*
          * O fundo vive AQUI, dentro do fluxo, e não preso na janela: é o que
          * faz a onda sair da tela ao subir para reler o histórico. Ela é a
          * última camada, e não intercepta nada.
+         *
+         * Só existe na seção "assistente" — que é o "palco da conversa" do
+         * comentário de `WaveField.tsx`, o único lugar onde ela significa
+         * algo. Nas outras seções ela ficava montada em modo `discreta`
+         * (recuada, mas ainda desenhando milhares de partículas por quadro) —
+         * e como essas seções mostram LISTAS com `backdrop-filter` por item
+         * (`.tq-item`), cada item precisava reborrar o fundo animado atrás
+         * dele a cada quadro. Desmontar em vez de recuar tira esse custo
+         * inteiro fora do palco da conversa.
          */}
-        <WaveField
-          estado={estadoDaOnda}
-          animando={animando}
-          pulso={pulso}
-          discreta={secao !== 'assistente'}
-        />
+        {secao === 'assistente' && (
+          <WaveField
+            estado={estadoDaOnda}
+            animando={animando}
+            pulso={pulso}
+            discreta={false}
+          />
+        )}
 
         {secao === 'assistente' && (
           <AssistantView
@@ -222,6 +492,14 @@ export function HomePage() {
             onEnviar={enviar}
             onEscrevendo={setEscrevendo}
             onPulso={emitirPulso}
+            taq={taq}
+            onVerificarDeNovo={verificarTaqDeNovo}
+            agente={agente}
+            desfecho={desfecho}
+            onCancelar={cancelarTaq}
+            onAbrirFonte={abrirFonte}
+            onAbrirDocumento={abrirDocumento}
+            onDesfazer={desfazer}
           />
         )}
 
@@ -229,24 +507,34 @@ export function HomePage() {
           <PaginaReunioes
             registros={records}
             carregado={loaded}
-            inicial={pedido.recordId}
-            onGerar={(id) =>
-              abrirPagina(`src/document/index.html?meetingId=${encodeURIComponent(id)}`)
-            }
+            abertaId={reuniaoAberta}
+            onAbrir={(id) => void navegar(() => setReuniaoAberta(id))}
+            notas={notas}
+            rascunhosNota={rascunhosNota}
+            estadoDaNota={estadoDaNota}
+            documentos={documentos}
+            onEscreverNota={escreverNota}
+            onApagarNota={apagarNotaDaReuniao}
+            onAbrirDocumento={abrirDocumento}
           />
         )}
 
         {secao === 'documentos' && (
           <PaginaDocumentos
+            erro={erroDocumentos}
+            onTentarLer={() => setTentativaLeitura((v) => v + 1)}
+            documentos={documentos}
+            carregado={documentosCarregados}
             registros={records}
-            carregado={loaded}
-            onGerar={(id) =>
-              abrirPagina(`src/document/index.html?meetingId=${encodeURIComponent(id)}`)
-            }
+            abertoId={documentoAberto}
+            onAbrir={setDocumentoAberto}
+            onIrParaReuniao={irParaReuniao}
           />
         )}
 
-        {secao === 'conexoes' && <PaginaConexoes registros={records} />}
+        {secao === 'acompanhamento' && <PaginaAcompanhamento onAbrirFonte={abrirFonte} />}
+
+        {secao === 'conexoes' && <PaginaConexoes registros={records} taq={taq} />}
       </main>
 
       {motivo === 'preferencia' && (

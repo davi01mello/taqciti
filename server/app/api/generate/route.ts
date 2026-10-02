@@ -14,12 +14,12 @@ import { activeDataPolicyWarning } from '@/lib/ai';
  * confirmado por deploy real falhando com "maxDuration between 1 and 300 for
  * plan hobby" ao tentar 600 (17/08/2026). Não é conservador por escolha.
  *
- * E lá 300 provavelmente não bastaria. Uma Ata completa é de 20 a 30 chamadas
- * de modelo (9 Pensante + laço do Auditor + 9 Escritor); a medição mais
- * recente na configuração ATIVA (`docs/medicao-2026-08-16-longa/`, Pensante em
- * `gemini-3.5-flash` com `thinkingLevel: HIGH`) levou 202s para CINCO das nove
- * seções — a cota diária acabou antes de fechar o documento. Extrapolando
- * linearmente, nove seções ficam por volta de 360s.
+ * Com o pipeline antigo, 300 provavelmente não bastaria: eram 20 a 30 chamadas
+ * sequenciais (9 Pensante + laço do Auditor + Escritor), e a medição de
+ * `docs/medicao-2026-08-16-longa/` levou 202s para CINCO das nove seções —
+ * extrapolando, ~360s por Ata. Desde a troca para Leitor + Auditor são DUAS
+ * chamadas (ver `lib/generateStep.ts`), com um raciocínio HIGH em vez de nove.
+ * O tempo da Ata nova ainda NÃO foi medido; a expectativa é caber folgado.
  *
  * Era esse o maior risco aberto do projeto, e ele saiu de cena junto com a
  * Vercel: nem plano Pro nem redesenho assíncrono são necessários hoje. O que

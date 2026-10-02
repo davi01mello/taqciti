@@ -46,10 +46,11 @@ on:
 # mão de quem instalou.
 #
 # Configurar em Settings → Secrets and variables → Actions:
-#   Variables → DOCCITI_SERVER_URL   (https://taqciti-production.up.railway.app, sem "/" no fim)
+#   Variables → DOCCITI_SERVER_URL   (https://server-psi-liart-81.vercel.app, sem "/" no fim)
 #   Secrets   → DOCCITI_SHARED_KEY   (o mesmo valor da variável no servidor)
 #
-# Ver server/docs/deploy.md.
+# Ver docs/publicar-release.md. O deploy do servidor é MANUAL: nada aqui o
+# atualiza, então publique-o antes de cortar a tag.
 env:
   VITE_DOCCITI_SERVER_URL: ${{ vars.DOCCITI_SERVER_URL }}
   VITE_DOCCITI_SHARED_KEY: ${{ secrets.DOCCITI_SHARED_KEY }}

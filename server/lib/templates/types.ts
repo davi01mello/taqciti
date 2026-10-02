@@ -27,6 +27,13 @@ export interface SectionSpec {
   askWhenMissing: string[];
   /** true = sem conteúdo, a seção some do documento em vez de aparecer vazia. */
   omitWhenEmpty: boolean;
+  /**
+   * true = a seção fica FORA da leitura: o dado dela vem do usuário, nunca da
+   * transcrição. É o caso da Assinatura — a reunião não diz quem assina a
+   * ata, e pedir isso ao modelo só convidava um chute (o nome de quem falou
+   * mais). As lacunas saem direto de `detectGaps` e viram pergunta.
+   */
+  fromUserOnly?: boolean;
 }
 
 export interface DocumentTemplate {

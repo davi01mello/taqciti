@@ -16,6 +16,17 @@
  *   - a conversa atual é identificada na lista, não adivinhada;
  *   - trocar recupera o conteúdo, porque ele sempre esteve no storage.
  *
+ * ── Apagar ─────────────────────────────────────────────────────────────────
+ *
+ * Aqui, e não numa tela de gerenciamento à parte: a lista é o único lugar onde
+ * as conversas antigas aparecem, e mandar alguém a outro lugar para remover o
+ * que está vendo é o caminho mais longo possível.
+ *
+ * O item vira a PERGUNTA no lugar, em vez de abrir uma caixa por cima: um
+ * segundo menu flutuante sobre um menu flutuante perde a âncora visual de qual
+ * conversa está prestes a sumir. E o menu não se fecha ao apagar — quem apaga
+ * uma conversa velha costuma apagar duas.
+ *
  * ── Teclado ────────────────────────────────────────────────────────────────
  *
  * Escape fecha e DEVOLVE o foco ao botão que abriu — sem isso o foco cai no
@@ -23,7 +34,7 @@
  * comum de um menu acessível parecer quebrado. As setas percorrem os itens, e
  * um clique fora fecha.
  */
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { formatDate } from '@/shared/ui/format';
 import type { Conversation } from './conversations';
@@ -36,6 +47,8 @@ interface Props {
   onAbrir: (aberto: boolean) => void;
   onNova: () => void;
   onEscolher: (id: string) => void;
+  /** Apaga a conversa. Resolve `false` quando o storage recusou. */
+  onApagar: (id: string) => Promise<boolean>;
 }
 
 export function ConversasMenu({
@@ -45,9 +58,22 @@ export function ConversasMenu({
   onAbrir,
   onNova,
   onEscolher,
+  onApagar,
 }: Props) {
   const botaoRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  /** A conversa cuja remoção está à espera de confirmação. */
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [erro, setErro] = useState('');
+
+  // Fechar o menu desfaz a pergunta pendente: reabrir já confirmando seria
+  // uma pergunta feita numa sessão e respondida noutra.
+  useEffect(() => {
+    if (!aberto) {
+      setConfirmando(null);
+      setErro('');
+    }
+  }, [aberto]);
 
   const fechar = useCallback(
     (devolverFoco: boolean) => {
@@ -71,7 +97,11 @@ export function ConversasMenu({
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        fechar(true);
+        // Escape desfaz um passo de cada vez: primeiro a pergunta, depois o
+        // menu. Fechar tudo de uma vez faria o gesto de recuar da confirmação
+        // levar embora também a lista que se estava consultando.
+        if (confirmando) setConfirmando(null);
+        else fechar(true);
         return;
       }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -98,7 +128,7 @@ export function ConversasMenu({
       document.removeEventListener('keydown', aoTeclar);
       document.removeEventListener('pointerdown', aoClicarFora);
     };
-  }, [aberto, fechar]);
+  }, [aberto, fechar, confirmando]);
 
   return (
     <div className="tq-conversas">
@@ -147,8 +177,48 @@ export function ConversasMenu({
             <ul>
               {conversas.map((c) => {
                 const atual = c.id === atualId;
+
+                if (confirmando === c.id) {
+                  return (
+                    <li key={c.id}>
+                      <div
+                        className="tq-conversas-confirma"
+                        role="alertdialog"
+                        aria-label={`Apagar a conversa "${c.title}"?`}
+                      >
+                        <p>
+                          Apagar <strong>{c.title}</strong>? As mensagens saem
+                          deste computador para sempre.
+                        </p>
+                        <div className="tq-conversas-confirma-acoes">
+                          <button
+                            type="button"
+                            data-item
+                            className="perigo"
+                            onClick={() => {
+                              void onApagar(c.id).then((ok) => {
+                                if (ok) setConfirmando(null);
+                                else setErro('Não foi possível apagar a conversa.');
+                              });
+                            }}
+                          >
+                            Apagar
+                          </button>
+                          <button
+                            type="button"
+                            data-item
+                            onClick={() => setConfirmando(null)}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                }
+
                 return (
-                  <li key={c.id}>
+                  <li key={c.id} className="tq-conversas-linha">
                     <button
                       type="button"
                       role="menuitemradio"
@@ -166,10 +236,30 @@ export function ConversasMenu({
                         {atual && ' · atual'}
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-item
+                      className="tq-conversas-apagar"
+                      title="Apagar esta conversa"
+                      aria-label={`Apagar a conversa "${c.title}"`}
+                      onClick={() => {
+                        setErro('');
+                        setConfirmando(c.id);
+                      }}
+                    >
+                      <Icon name="trash" size={14} />
+                    </button>
                   </li>
                 );
               })}
             </ul>
+          )}
+
+          {erro && (
+            <p className="tq-conversas-erro" role="alert">
+              {erro}
+            </p>
           )}
         </div>
       )}

@@ -1142,6 +1142,3 @@ export function detectNextMeeting(
     missing: confirmada ? [] : missing,
   };
 }
-
-/** O fuso de quem capturou. Declarado, nunca adivinhado do texto. */
-export { resolveLocalTimezone as resolveTimezone };

@@ -324,7 +324,7 @@ function desenharConteudo(doc: Doc, input: RenderPdfInput, template: DocumentTem
     const spec = specForSection(section);
     const dados = spec.serialize(input.data, section.id);
 
-    // Mesmo teste de vazio que `html.ts`/`escritor.ts` usam — as três saídas
+    // Mesmo teste de vazio que `html.ts`/`generateStep.ts` usam — as três saídas
     // precisam concordar sobre quais seções o documento tem.
     if (dados === null && section.omitWhenEmpty) continue;
 
@@ -616,9 +616,9 @@ function desenharTopicosDiscutidos(doc: Doc, data: DocumentData): string {
 
 /**
  * Só `text` — igual a `SECTION_RENDERERS.decisoes` do HTML. `spec.serialize()`
- * inclui confiança e a citação da concordância porque é isso que o Escritor
- * recebe pra redigir com contexto; mas a concordância é evidência da
- * auditoria, não conteúdo da ata, e o markdown do Escritor também não a
+ * inclui confiança e a citação da concordância para diagnóstico; mas a
+ * concordância é evidência da auditoria, não conteúdo da ata, e o markdown
+ * também não a
  * imprime — cair pro genérico aqui vazaria essa evidência pro documento
  * final, o que o HTML deliberadamente não faz.
  */

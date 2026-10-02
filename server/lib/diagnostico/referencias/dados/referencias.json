@@ -1,0 +1,181 @@
+[
+  {
+    "id": "exemplo-dor-entrevista",
+    "titulo": "[EXEMPLO] Perguntar pelo passado, não pelo futuro",
+    "autor": "Instituto Fictício de Pesquisa com Usuários",
+    "link": "https://example.org/taqciti/exemplos/entrevista-pelo-passado",
+    "data": "2024-03-11",
+    "categoria": "entender_dor",
+    "assunto": "entrevista com cliente, perguntas sobre comportamento passado",
+    "tipo": "pesquisa",
+    "quando_aplicar": "Quando o cliente descreve o que gostaria de fazer, em vez do que já fez."
+  },
+  {
+    "id": "exemplo-dor-sintoma-causa",
+    "titulo": "[EXEMPLO] O sintoma que o cliente traz raramente é a causa",
+    "autor": "Fictícia Consultoria de Produto",
+    "link": "https://example.org/taqciti/exemplos/sintoma-e-causa",
+    "data": "2023-09-02",
+    "categoria": "entender_dor",
+    "assunto": "diagnóstico, causa raiz, dor declarada versus dor real",
+    "tipo": "opiniao",
+    "quando_aplicar": "Quando a reunião começa com a solução já escolhida pelo cliente."
+  },
+  {
+    "id": "exemplo-dor-quem-sofre",
+    "titulo": "[EXEMPLO] Quem sente a dor nem sempre está na sala",
+    "autor": "Fictícia Associação de Pesquisa em Serviços",
+    "link": "https://example.org/taqciti/exemplos/quem-sente-a-dor",
+    "data": "2025-01-20",
+    "categoria": "entender_dor",
+    "assunto": "stakeholders, usuário final, distância entre quem decide e quem usa",
+    "tipo": "pesquisa",
+    "quando_aplicar": "Quando quem descreve o problema não é quem convive com ele."
+  },
+  {
+    "id": "exemplo-dor-custo-do-problema",
+    "titulo": "[EXEMPLO] Quanto custa não resolver",
+    "autor": "Fictícia Escola de Negócios",
+    "link": "https://example.org/taqciti/exemplos/custo-de-nao-resolver",
+    "data": "2024-11-05",
+    "categoria": "entender_dor",
+    "assunto": "dimensionar o problema, custo da inação, priorização",
+    "tipo": "documentacao_oficial",
+    "quando_aplicar": "Quando ninguém sabe dizer o tamanho do prejuízo que o problema causa hoje."
+  },
+
+  {
+    "id": "exemplo-produto-escopo-minimo",
+    "titulo": "[EXEMPLO] O que fica de fora também é escopo",
+    "autor": "Fictícia Fundação de Engenharia de Software",
+    "link": "https://example.org/taqciti/exemplos/escopo-de-fora",
+    "data": "2024-06-18",
+    "categoria": "definir_produto",
+    "assunto": "escopo, primeira entrega, corte de funcionalidade",
+    "tipo": "documentacao_oficial",
+    "quando_aplicar": "Quando a lista do que entra cresce e a do que fica fora nunca é escrita."
+  },
+  {
+    "id": "exemplo-produto-criterio-de-pronto",
+    "titulo": "[EXEMPLO] Critério de pronto escrito antes de começar",
+    "autor": "Fictícia Comunidade de Prática Ágil",
+    "link": "https://example.org/taqciti/exemplos/criterio-de-pronto",
+    "data": "2023-12-01",
+    "categoria": "definir_produto",
+    "assunto": "definição de pronto, aceite, ambiguidade de requisito",
+    "tipo": "opiniao",
+    "quando_aplicar": "Quando a entrega é descrita por adjetivo (\"simples\", \"mínimo\") e não por comportamento."
+  },
+  {
+    "id": "exemplo-produto-quem-decide",
+    "titulo": "[EXEMPLO] Uma decisão sem dono volta na reunião seguinte",
+    "autor": "Instituto Fictício de Gestão",
+    "link": "https://example.org/taqciti/exemplos/decisao-sem-dono",
+    "data": "2025-04-09",
+    "categoria": "definir_produto",
+    "assunto": "decisão, responsável, reabertura de assunto fechado",
+    "tipo": "pesquisa",
+    "quando_aplicar": "Quando o grupo conclui algo e ninguém fica nomeado para levar adiante."
+  },
+  {
+    "id": "exemplo-produto-integracao-tarde",
+    "titulo": "[EXEMPLO] Integração descoberta tarde vira replanejamento",
+    "autor": "Fictícia Associação de Arquitetura de Sistemas",
+    "link": "https://example.org/taqciti/exemplos/integracao-tardia",
+    "data": "2024-08-27",
+    "categoria": "definir_produto",
+    "assunto": "dependência externa, integração, risco de escopo",
+    "tipo": "documentacao_oficial",
+    "quando_aplicar": "Quando o escopo é fechado sem ninguém ter olhado os sistemas com que ele precisa conversar."
+  },
+
+  {
+    "id": "exemplo-execucao-metrica-de-saida",
+    "titulo": "[EXEMPLO] Medir entrega não é medir resultado",
+    "autor": "Fictícia Escola de Análise de Dados",
+    "link": "https://example.org/taqciti/exemplos/entrega-versus-resultado",
+    "data": "2025-02-14",
+    "categoria": "avaliar_execucao",
+    "assunto": "métrica, resultado, indicador de vaidade",
+    "tipo": "pesquisa",
+    "quando_aplicar": "Quando o progresso é relatado em funcionalidades entregues, sem nenhum efeito observado."
+  },
+  {
+    "id": "exemplo-execucao-retrabalho",
+    "titulo": "[EXEMPLO] Retrabalho é sintoma de decisão tomada cedo demais",
+    "autor": "Fictícia Fundação de Engenharia de Software",
+    "link": "https://example.org/taqciti/exemplos/retrabalho",
+    "data": "2023-07-30",
+    "categoria": "avaliar_execucao",
+    "assunto": "retrabalho, qualidade, decisão prematura",
+    "tipo": "opiniao",
+    "quando_aplicar": "Quando a equipe refaz a mesma parte pela segunda vez no mesmo ciclo."
+  },
+  {
+    "id": "exemplo-execucao-teste-de-borda",
+    "titulo": "[EXEMPLO] O que ninguém testa é o que quebra em produção",
+    "autor": "Instituto Fictício de Qualidade de Software",
+    "link": "https://example.org/taqciti/exemplos/casos-de-borda",
+    "data": "2024-10-03",
+    "categoria": "avaliar_execucao",
+    "assunto": "teste, caso de borda, cobertura",
+    "tipo": "documentacao_oficial",
+    "quando_aplicar": "Quando o plano de teste cobre o caminho feliz e a borda fica \"para depois\"."
+  },
+  {
+    "id": "exemplo-execucao-migracao",
+    "titulo": "[EXEMPLO] Migração de dados é o risco que ninguém está olhando",
+    "autor": "Fictícia Associação de Arquitetura de Sistemas",
+    "link": "https://example.org/taqciti/exemplos/migracao-de-dados",
+    "data": "2025-05-22",
+    "categoria": "avaliar_execucao",
+    "assunto": "migração, dados legados, risco não dimensionado",
+    "tipo": "pesquisa",
+    "quando_aplicar": "Quando o dado antigo é citado de passagem e o assunto não tem dono nem tamanho."
+  },
+
+  {
+    "id": "exemplo-conduzir-prazo-sem-folga",
+    "titulo": "[EXEMPLO] Prazo sem folga é prazo já estourado",
+    "autor": "Instituto Fictício de Gestão",
+    "link": "https://example.org/taqciti/exemplos/prazo-sem-folga",
+    "data": "2024-01-16",
+    "categoria": "conduzir_projeto",
+    "assunto": "prazo, estimativa, folga, férias e ausências",
+    "tipo": "pesquisa",
+    "quando_aplicar": "Quando a equipe diz que a data é \"factível\" e ninguém se diz confortável com ela."
+  },
+  {
+    "id": "exemplo-conduzir-combinado-por-escrito",
+    "titulo": "[EXEMPLO] O combinado que não foi escrito não foi combinado",
+    "autor": "Fictícia Consultoria de Produto",
+    "link": "https://example.org/taqciti/exemplos/combinado-escrito",
+    "data": "2023-10-12",
+    "categoria": "conduzir_projeto",
+    "assunto": "ata, registro de decisão, memória do projeto",
+    "tipo": "opiniao",
+    "quando_aplicar": "Quando a reunião fecha vários acordos verbais e nenhum registro sai dela."
+  },
+  {
+    "id": "exemplo-conduzir-má-notícia",
+    "titulo": "[EXEMPLO] Má notícia envelhece mal",
+    "autor": "Fictícia Escola de Negócios",
+    "link": "https://example.org/taqciti/exemplos/ma-noticia-cedo",
+    "data": "2025-03-07",
+    "categoria": "conduzir_projeto",
+    "assunto": "comunicação com cliente, replanejamento, confiança",
+    "tipo": "documentacao_oficial",
+    "quando_aplicar": "Quando a data muda internamente e o cliente ainda não foi avisado."
+  },
+  {
+    "id": "exemplo-conduzir-reuniao-sem-pauta",
+    "titulo": "[EXEMPLO] Reunião sem pauta termina sem decisão",
+    "autor": "Fictícia Comunidade de Prática Ágil",
+    "link": "https://example.org/taqciti/exemplos/reuniao-sem-pauta",
+    "data": "2024-05-29",
+    "categoria": "conduzir_projeto",
+    "assunto": "condução de reunião, pauta, encaminhamento",
+    "tipo": "opiniao",
+    "quando_aplicar": "Quando a conversa percorre vários assuntos e nenhum fecha com encaminhamento."
+  }
+]

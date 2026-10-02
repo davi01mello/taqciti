@@ -57,6 +57,8 @@ export type MeetingEvent =
   | { type: 'PARTICIPANTS_UPDATED'; participants: Participant[] }
   | { type: 'ACCOUNT_BOUNDARY_UPDATED'; boundary: AccountBoundaryState }
   | { type: 'CAPTURE_DEGRADED'; at: number }
+  /** A captura voltou a ler as legendas. O par de CAPTURE_DEGRADED. */
+  | { type: 'CAPTURE_RECOVERED' }
   /** Grafias que eram a mesma pessoa viraram uma: corrige o já capturado. */
   | { type: 'SPEAKERS_MERGED'; renames: SpeakerRename[] }
   | { type: 'RECONNECT' }
@@ -186,6 +188,7 @@ function freshSession(
     droppedSegments: 0,
     reconnectCount: 0,
     captureDegradedCount: 0,
+    captureHealthy: true,
     lastChunkAt: null,
     wasDiscardedAndRestarted: false,
     captionLanguage: 'unknown',
@@ -294,6 +297,9 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
         lastChunkAt: event.chunk.atMs,
         captionLanguage,
         chunksSinceLanguageCheck,
+        // Trecho aplicado é a prova de que a captura lê as legendas. Se havia
+        // interrupção registrada, ela acabou aqui.
+        captureHealthy: true,
       });
     }
 
@@ -322,7 +328,20 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
       if (!isActive(state) || state.session === null) return state;
       return withSession(state, {
         captureDegradedCount: (state.session.captureDegradedCount ?? 0) + 1,
+        captureHealthy: false,
       });
+    }
+
+    /**
+     * A captura voltou. Chega por evento próprio, e não só pelo trecho
+     * seguinte, porque a volta pode ser silenciosa: o observer se recolou e a
+     * sala ficou em silêncio de verdade. Esperar um chunk deixaria a interface
+     * avisando de uma interrupção que já passou.
+     */
+    case 'CAPTURE_RECOVERED': {
+      if (!isActive(state) || state.session === null) return state;
+      if (state.session.captureHealthy !== false) return state;
+      return withSession(state, { captureHealthy: true });
     }
 
     /**

@@ -1,0 +1,370 @@
+/*
+ * Os cartões do Taq — HOME e sidebar. A mesma paleta da resposta: cinzas sobre
+ * o fundo escuro, verde só no que é ação, âmbar no que pede atenção. Sem
+ * tabela em lugar nenhum: tudo é lista de blocos, que empilha na sidebar
+ * estreita sem rolagem lateral.
+ */
+
+.tq-cartoes {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+.tq-c {
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: rgb(214 218 222);
+  overflow-wrap: anywhere;
+}
+
+.tq-c-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 6px;
+}
+
+.tq-c-cab h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(240 242 244);
+}
+
+.tq-c-selo {
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: rgb(240 205 160);
+}
+
+.tq-c-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.tq-c-item {
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tq-c-lista > .tq-c-item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.tq-c-titulo {
+  margin: 0;
+  color: rgb(232 235 238);
+}
+
+.tq-c-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: rgb(165 170 175);
+}
+
+.tq-c-pilula {
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 10.5px;
+  color: rgb(205 210 214);
+}
+
+.tq-c-alerta,
+.tq-c-grav-alta .tq-c-pilula {
+  border-color: rgba(240, 205, 160, 0.45);
+  color: rgb(240 205 160);
+}
+
+.tq-c-estado-concluido .tq-c-titulo,
+.tq-c-decisao-substituida .tq-c-titulo,
+.tq-c-achado-descartado .tq-c-titulo {
+  color: rgb(150 155 160);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+
+.tq-c-fontes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 4px 0 0;
+}
+
+.tq-c-fonte-bloco {
+  display: inline-grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tq-c .tq-c-fonte {
+  width: fit-content;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(144, 223, 173, 0.1);
+  color: rgb(170 226 190);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tq-c .tq-c-fonte:hover {
+  background: rgba(144, 223, 173, 0.2);
+}
+
+.tq-c .tq-c-fonte-off {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgb(150 155 160);
+  cursor: default;
+}
+
+.tq-c-trecho {
+  display: grid;
+  gap: 2px;
+  padding: 4px 8px;
+  border-left: 2px solid rgba(144, 223, 173, 0.35);
+  font-size: 11.5px;
+  color: rgb(185 190 195);
+}
+
+.tq-c .tq-c-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(170 226 190);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tq-c-mudo {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: rgb(140 145 150);
+}
+
+.tq-c-ok {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: rgb(170 214 186);
+}
+
+.tq-c-erro {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: rgb(240 205 160);
+}
+
+.tq-c-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tq-c .tq-c-acoes button,
+.tq-c .tq-c-botao-link,
+.tq-c .tq-c-motivo button {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(144, 223, 173, 0.32);
+  background: rgba(144, 223, 173, 0.05);
+  color: rgb(214 236 222);
+  font: inherit;
+  font-size: 11.5px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tq-c .tq-c-acoes button:hover:not(:disabled),
+.tq-c .tq-c-botao-link:hover,
+.tq-c .tq-c-motivo button:hover:not(:disabled) {
+  background: rgba(144, 223, 173, 0.12);
+}
+
+.tq-c .tq-c-acoes button:disabled,
+.tq-c .tq-c-motivo button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tq-c .tq-c-acoes .tq-copiar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: rgb(214 218 222);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.tq-c-motivo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tq-c-motivo label {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 180px;
+  font-size: 11px;
+  color: rgb(165 170 175);
+}
+
+.tq-c-motivo input,
+.tq-c-campo input,
+.tq-c-campo textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgb(232 235 238);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.tq-c-motivo > input {
+  flex: 1 1 200px;
+}
+
+.tq-c-campo {
+  display: grid;
+  gap: 3px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgb(165 170 175);
+}
+
+.tq-c-campo textarea {
+  resize: vertical;
+}
+
+.tq-c-lacunas {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 11.5px;
+  color: rgb(214 196 170);
+}
+
+.tq-c-lados {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+}
+
+.tq-c-destinos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 11.5px;
+  color: rgb(185 190 195);
+}
+
+.tq-c-destino-ambiguo,
+.tq-c-destino-nao_encontrado {
+  color: rgb(240 205 160);
+}
+
+.tq-c-secao {
+  margin-top: 6px;
+}
+
+.tq-c-secao summary,
+.tq-c-hist summary {
+  width: fit-content;
+  cursor: pointer;
+  color: rgb(205 210 214);
+}
+
+.tq-c-hist {
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgb(150 155 160);
+}
+
+.tq-c-hist ol {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+
+.tq-c-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.tq-c-check input {
+  margin-top: 4px;
+  accent-color: rgb(144 223 173);
+}
+
+.tq-c-opcao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tq-c-opcao .tq-c-acoes {
+  margin-top: 0;
+}
+
+/* A página "Acompanhamento" usa os mesmos itens dos cartões. */
+.tq-acompanhamento > .tq-c {
+  margin-top: 14px;
+  padding: 14px 16px;
+}
+
+.tq-acompanhamento .tq-c .tq-c-acoes button[aria-pressed='true'] {
+  background: rgba(144, 223, 173, 0.16);
+  border-color: rgba(144, 223, 173, 0.55);
+}
+
+.tq-acomp-pessoa {
+  flex: 0 1 200px;
+  margin: 0 0 0 auto;
+}
+
+.tq-c button:focus-visible,
+.tq-c a:focus-visible,
+.tq-c input:focus-visible,
+.tq-c textarea:focus-visible,
+.tq-c summary:focus-visible {
+  outline: 2px solid rgb(144 223 173);
+  outline-offset: 2px;
+}

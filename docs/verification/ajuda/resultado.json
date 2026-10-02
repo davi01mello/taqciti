@@ -1,0 +1,479 @@
+{
+  "quando": "2026-09-23T21:27:09.373Z",
+  "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\36686a56-6625-4ade-be96-7c3b0effc384\\scratchpad\\dist-ajuda",
+  "browser": "153.0.4234.48",
+  "dados": "[TESTE] sintéticos; geração simulada, sem IA",
+  "vistos": [
+    "Abrir HOME",
+    "Abrir documento",
+    "Abrir na HOME",
+    "Abrir navegação",
+    "Agora não",
+    "Anexar imagem ou documento",
+    "Apagar",
+    "Apagar as notas desta reunião",
+    "Apagar documento",
+    "Apagar esta conversa",
+    "Apagar reunião",
+    "Assistente",
+    "Ata de Reunião",
+    "Ação",
+    "Ações deste trecho",
+    "Baixar",
+    "Baixar .md",
+    "Baixar .txt",
+    "Baixar o documento como arquivo de texto",
+    "Baixar rascunho",
+    "Cancelar",
+    "Capturar a aba da reunião",
+    "Conexões",
+    "Conversa",
+    "Conversas",
+    "Copiar",
+    "Copiar a resposta",
+    "Copiar sua mensagem",
+    "Copiar texto",
+    "Decisão",
+    "Desfazer",
+    "Desligar",
+    "Desligar brasas do fundo",
+    "Destaque",
+    "Doc Conversa (X1)",
+    "Documento",
+    "Documentos",
+    "Dúvida",
+    "Enviar ao Google Docs",
+    "Escolher conversa",
+    "Finalizar reunião",
+    "Fontes",
+    "Gerar documento",
+    "Imagem",
+    "Ligar sincronização",
+    "Mais ações",
+    "Nome da reunião",
+    "Nome do documento",
+    "Notas",
+    "Notas da reunião",
+    "Nova",
+    "Nova conversa",
+    "Pausar",
+    "Pausar movimento",
+    "Perguntar",
+    "Perguntar à IA",
+    "Print",
+    "Registrar",
+    "Remover brasas do fundo",
+    "Retomar",
+    "Reuniões",
+    "Salvar",
+    "Sem conectar: o caminho manual",
+    "Tirar o contexto desta pergunta",
+    "Transcrição"
+  ],
+  "ondeVisto": {
+    "Pausar": "HOME · Assistente",
+    "Assistente": "HOME · Assistente",
+    "Reuniões": "HOME · Assistente",
+    "Documentos": "HOME · Assistente",
+    "Conexões": "HOME · Assistente",
+    "Abrir navegação": "HOME · Assistente",
+    "Desfazer": "HOME · Assistente",
+    "Conversa": "HOME · Assistente",
+    "Fontes": "HOME · Assistente",
+    "Conversas": "HOME · Assistente",
+    "Anexar imagem ou documento": "HOME · Assistente",
+    "Copiar": "HOME · Assistente",
+    "Copiar a resposta": "HOME · Assistente",
+    "Copiar sua mensagem": "HOME · Assistente",
+    "Copiar texto": "HOME · Assistente",
+    "Desligar": "HOME · Assistente",
+    "Desligar brasas do fundo": "HOME · Assistente",
+    "Pausar movimento": "HOME · Assistente",
+    "Apagar": "HOME · menu Conversas",
+    "Nova conversa": "HOME · menu Conversas",
+    "Nova": "HOME · menu Conversas",
+    "Apagar esta conversa": "HOME · menu Conversas",
+    "Imagem": "HOME · anexar",
+    "Documento": "HOME · anexar",
+    "Transcrição": "HOME · reunião",
+    "Baixar .txt": "HOME · reunião",
+    "Nome da reunião": "HOME · reunião",
+    "Mais ações": "HOME · reunião",
+    "Notas da reunião": "HOME · reunião",
+    "Notas": "HOME · reunião",
+    "Gerar documento": "HOME · reunião",
+    "Baixar": "HOME · reunião",
+    "Apagar reunião": "HOME · Mais ações da reunião",
+    "Cancelar": "HOME · confirmar apagar reunião",
+    "Apagar as notas desta reunião": "HOME · notas",
+    "Ata de Reunião": "HOME · menu Gerar documento",
+    "Doc Conversa (X1)": "HOME · menu Gerar documento",
+    "Abrir documento": "HOME · resultado da geração",
+    "Enviar ao Google Docs": "HOME · resultado da geração",
+    "Salvar": "HOME · editor",
+    "Nome do documento": "HOME · editor",
+    "Baixar o documento como arquivo de texto": "HOME · editor",
+    "Baixar .md": "HOME · editor",
+    "Apagar documento": "HOME · Mais ações do documento",
+    "Baixar rascunho": "HOME · editor com falha",
+    "Sem conectar: o caminho manual": "HOME · Conexões",
+    "Ligar sincronização": "HOME · Conexões",
+    "Abrir HOME": "sidebar · Conversa",
+    "Escolher conversa": "sidebar · Conversa",
+    "Remover brasas do fundo": "sidebar · Conversa",
+    "Abrir na HOME": "sidebar · reunião guardada",
+    "Finalizar reunião": "sidebar · reunião simulada",
+    "Print": "sidebar · reunião simulada",
+    "Perguntar": "sidebar · reunião simulada",
+    "Capturar a aba da reunião": "sidebar · prints",
+    "Destaque": "sidebar · trecho selecionado",
+    "Dúvida": "sidebar · trecho selecionado",
+    "Decisão": "sidebar · trecho selecionado",
+    "Ação": "sidebar · trecho selecionado",
+    "Ações deste trecho": "sidebar · trecho selecionado",
+    "Perguntar à IA": "sidebar · trecho selecionado",
+    "Tirar o contexto desta pergunta": "sidebar · pergunta com contexto",
+    "Retomar": "sidebar · reunião simulada pausada",
+    "Agora não": "sidebar · pergunta de registro",
+    "Registrar": "sidebar · pergunta de registro"
+  },
+  "porEntrada": [
+    {
+      "id": "registrar_reuniao",
+      "vistos": [
+        "Agora não",
+        "Registrar",
+        "Transcrição"
+      ],
+      "nao_vistos": [
+        "Deseja registrar esta reunião?",
+        "Iniciar captura",
+        "Preparando a transcrição…"
+      ]
+    },
+    {
+      "id": "pausar_captura",
+      "vistos": [
+        "Pausar",
+        "Retomar",
+        "Transcrição"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "finalizar_reuniao",
+      "vistos": [
+        "Finalizar reunião",
+        "Baixar .txt"
+      ],
+      "nao_vistos": [
+        "Abrir no TaqCiti"
+      ]
+    },
+    {
+      "id": "marcar_trecho",
+      "vistos": [
+        "Destaque",
+        "Dúvida",
+        "Decisão",
+        "Ação",
+        "Ações deste trecho"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "prints",
+      "vistos": [
+        "Print",
+        "Capturar a aba da reunião",
+        "Salvar",
+        "Transcrição"
+      ],
+      "nao_vistos": [
+        "Descartar",
+        "Apagar este print"
+      ]
+    },
+    {
+      "id": "avisar_no_chat",
+      "vistos": [],
+      "nao_vistos": [
+        "Enviar ao chat"
+      ]
+    },
+    {
+      "id": "esconder_capsula",
+      "vistos": [],
+      "nao_vistos": [
+        "Esconder a cápsula do TaqCiti"
+      ]
+    },
+    {
+      "id": "abrir_sidebar_e_home",
+      "vistos": [
+        "Abrir HOME",
+        "Assistente",
+        "Reuniões",
+        "Documentos",
+        "Conexões",
+        "Abrir navegação"
+      ],
+      "nao_vistos": [
+        "Abrir no TaqCiti"
+      ]
+    },
+    {
+      "id": "ver_reunioes",
+      "vistos": [
+        "Reuniões",
+        "Abrir na HOME",
+        "Transcrição"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "renomear_reuniao",
+      "vistos": [
+        "Reuniões",
+        "Nome da reunião"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "apagar_reuniao",
+      "vistos": [
+        "Reuniões",
+        "Mais ações",
+        "Apagar reunião",
+        "Apagar"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "desfazer_exclusao",
+      "vistos": [
+        "Desfazer"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "notas_da_reuniao",
+      "vistos": [
+        "Notas da reunião",
+        "Notas",
+        "Apagar as notas desta reunião",
+        "Apagar"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "conversar_com_taq",
+      "vistos": [
+        "Assistente",
+        "Conversa",
+        "Cancelar",
+        "Fontes"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "contexto_da_conversa",
+      "vistos": [
+        "Transcrição",
+        "Perguntar",
+        "Perguntar à IA",
+        "Tirar o contexto desta pergunta",
+        "Nova conversa",
+        "Nova"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "perguntar_sobre_trecho",
+      "vistos": [
+        "Perguntar à IA",
+        "Perguntar",
+        "Tirar o contexto desta pergunta",
+        "Conversa"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "nova_e_trocar_conversa",
+      "vistos": [
+        "Conversas",
+        "Nova conversa",
+        "Nova",
+        "Escolher conversa",
+        "Conversa"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "apagar_conversa",
+      "vistos": [
+        "Conversas",
+        "Apagar esta conversa",
+        "Apagar"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "anexar_arquivo",
+      "vistos": [
+        "Anexar imagem ou documento",
+        "Imagem",
+        "Documento"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "copiar_resposta",
+      "vistos": [
+        "Copiar",
+        "Copiar a resposta",
+        "Copiar sua mensagem"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "texto_para_claude",
+      "vistos": [
+        "Copiar texto"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "gerar_documento",
+      "vistos": [
+        "Gerar documento",
+        "Ata de Reunião",
+        "Doc Conversa (X1)",
+        "Abrir documento",
+        "Baixar",
+        "Enviar ao Google Docs",
+        "Reuniões",
+        "Documentos",
+        "Assistente"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "ver_documentos",
+      "vistos": [
+        "Documentos"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "editar_documento",
+      "vistos": [
+        "Documentos",
+        "Nome do documento",
+        "Salvar"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "apagar_documento",
+      "vistos": [
+        "Documentos",
+        "Mais ações",
+        "Apagar documento",
+        "Apagar"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "exportar_transcricao",
+      "vistos": [
+        "Reuniões",
+        "Baixar .txt",
+        "Copiar",
+        "Conexões",
+        "Sem conectar: o caminho manual"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "baixar_documento",
+      "vistos": [
+        "Documentos",
+        "Baixar o documento como arquivo de texto",
+        "Baixar",
+        "Baixar rascunho"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "enviar_google_docs",
+      "vistos": [
+        "Enviar ao Google Docs",
+        "Gerar documento"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "sincronizar_e_conectar",
+      "vistos": [
+        "Conexões",
+        "Ligar sincronização",
+        "Copiar",
+        "Desligar"
+      ],
+      "nao_vistos": [
+        "Gerar endereço",
+        "Conectar na Claude",
+        "Conectar no ChatGPT",
+        "Revogar"
+      ]
+    },
+    {
+      "id": "aparencia",
+      "vistos": [
+        "Desligar brasas do fundo",
+        "Pausar movimento",
+        "Remover brasas do fundo"
+      ],
+      "nao_vistos": []
+    }
+  ],
+  "completas": [
+    "pausar_captura",
+    "marcar_trecho",
+    "ver_reunioes",
+    "renomear_reuniao",
+    "apagar_reuniao",
+    "desfazer_exclusao",
+    "notas_da_reuniao",
+    "conversar_com_taq",
+    "contexto_da_conversa",
+    "perguntar_sobre_trecho",
+    "nova_e_trocar_conversa",
+    "apagar_conversa",
+    "anexar_arquivo",
+    "copiar_resposta",
+    "texto_para_claude",
+    "gerar_documento",
+    "ver_documentos",
+    "editar_documento",
+    "apagar_documento",
+    "exportar_transcricao",
+    "baixar_documento",
+    "enviar_google_docs",
+    "aparencia"
+  ],
+  "verificacoes": {
+    "aviso": "A conversa foi apagada. Reuniões e documentos continuam guardados.",
+    "turnos_na_tela": 0,
+    "depois_de_recarregar": {
+      "conversas": [],
+      "reunioes": [
+        "teste-ajuda"
+      ],
+      "documentos": 1
+    },
+    "texto_da_conversa_na_tela": 0
+  },
+  "falhas": []
+}

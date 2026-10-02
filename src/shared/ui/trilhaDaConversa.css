@@ -1,0 +1,298 @@
+/*
+ * A barra da conversa (ver TrilhaDaConversa.tsx). Mesma paleta da resposta:
+ * grafite e cinzas sobre o escuro, verde só no que é ação — a lente, os blocos
+ * sob ela e a mão que segura.
+ *
+ * As medidas moram em variáveis na `.tq-trilha`, para a sidebar — uma coluna
+ * de 260px — usar a mesma barra numa escala menor (fim do arquivo).
+ */
+
+.tq-trilha {
+  --verde: 144 223 173;
+  --largura: 20px;
+  --bloco-taq: 10px;
+  --bloco-voce: 6px;
+  position: fixed;
+  z-index: 30;
+  width: var(--largura);
+  /* Em repouso, quase some: é controle, não conteúdo. */
+  opacity: 0.2;
+  transition: opacity 0.45s ease;
+}
+
+/* Acordada pela rolagem, aparece sem chamar atenção; inteira só quando se
+   chega perto ou se segura. */
+.tq-trilha.desperta {
+  opacity: 0.6;
+}
+
+.tq-trilha.segurando,
+.tq-trilha:hover,
+.tq-trilha:focus-within {
+  opacity: 1;
+}
+
+.tq-trilha-trilho {
+  position: relative;
+  height: 100%;
+  cursor: pointer;
+  /* No toque, arrastar a lente não pode virar rolagem do navegador. */
+  touch-action: none;
+}
+
+/* O fio do trilho: a espinha do mapa, sem peso. */
+.tq-trilha-trilho::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255, 255, 255, 0.07) 8%,
+    rgba(255, 255, 255, 0.07) 92%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/*
+ * O MAPA. Um bloco por mensagem, na altura e no tamanho que ela tem na página.
+ * Os do Taq à esquerda do fio e largos; os seus à direita e estreitos — como
+ * os lados da conversa. Cada um nasce crescendo do fio, um logo depois do outro.
+ */
+.tq-trilha-bloco {
+  position: absolute;
+  right: 50%;
+  width: var(--bloco-taq);
+  border-radius: 2px;
+  background: rgba(200, 205, 210, 0.14);
+  pointer-events: none;
+  transform-origin: right center;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: tq-trilha-nascer 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.tq-trilha-bloco.voce {
+  right: auto;
+  left: calc(50% + 1px);
+  width: var(--bloco-voce);
+  transform-origin: left center;
+  background: rgba(225, 228, 232, 0.22);
+}
+
+/* Sob a lente, o mapa acende: é aqui que você está lendo. */
+.tq-trilha-bloco.aceso {
+  background: rgb(var(--verde) / 0.4);
+}
+
+.tq-trilha-bloco.voce.aceso {
+  background: rgb(235 238 241 / 0.5);
+}
+
+/* O bloco sob o ponteiro: estica, como quem aponta. */
+.tq-trilha-bloco.mirado {
+  width: calc(var(--bloco-taq) + 4px);
+  background: rgb(235 238 241 / 0.7);
+}
+
+.tq-trilha-bloco.voce.mirado {
+  width: calc(var(--bloco-voce) + 4px);
+}
+
+@keyframes tq-trilha-nascer {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+/*
+ * A LENTE. Um vidro sobre o mapa: borda verde fina, brilho interno, e uma mola
+ * curta para acompanhar a rolagem. Segurada, ela acende e "puxa" — e enquanto
+ * arrasta, a posição NÃO tem transição: ela tem que estar sob o dedo.
+ */
+.tq-trilha-lente {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  border-radius: 7px;
+  background: rgb(var(--verde) / 0.05);
+  box-shadow: inset 0 0 0 1px rgb(var(--verde) / 0.26);
+  backdrop-filter: brightness(1.15);
+  cursor: grab;
+  outline: none;
+  transition:
+    top 0.32s cubic-bezier(0.22, 1.3, 0.36, 1),
+    height 0.32s cubic-bezier(0.22, 1.3, 0.36, 1),
+    left 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.tq-trilha-lente:hover {
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--verde) / 0.5),
+    0 0 14px rgb(var(--verde) / 0.12);
+}
+
+.tq-trilha-lente:focus-visible {
+  box-shadow:
+    inset 0 0 0 1.5px rgb(var(--verde) / 0.9),
+    0 0 0 3px rgb(var(--verde) / 0.2);
+}
+
+.tq-trilha.segurando .tq-trilha-lente {
+  left: -6px;
+  right: -6px;
+  cursor: grabbing;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--verde) / 0.2),
+    rgb(var(--verde) / 0.09)
+  );
+  box-shadow:
+    inset 0 0 0 1.5px rgb(var(--verde) / 0.85),
+    0 0 18px rgb(var(--verde) / 0.22);
+  transition:
+    left 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+/* A pega: três riscos no meio da lente, que aparecem quando se chega perto. */
+.tq-trilha-pega {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  background: repeating-linear-gradient(
+    to bottom,
+    rgb(var(--verde) / 0.9) 0 1px,
+    transparent 1px 3px
+  );
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.tq-trilha-lente:hover .tq-trilha-pega,
+.tq-trilha.segurando .tq-trilha-pega {
+  opacity: 1;
+}
+
+/* Enquanto arrasta: em que mensagem você está, de quantas. */
+.tq-trilha-contagem {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 12px);
+  transform: translateY(-50%);
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgb(28 30 33);
+  border: 1px solid rgb(var(--verde) / 0.35);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  color: rgb(var(--verde));
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tq-trilha-surgir 0.18s ease-out;
+}
+
+.tq-trilha-contagem small {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgb(170 175 180);
+}
+
+/* A mira: um fio na altura do ponteiro, atravessando o mapa. */
+.tq-trilha-mira {
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(235, 238, 241, 0.55) 30%,
+    rgba(235, 238, 241, 0.55) 70%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* A prévia da mensagem apontada, ao lado do mapa. */
+.tq-trilha-previa {
+  position: absolute;
+  right: calc(100% + 14px);
+  width: max-content;
+  max-width: 280px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgb(26 28 31 / 0.96);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  color: rgb(200 204 208);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  transform: translateY(-50%);
+  pointer-events: none;
+  animation: tq-trilha-surgir 0.14s ease-out;
+}
+
+.tq-trilha-previa strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--verde));
+}
+
+@keyframes tq-trilha-surgir {
+  from {
+    opacity: 0;
+    translate: 4px 0;
+  }
+}
+
+body:has(.tq-trilha.segurando),
+body:has(.tq-trilha.segurando) * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+/* Na sidebar, a mesma barra numa escala de coluna estreita. */
+.tq-conversa-col .tq-trilha {
+  --largura: 16px;
+  --bloco-taq: 8px;
+  --bloco-voce: 4px;
+}
+
+.tq-conversa-col .tq-trilha-previa {
+  max-width: 200px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-trilha,
+  .tq-trilha-bloco,
+  .tq-trilha-lente,
+  .tq-trilha-contagem,
+  .tq-trilha-previa {
+    transition: none;
+    animation: none;
+  }
+}

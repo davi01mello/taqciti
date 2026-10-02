@@ -25,6 +25,7 @@
  * storage não tem transação), mas encolhe de "o tempo que a pessoa levou
  * digitando" para "o tempo de uma leitura".
  */
+import { comTravaLocal } from '@/shared/services/storageLock';
 import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage';
 
 export interface MapaGuardado<T> {
@@ -62,16 +63,19 @@ export function mapaGuardado<T>(
       return (await ler())[chave] ?? null;
     },
     async atualizar(chave, mudar) {
-      const atual = await ler();
-      const proximo = mudar(atual[chave] ?? null);
-      if (proximo === null) {
-        if (!(chave in atual)) return;
-        const resto = { ...atual };
-        delete resto[chave];
-        await writeLocal(chaveDoStorage, resto);
-        return;
-      }
-      await writeLocal(chaveDoStorage, { ...atual, [chave]: proximo });
+      return comTravaLocal(chaveDoStorage, async () => {
+        const bruto = await readLocal<Record<string, unknown>>(chaveDoStorage);
+        const atual = bruto && !Array.isArray(bruto) ? bruto : {};
+        const proximo = mudar(valido(atual[chave]) ? (atual[chave] as T) : null);
+        if (proximo === null) {
+          if (!(chave in atual)) return;
+          const resto = { ...atual };
+          delete resto[chave];
+          await writeLocal(chaveDoStorage, resto);
+          return;
+        }
+        await writeLocal(chaveDoStorage, { ...atual, [chave]: proximo });
+      });
     },
     observar(cb) {
       let vivo = true;

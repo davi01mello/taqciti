@@ -1,6 +1,6 @@
 # Instalador macOS (pkgbuild)
 
-Gera um único arquivo `.pkg` que instala a extensão TaqCITi.
+Gera um único arquivo `.pkg` que instala a extensão TaqCiti.
 
 ## Pré-requisitos
 
@@ -34,8 +34,8 @@ Este `.pkg` **não é assinado** com um certificado de desenvolvedor Apple
 (exigiria conta paga, fora do escopo desta fase). Isso significa que dando
 duplo-clique nele, o Gatekeeper vai bloquear com algo como:
 
-> "TaqCITi.pkg" não pode ser aberto porque é de um desenvolvedor não
-> identificado.
+> "taqciti-instalador-mac-X.Y.Z.pkg" não pode ser aberto porque é de um
+> desenvolvedor não identificado.
 
 **Isso é esperado.** Não tentamos contornar via assinatura de código por
 enquanto. A instrução para quem for instalar, que é a que a Apple documenta
@@ -62,7 +62,7 @@ Depois disso o instalador roda normalmente (ainda vai pedir a senha de admin —
 isso é padrão de qualquer `.pkg`, assinado ou não).
 
 Essa mesma instrução aparece no guia de pré-instalação
-(`assetsingestion/COMECE_AQUI.html`), num passo dedicado, que também
+(`installer/guide/COMECE_AQUI.html`), num passo dedicado, que também
 separa esse bloqueio de outros erros (`"está danificado"`, falha de instalação)
 — porque para esses o caminho dos Ajustes não resolve nada.
 
@@ -84,10 +84,10 @@ detalhados sobre o porquê estão no topo de `installer/macos/postinstall`).
 3. Copia esse caminho para a área de transferência via `pbcopy`, rodado no
    contexto do usuário. Se falhar, só avisa e imprime o caminho — não derruba
    a instalação.
-4. Copia o guia (`assetsingestion/COMECE_AQUI.html`) **intocado** para
+4. Copia o guia (`installer/guide/COMECE_AQUI.html`) **intocado** para
    `~/Library/Application Support/TaqCITi/guide/`, grava ao lado um
    `install-path.js` com o caminho real, e abre essa cópia no contexto do
-   usuário. O HTML nunca é reescrito — ver `assetsingestion/README.md`.
+   usuário. O HTML nunca é reescrito — ver `installer/guide/README.md`.
 
 > **Não abre a página de extensões do navegador sozinho** (essa etapa
 > existia aqui antes, via `open -a "Google Chrome" chrome://extensions`).

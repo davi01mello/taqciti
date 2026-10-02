@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cria a ata como Google Doc no Drive de quem está usando a extensão.
  *
  * ── Por que a EXTENSÃO cria o documento, e não o servidor ──────────────────
@@ -146,7 +146,7 @@ export async function criarGoogleDoc(input: CriarDocInput): Promise<GoogleDocRes
       naoConfigurado,
       message: naoConfigurado
         ? 'O cliente OAuth do Google ainda não foi registrado para esta extensão. ' +
-          'Ver docs/google-docs-setup.md.'
+          'Ver docs/google-oauth-setup.md.'
         : `O Chrome não conseguiu autorizar o acesso ao Google Drive: ${message}`,
     };
   }

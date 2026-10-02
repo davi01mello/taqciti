@@ -17,12 +17,13 @@ import type {
   Participant,
   Unsubscribe,
 } from '@/shared/types/domain';
-import { DEFAULT_PANEL_PREFS } from '@/shared/types/domain';
+import { DEFAULT_PANEL_PREFS, IDLE_STATE } from '@/shared/types/domain';
 import {
   AUTO_CAPTIONS_MAX_ATTEMPTS,
   MEET_POLL_INTERVAL_MS,
 } from '@/shared/config/constants';
 import { onMessage, sendMessage } from '@/shared/services/messaging';
+import { logger } from '@/shared/services/log';
 import { meetingStateSchema } from '@/shared/types/messages';
 import { setNativeCaptionsHidden } from './captionsVisibility';
 import { patchPanelPrefs, subscribePanelPrefs } from '@/features/panel/prefsStore';
@@ -85,6 +86,15 @@ export class ContentController {
   private reuniaoPendente: MeetingSession | null = null;
   /** A participação atual — a chave da autorização. Ver consent.ts. */
   private participacaoId: string | null = null;
+  /** A sala em que se está agora, para o "sim" que chega num re-render. */
+  private salaAtual: MeetingSession | null = null;
+  /**
+   * A sala que ESTA aba começou a capturar. O estado global é um só para o
+   * navegador; sem saber se ele é desta aba, uma aba do Meet sem "sim" nenhum
+   * escondia as próprias legendas, ligava-as sozinha e mostrava na cápsula o
+   * relógio da reunião de outra aba.
+   */
+  private salaDaCaptura: string | null = null;
 
   private readonly callbacks: CapsulaCallbacks = {
     /*
@@ -128,18 +138,24 @@ export class ContentController {
     this.provider.start();
 
     this.subscriptions.push(
-      this.provider.onMeetingStart((session) => void this.considerarReuniao(session)),
+      this.provider.onMeetingStart((session) => this.considerarReuniaoComLog(session)),
 
-      this.provider.onMeetingEnd(() => {
+      this.provider.onMeetingEnd((encerrada) => {
         // Saiu da sala. A participação é FECHADA, não apagada: voltar em
         // seguida a retoma (queda de conexão), voltar horas depois começa uma
         // nova — com pergunta nova. Ver consent.ts.
-        void fecharParticipacao(Date.now());
+        //
+        // Participação e pergunta são uma chave só para o navegador inteiro:
+        // mexe só se forem DESTA sala. Outra aba pode já ter aberto a sua, e
+        // apagá-la aqui sumia com a pergunta da reunião nova.
+        void fecharParticipacao(Date.now(), encerrada.meetingCode);
         this.salaAnunciada = null;
         this.decisao = null;
         this.reuniaoPendente = null;
         this.participacaoId = null;
-        void esquecerReuniao();
+        this.salaAtual = null;
+        this.captureHealthy = true;
+        void esquecerReuniao(encerrada.meetingCode);
         void sendMessage<MeetingState>({ type: 'meet/ended' }).then((state) =>
           this.applyState(state),
         );
@@ -155,6 +171,8 @@ export class ContentController {
         // DOM — mas um guarda barato aqui cobre a janela entre o clique e o
         // estado novo chegar.
         if (this.lastState?.phase === 'paused') return;
+        // Nada sai desta aba antes do "sim" a ESTA sala.
+        if (this.decisao !== 'aceito') return;
         void sendMessage({ type: 'meet/chunk', chunk });
       }),
 
@@ -174,6 +192,11 @@ export class ContentController {
         if (!healthy) {
           this.attemptEnableCaptions();
           void sendMessage({ type: 'meet/captureDegraded', reason: reason ?? 'stall' });
+        } else {
+          // A VOLTA também é notícia. Só esta aba enxerga o DOM do Meet; sem
+          // este recado a sidebar seguiria mostrando "interrompida" depois de a
+          // captura já ter voltado a ler.
+          void sendMessage({ type: 'meet/captureRecovered' });
         }
         if (this.lastState) this.applyState(this.lastState);
       }),
@@ -213,11 +236,23 @@ export class ContentController {
         const decisao = registro[id];
         if (!decisao || decisao === this.decisao) return;
 
+        /*
+         * O alvo é escolhido ANTES de a pendência ser limpa.
+         *
+         * Estava ao contrário, e o "sim" dado na sidebar dependia de
+         * `detectMeeting()` responder naquele exato instante: num re-render do
+         * Meet ele responde `null` por alguns quadros, e como a pendência já
+         * tinha sido apagada na linha anterior, o alvo era `null` — a decisão
+         * era gravada, a pergunta sumia das duas superfícies, e a captura
+         * simplesmente não começava. Sem erro, sem aviso, sem nada a
+         * investigar.
+         */
+        const alvo = sessao ?? this.reuniaoPendente ?? this.salaAtual;
+
         this.decisao = decisao;
         this.reuniaoPendente = null;
         void esquecerReuniao();
 
-        const alvo = sessao ?? this.reuniaoPendente;
         if (decisao === 'aceito' && alvo) this.iniciarCaptura(alvo);
         else this.rerender();
       }),
@@ -262,7 +297,25 @@ export class ContentController {
 
     // Script pode ser injetado com a reunião já em andamento (reload da aba).
     const existing = this.provider.detectMeeting();
-    if (existing) void this.considerarReuniao(existing);
+    if (existing) this.considerarReuniaoComLog(existing);
+  }
+
+  /**
+   * O portão da captura, com a falha VISÍVEL.
+   *
+   * `considerarReuniao` é assíncrona e toca o `chrome.storage.session`. Chamada
+   * com um `void` solto, qualquer rejeição dela virava uma unhandled rejection
+   * que não aparecia em lugar nenhum — e foi assim que a extensão passou a não
+   * perguntar mais nada sem ninguém notar: a área de sessão é negada a content
+   * scripts por padrão no MV3, a promessa rejeitava, e a pergunta simplesmente
+   * não nascia. Ver `background/sessionAccess.ts`.
+   *
+   * O silêncio é o problema a evitar aqui, não a exceção.
+   */
+  private considerarReuniaoComLog(session: MeetingSession): void {
+    void this.considerarReuniao(session).catch((error) =>
+      logger.error('portão da captura falhou: a pergunta não vai aparecer', error),
+    );
   }
 
   // ---------- o portão: registrar esta reunião? ----------
@@ -285,6 +338,7 @@ export class ContentController {
   private async considerarReuniao(session: MeetingSession): Promise<void> {
     if (this.salaAnunciada === session.meetingCode) return;
     this.salaAnunciada = session.meetingCode;
+    this.salaAtual = session;
 
     /*
      * Qual PARTICIPAÇÃO é esta? A mesma de antes se o Meet só re-renderizou ou
@@ -331,6 +385,7 @@ export class ContentController {
 
   /** O único lugar que conta ao background que existe uma reunião a registrar. */
   private iniciarCaptura(session: MeetingSession): void {
+    this.salaDaCaptura = session.meetingCode;
     void sendMessage<MeetingState>({
       type: 'meet/detected',
       meetingCode: session.meetingCode,
@@ -424,7 +479,9 @@ export class ContentController {
     }
     // `setCapturePaused(false)` já recorta por dentro; chamar sempre que a fase
     // sai de pausada cobre também o resume vindo de outra superfície.
-    if (prev?.phase === 'paused' && next.phase === 'recording') {
+    // Qualquer saída da pausa — inclusive direto para o fim —, não só a volta
+    // a gravar: pausar e sair deixava a próxima reunião sem captura.
+    if (prev?.phase === 'paused') {
       this.provider.setCapturePaused(false);
       return;
     }
@@ -453,9 +510,11 @@ export class ContentController {
     this.recutIfNeeded(prev, state);
 
     const inMeeting = this.provider.detectMeeting() !== null;
+    const minha =
+      state.session !== null && state.session.meetingCode === this.salaDaCaptura;
 
-    // Legendas: liga sozinho enquanto a reunião espera por elas.
-    if (state.phase === 'captionsRequired' && inMeeting) {
+    // Legendas: liga sozinho enquanto a reunião (DESTA aba) espera por elas.
+    if (state.phase === 'captionsRequired' && inMeeting && minha) {
       this.ensureCaptionRetries();
     } else if (state.phase !== 'captionsRequired') {
       this.stopCaptionRetries();
@@ -467,13 +526,14 @@ export class ContentController {
       state.phase === 'captionsRequired' ||
       state.phase === 'recording' ||
       state.phase === 'paused';
-    setNativeCaptionsHidden(sessionActive && this.prefs.hideMeetCaptions);
+    setNativeCaptionsHidden(minha && sessionActive && this.prefs.hideMeetCaptions);
 
     // Nada na tela antes de saber COMO ele deve estar. O estado fica guardado e
     // a assinatura das preferências pinta o primeiro quadro já correto.
     if (!this.prefsLoaded) return;
 
-    this.render(state);
+    // A reunião de OUTRA aba não aparece aqui: esta cápsula fala desta sala.
+    this.render(minha ? state : IDLE_STATE);
   }
 
   /**

@@ -13,6 +13,15 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  /*
+   * Os testes rodam com o andaime de desenvolvimento LIGADO — é a configuração
+   * em que ele existe, e portanto a única em que ele pode ser testado. A
+   * `Sidebar.test.tsx` monta o `App` inteiro, e com a bandeira indefinida a
+   * montagem quebraria num `ReferenceError` que não diz nada sobre o produto.
+   */
+  define: {
+    __TAQCITI_DEV__: 'true',
+  },
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
     environment: 'jsdom',

@@ -122,10 +122,26 @@ const XAI_PRICING: Record<string, ModelPrice> = {
   },
 };
 
+/**
+ * OpenAI — tabela VAZIA de propósito, por enquanto.
+ *
+ * Preço inventado é pior que preço ausente: `estimateCost` devolve `undefined`
+ * para modelo fora da tabela, e o relatório mostra a lacuna em vez de um número
+ * que ninguém pagou (ver o comentário de `estimateCost`). Os valores entram
+ * quando os modelos da OpenAI forem escolhidos e os preços conferidos na
+ * documentação oficial — o que esta fase não faz, porque não consulta a rede.
+ */
+const OPENAI_PRICING: Record<string, ModelPrice> = {};
+
+/** O mock não custa. Não é "de graça": é que não há chamada nenhuma. */
+const MOCK_PRICING: Record<string, ModelPrice> = {};
+
 export const PRICING: Record<ProviderId, Record<string, ModelPrice>> = {
   anthropic: ANTHROPIC_PRICING,
+  openai: OPENAI_PRICING,
   google: GOOGLE_PRICING,
   xai: XAI_PRICING,
+  mock: MOCK_PRICING,
 };
 
 export function priceFor(provider: ProviderId, model: string): ModelPrice | undefined {

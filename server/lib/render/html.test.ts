@@ -4,7 +4,7 @@ import { MARCA_CAPA_LARGURA_PT } from './brand';
 import { CINZA_LINHA, TAMANHO_RODAPE_PT, TINTA } from './typography';
 import { TEMPLATES } from '../templates';
 import { textoDeLacuna, type DocumentData, type Gap } from '../documentData';
-import { marcadorDeLacuna } from '../agents/escritor';
+import { marcadorDeLacuna } from '../vazamento';
 
 const completa: DocumentData = {
   metadata: { date: '12/08/2026', projectName: 'Projeto Fênix' },
@@ -280,7 +280,7 @@ describe('omitWhenEmpty', () => {
     expect(render({ ...completa, decisions: [] }, [])).toContain('>Decisões tomadas</h2>');
   });
 
-  it('usa a MESMA regra de vazio que o Escritor', () => {
+  it('usa a MESMA regra de vazio que o markdown', () => {
     // Duas definições de "vazio" fariam o HTML e o markdown discordarem
     // sobre quais seções o documento tem.
     const semNenhum = render({ metadata: { date: '12/08/2026' } }, []);

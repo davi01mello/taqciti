@@ -69,8 +69,3 @@ export function registrarFontes(doc: PDFKit.PDFDocument): void {
   doc.registerFont(FONTE_REGULAR, lerFonte(FONTE_REGULAR));
   doc.registerFont(FONTE_NEGRITO, lerFonte(FONTE_NEGRITO));
 }
-
-/** Pro teste conferir que o arquivo embutido é mesmo Barlow. */
-export function fonteBuffer(nome: string): Buffer {
-  return lerFonte(nome);
-}

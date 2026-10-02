@@ -33,10 +33,13 @@
  *
  * ── Custo ──────────────────────────────────────────────────────────────────
  *
- * O laço desenha ~1.900 partículas por quadro. O passo em x é fixo em 6px, e
- * não proporcional à largura: numa tela de 2.560px isso é mais partícula, que
- * é exatamente o que se quer (a onda não "estica"). O devicePixelRatio é
- * limitado a 1,5 porque acima disso o ganho visual some e o custo dobra.
+ * O laço desenha milhares de partículas por quadro (o passo em x é fixo em
+ * 6px, e não proporcional à largura: numa tela larga isso é mais partícula,
+ * que é exatamente o que se quer — a onda não "estica"). Por isso cada
+ * partícula é um `fillRect`, não um `arc`+`fill`: na escala de ~1px de raio
+ * as duas formas são indistinguíveis, mas `arc` tesselava uma curva por
+ * partícula, e era o maior custo do laço. O devicePixelRatio é limitado a
+ * 1,5 porque acima disso o ganho visual some e o custo dobra.
  */
 import { useEffect, useRef } from 'react';
 
@@ -214,12 +217,19 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
           const alfa = 0.4 * recuo * env * (1 - Math.abs(linha - meio) / 14);
           const central = linha === Math.round(meio);
 
+          /*
+           * `fillRect`, não `arc`+`fill`: nesta escala (raio de ~1px) um
+           * quadrado e um círculo são indistinguíveis, mas o círculo exige
+           * tesselar uma curva a cada uma das milhares de partículas por
+           * quadro. Era o maior custo do laço — trocar a forma, não a
+           * quantidade nem a cor, foi o que sobrou de banda para o resto da
+           * página (o cursor incluso) parar de perder quadro.
+           */
+          const raio = central ? 1.25 : 0.7;
           ctx.fillStyle = central
             ? `rgba(${brilho}, ${alfa * 1.9})`
             : `rgba(${verde}, ${alfa})`;
-          ctx.beginPath();
-          ctx.arc(x, y, central ? 1.25 : 0.7, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.fillRect(x - raio, y - raio, raio * 2, raio * 2);
 
           // Hastes verticais na linha central: é o que dá leitura de
           // "espectro" em vez de "linha ondulando".
@@ -234,9 +244,7 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
             ctx.lineTo(x, y - subida);
             ctx.stroke();
             ctx.fillStyle = `rgba(${brilho}, ${env * 0.7 * recuo})`;
-            ctx.beginPath();
-            ctx.arc(x, y - subida, 1.1, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.fillRect(x - 1.1, y - subida - 1.1, 2.2, 2.2);
           }
         }
       }

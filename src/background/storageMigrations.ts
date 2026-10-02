@@ -46,14 +46,14 @@ async function migrateCompanionKeys(): Promise<void> {
     await writeLocal(STORAGE_KEYS.history, legacyHistory);
   }
 
-  for (const key of ['outbox', 'metrics'] as const) {
-    const [current, legacy] = await Promise.all([
-      readLocal(STORAGE_KEYS[key]),
-      readLocal(LEGACY_STORAGE_KEYS[key]),
-    ]);
-    if (current === null && legacy !== null) {
-      await writeLocal(STORAGE_KEYS[key], legacy);
-    }
+  // O `outbox` da era Companion não é copiado: nada nesta versão o lê. Ele
+  // só é apagado, junto com as outras chaves antigas, no fim.
+  const [metricas, metricasAntigas] = await Promise.all([
+    readLocal(STORAGE_KEYS.metrics),
+    readLocal(LEGACY_STORAGE_KEYS.metrics),
+  ]);
+  if (metricas === null && metricasAntigas !== null) {
+    await writeLocal(STORAGE_KEYS.metrics, metricasAntigas);
   }
 
   const snapshot = await readLocal<MeetingState>(LEGACY_STORAGE_KEYS.activeSnapshot);

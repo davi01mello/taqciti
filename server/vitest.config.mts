@@ -24,5 +24,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['lib/**/*.test.ts'],
+    // A tranca que impede qualquer teste de chamar provedor de verdade. Roda
+    // antes de qualquer importação — ver o cabeçalho do arquivo.
+    setupFiles: ['./vitest.setup.ts'],
   },
 });

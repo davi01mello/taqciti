@@ -59,7 +59,7 @@ import { crcDe, lerZip, montarZip } from './lib/zip.mjs';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 /*
- * A ORIGEM DO GUIA NO PROJETO é `assetsingestion/`, e é de lá que ele entra no
+ * A ORIGEM DO GUIA NO PROJETO é `installer/guide/`, e é de lá que ele entra no
  * pacote. O HTML é autossuficiente — CSS, arte de fundo e script já vivem
  * dentro dele — então "incorporar" aqui é copiar o arquivo para a raiz de
  * TaqCiti/ preenchendo os dois marcadores de nome de instalador, e nada mais.
@@ -70,7 +70,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
  * publicar a versão errada do guia por ordem alfabética seria pior do que
  * falhar.
  */
-const PASTA_GUIA = join(ROOT, 'assetsingestion');
+const PASTA_GUIA = join(ROOT, 'installer', 'guide');
 const PADRAO_GUIA = /^COMECE_AQUI.*\.html$/i;
 
 /** Nome da pasta raiz dentro do ZIP, e base do nome do próprio ZIP. */
@@ -348,7 +348,7 @@ function paraJs(texto) {
   return texto.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
 }
 
-/** Localiza o guia em assetsingestion/. Zero ou mais de um é erro. */
+/** Localiza o guia em installer/guide/. Zero ou mais de um é erro. */
 function acharGuia() {
   if (!existsSync(PASTA_GUIA)) {
     anotar(`a pasta de origem do guia não existe: ${PASTA_GUIA}`);

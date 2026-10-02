@@ -61,17 +61,27 @@ function panelResourcesEverywhere(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), crx({ manifest }), panelResourcesEverywhere()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  /*
+   * A bandeira do andaime de desenvolvimento. Literal em tempo de build, para
+   * o ramo inteiro poder ser eliminado quando ela é falsa — ver
+   * `src/ambiente.d.ts` para o porquê de não ser `import.meta.env.DEV`.
+   */
+  define: {
+    __TAQCITI_DEV__: JSON.stringify(mode !== 'production'),
+  },
   build: {
     target: 'es2022',
     sourcemap: false,
-    outDir: 'dist',
+    // Pastas separadas: carregar a extensão de desenvolvimento no Chrome não
+    // pode exigir rebuildar a de produção depois, e vice-versa.
+    outDir: mode === 'production' ? 'dist' : 'dist-dev',
     emptyOutDir: true,
     rollupOptions: {
       // Entry points que nenhum campo do manifesto MV3 descobre sozinho: são
@@ -84,4 +94,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

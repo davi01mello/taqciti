@@ -87,6 +87,7 @@ export const sessionStateSchema = z.object({
   droppedSegments: z.number(),
   reconnectCount: z.number(),
   captureDegradedCount: z.number().int().nonnegative().default(0),
+  captureHealthy: z.boolean().default(true),
   lastChunkAt: z.number().int().nonnegative().nullable().default(null),
   wasDiscardedAndRestarted: z.boolean(),
   captionLanguage: z.enum(['pt', 'en', 'unknown']).default('unknown'),
@@ -129,6 +130,15 @@ const contentMessages = z.discriminatedUnion('type', [
     type: z.literal('meet/captureDegraded'),
     reason: z.enum(['parser', 'stall']),
   }),
+  /**
+   * A captura voltou a ler as legendas.
+   *
+   * Existe porque a ida já era contada e a VOLTA não era: só a cápsula, dentro
+   * da aba do Meet, sabia que a interrupção tinha acabado. A sidebar é página
+   * da extensão e nunca enxergou o DOM da reunião — sem este recado, ela ficaria
+   * avisando de uma interrupção resolvida até a reunião terminar.
+   */
+  z.object({ type: z.literal('meet/captureRecovered') }),
 ]);
 
 /**
@@ -184,6 +194,8 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
     secao: homeSectionSchema.optional(),
     /** Abre já nesta reunião do histórico, dentro de "Reuniões". */
     recordId: z.string().max(200).optional(),
+    /** Abre já neste documento, dentro de "Documentos" — o link de uma fonte citada. */
+    documentId: z.string().max(200).optional(),
   }),
   /**
    * "Estou aqui" — o painel se anuncia ao montar, e é assim que o estado ao
@@ -232,6 +244,22 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
     id: z.string(),
     title: z.string().min(1).max(200),
   }),
+  /**
+   * Devolve ao histórico uma reunião que o Taq tinha mandado para a lixeira
+   * (ver `features/taq/lixeira.ts`). Passa pelo background porque ele é o dono
+   * único da escrita do histórico — o mesmo `upsertRecord` da captura.
+   */
+  z.object({
+    type: z.literal('ui/history/restore'),
+    record: z
+      .object({
+        id: z.string().min(1),
+        title: z.string(),
+        startedAt: z.number(),
+        segments: z.array(z.unknown()),
+      })
+      .passthrough(),
+  }),
 ]);
 
 /** Broadcast do background → todos os contextos. */
@@ -249,10 +277,3 @@ export const messageSchema = z.union([
 export type ExtensionMessage = z.infer<typeof messageSchema>;
 /** Um comando emitido por uma UI — o vocabulário da camada de plataforma. */
 export type UiCommand = z.infer<typeof uiMessageSchema>;
-export type MessageOf<T extends ExtensionMessage['type']> = Extract<
-  ExtensionMessage,
-  { type: T }
->;
-
-/** Respostas possíveis a mensagens que esperam retorno. */
-export const stateResponseSchema = meetingStateSchema;

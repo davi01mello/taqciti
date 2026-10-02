@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# A build de desenvolvimento (`npm run build:dev`): a mesma extensão, mais os
+# controles de simulação e a população de demonstração. Serve para avaliar a
+# interface cheia; nunca é o que se publica.
+dist-dev/
 release/
 .env
 .env.*

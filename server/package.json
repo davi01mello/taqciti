@@ -2,7 +2,7 @@
   "name": "taqciti-document-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Servidor de geração de documento pós-reunião do TaqCITi — pipeline Pensante/Auditor/Escritor, ver lib/generateDocument.ts.",
+  "description": "Servidor de geração de documento pós-reunião do TaqCITi — uma leitura (Leitor) e uma conferência (Auditor), ver lib/generateDocument.ts.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,14 +15,19 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
     "@google/genai": "^2.16.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "next": "^16.3.0",
     "pdfkit": "^0.19.1",
+    "pg": "^8.23.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^20.17.9",
     "@types/pdfkit": "^0.17.6",
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "pdf-lib": "^1.17.1",

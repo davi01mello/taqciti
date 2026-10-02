@@ -134,6 +134,31 @@ cobrir. **Não pule.**
 | Feche o Chrome por completo, reabra e entre no mesmo link. | **Pergunta de novo**, mesmo que a última resposta tenha sido "sim". |
 | Confira o histórico. | As reuniões anteriores continuam todas lá — o que expira é a permissão, não o registro. |
 
+## 13. Apagar o que foi guardado
+
+Na HOME. Cada remoção pergunta antes, e o texto da pergunta faz parte do teste:
+uma confirmação que não diz o que vai junto é o defeito.
+
+| Passo | Resultado esperado |
+| --- | --- |
+| **Reuniões** → abra a reunião → lixeira no topo da coluna **Notas da reunião**. | Pergunta "Apagar as notas desta reunião?", dizendo que **a transcrição não é afetada**. |
+| **Cancelar**. | A nota continua inteira no campo. |
+| Escreva uma linha nova na nota e, **sem esperar**, clique na lixeira → **Apagar**. | Campo vazio, e ele **continua vazio** depois de uns segundos. A última tecla digitada não pode ressuscitar a nota. |
+| Volte para a lista de Reuniões. | A reunião **não** mostra mais "· com nota". A transcrição está lá, inteira. |
+| Com a nota vazia, olhe o topo da coluna. | **Não** há lixeira: sem nota, não há o que apagar. |
+| **Documentos** → passe o mouse sobre um item. | A lixeira do item acende no fim da linha. |
+| Clique nela. | O item vira a pergunta, no lugar dele. Os outros itens continuam itens. A pergunta diz que **a reunião de origem não é afetada**. |
+| **Apagar**. | O documento sai da lista. A reunião de origem continua no histórico. |
+| Abra um documento e use o menu secundário do rodapé → **Apagar documento**. | Mesma pergunta, e ao apagar a tela volta para a lista. |
+| Menu de **conversas** (canto superior direito) → lixeira de uma linha. | A linha vira a pergunta, com o título da conversa. As outras continuam clicáveis. |
+| **Esc**. | Desfaz a pergunta, **sem** fechar o menu. Um segundo **Esc** fecha o menu. |
+| Apague a conversa que está **aberta na tela**. | A tela passa a mostrar a conversa mais recente que sobrou — nunca as mensagens da que acabou de sumir. |
+| Apague a última conversa que restava. | "Nenhuma conversa guardada ainda…" e a tela de abertura. |
+
+> Com a sincronização **ligada** (Conexões), cada remoção destas deve virar uma
+> remoção no servidor na passada seguinte — ver `src/features/sync/`. Um item
+> que continue no acervo depois de apagado aqui é defeito grave; registre.
+
 ---
 
 ## O que registrar

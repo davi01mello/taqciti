@@ -1,7 +1,11 @@
 /**
  * Auditor: uma afirmação está sustentada pelo trecho ORIGINAL da reunião?
  *
- * Roda somente em seções `audit: 'strict'` — hoje Participantes e Decisões.
+ * Roda somente em seções `audit: 'strict'` — hoje Participantes e Decisões —
+ * e é a única segunda opinião que sobrou no pipeline. Fica porque não é
+ * redundante com o Leitor: ele julga uma afirmação vendo SÓ o trecho citado,
+ * o que pega exatamente o erro que quem leu a reunião inteira não vê em si
+ * mesmo (o cargo deduzido do tom, a concordância que era de outro assunto).
  *
  * O Auditor lê o trecho original, e só ele. Se validasse contra uma paráfrase
  * estaria auditando uma interpretação, e nunca detectaria erro introduzido na
@@ -35,13 +39,23 @@ export const EXCERPT_PADDING_CHARS = 400;
 export const QUOTE_OPEN = '⟦';
 export const QUOTE_CLOSE = '⟧';
 
-const VERDICT_SCHEMA: JsonSchema = {
+const VERDICTS_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    supported: { type: 'boolean' },
-    reason: { type: 'string', description: 'Uma frase.' },
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'O id da afirmação julgada.' },
+          supported: { type: 'boolean' },
+          reason: { type: 'string', description: 'Uma frase.' },
+        },
+        required: ['id', 'supported', 'reason'],
+      },
+    },
   },
-  required: ['supported', 'reason'],
+  required: ['verdicts'],
 };
 
 export interface AuditVerdict {
@@ -51,8 +65,8 @@ export interface AuditVerdict {
   /** O trecho que foi julgado. Guardado para o relatório: sem ele, um veredito
    *  discutível é impossível de rever sem repetir a chamada. */
   excerpt: string;
+  /** A chamada (única) em que este veredito saiu. Ausente = decidido em código. */
   meta?: CompletionResult['meta'];
-  usage?: CompletionResult['usage'];
 }
 
 export interface AuditarInput {
@@ -126,18 +140,28 @@ function renderRange(transcript: string, range: Range, anchors: LocatedAnchor[])
   return out + transcript.slice(cursor, range.end);
 }
 
+/**
+ * UMA chamada para todas as afirmações, e não uma por afirmação.
+ *
+ * Antes eram ~11 chamadas por Ata (um participante ou uma decisão cada), e em
+ * todas o prompt de sistema inteiro ia de novo para julgar um trecho de 800
+ * caracteres. O julgamento continua sendo por afirmação — cada uma leva o seu
+ * trecho e o prompt proíbe usar o trecho de uma como evidência de outra —; o
+ * que se junta é só o envelope.
+ */
 export async function auditar(input: AuditarInput): Promise<AuditarResult> {
   const padding = input.padding ?? EXCERPT_PADDING_CHARS;
-  const system = renderPrompt('auditor', input.promptVersion ?? 'v2');
 
   const verdicts: AuditVerdict[] = [];
   const usage = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 };
   const calls: CompletionResult['meta'][] = [];
 
+  const aJulgar: { id: string; claim: AuditableClaim; excerpt: string }[] = [];
+
   for (const claim of input.claims) {
     // Rejeição decidida em CÓDIGO. Hoje: decisão cuja concordância não existe
     // na transcrição. Não é opinião do modelo, é ausência de evidência — e
-    // gastar chamada para confirmar o que já se sabe seria só custo.
+    // gastar token para confirmar o que já se sabe seria só custo.
     if (claim.blocker) {
       verdicts.push({ path: claim.path, supported: false, reason: claim.blocker, excerpt: '' });
       continue;
@@ -157,44 +181,73 @@ export async function auditar(input: AuditarInput): Promise<AuditarResult> {
       continue;
     }
 
+    // Id curto e sem significado: o path (`participants[0]`) no lugar dele
+    // convidaria o modelo a julgar pelo nome do campo.
+    aJulgar.push({ id: `a${aJulgar.length + 1}`, claim, excerpt });
+  }
+
+  if (aJulgar.length > 0) {
     const result = await complete('auditor', {
-      system,
+      system: renderPrompt('auditor', input.promptVersion ?? 'v3'),
       messages: [
         {
           role: 'user',
-          content: [
-            '# Trecho da transcrição',
-            '',
-            excerpt,
-            '',
-            '# Afirmação a conferir',
-            '',
-            claim.text,
-          ].join('\n'),
+          content: aJulgar
+            .map(({ id, claim, excerpt }) =>
+              [
+                `# Afirmação ${id}`,
+                '',
+                '## Trecho da transcrição',
+                '',
+                excerpt,
+                '',
+                '## Afirmação a conferir',
+                '',
+                claim.text,
+              ].join('\n'),
+            )
+            .join('\n\n---\n\n'),
         },
       ],
-      maxTokens: 2_000,
-      jsonSchema: VERDICT_SCHEMA,
+      maxTokens: 2_000 + aJulgar.length * 500,
+      jsonSchema: VERDICTS_SCHEMA,
     });
 
-    const parsed = (result.parsed ?? {}) as { supported?: boolean; reason?: string };
     calls.push(result.meta);
     usage.inputTokens += result.usage.inputTokens;
     usage.outputTokens += result.usage.outputTokens;
     usage.cachedInputTokens += result.usage.cachedInputTokens ?? 0;
 
-    verdicts.push({
-      path: claim.path,
-      // Resposta malformada conta como NÃO sustentada. Na dúvida, rejeitar:
-      // afirmação descartada vira lacuna, aprovada por engano vira fato
-      // inventado num documento que será lido como registro da reunião.
-      supported: parsed.supported === true,
-      reason: parsed.reason ?? '(sem justificativa)',
-      excerpt,
-      meta: result.meta,
-      usage: result.usage,
-    });
+    const porId = new Map<string, { supported?: unknown; reason?: unknown }>();
+    const lista = ((result.parsed ?? {}) as { verdicts?: unknown }).verdicts;
+    for (const v of Array.isArray(lista) ? lista : []) {
+      const id = (v as { id?: unknown })?.id;
+      // Id repetido: vale o PRIMEIRO. Deixar o último vencer daria ao modelo
+      // um jeito de "corrigir" uma rejeição mais abaixo na mesma resposta.
+      if (typeof id === 'string' && !porId.has(id)) porId.set(id, v as never);
+    }
+
+    for (const { id, claim, excerpt } of aJulgar) {
+      const parsed = porId.get(id);
+      verdicts.push({
+        path: claim.path,
+        // Veredito ausente ou malformado conta como NÃO sustentado. Na dúvida,
+        // rejeitar: afirmação descartada vira lacuna, aprovada por engano vira
+        // fato inventado num documento que será lido como registro da reunião.
+        supported: parsed?.supported === true,
+        reason:
+          typeof parsed?.reason === 'string'
+            ? parsed.reason
+            : '(o Auditor não devolveu veredito para esta afirmação)',
+        excerpt,
+        meta: result.meta,
+      });
+    }
   }
+
+  // Na ordem das afirmações recebidas, não na ordem em que foram decididas.
+  const ordem = new Map(input.claims.map((claim, index) => [claim.path, index]));
+  verdicts.sort((a, b) => (ordem.get(a.path) ?? 0) - (ordem.get(b.path) ?? 0));
 
   return {
     verdicts,

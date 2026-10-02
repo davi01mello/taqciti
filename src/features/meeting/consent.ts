@@ -112,14 +112,36 @@ export async function abrirParticipacao(
   return nova;
 }
 
+/** Avisa a cada participação aberta, fechada ou retomada. */
+export function observarParticipacao(
+  cb: (participacao: Participacao | null) => void,
+): () => void {
+  let vivo = true;
+  void lerParticipacao().then((p) => {
+    if (vivo) cb(p);
+  });
+  const parar = onSessionChange<unknown>(STORAGE_KEYS.participation, (valor) => {
+    if (vivo) cb(ehParticipacao(valor) ? valor : null);
+  });
+  return () => {
+    vivo = false;
+    parar();
+  };
+}
+
 /**
  * Saiu da sala. A participação não é APAGADA — fica fechada, para uma volta em
  * seguida poder retomá-la. Apagar aqui faria toda queda de conexão virar uma
  * reunião nova, com pergunta nova e transcrição partida em duas.
  */
-export async function fecharParticipacao(agora: number): Promise<void> {
+export async function fecharParticipacao(
+  agora: number,
+  /** Só fecha se a participação aberta for desta sala. */
+  meetingCode?: string,
+): Promise<void> {
   const atual = await lerParticipacao();
   if (!atual || atual.saiuEm !== null) return;
+  if (meetingCode !== undefined && atual.meetingCode !== meetingCode) return;
   await writeSession(STORAGE_KEYS.participation, { ...atual, saiuEm: agora });
 }
 
@@ -207,7 +229,14 @@ export async function anunciarReuniao(reuniao: ReuniaoDetectada): Promise<void> 
 }
 
 /** A sala acabou (ou a decisão saiu): não há mais o que perguntar. */
-export async function esquecerReuniao(): Promise<void> {
+export async function esquecerReuniao(
+  /** Só esquece se a reunião anunciada for desta sala. */
+  meetingCode?: string,
+): Promise<void> {
+  if (meetingCode !== undefined) {
+    const anunciada = await lerReuniaoDetectada();
+    if (anunciada && anunciada.meetingCode !== meetingCode) return;
+  }
   await writeSession(STORAGE_KEYS.pendingMeeting, null);
 }
 

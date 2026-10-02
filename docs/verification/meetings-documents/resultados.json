@@ -1,0 +1,16 @@
+{
+  "profile": "C:\\Users\\edisi\\AppData\\Local\\Temp\\taqciti-verification-uOGhEM",
+  "browser": "153.0.4234.48",
+  "checks": [
+    "Link antigo abre a reunião atual; proporção 2:1; notas antigas agregadas",
+    "Alternância estreita preserva rolagem e rascunho durante captura simulada",
+    "HOME e sidebar leem e editam a mesma nota após confirmação do salvamento",
+    "Renomeação da reunião preserva vínculo com as notas",
+    "Geração simulada: falha preserva resultado, bloqueia perda e permite repetir persistência",
+    "Editor renomeia e salva; download contém exatamente a versão confirmada",
+    "Falha no editor mantém rascunho e não permite saída silenciosa",
+    "Reinício completo do navegador preserva documento, edições, título e origem"
+  ],
+  "generation": "SIMULADA; sem IA; dados [TESTE]",
+  "errors": []
+}

@@ -1,0 +1,266 @@
+/*
+ * O glifo da escuta (`MarcaDaEscuta.tsx`): a onda virando escrita.
+ *
+ * Mesmas regras da marca: todo movimento é `transform`/`opacity`. Camadas:
+ *   onda  — `.tq-escuta-onda` (forma do estado, transição) > `.v` (movimento
+ *           contínuo) > `.e` (faísca/rajada pela Web Animations API, e a cor);
+ *   linha — `.tq-escuta-linha` > `.e` (a escrita, sempre da esquerda).
+ * A tinta de desfecho (cinza, âmbar) é uma camada de opacidade por cima da
+ * cor, nunca troca de cor quadro a quadro.
+ */
+
+.tq-escuta {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.tq-escuta-onda,
+.tq-escuta-linha,
+.tq-escuta-faisca {
+  position: absolute;
+  display: block;
+}
+
+.tq-escuta .v,
+.tq-escuta .e {
+  display: block;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+
+.tq-escuta .e {
+  position: relative;
+  border-radius: 999px;
+}
+
+.tq-escuta-onda .e {
+  background: linear-gradient(to bottom, var(--c1), var(--c2));
+}
+
+.tq-escuta-linha .e {
+  background: linear-gradient(to right, var(--c1), var(--c2));
+  transform-origin: left center;
+  transition: opacity 0.4s ease;
+}
+
+.tq-escuta .e::before,
+.tq-escuta .e::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.tq-escuta .e::before {
+  background: rgb(150 153 157);
+}
+
+.tq-escuta .e::after {
+  background: linear-gradient(to right, rgb(236 255 244), rgb(210 248 230));
+}
+
+.tq-escuta-onda {
+  transform: scaleY(1);
+  transition: transform 0.5s cubic-bezier(0.34, 1.5, 0.6, 1);
+}
+
+.tq-escuta-faisca {
+  border-radius: 50%;
+  background: rgb(214 255 232);
+  box-shadow: 0 0 4px 1px rgb(110 214 150 / 0.8);
+  opacity: 0;
+}
+
+/* ------------------------------------------------------------ capturando */
+
+/* A onda ouve: cada barra no seu ritmo, o meio mais largo. */
+.tq-escuta[data-estado='capturando'] .tq-escuta-onda .v {
+  animation: tq-escuta-ouvir 0.9s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -0.37s);
+}
+
+.tq-escuta[data-estado='capturando'] .tq-escuta-onda:nth-child(2) .v {
+  animation-duration: 0.7s;
+}
+
+/* As linhas se escrevem, uma depois da outra, em passos de digitação — e
+   saem pelo alto, como a transcrição rolando. */
+.tq-escuta[data-estado='capturando'] .tq-escuta-linha .e {
+  animation: tq-escuta-escrever 3s infinite both;
+  animation-delay: calc(var(--i) * 0.5s);
+}
+
+/* ------------------------------------------------------------ preparando */
+
+/* A onda vira três pontos que digitam (…); as linhas são o esqueleto do
+   texto que ainda não veio. */
+.tq-escuta[data-estado='preparando'] .tq-escuta-onda {
+  transform: scaleY(var(--ponto));
+}
+
+.tq-escuta[data-estado='preparando'] .tq-escuta-onda .v {
+  animation: tq-escuta-digitar 1.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.16s);
+}
+
+.tq-escuta[data-estado='preparando'] .tq-escuta-linha .e {
+  animation: tq-escuta-esqueleto 1.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.2s);
+}
+
+.tq-escuta[data-estado='preparando'] .e::before {
+  opacity: 0.55;
+}
+
+/* --------------------------------------------------------------- pausada */
+
+/* Parado e acinzentado. As linhas inteiras: o que foi escrito continua. */
+.tq-escuta[data-estado='pausada'] .tq-escuta-onda {
+  transform: scaleY(0.55);
+}
+
+.tq-escuta[data-estado='pausada'] .e::before {
+  opacity: 0.78;
+}
+
+/* ---------------------------------------------------------- interrompida */
+
+/* A onda achata em âmbar; as linhas piscam devagar — há legenda, e a captura
+   não a lê. */
+.tq-escuta[data-estado='interrompida'] .tq-escuta-onda {
+  transform: scaleY(var(--ponto));
+}
+
+.tq-escuta[data-estado='interrompida'] .e::before {
+  background: rgb(232 176 110);
+  opacity: 1;
+}
+
+.tq-escuta[data-estado='interrompida'] .tq-escuta-linha .e {
+  animation: tq-escuta-falhar 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.3s);
+}
+
+/* ----------------------------------------------------------------- salva */
+
+/* A página completa, e um brilho passa pelas linhas uma vez — no instante em
+   que a reunião é salva (`data-brilho`), e não a cada vez que a sidebar abre
+   uma reunião já salva. */
+.tq-escuta[data-estado='salva'][data-brilho='sim'] .tq-escuta-linha .e::after {
+  animation: tq-escuta-brilho 0.8s ease-out 1 both;
+  animation-delay: calc(0.15s + var(--i) * 0.12s);
+}
+
+/* ------------------------------------------------------------- desligada */
+
+.tq-escuta[data-estado='desligada'] .e::before {
+  background: rgb(120 126 133);
+  opacity: 1;
+}
+
+.tq-escuta[data-estado='desligada'] > span:not(.tq-escuta-faisca) {
+  opacity: 0.6;
+}
+
+/* ------------------------------------------------------------- keyframes */
+
+@keyframes tq-escuta-ouvir {
+  from {
+    transform: scaleY(0.45);
+  }
+  to {
+    transform: scaleY(1.12);
+  }
+}
+
+@keyframes tq-escuta-escrever {
+  0% {
+    transform: scaleX(0);
+    opacity: 1;
+    /* Passos de digitação, e não um deslizar. */
+    animation-timing-function: steps(5, end);
+  }
+  28% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  78% {
+    transform: scaleX(1) translateY(0);
+    opacity: 1;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: scaleX(1) translateY(-60%);
+    opacity: 0;
+  }
+}
+
+@keyframes tq-escuta-digitar {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  /* Relativo à barra ainda não encolhida: o ponto sobe ~1,5 espessura. */
+  25% {
+    transform: translateY(-160%);
+    opacity: 1;
+  }
+}
+
+@keyframes tq-escuta-esqueleto {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes tq-escuta-falhar {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes tq-escuta-brilho {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.75;
+  }
+}
+
+/* Movimento reduzido: cada estado vira um desenho parado e legível. */
+@media (prefers-reduced-motion: reduce) {
+  .tq-escuta *,
+  .tq-escuta *::before,
+  .tq-escuta *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .tq-escuta[data-estado='preparando'] .tq-escuta-linha .e {
+    opacity: 0.4;
+  }
+
+  /* Parado, "ao vivo" e "salva" seriam o mesmo desenho: a faísca acesa entre
+     a onda e o texto é o que diz que a fala está chegando agora. */
+  .tq-escuta[data-estado='capturando'] .tq-escuta-faisca {
+    opacity: 0.9;
+    transform: translateX(45%);
+  }
+}

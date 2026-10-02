@@ -16,9 +16,22 @@
  * provedor garante a forma ou se o adaptador precisou validar e reparar.
  */
 
-export type ProviderId = 'anthropic' | 'google' | 'xai';
+/**
+ * `mock` é um provedor de primeira classe, e não um caso especial tratado com
+ * `if` no chamador. A razão é a mesma que faz esta camada existir: quem pede
+ * inferência não conhece provedor. Um mock que morasse fora da lista obrigaria
+ * todo consumidor a saber que existe um modo de teste — e o código exercitado
+ * nos testes deixaria de ser o mesmo que roda em produção.
+ */
+export type ProviderId = 'anthropic' | 'openai' | 'google' | 'xai' | 'mock';
 
-export const PROVIDER_IDS: readonly ProviderId[] = ['anthropic', 'google', 'xai'];
+export const PROVIDER_IDS: readonly ProviderId[] = [
+  'anthropic',
+  'openai',
+  'google',
+  'xai',
+  'mock',
+];
 
 export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value);
@@ -26,9 +39,14 @@ export function isProviderId(value: unknown): value is ProviderId {
 
 export type Capability = 'structuredOutput' | 'contextCache' | 'extendedThinking';
 
-export type AgentName = 'pensante' | 'auditor' | 'escritor';
+/**
+ * `leitor` lê a reunião uma vez e produz os dados do documento; `auditor`
+ * confere as afirmações críticas contra o trecho citado. Eram três agentes
+ * (Pensante, Auditor, Escritor) — ver `agents/leitor.ts` para o que saiu.
+ */
+export type AgentName = 'leitor' | 'auditor';
 
-export const AGENT_NAMES: readonly AgentName[] = ['pensante', 'auditor', 'escritor'];
+export const AGENT_NAMES: readonly AgentName[] = ['leitor', 'auditor'];
 
 export interface CompletionMessage {
   role: 'user' | 'assistant';
@@ -53,7 +71,20 @@ export interface CompletionRequest {
    * essa diferença que o harness da Fase 8 vai medir.
    */
   cacheablePrefix?: string;
+  /**
+   * Quanto raciocínio esta chamada merece. Ausente = o padrão do modelo (ver
+   * THINKING_LEVEL em providers/google.ts).
+   *
+   * É a alavanca de custo que mais pesa: raciocínio é cobrado como token de
+   * SAÍDA, e na medição de 16/08 a saída era dois terços do custo da Ata —
+   * quase toda ela raciocínio do Pensante em HIGH, inclusive na seção que só
+   * extrai um nome de projeto. Quem sabe o que a tarefa pede é quem chama,
+   * não o adaptador. Provedor sem controle por requisição ignora.
+   */
+  reasoning?: ReasoningEffort;
 }
+
+export type ReasoningEffort = 'low' | 'medium' | 'high';
 
 export interface CompletionUsage {
   inputTokens: number;

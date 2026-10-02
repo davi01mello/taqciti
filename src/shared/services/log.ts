@@ -30,6 +30,13 @@ const SAFE_LOG_KEYS = new Set([
   'code',
   'retryable',
   'errorType',
+  // Sincronização: contagens, e um motivo que só assume valores FIXOS
+  // definidos em `features/sync/sincronizacao.ts` ("servidor inalcançável",
+  // "credencial recusada", "servidor 500"). Nenhum deles carrega texto de
+  // reunião, e-mail nem token — se algum dia carregar, sai daqui.
+  'enviados',
+  'apagados',
+  'motivo',
 ]);
 
 function stamp(level: string): string {

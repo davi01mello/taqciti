@@ -97,6 +97,99 @@
 
 @layer components {
   /*
+   * As brasas — ver o comentário em `Brasas.tsx`.
+   *
+   * `background-repeat: repeat` ladrilha `brasas.png` nas duas direções — é
+   * esse ladrilhamento que faz o laço de `background-position-y` fechar sem
+   * costura, e não algo desenhado na própria imagem. `pointer-events: none`
+   * porque é fundo: clique, seleção e rolagem atravessam direto.
+   *
+   * `opacity` mora AQUI, no contêiner — nunca na imagem: é o ajuste de
+   * intensidade pedido, e fica reversível sem regravar o PNG.
+   *
+   * Sem `filter: saturate`: a tentativa de "mais vívidas" por aí puxava a
+   * cor toda para o mesmo verde e achatava o brilho branco-amarelado do
+   * centro de cada fagulha — exatamente o que a imagem original tinha de
+   * variado. A opacidade sozinha já entrega vívido sem distorcer a cor.
+   *
+   * `mask-image` é o que resolve "muito pequenas" E "bem escassas" ao
+   * mesmo tempo — as duas coisas que `background-size` sozinho não separa
+   * (ver `Brasas.tsx`: encolher o ladrilho encolhe a fagulha, mas também
+   * repete mais vezes). A máscara é um grid de círculos moles, bem mais
+   * espaçado que o ladrilho de baixo: só o que cai dentro de um círculo
+   * aparece, e o resto — mesmo que o ladrilho tivesse uma fagulha ali —
+   * fica encoberto. É outra grade, então gira 17° para as duas grades
+   * nunca lerem como uma só, e o `scale` cobre o que a rotação deixaria de
+   * fora nos cantos.
+   *
+   * ── Por que o laço anima `transform`, e não `background-position-y` ──────
+   *
+   * Animar `background-position` repinta a camada a cada quadro — e esta
+   * camada cobre a TELA INTEIRA, atrás de tudo, rodando pra sempre em loop
+   * de 90s. Isso competia por orçamento de quadro com qualquer outra
+   * coisa em movimento na página (o cursor customizado incluso), e o
+   * resultado lido era "o mouse está com lag" — o mouse nunca teve atraso
+   * nenhum, era a página inteira represando quadro.
+   *
+   * `transform` é composto pela GPU, sem repintura. Para trocar um pelo
+   * outro sem mudar UM PIXEL do resultado: a caixa cresce um ladrilho a
+   * mais para cima e para baixo (`top`/`bottom` em vez de `inset: 0`), e o
+   * laço passa a mover essa caixa inteira por `translateY` — como é a
+   * PRIMEIRA função do `transform` (a mais à direita), ela desloca o
+   * conteúdo no espaço local, ANTES do `scale`/`rotate`, exatamente como o
+   * deslocamento de fundo fazia. A folga extra garante que a área visível
+   * nunca fique sem ladrilho embaixo, em qualquer tamanho de tela.
+   */
+  .tq-brasas {
+    position: fixed;
+    top: calc(-1 * var(--altura-ladrilho));
+    right: 0;
+    bottom: calc(-1 * var(--altura-ladrilho));
+    left: 0;
+    z-index: 0;
+    pointer-events: none;
+    contain: paint;
+    background-repeat: repeat;
+    opacity: 0.7;
+    transform: rotate(17deg) scale(1.5) translateY(0);
+    will-change: transform;
+    mask-image: radial-gradient(circle 46px at center, #000 55%, transparent 100%);
+    mask-size: 320px 320px;
+    mask-repeat: repeat;
+    -webkit-mask-image: radial-gradient(
+      circle 46px at center,
+      #000 55%,
+      transparent 100%
+    );
+    -webkit-mask-size: 320px 320px;
+    -webkit-mask-repeat: repeat;
+    animation: tq-subir-brasas 90s linear infinite;
+  }
+
+  /*
+   * `animation-play-state`, e não desmontar o elemento: o fundo congela
+   * exatamente onde estava, do mesmo jeito que a onda da HOME e a bolinha
+   * do agente param sem sumir (ver `useAnimacao` e `AgenteOnda.tsx`).
+   */
+  .tq-brasas.parada {
+    animation-play-state: paused;
+  }
+
+  /*
+   * O passo vem de `--altura-ladrilho` (definida inline em `Brasas.tsx`,
+   * junto do `background-size`) — uma fonte só para as duas metades do
+   * laço, em vez de dois números copiados que podem parar de bater.
+   */
+  @keyframes tq-subir-brasas {
+    from {
+      transform: rotate(17deg) scale(1.5) translateY(0);
+    }
+    to {
+      transform: rotate(17deg) scale(1.5) translateY(calc(-1 * var(--altura-ladrilho)));
+    }
+  }
+
+  /*
    * A ÚNICA região que rola, onde quer que ela esteja.
    *
    * Existe como classe, e não como um punhado de utilitários repetidos, por

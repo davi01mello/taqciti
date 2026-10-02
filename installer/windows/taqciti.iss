@@ -57,7 +57,7 @@ OutputBaseFilename=taqciti-instalador-windows-{#AppVersion}
 Source: "..\..\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Guia visual — o MESMO arquivo que vai na raiz do pacote baixado
-; (assetsingestion/COMECE_AQUI.html), copiado bytes-a-bytes pelo próprio
+; (installer/guide/COMECE_AQUI.html), copiado bytes-a-bytes pelo próprio
 ; instalador do Inno, sem passar pelo Pascal Script, para uma pasta separada e
 ; persistente, fora da pasta "não apagar" da extensão.
 ;
@@ -65,7 +65,7 @@ Source: "..\..\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 ; install-path.js escrito do zero pelo [Code] abaixo. Assim o HTML — 4 MB, com
 ; acentos e a arte de fundo em base64 — nunca precisa ser lido de volta e
 ; regravado em Pascal Script, que é justamente por onde acentos se perdem.
-Source: "..\..\assetsingestion\COMECE_AQUI.html"; DestDir: "{localappdata}\TaqCITi\guide"; Flags: ignoreversion
+Source: "..\guide\COMECE_AQUI.html"; DestDir: "{localappdata}\TaqCITi\guide"; Flags: ignoreversion
 
 [Code]
 var

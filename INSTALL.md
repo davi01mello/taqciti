@@ -1,4 +1,4 @@
-# Como instalar a extensão TaqCITi
+# Como instalar a extensão TaqCiti
 
 A extensão funciona tanto no **Google Chrome** quanto no **Microsoft Edge**
 (os dois são baseados em Chromium e carregam extensões do mesmo jeito) — em
@@ -28,8 +28,8 @@ navegador. Se você for por ali, não precisa do resto desta seção.
 
 O passo a passo abaixo é o mesmo conteúdo em forma de texto, para quem já sabe
 o que está fazendo ou pegou o instalador solto pela GitHub Release
-(`taqciti-instalador-windows-*.exe`, `taqciti-instalador-mac-*.pkg`,
-`taqciti-instalador-linux-*.run`).
+(`TaqCiti-instalador-windows-*.exe`, `TaqCiti-instalador-mac-*.pkg`,
+`TaqCiti-instalador-linux-*.run`).
 
 ### Windows
 
@@ -51,8 +51,9 @@ o que está fazendo ou pegou o instalador solto pela GitHub Release
 
 1. Dê duplo-clique no `.pkg`.
 2. **É esperado que o Gatekeeper bloqueie na primeira vez**, com algo como
-   `"TaqCITi.pkg" não pode ser aberto porque é de um desenvolvedor não
-   identificado` — não é um problema com o arquivo, é só a ausência de uma
+   `"taqciti-instalador-mac-X.Y.Z.pkg" não pode ser aberto porque é de um
+   desenvolvedor não identificado` — não é um problema com o arquivo, é só a
+   ausência de uma
    assinatura de desenvolvedor Apple (conta paga, fora do escopo atual).
    O caminho que a Apple documenta hoje, depois do aviso aparecer:
    1. Abra **Ajustes do Sistema** → **Privacidade e Segurança** e role até o
@@ -80,8 +81,8 @@ o que está fazendo ou pegou o instalador solto pela GitHub Release
 
 1. Dê permissão de execução e rode:
    ```bash
-   chmod +x taqciti-instalador-linux-*.run
-   ./taqciti-instalador-linux-*.run
+   chmod +x TaqCiti-instalador-linux-*.run
+   ./TaqCiti-instalador-linux-*.run
    ```
 2. Copia os arquivos, copia o caminho pra área de transferência (se
    `xclip` ou `xsel` estiverem instalados) e abre o guia visual no
@@ -96,7 +97,7 @@ endereço da página de extensões.
 
 ### 1. Baixe e descompacte
 
-Salve o `taqciti-vX.X.X.zip` numa pasta fixa do computador (ex.: área de
+Salve o `TaqCiti-vX.X.X.zip` numa pasta fixa do computador (ex.: área de
 trabalho) e extraia. **Não apague nem mova essa pasta depois** — é dela
 que o navegador vai ler os arquivos direto; movê-la ou apagá-la quebra a
 extensão.
@@ -123,7 +124,7 @@ compactação"** (o texto do botão é o mesmo nos dois navegadores) e
 selecione a pasta que você descompactou no passo 1 — a pasta em si, não o
 arquivo `.zip`.
 
-Pronto! A extensão TaqCITi vai aparecer na lista e já está pronta para uso.
+Pronto! A extensão TaqCiti vai aparecer na lista e já está pronta para uso.
 
 ---
 
@@ -141,23 +142,38 @@ repita o passo 4 apontando para a pasta nova.
 **O navegador mostra um aviso dizendo que o "Modo do desenvolvedor" pode
 ser perigoso. É normal?**
 Sim. Esse aviso aparece para qualquer extensão carregada dessa forma (fora
-da loja oficial) e não indica nenhum problema com a TaqCITi.
+da loja oficial) e não indica nenhum problema com a TaqCiti.
 
 **O navegador avisa que a extensão pode "ler e alterar todos os seus dados
 nos sites que você visita". Por quê?**
-Porque o TaqCITi é uma janela flutuante que precisa continuar disponível
-enquanto você navega — o botão fica à mão em qualquer página, não só dentro
-do Google Meet. Para desenhar essa janela por cima de uma página, o
-navegador exige acesso a essa página, e não existe permissão mais estreita
-que signifique "desenhar por cima, sem ler nada".
+Porque o TaqCiti desenha uma **cápsula** que precisa continuar disponível
+enquanto você navega — ela fica à mão em qualquer página, não só dentro do
+Google Meet. Para desenhar isso por cima de uma página, o navegador exige
+acesso a essa página, e não existe permissão mais estreita que signifique
+"desenhar por cima, sem ler nada".
 
-Na prática, o que a extensão faz com esse acesso é: desenhar o próprio painel e,
-**apenas em `meet.google.com`**, ler as legendas da reunião. Nenhuma outra página
-é lida, e nada sai do seu computador — o histórico fica todo em armazenamento
-local, sem backend nenhum.
+Na prática, o que a extensão faz com esse acesso é: desenhar a própria cápsula
+e, **apenas em `meet.google.com`**, ler as legendas da reunião. Nenhuma outra
+página é lida.
 
 Se preferir não conceder isso, é possível restringir o acesso pela própria
-página de extensões do navegador → TaqCITi → **Detalhes** → **Acesso ao
+página de extensões do navegador → TaqCiti → **Detalhes** → **Acesso ao
 site**, escolhendo "Em sites específicos" e deixando só `meet.google.com`.
-O TaqCITi continua gravando reuniões normalmente; o que se perde é o botão
+O TaqCiti continua gravando reuniões normalmente; o que se perde é a cápsula
 nas outras páginas.
+
+**O que sai do meu computador?**
+Por padrão, nada: a transcrição, as notas, as marcações e os prints ficam no
+armazenamento local do navegador. Duas coisas saem, e as duas começam com um
+clique seu:
+
+- **Gerar documento** manda a transcrição daquela reunião para o servidor do
+  TaqCiti, que devolve a ata;
+- **Conexões → ligar a sincronização** passa a enviar as reuniões para o
+  servidor, para que um cliente de IA possa lê-las pelo conector. Enquanto
+  você não ligar, ela fica desligada, e o resto do produto funciona igual.
+
+Apagar uma reunião, um documento, uma conversa ou uma nota remove a cópia deste
+computador — e, se a sincronização estiver ligada, a próxima passada apaga a
+cópia do servidor também. O que sumiu daqui some de lá; não é preciso repetir a
+remoção em dois lugares.

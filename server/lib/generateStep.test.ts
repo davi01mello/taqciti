@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * A montagem do documento inteiro, com o modelo mockado. O que se testa aqui
- * é o que a rede de agentes garante no CÓDIGO: ordem das seções, `completed`
- * de verdade, lacuna visível, seção vazia sumindo e a guarda contra a
- * instrução do PDF vazar.
+ * é o que o pipeline garante no CÓDIGO: DUAS chamadas no máximo, ordem das
+ * seções, `completed` de verdade, lacuna visível, descarte do que o Auditor
+ * rejeita, seção vazia sumindo e a guarda contra a instrução do PDF vazar.
  */
 const complete = vi.hoisted(() => vi.fn());
 vi.mock('./ai', async (importOriginal) => ({
@@ -23,66 +23,37 @@ const transcript = [
   'Joao: De acordo, sexta.',
 ].join('\n');
 
-/**
- * Respostas por agente. O Pensante devolve a fatia da seção pedida; o
- * Auditor aprova; o Escritor devolve um cabeçalho com o que recebeu.
- */
-function mockPipeline(overrides: Record<string, unknown> = {}) {
-  const porSecao: Record<string, unknown> = {
-    identificacao: { date: '13/08/2026', projectName: 'Fenix' },
-    topico_geral: { topic: 'Cronograma', progress: 'Em andamento.' },
-    participantes: {
-      participants: [
-        {
-          name: 'Maria',
-          role: 'Gerente de Dados',
-          roleSource: 'meeting',
-          quotes: ['Maria, gerente de dados, abriu a reuniao.'],
-        },
-        { name: 'Joao', roleSource: 'unknown', quotes: ['Joao explicou o pipeline.'] },
-      ],
-    },
-    topicos_discutidos: {
-      topics: [{ title: 'Cronograma', summary: 'A entrega foi adiada.', quotes: [] }],
-    },
-    decisoes: {
-      decisions: [
-        {
-          text: 'Adiar a entrega para sexta-feira',
-          agreementQuote: 'De acordo, sexta.',
-          confidence: 'high',
-          quotes: ['Entao adiamos a entrega para sexta-feira.'],
-        },
-      ],
-    },
-    outcomes: { items: [] },
-    outputs: { items: [] },
-    conclusao: { text: 'O projeto segue com a entrega remarcada.' },
-    assinatura: {},
-    ...overrides,
-  };
-
-  // A seção pedida sai no cabeçalho do pedido. Pensante e Escritor rotulam
-  // diferente, então o mock reconhece as duas formas — casar pelo título solto
-  // pegaria o título de outra seção citado dentro do guidance.
-  const qualSecao = (conteudo: string) =>
-    TEMPLATES.ata.sections.find(
-      (s) =>
-        conteudo.includes(`Seção a preencher: ${s.title}`) ||
-        conteudo.includes(`da seção "${s.title}"`),
-    )?.id;
-
-  complete.mockImplementation(async (agent: string, req: { messages: { content: string }[] }) => {
-    const conteudo = req.messages[0]!.content;
-    if (agent === 'auditor') return reply({ supported: true, reason: 'ok' });
-    if (agent === 'escritor') {
-      const id = qualSecao(conteudo)!;
-      const section = TEMPLATES.ata.sections.find((s) => s.id === id)!;
-      return reply({ content: `## ${section.title}\n\nTexto redigido da seção.` });
-    }
-    return reply(porSecao[qualSecao(conteudo)!] ?? {});
-  });
-}
+const DOCUMENTO = {
+  identificacao: { date: '13/08/2026', projectName: 'Fenix' },
+  topico_geral: { topic: 'Cronograma', progress: 'Em andamento.' },
+  participantes: {
+    participants: [
+      {
+        name: 'Maria',
+        role: 'Gerente de Dados',
+        roleSource: 'meeting',
+        quotes: ['Maria, gerente de dados, abriu a reuniao.'],
+      },
+      { name: 'Joao', roleSource: 'unknown', quotes: ['Joao explicou o pipeline.'] },
+    ],
+  },
+  topicos_discutidos: {
+    topics: [{ title: 'Cronograma', summary: 'A entrega foi adiada.', quotes: [] }],
+  },
+  decisoes: {
+    decisions: [
+      {
+        text: 'Adiar a entrega para sexta-feira',
+        agreementQuote: 'De acordo, sexta.',
+        confidence: 'high',
+        quotes: ['Entao adiamos a entrega para sexta-feira.'],
+      },
+    ],
+  },
+  outcomes: { items: [] },
+  outputs: { items: [] },
+  conclusao: { text: 'O projeto segue com a entrega remarcada.' },
+};
 
 const reply = (parsed: unknown) => ({
   text: JSON.stringify(parsed),
@@ -91,21 +62,82 @@ const reply = (parsed: unknown) => ({
   meta: { provider: 'google', model: 'falso', latencyMs: 1, repaired: false, rateLimitWaits: 0, overloadWaits: 0 },
 });
 
+/** O Auditor aprova tudo, menos as afirmações cujo texto contém `rejeitar`. */
+function mockPipeline(overrides: Record<string, unknown> = {}, rejeitar: string[] = []) {
+  complete.mockImplementation(async (agent: string, req: { messages: { content: string }[] }) => {
+    if (agent === 'auditor') {
+      const blocos = req.messages[0]!.content.split('\n\n---\n\n');
+      return reply({
+        verdicts: blocos.map((bloco) => ({
+          id: /^# Afirmação (\S+)/.exec(bloco)![1],
+          supported: !rejeitar.some((r) => bloco.includes(r)),
+          reason: 'motivo do auditor',
+        })),
+      });
+    }
+    return reply({ ...DOCUMENTO, ...overrides });
+  });
+}
+
 const run = (over: Partial<Parameters<typeof generateStep>[0]> = {}) =>
   generateStep({ transcript, documentType: 'ata', completed: [], answers: [], ...over });
 
+const chamadasDe = (agent: string) => complete.mock.calls.filter(([a]) => a === agent);
+
 afterEach(() => complete.mockReset());
 
-describe('montagem da Ata', () => {
-  it('não devolve mais stub', async () => {
+describe('custo da Ata', () => {
+  it('uma leitura e uma conferência — duas chamadas, e só', async () => {
     mockPipeline();
-    const { sections } = await run();
-    for (const section of sections) {
-      expect(section.content).not.toContain('stub');
-      expect(section.content).not.toContain('Transcrição recebida com');
-    }
+    const { report } = await run();
+
+    expect(chamadasDe('leitor')).toHaveLength(1);
+    expect(chamadasDe('auditor')).toHaveLength(1);
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(report.calls).toBe(2);
   });
 
+  it('a leitura pede todas as seções de uma vez, menos a Assinatura', async () => {
+    mockPipeline();
+    await run();
+
+    const schema = chamadasDe('leitor')[0]![1].jsonSchema;
+    const esperadas = TEMPLATES.ata.sections.filter((s) => !s.fromUserOnly).map((s) => s.id);
+    expect(Object.keys(schema.properties).sort()).toEqual(esperadas.sort());
+    expect(schema.required.sort()).toEqual(esperadas.sort());
+    expect(schema.properties).not.toHaveProperty('assinatura');
+  });
+
+  it('todas as afirmações das seções strict vão na MESMA conferência', async () => {
+    mockPipeline();
+    const { report } = await run();
+
+    // Maria, Joao e a decisão.
+    expect(report.verdicts.map((v) => v.path)).toEqual([
+      'participants[0]',
+      'participants[1]',
+      'decisions[0]',
+    ]);
+    expect(report.verdicts.map((v) => v.sectionId)).toEqual(['participantes', 'participantes', 'decisoes']);
+  });
+
+  it('nada a conferir: não chama o Auditor', async () => {
+    mockPipeline({ participantes: { participants: [] }, decisoes: { decisions: [] } });
+    await run();
+    expect(chamadasDe('auditor')).toHaveLength(0);
+  });
+
+  it('a transcrição vai na leitura, e o trecho — não a transcrição inteira — na conferência', async () => {
+    mockPipeline();
+    await run();
+
+    expect(chamadasDe('leitor')[0]![1].cacheablePrefix).toBe(transcript);
+    expect(chamadasDe('leitor')[0]![1].reasoning).toBe('high');
+    expect(chamadasDe('auditor')[0]![1].cacheablePrefix).toBeUndefined();
+  });
+});
+
+describe('montagem da Ata', () => {
   it('devolve as seções na ordem do template', async () => {
     mockPipeline();
     const { sections } = await run();
@@ -119,22 +151,26 @@ describe('montagem da Ata', () => {
     expect(sections.map((s) => s.id)).toEqual(esperada);
   });
 
-  it('outcomes e outputs vazios somem do documento', async () => {
-    mockPipeline();
-    const { sections } = await run();
-    expect(sections.map((s) => s.id)).not.toContain('outcomes');
-    expect(sections.map((s) => s.id)).not.toContain('outputs');
-  });
-
   it('outcomes com item permanece', async () => {
     mockPipeline({ outcomes: { items: [{ text: 'Prioridades alinhadas.', quotes: [] }] } });
     const { sections } = await run();
-    expect(sections.map((s) => s.id)).toContain('outcomes');
+    expect(sections.find((s) => s.id === 'outcomes')!.content).toContain('- Prioridades alinhadas.');
+  });
+
+  it('o markdown sai dos dados, com o texto que o Leitor escreveu', async () => {
+    mockPipeline();
+    const { sections } = await run();
+    const por = (id: string) => sections.find((s) => s.id === id)!.content;
+
+    expect(por('topico_geral')).toContain('**TÓPICO:** Cronograma');
+    expect(por('topicos_discutidos')).toContain('1. **Cronograma:** A entrega foi adiada.');
+    expect(por('decisoes')).toContain('- Adiar a entrega para sexta-feira');
+    // A concordância é evidência para a auditoria, não texto da ata.
+    expect(por('decisoes')).not.toContain('De acordo, sexta.');
+    expect(por('conclusao')).toContain('O projeto segue com a entrega remarcada.');
   });
 
   it('a lacuna do cargo aparece marcada no documento', async () => {
-    // O Joao não tem cargo na transcrição. Isso precisa ser VISÍVEL na ata,
-    // não simplesmente ausente.
     mockPipeline();
     const { sections } = await run();
     const participantes = sections.find((s) => s.id === 'participantes')!;
@@ -142,13 +178,21 @@ describe('montagem da Ata', () => {
     expect(participantes.content).toContain('Joao');
   });
 
-  it('as lacunas voltam como perguntas, prontas para a UI que não existe', async () => {
+  it('a Assinatura sai com lacuna e vira as duas perguntas', async () => {
+    mockPipeline();
+    const { sections, questions } = await run();
+    expect(sections.find((s) => s.id === 'assinatura')!.content).toContain('[A preencher:');
+    expect(questions.map((q) => q.id)).toEqual(
+      expect.arrayContaining(['assinatura:signature.name', 'assinatura:signature.role']),
+    );
+  });
+
+  it('as lacunas voltam como perguntas', async () => {
     mockPipeline();
     const { questions } = await run();
     const cargo = questions.find((q) => q.id.includes('participants[Joao].role'));
     expect(cargo).toBeDefined();
     expect(cargo!.why).toContain('cargo de Joao');
-    // Participantes é `required: true`.
     expect(cargo!.optional).toBe(false);
   });
 
@@ -159,7 +203,7 @@ describe('montagem da Ata', () => {
     expect(sections.find((s) => s.id === 'topicos_discutidos')!.confidence).toBe('ok');
   });
 
-  it('completed é respeitado: seção já pronta não é regerada', async () => {
+  it('completed é respeitado: seção já pronta não é regerada nem pedida', async () => {
     mockPipeline();
     const pronta = {
       id: 'identificacao',
@@ -171,70 +215,10 @@ describe('montagem da Ata', () => {
     const { sections } = await run({ completed: [pronta] });
 
     expect(sections.map((s) => s.id)).not.toContain('identificacao');
-    // E ela chega ao Escritor das seguintes, para não repetir nem contradizer.
-    const prefixos = complete.mock.calls
-      .filter(([agent]) => agent === 'escritor')
-      .map(([, req]) => req.cacheablePrefix ?? '');
-    expect(prefixos.some((p: string) => p.includes('Já estava pronta.'))).toBe(true);
+    expect(chamadasDe('leitor')[0]![1].jsonSchema.properties).not.toHaveProperty('identificacao');
   });
 
-  it('cada seção vê as anteriores já escritas', async () => {
-    mockPipeline();
-    await run();
-
-    const escritor = complete.mock.calls.filter(([agent]) => agent === 'escritor');
-    // A Identificação é montada em código e não passa pelo Escritor, mas
-    // entra em `completed` — então a PRIMEIRA chamada do Escritor já a vê.
-    expect(escritor[0]![1].cacheablePrefix).toContain('## Identificação');
-    expect(escritor[escritor.length - 1]![1].cacheablePrefix).toContain('## Identificação');
-  });
-
-  it('as seções de pura estrutura não gastam chamada do Escritor', async () => {
-    // Identificação, Participantes e Assinatura são montadas em código.
-    mockPipeline();
-    const { sections } = await run();
-
-    const chamadas = complete.mock.calls.filter(([agent]) => agent === 'escritor').length;
-    expect(chamadas).toBe(sections.length - 3);
-  });
-
-  it('a transcrição chega ao Pensante e para nele', async () => {
-    // O Escritor redige a partir de dados conferidos. Se a transcrição
-    // chegasse até ele, haveria uma segunda porta para informação não
-    // auditada entrar na ata.
-    mockPipeline();
-    await run();
-
-    for (const [agent, req] of complete.mock.calls) {
-      const tudo = `${req.system}\n${req.messages[0].content}\n${req.cacheablePrefix ?? ''}`;
-      if (agent === 'pensante') expect(tudo).toContain('Joao explicou o pipeline.');
-      if (agent === 'escritor') expect(tudo).not.toContain('Joao explicou o pipeline.');
-    }
-  });
-
-  it('devolve o documentData acumulado, não só o markdown', async () => {
-    // É a camada canônica: HTML e PDF renderizam daqui. O markdown já perdeu
-    // que Maria tem cargo de origem `meeting`.
-    mockPipeline();
-    const { documentData } = await run();
-
-    expect(documentData.metadata?.projectName).toBe('Fenix');
-    expect(documentData.participants?.map((p) => p.name)).toEqual(['Maria', 'Joao']);
-    expect(documentData.participants?.[0]!.roleSource).toBe('meeting');
-    expect(documentData.decisions?.[0]!.agreement.quote).toBe('De acordo, sexta.');
-  });
-
-  it('devolve as lacunas com o campo, não só a pergunta', async () => {
-    // Quem renderiza precisa do campo para pôr o marcador no lugar certo —
-    // o cargo do Joao ao lado do Joao, e não no fim da seção.
-    mockPipeline();
-    const { gaps } = await run();
-    expect(gaps.some((g) => g.field === 'participants[Joao].role')).toBe(true);
-  });
-
-  it('documentData de entrada semeia a passada seguinte', async () => {
-    // Contraparte de devolvê-lo. Sem isto, uma segunda chamada recomeçaria
-    // com o acumulado vazio e o Pensante não veria o que já foi determinado.
+  it('documentData de entrada chega à leitura como "já determinado"', async () => {
     mockPipeline();
     const semente = { metadata: { date: '01/01/2020', projectName: 'ANTERIOR' } };
 
@@ -245,34 +229,82 @@ describe('montagem da Ata', () => {
       documentData: semente,
     });
 
-    const pedidoDoPensante = complete.mock.calls.find(([agent]) => agent === 'pensante')![1];
-    expect(pedidoDoPensante.messages[0].content).toContain('ANTERIOR');
+    expect(chamadasDe('leitor')[0]![1].messages[0].content).toContain('ANTERIOR');
   });
 
-  it('FALHA ALTO quando a instrução do PDF vaza para o documento', async () => {
-    // Entregar calado poria a instrução de autoria dentro de uma ata que vai
-    // para um cliente.
+  it('devolve o documentData, não só o markdown', async () => {
     mockPipeline();
-    complete.mockImplementation(async (agent: string) => {
-      if (agent === 'auditor') return reply({ supported: true, reason: 'ok' });
-      if (agent === 'escritor') {
-        return reply({ content: '## Identificação\n\nNarrativa Resumida do encontro.' });
-      }
-      return reply({ date: '13/08/2026', projectName: 'Fenix' });
-    });
+    const { documentData } = await run();
 
+    expect(documentData.metadata?.projectName).toBe('Fenix');
+    expect(documentData.participants?.map((p) => p.name)).toEqual(['Maria', 'Joao']);
+    expect(documentData.participants?.[0]!.roleSource).toBe('meeting');
+    expect(documentData.decisions?.[0]!.agreement.quote).toBe('De acordo, sexta.');
+  });
+
+  it('as citações de cada seção são contadas separadamente', async () => {
+    mockPipeline();
+    const { report } = await run();
+    const participantes = report.porSecao.find((s) => s.sectionId === 'participantes')!;
+    expect(participantes.quotes).toMatchObject({ total: 2, missing: 0, anchorRate: 1 });
+  });
+});
+
+describe('o que o Auditor rejeita', () => {
+  it('sai do documento e vira lacuna — sem segunda leitura', async () => {
+    mockPipeline({}, ['Adiar a entrega']);
+    const { documentData, sections, gaps, report } = await run();
+
+    expect(documentData.decisions).toEqual([]);
+    expect(sections.find((s) => s.id === 'decisoes')!.content).not.toContain('- Adiar a entrega');
+    expect(gaps.some((g) => g.field === 'decisions[0]')).toBe(true);
+    expect(report.discarded).toEqual([
+      expect.objectContaining({ sectionId: 'decisoes', path: 'decisions[0]', reason: 'motivo do auditor' }),
+    ]);
+    // Rejeitar não relê a reunião: continua uma leitura só.
+    expect(chamadasDe('leitor')).toHaveLength(1);
+  });
+
+  it('participante rejeitado não deixa pergunta de cargo para trás', async () => {
+    mockPipeline({}, ['Joao participou']);
+    const { questions, documentData } = await run();
+
+    expect(documentData.participants?.map((p) => p.name)).toEqual(['Maria']);
+    expect(questions.some((q) => q.id.includes('participants[Joao].role'))).toBe(false);
+  });
+
+  it('decisão sem concordância localizável cai em código, sem ir ao Auditor', async () => {
+    mockPipeline({
+      decisoes: {
+        decisions: [
+          {
+            text: 'Cancelar o projeto',
+            agreementQuote: 'fala que nunca existiu',
+            confidence: 'low',
+            quotes: ['Joao explicou o pipeline.'],
+          },
+        ],
+      },
+    });
+    const { documentData } = await run();
+
+    expect(documentData.decisions).toEqual([]);
+    const conferidas = chamadasDe('auditor')[0]![1].messages[0].content;
+    expect(conferidas).not.toContain('Cancelar o projeto');
+  });
+});
+
+describe('guarda contra vazamento', () => {
+  it('FALHA ALTO quando a instrução do PDF vaza para o documento', async () => {
+    mockPipeline({ conclusao: { text: 'Narrativa Resumida do encontro.' } });
     await expect(run()).rejects.toThrow(/vazou/);
   });
 });
 
 describe('templates placeholder', () => {
   it('daily gera seção única e genérica, sem quebrar', async () => {
-    // Não há modelo para eles. O que não pode é quebrar.
-    complete.mockImplementation(async (agent: string) =>
-      agent === 'escritor'
-        ? reply({ content: '## Documento\n\nTexto.' })
-        : reply({ items: [{ text: 'algo discutido', quotes: [] }] }),
-    );
+    const id = TEMPLATES.daily.sections[0]!.id;
+    complete.mockResolvedValue(reply({ [id]: { items: [{ text: 'algo discutido', quotes: [] }] } }));
 
     const { sections } = await generateStep({
       transcript,
@@ -282,29 +314,34 @@ describe('templates placeholder', () => {
     });
 
     expect(sections).toHaveLength(TEMPLATES.daily.sections.length);
-    expect(sections[0]!.content).toContain('Texto.');
+    expect(sections[0]!.content).toContain('- algo discutido');
   });
 });
 
 describe('X1 — perguntas e respostas', () => {
-  it('monta o par via renderPlain, sem chamar o Escritor', async () => {
+  it('monta o par em código, conferido pelo Auditor', async () => {
     complete.mockImplementation(async (agent: string) => {
-      if (agent === 'auditor') return reply({ supported: true, reason: 'ok' });
-      if (agent === 'escritor') {
-        throw new Error('Escritor não deveria ser chamado — a seção usa renderPlain.');
+      if (agent === 'auditor') {
+        return reply({
+          verdicts: [
+            { id: 'a1', supported: true, reason: 'ok' },
+            { id: 'a2', supported: true, reason: 'ok' },
+          ],
+        });
       }
       return reply({
-        pares: [
-          {
-            pergunta: 'Por que você quer essa vaga?',
-            // Precisa ser um trecho literal do `transcript` deste arquivo —
-            // sem âncora localizável o Auditor rejeita SEM gastar chamada
-            // (ver `buildExcerpt` em auditor.ts), e o par some do teste.
-            quotesPergunta: ['Joao explicou o pipeline.'],
-            resposta: 'Porque gosto do desafio técnico.',
-            quotesResposta: ['Entao adiamos a entrega para sexta-feira.'],
-          },
-        ],
+        perguntas_respostas: {
+          pares: [
+            {
+              pergunta: 'Por que você quer essa vaga?',
+              // Precisa ser um trecho literal do `transcript` deste arquivo —
+              // sem âncora localizável o Auditor rejeita SEM gastar chamada.
+              quotesPergunta: ['Joao explicou o pipeline.'],
+              resposta: 'Porque gosto do desafio técnico.',
+              quotesResposta: ['Entao adiamos a entrega para sexta-feira.'],
+            },
+          ],
+        },
       });
     });
 

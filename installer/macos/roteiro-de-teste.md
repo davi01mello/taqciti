@@ -81,7 +81,7 @@ No guia, escolha **Mac** e avance até **"Localize a pasta preparada"**.
 - [ ] Ligue **Modo do desenvolvedor** (canto superior direito).
 - [ ] **Carregar sem compactação** → na janela, **Cmd+Shift+G**, cole o caminho,
       Enter, e selecione **a pasta** (não um arquivo).
-- [ ] Apareceu o cartão **TaqCITi Standalone**, versão igual à do nome do
+- [ ] Apareceu o cartão **TaqCiti**, versão igual à do nome do
       arquivo `.pkg`, com o ID `jalebpaefejnbacgncgkailhemkdpnhm`?
 - [ ] O cartão está **sem** o botão vermelho "Erros"?
 

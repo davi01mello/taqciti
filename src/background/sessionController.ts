@@ -19,7 +19,8 @@ import {
   STATE_FLUSH_INTERVAL_MS,
   STORAGE_KEYS,
 } from '@/shared/config/constants';
-import { readSession, writeSession } from '@/shared/services/storage';
+import { readLocal, readSession, writeSession } from '@/shared/services/storage';
+import { limparVinculosDaReuniao } from '@/features/annotations/vinculos';
 import { logger } from '@/shared/services/log';
 import { finalizeStaleRecordings, upsertRecord } from './history';
 import { bumpMetrics } from './metrics';
@@ -58,12 +59,45 @@ function isLive(s: MeetingState): boolean {
   return s.phase === 'recording' || s.phase === 'paused';
 }
 
-/** Salva a reunião viva no histórico. `force` ignora o throttle. */
+let trailingSave: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Salva a reunião viva no histórico. `force` ignora o throttle.
+ *
+ * O que o throttle adia não se perde: agenda um salvamento para o fim da
+ * janela. Sem ele, numa pausa da conversa as últimas falas só chegavam ao
+ * registro (que a HOME lê) na fala seguinte, ou no fim da reunião.
+ */
 async function saveLiveRecord(force: boolean, now: number): Promise<void> {
   if (!isLive(state) || !state.session || state.session.segments.length === 0) return;
-  if (!force && now - lastLiveSaveAt < LIVE_SAVE_THROTTLE_MS) return;
+  const espera = LIVE_SAVE_THROTTLE_MS - (now - lastLiveSaveAt);
+  if (!force && espera > 0) {
+    trailingSave ??= setTimeout(() => {
+      trailingSave = null;
+      void saveLiveRecord(true, Date.now()).catch((error) =>
+        logger.error('salvamento adiado falhou', error),
+      );
+    }, espera);
+    return;
+  }
+  if (trailingSave !== null) {
+    clearTimeout(trailingSave);
+    trailingSave = null;
+  }
   lastLiveSaveAt = now;
   await upsertRecord(buildMeetingRecord(state.session, 'recording', now));
+}
+
+/** A reunião tem algo preso a ela além da fala: prints ou nota escrita. */
+async function temAnexos(meetingId: string): Promise<boolean> {
+  const [prints, notas] = await Promise.all([
+    readLocal<unknown>(STORAGE_KEYS.shots),
+    readLocal<Record<string, { texto?: string } | undefined>>(STORAGE_KEYS.notes),
+  ]);
+  const temPrint =
+    Array.isArray(prints) &&
+    prints.some((p) => p && typeof p === 'object' && (p as { meetingId?: string }).meetingId === meetingId);
+  return temPrint || Boolean(notas?.[meetingId]?.texto?.trim());
 }
 
 function broadcast(): void {
@@ -113,9 +147,27 @@ async function runSideEffects(
     await upsertRecord(buildMeetingRecord(prev.session, 'ready', now));
   }
 
-  // Fim de reunião COM conteúdo: registro final "ready" + métricas. Reunião
-  // que não capturou nada não vira registro — a tela explica o que houve, o
-  // histórico não ganha entrada vazia.
+  /*
+   * Fim de reunião SEM fala. Se nada ficou preso a ela, não vira registro — e
+   * sai o que tinha ficado (a transcrição limpa no meio deixava um registro
+   * "gravando" com o texto apagado, que depois ia até para o servidor). Se
+   * ficou um print ou uma nota, ela vira registro, vazia de fala: é o único
+   * lugar onde esses anexos aparecem, e sem ele sumiam da vista para sempre.
+   */
+  if (
+    state.phase === 'ended' &&
+    prev.phase !== 'ended' &&
+    state.session &&
+    state.session.segments.length === 0
+  ) {
+    if (await temAnexos(state.session.meetingId)) {
+      await upsertRecord(buildMeetingRecord(state.session, 'ready'));
+    } else {
+      await limparVinculosDaReuniao(state.session.meetingId);
+    }
+  }
+
+  // Fim de reunião COM conteúdo: registro final "ready" + métricas.
   if (
     state.phase === 'ended' &&
     prev.phase !== 'ended' &&
@@ -146,6 +198,12 @@ async function runSideEffects(
 
   if (event.type === 'CLEAR_TRANSCRIPT' && state !== prev) {
     await bumpMetrics({ clearTranscriptUsed: 1 });
+    // O registro vivo também esvazia AGORA. O salvamento contínuo ignora
+    // sessão sem fala, e o texto apagado ficava no histórico.
+    if (isLive(state) && state.session) {
+      lastLiveSaveAt = now;
+      await upsertRecord(buildMeetingRecord(state.session, 'recording', now));
+    }
   }
 
   // Salvamento contínuo da reunião viva (throttled).

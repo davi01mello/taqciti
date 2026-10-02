@@ -61,6 +61,7 @@ export const SECOES: ReadonlyArray<{ id: Secao; rotulo: string; icone: IconName 
   { id: 'assistente', rotulo: 'Assistente', icone: 'sparkles' },
   { id: 'reunioes', rotulo: 'Reuniões', icone: 'history' },
   { id: 'documentos', rotulo: 'Documentos', icone: 'doc' },
+  { id: 'acompanhamento', rotulo: 'Acompanhamento', icone: 'check' },
   { id: 'conexoes', rotulo: 'Conexões', icone: 'link' },
 ];
 
