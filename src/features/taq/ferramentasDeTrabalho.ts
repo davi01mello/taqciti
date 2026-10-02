@@ -840,13 +840,34 @@ async function reuniaoDaCaptura(ctx: ContextoDeFerramenta, id: string | undefine
     ctx.tarefa.selecionados.find((s) => s.tipo === 'reuniao')?.id ??
     (ctx.tarefa.escopo.reunioes !== 'todas' ? ctx.tarefa.escopo.reunioes[0] : undefined);
   if (daConversa) return reuniaoNoEscopo(ctx, daConversa);
-  const emCurso = (await ctx.armazenamento.listarReunioes())
-    .filter((r) => podeLerReuniao(ctx.tarefa.escopo, r.id))
+  const noEscopo = (await ctx.armazenamento.listarReunioes()).filter((r) =>
+    podeLerReuniao(ctx.tarefa.escopo, r.id),
+  );
+  const pelaFala = peloTitulo(noEscopo, ctx.tarefa.pedidoOriginal, (r) => r.title);
+  if (pelaFala) return pelaFala;
+  const emCurso = noEscopo
     .filter((r) => r.status === 'recording')
     .sort((a, b) => b.startedAt - a.startedAt)[0];
   if (!emCurso)
     throw new ErroDeFerramenta('nao_encontrado', 'Não há reunião em andamento. Diga de qual reunião quer o estado.');
   return emCurso;
+}
+
+/**
+ * O registro que o pedido nomeia pelo título ("a captura do planejamento do
+ * painel"): o de maior número de palavras do pedido no título, se for o único
+ * com essa contagem e casar pelo menos duas palavras. Na dúvida, nenhum —
+ * quem chama pergunta ou devolve `nao_encontrado`, nunca escolhe a esmo.
+ */
+export function peloTitulo<T>(registros: readonly T[], pedido: string, titulo: (r: T) => string): T | undefined {
+  const termos = termosDe(pedido);
+  const pontos = registros.map((r) => {
+    const t = ` ${termosDe(titulo(r)).join(' ')} `;
+    return { r, n: termos.filter((x) => t.includes(` ${x} `)).length };
+  });
+  const melhor = Math.max(0, ...pontos.map((p) => p.n));
+  const empatados = pontos.filter((p) => p.n === melhor);
+  return melhor >= 2 && empatados.length === 1 ? empatados[0]!.r : undefined;
 }
 
 export const getCaptureState: DefinicaoDeFerramenta<{ reuniao_id?: string }> = {

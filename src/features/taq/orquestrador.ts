@@ -51,6 +51,7 @@ import { focoDaTarefa, revalidarMemoria } from './memoria';
 import { Orcamento } from './orcamento';
 import { escopoDaConversa } from './politica';
 import { RegistroDeAgentes } from './registroDeAgentes';
+import { especialistaIndicado } from './roteamento';
 import { RegistroDeFerramentas } from './registroDeFerramentas';
 import {
   MOTIVO_CANCELADO,
@@ -128,6 +129,9 @@ export function criarRegistroPadrao(opcoes: { especialistas?: boolean } = {}): R
   for (const especialista of ESPECIALISTAS) registro.registrar(especialista);
   return opcoes.especialistas === false ? registro : ativarEspecialistas(registro);
 }
+
+/** Erros de quem não achou em que agir — o caminho direto devolve ao Taq. */
+const SEM_ALVO = ['nao_encontrado', 'argumentos_invalidos', 'ferramenta_nao_disponivel', 'referencia_desconhecida'];
 
 /** Ferramentas que o Taq entrega ao `documents` quando ele está disponível. */
 const DO_DOCUMENTS = ['list_document_types', 'create_document', 'update_document', 'prepare_external_brief'];
@@ -279,20 +283,49 @@ export function criarOrquestrador(deps: {
             },
           };
         } else {
-          tarefa.entrada = {
-            contexto: await montarContextoInicial(
-              { ...tarefa, disponiveis: especialistas.map((a) => a.id) },
-              deps.armazenamento,
-            ),
-            historico: base.historico,
-          };
-          resultado = await taq.executor(tarefa, {
-            ...base,
-            ferramentas: ferramentas.recortar(doTaq, escopo, {
-              semDelegacao: !podeDelegar,
-            }),
-            delegar: criarDelegador({ agentes, ferramentas, base }),
-          });
+          /*
+           * O pedido diz, pelas palavras dele, de quem é ("registre os próximos
+           * passos" → compromissos). Delegar direto poupa o turno do Taq — que
+           * só serviria para delegar — e perto de metade dos tokens. O
+           * especialista responde à pessoa como faria pela delegação do
+           * modelo. Se ele não puder (indisponível, ou falhou sem resposta),
+           * segue o ciclo normal do Taq.
+           */
+          const indicado =
+            !p.continua && podeDelegar
+              ? especialistaIndicado(p.texto, especialistas.map((a) => a.id))
+              : null;
+          const delegar = criarDelegador({ agentes, ferramentas, base });
+          const direto = indicado
+            ? await delegar(tarefa, { agenteId: indicado, objetivo: p.texto, entrada: {} })
+            : null;
+          // Não achou o registro, ou não pôde agir, e nada fez: o Taq, com a
+          // conversa inteira, resolve melhor (ou pergunta).
+          const naoServiu =
+            !direto ||
+            direto.estado === 'indisponivel' ||
+            (direto.estado === 'falhou' && !direto.resposta) ||
+            (!direto.escritas &&
+              !direto.cartoes?.length &&
+              direto.erros.some((e) => SEM_ALVO.includes(e.codigo)));
+          if (direto && !naoServiu) {
+            resultado = direto;
+          } else {
+            tarefa.entrada = {
+              contexto: await montarContextoInicial(
+                { ...tarefa, disponiveis: especialistas.map((a) => a.id) },
+                deps.armazenamento,
+              ),
+              historico: base.historico,
+            };
+            resultado = await taq.executor(tarefa, {
+              ...base,
+              ferramentas: ferramentas.recortar(doTaq, escopo, {
+                semDelegacao: !podeDelegar,
+              }),
+              delegar,
+            });
+          }
         }
       } catch (e) {
         resultado = {

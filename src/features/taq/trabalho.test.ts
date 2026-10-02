@@ -108,7 +108,6 @@ const nomesOferecidos = (p: PedidoDeTurno) => p.ferramentas.map((f) => f.nome);
 
 function roteiroDeRegistro() {
   return roteiro([
-    pede('delegate_task', { agente: 'commitments', objetivo: 'registrar os próximos passos do planejamento' }),
     pede('read_meeting', { reuniao_id: 'm-plan' }),
     (p) =>
       pede('register_commitments', {
@@ -140,7 +139,8 @@ describe('commitments', () => {
     const r = await criarOrquestrador({ modelo: primeiro.modelo, armazenamento: armazenamentoLocal }).executar(
       pedido('Registre os próximos passos do planejamento do painel'),
     );
-    expect(primeiro.pedidos.map((p) => p.instrucoes)).toEqual(['taq-v7', 'commitments-v1', 'commitments-v1', 'commitments-v1']);
+    // Delegado direto pela dica de roteamento: nenhum turno do Taq.
+    expect(primeiro.pedidos.map((p) => p.instrucoes)).toEqual(['commitments-v1', 'commitments-v1', 'commitments-v1']);
     expect(r.estado).toBe('concluido');
     expect(r.cartoes).toEqual([{ tipo: 'compromissos', ids: expect.any(Array) }]);
 
@@ -163,13 +163,13 @@ describe('commitments', () => {
 
   it('pedido de leitura: o especialista nem recebe as ferramentas de escrita', async () => {
     const { modelo, pedidos } = roteiro([
-      pede('delegate_task', { agente: 'commitments', objetivo: 'quais os próximos passos' }),
       final('Os próximos passos estão no cartão.'),
     ]);
     await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
       pedido('Quais foram os próximos passos do planejamento do painel?'),
     );
-    const doEspecialista = nomesOferecidos(pedidos[1]!);
+    expect(pedidos[0]!.instrucoes).toBe('commitments-v1');
+    const doEspecialista = nomesOferecidos(pedidos[0]!);
     expect(doEspecialista).toContain('suggest_commitments');
     expect(doEspecialista).not.toContain('register_commitments');
     expect(doEspecialista).not.toContain('update_commitment');
@@ -196,7 +196,6 @@ describe('commitments', () => {
     );
     const deFora = criados.find((c) => c.reuniaoId === 'm-outra')!;
     const { modelo } = roteiro([
-      pede('delegate_task', { agente: 'commitments', objetivo: 'marcar como concluído' }),
       pede('list_commitments', { estado: 'todos' }),
       (p) => {
         const lista = resultadoDe(p, 'list_commitments') as { total: number; compromissos: Array<{ descricao: string }> };
@@ -221,7 +220,6 @@ describe('commitments', () => {
 describe('meeting_analyst', () => {
   it('cobertura contada pelo livro, item sem fonte recusado, e a análise vira cartão', async () => {
     const { modelo } = roteiro([
-      pede('delegate_task', { agente: 'meeting_analyst', objetivo: 'analisar o planejamento' }),
       pede('read_meeting', { reuniao_id: 'm-plan', quantidade: 2 }),
       (p) =>
         pede('save_analysis', {
@@ -257,14 +255,12 @@ describe('meeting_analyst', () => {
 // --------------------------------------------------------- determinísticos
 
 describe('serviços determinísticos', () => {
-  it('capture_monitor responde sem chamar o modelo de novo', async () => {
-    const { modelo, pedidos } = roteiro([
-      pede('delegate_task', { agente: 'capture_monitor', objetivo: 'estado da captura', entrada: { reuniao_id: 'm-plan' } }),
-    ]);
+  it('capture_monitor responde sem chamar o modelo nenhuma vez', async () => {
+    const { modelo, pedidos } = roteiro([]);
     const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
       pedido('A captura do planejamento do painel está ok?'),
     );
-    expect(pedidos).toHaveLength(1);
+    expect(pedidos).toHaveLength(0);
     expect(r.estado).toBe('concluido');
     expect(r.resposta).toMatch(/Encerrada/);
     expect(r.resposta).toMatch(/Nenhum problema detectado/);
@@ -293,7 +289,6 @@ describe('serviços determinísticos', () => {
 describe('communication e scheduling', () => {
   it('rascunho: nome ambíguo fica ambíguo, endereço que a pessoa não escreveu sai, e nada é enviado', async () => {
     const { modelo, pedidos } = roteiro([
-      pede('delegate_task', { agente: 'communication', objetivo: 'e-mail sobre o relatório' }),
       pede('prepare_message', {
         canal: 'email',
         publico: 'interno',
@@ -330,7 +325,6 @@ describe('communication e scheduling', () => {
     vi.setSystemTime(new Date('2026-10-01T15:00:00Z'));
     try {
       const { modelo } = roteiro([
-        pede('delegate_task', { agente: 'scheduling', objetivo: 'horário amanhã à tarde' }),
         pede('prepare_event', {
           titulo: 'Revisão do escopo',
           duracao_min: 30,
@@ -364,9 +358,7 @@ describe('communication e scheduling', () => {
 describe('pela interface', () => {
   it('os cartões ficam gravados na resposta da conversa', async () => {
     const id = await acrescentarMensagem(null, { texto: '[TESTE] A captura do planejamento do painel está ok?' });
-    const { modelo } = roteiro([
-      pede('delegate_task', { agente: 'capture_monitor', objetivo: 'estado', entrada: { reuniao_id: 'm-plan' } }),
-    ]);
+    const { modelo } = roteiro([]);
     _definirTaq({ orquestrador: criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }) });
     try {
       await perguntarAoTaq({ conversaId: id, texto: '[TESTE] A captura do planejamento do painel está ok?' });
@@ -418,7 +410,6 @@ describe('cota por minuto do provedor', () => {
 describe('afirmação de escrita sem escrita (visto ao vivo)', () => {
   it('"Decisão nova registrada" sem ferramenta de escrita sai com o aviso', async () => {
     const { modelo } = roteiro([
-      pede('delegate_task', { agente: 'continuity', objetivo: 'registrar a decisão' }),
       final('**Decisão nova registrada**: o PDF fica para a fase 2.'),
     ]);
     const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
@@ -431,7 +422,6 @@ describe('afirmação de escrita sem escrita (visto ao vivo)', () => {
 
   it('com a escrita confirmada pelo especialista, sem aviso', async () => {
     const { modelo } = roteiro([
-      pede('delegate_task', { agente: 'continuity', objetivo: 'registrar a decisão' }),
       pede('record_decision', {
         assunto: 'Exportação',
         texto: 'PDF fica para a fase 2',
@@ -456,5 +446,24 @@ describe('afirmação de escrita sem escrita (visto ao vivo)', () => {
       },
     ]);
     await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(pedido('O que falamos no planejamento?'));
+  });
+});
+
+describe('delegação direta pela dica de roteamento', () => {
+  it('especialista sem alvo devolve ao Taq, que segue com a conversa', async () => {
+    const { modelo, pedidos } = roteiro([final('De qual reunião você quer saber da captura?')]);
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('A captura está ok?'),
+    );
+    expect(pedidos.map((p) => p.instrucoes)).toEqual(['taq-v7']);
+    expect(r.resposta).toMatch(/qual reunião/);
+  });
+
+  it('título ambíguo não escolhe sozinho', async () => {
+    const { peloTitulo } = await import('./ferramentasDeTrabalho');
+    const lista = [{ t: 'Planejamento do painel' }, { t: 'Planejamento do painel B' }];
+    expect(peloTitulo(lista, 'captura do planejamento do painel', (x) => x.t)).toBeUndefined();
+    expect(peloTitulo(lista, 'captura do planejamento do painel B', (x) => x.t)).toBeUndefined();
+    expect(peloTitulo([{ t: 'Daily de dados' }, { t: 'Planejamento do painel' }], 'a captura do planejamento do painel', (x) => x.t)).toEqual({ t: 'Planejamento do painel' });
   });
 });

@@ -19,6 +19,8 @@ import { montarContextoInicial } from './contexto';
 import { ROTULO_DA_AVALIACAO, ROTULO_DA_SITUACAO, type SituacaoDaCaptura } from './captura';
 import type { RegistroDeAgentes } from './registroDeAgentes';
 import { executarCiclo } from './runtime';
+import { peloTitulo } from './ferramentasDeTrabalho';
+import { podeLerDocumento } from './politica';
 import {
   ErroDeFerramenta,
   type AmbienteDeExecucao,
@@ -96,7 +98,7 @@ function vazio(estado: ResultadoDoAgente['estado'], inicio: number): ResultadoDo
  */
 function executorDeterministico(
   nomeDaFerramenta: string,
-  argumentos: (tarefa: Tarefa) => Record<string, unknown>,
+  argumentos: (tarefa: Tarefa, ambiente: AmbienteDeExecucao) => Record<string, unknown> | Promise<Record<string, unknown>>,
   redigir: (saida: Record<string, unknown>, coletado: Coletado) => { resposta: string; saida?: unknown },
 ): ExecutorDeAgente {
   return async (tarefa: Tarefa, ambiente: AmbienteDeExecucao) => {
@@ -127,7 +129,7 @@ function executorDeterministico(
       },
     };
     ambiente.emitir({ tipo: 'ferramenta_inicio', tarefaId: tarefa.tarefaId, nome: ferramenta.nome, etapa: ferramenta.etapa });
-    const lido = ferramenta.schemaDeEntrada.safeParse(argumentos(tarefa));
+    const lido = ferramenta.schemaDeEntrada.safeParse(await argumentos(tarefa, ambiente));
     try {
       if (!lido.success) throw new ErroDeFerramenta('argumentos_invalidos', lido.error.issues[0]?.message ?? 'inválido');
       const saida = await ferramenta.executar(lido.data, ctx);
@@ -202,8 +204,15 @@ const monitorDeCaptura = executorDeterministico(
 const revisaoDeDocumento = (foco: 'qualidade' | 'fontes') =>
   executorDeterministico(
     'check_document',
-    (t) => {
-      const id = idDe(t, 'documento_id', 'documento');
+    async (t, ambiente) => {
+      const id =
+        idDe(t, 'documento_id', 'documento') ??
+        // "Revise a ata da sprint": o documento nomeado pelo título, se só um casa.
+        peloTitulo(
+          (await ambiente.armazenamento.listarDocumentos()).filter((d) => podeLerDocumento(t.escopo, d)),
+          t.pedidoOriginal,
+          (d) => d.title,
+        )?.id;
       return id ? { documento_id: id } : {};
     },
     (s) => {
