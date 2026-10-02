@@ -268,8 +268,16 @@ onMessage((message, sender) => {
       // ---- Content script ----
       case 'meet/detected': {
         const givenTitle = message.title.trim();
+        // "Continuar de onde parou": só uma gravação DESTA sala. Um id de outra
+        // sala (ou que não existe mais) vira gravação nova, nunca mistura.
+        const continuar = message.continuarId
+          ? (await listHistory()).find(
+              (r) => r.id === message.continuarId && r.meetingCode === message.meetingCode,
+            )
+          : undefined;
         await dispatch({
           type: 'MEETING_DETECTED',
+          ...(continuar ? { continuar } : {}),
           meetingId: crypto.randomUUID(),
           meetingCode: message.meetingCode,
           provider: PROVIDER_GOOGLE_MEET,

@@ -9,15 +9,23 @@
  * pensar em áudio e vídeo, que esta extensão nunca tocou — e a diferença
  * importa para quem está decidindo.
  */
+import type { GravacaoAnterior } from '@/features/meeting/consent';
 import { Wave } from '@/shared/ui/Wave';
 
 interface Props {
   titulo: string;
+  /** A última gravação desta sala: dá para continuá-la em vez de começar outra. */
+  anterior?: GravacaoAnterior | null;
   onAceitar: () => void;
+  onContinuar?: (id: string) => void;
   onRecusar: () => void;
 }
 
-export function Pergunta({ titulo, onAceitar, onRecusar }: Props) {
+function quando(ms: number): string {
+  return new Date(ms).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+export function Pergunta({ titulo, anterior = null, onAceitar, onContinuar, onRecusar }: Props) {
   return (
     <div className="tq-corpo tq-pergunta">
       <h2>Registrar esta reunião?</h2>
@@ -36,16 +44,33 @@ export function Pergunta({ titulo, onAceitar, onRecusar }: Props) {
         áudio nem de vídeo, e nada sai daqui.
       </p>
 
+      {anterior && onContinuar && (
+        <p className="tq-pergunta-texto">
+          Esta sala já tem uma gravação: <strong>{anterior.title}</strong>, de {quando(anterior.endedAt)},
+          com {anterior.segmentos} fala(s). Dá para continuar nela, de onde parou.
+        </p>
+      )}
+
       <div className="tq-pergunta-acoes">
-        <button type="button" className="tq-botao-principal" onClick={onAceitar}>
-          Registrar
+        {anterior && onContinuar && (
+          <button type="button" className="tq-botao-principal" onClick={() => onContinuar(anterior.id)}>
+            Continuar de onde parou
+          </button>
+        )}
+        <button
+          type="button"
+          className={anterior && onContinuar ? 'tq-botao-fantasma' : 'tq-botao-principal'}
+          onClick={onAceitar}
+        >
+          {anterior && onContinuar ? 'Nova gravação' : 'Registrar'}
         </button>
         <button type="button" className="tq-botao-fantasma" onClick={onRecusar}>
           Agora não
         </button>
       </div>
       <p className="tq-pergunta-fino">
-        Dizendo não, nada é capturado. Dá para começar depois, por aqui mesmo.
+        Dizendo não, nada é capturado nesta participação. A pergunta volta se você
+        entrar de novo na sala mais tarde.
       </p>
     </div>
   );

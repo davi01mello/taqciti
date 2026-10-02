@@ -34,12 +34,16 @@ import { getMountPoint, unmountHost } from './ui/mount';
 import {
   abrirParticipacao,
   anunciarReuniao,
+  autorizaCaptura,
   decisaoDe,
   esquecerReuniao,
   fecharParticipacao,
+  gravacaoAContinuar,
+  gravacaoAnteriorDaSala,
   guardarDecisao,
   observarDecisoes,
   type DecisaoDeRegistro,
+  type GravacaoAnterior,
 } from '@/features/meeting/consent';
 import { enviarNoChat } from './providers/googleMeet/chat';
 import type { MeetingSession } from '@/features/meeting/provider';
@@ -100,6 +104,8 @@ export class ContentController {
    * relógio da reunião de outra aba.
    */
   private salaDaCaptura: string | null = null;
+  /** A última gravação desta sala, oferecida para continuar na pergunta. */
+  private gravacaoAnterior: GravacaoAnterior | null = null;
 
   private readonly callbacks: CapsulaCallbacks = {
     /*
@@ -157,6 +163,7 @@ export class ContentController {
         this.salaAnunciada = null;
         this.decisao = null;
         this.reuniaoPendente = null;
+        this.gravacaoAnterior = null;
         this.participacaoId = null;
         this.salaAtual = null;
         this.captureHealthy = true;
@@ -177,7 +184,7 @@ export class ContentController {
         // estado novo chegar.
         if (this.lastState?.phase === 'paused') return;
         // Nada sai desta aba antes do "sim" a ESTA sala.
-        if (this.decisao !== 'aceito') return;
+        if (!autorizaCaptura(this.decisao)) return;
         void sendMessage({ type: 'meet/chunk', chunk });
       }),
 
@@ -258,7 +265,7 @@ export class ContentController {
         this.reuniaoPendente = null;
         void esquecerReuniao();
 
-        if (decisao === 'aceito' && alvo) this.iniciarCaptura(alvo);
+        if (autorizaCaptura(decisao) && alvo) this.iniciarCaptura(alvo, gravacaoAContinuar(decisao));
         else this.rerender();
       }),
     );
@@ -378,10 +385,10 @@ export class ContentController {
     this.participacaoId = participacao.id;
 
     const previa = await decisaoDe(participacao.id);
-    if (previa === 'aceito') {
-      this.decisao = 'aceito';
+    if (autorizaCaptura(previa)) {
+      this.decisao = previa;
       await esquecerReuniao();
-      this.iniciarCaptura(session);
+      this.iniciarCaptura(session, gravacaoAContinuar(previa));
       return;
     }
     if (previa === 'recusado') {
@@ -400,25 +407,29 @@ export class ContentController {
      */
     this.decisao = null;
     this.reuniaoPendente = session;
+    // A última gravação desta sala, se houver: a pergunta oferece continuá-la.
+    this.gravacaoAnterior = await gravacaoAnteriorDaSala(session.meetingCode).catch(() => null);
     await anunciarReuniao({
       meetingCode: session.meetingCode,
       title: session.title,
       participacaoId: participacao.id,
       tabId: null,
       at: Date.now(),
+      ...(this.gravacaoAnterior ? { anterior: this.gravacaoAnterior } : {}),
     });
     this.rerender();
   }
 
 
   /** O único lugar que conta ao background que existe uma reunião a registrar. */
-  private iniciarCaptura(session: MeetingSession): void {
+  private iniciarCaptura(session: MeetingSession, continuarId: string | null = null): void {
     this.salaDaCaptura = session.meetingCode;
     void sendMessage<MeetingState>({
       type: 'meet/detected',
       meetingCode: session.meetingCode,
       title: session.title,
       captionsEnabled: this.provider.areCaptionsEnabled(),
+      ...(continuarId ? { continuarId } : {}),
     }).then((state) => {
       this.applyState(state);
       this.pushAccountContext(true);
@@ -586,6 +597,7 @@ export class ContentController {
           // O título da sala vai junto: a pergunta na página nomeia a reunião
           // sobre a qual está perguntando.
           perguntandoSobre: this.reuniaoPendente?.title ?? null,
+          gravacaoAnterior: this.reuniaoPendente ? this.gravacaoAnterior : null,
           recusado: this.decisao === 'recusado',
           // Só esta aba enxerga a saúde da captura (é o DOM do Meet que a
           // revela), então é a cápsula que a mostra — e é aqui que a pessoa

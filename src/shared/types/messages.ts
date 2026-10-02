@@ -106,6 +106,8 @@ const contentMessages = z.discriminatedUnion('type', [
     meetingCode: z.string().min(1).max(64),
     title: z.string().max(300),
     captionsEnabled: z.boolean(),
+    /** A pessoa escolheu continuar ESTA gravação (id do histórico), da mesma sala. */
+    continuarId: z.string().min(1).max(100).optional(),
   }),
   z.object({ type: z.literal('meet/ended') }),
   z.object({ type: z.literal('meet/captions'), enabled: z.boolean() }),

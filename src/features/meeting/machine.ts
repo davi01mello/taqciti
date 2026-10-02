@@ -18,6 +18,7 @@ import type {
   AccountBoundaryState,
   CaptionChunk,
   LiveSegment,
+  MeetingRecord,
   MeetingSessionState,
   MeetingState,
   Participant,
@@ -51,6 +52,12 @@ export type MeetingEvent =
       titleAuto?: boolean;
       captionsEnabled: boolean;
       at: number;
+      /**
+       * A pessoa escolheu continuar esta gravação do histórico (da MESMA sala,
+       * conferido pelo background). A sessão reabre com o id, as falas e os
+       * participantes dela, e as falas novas entram nela.
+       */
+      continuar?: MeetingRecord;
     }
   | { type: 'CAPTIONS_STATE'; enabled: boolean }
   | { type: 'CAPTION_CHUNK'; chunk: CaptionChunk }
@@ -201,6 +208,28 @@ function freshSession(
   };
 }
 
+function retomarGravacao(
+  event: Extract<MeetingEvent, { type: 'MEETING_DETECTED' }>,
+  r: MeetingRecord,
+): MeetingState {
+  const session: MeetingSessionState = {
+    ...freshSession(event).session!,
+    meetingId: r.id,
+    title: r.title,
+    titleAuto: false,
+    startedAt: r.startedAt,
+    participants: r.participants ?? [],
+    speakersObserved: r.speakersObserved ?? [],
+    segments: r.segments,
+    sealedCaptionIds: collectCaptionIds(r.segments),
+    droppedSegments: r.metadata?.droppedSegments ?? 0,
+    reconnectCount: (r.metadata?.reconnectCount ?? 0) + 1,
+    captureDegradedCount: r.metadata?.captureDegradedCount ?? 0,
+    wasDiscardedAndRestarted: r.metadata?.wasDiscardedAndRestarted ?? false,
+  };
+  return { phase: event.captionsEnabled ? 'recording' : 'captionsRequired', session };
+}
+
 export function transition(state: MeetingState, event: MeetingEvent): MeetingState {
   switch (event.type) {
     case 'MEETING_DETECTED': {
@@ -237,6 +266,14 @@ export function transition(state: MeetingState, event: MeetingEvent): MeetingSta
             reconnectCount: current.reconnectCount + 1,
           },
         };
+      }
+
+      // A pessoa escolheu continuar uma gravação guardada desta sala: a sessão
+      // reabre sobre ela, com o mesmo id (o histórico é atualizado, não
+      // duplicado). Os captionIds antigos ficam selados: legenda nova nunca se
+      // funde a uma fala de ontem.
+      if (event.continuar && event.continuar.meetingCode === event.meetingCode) {
+        return retomarGravacao(event, event.continuar);
       }
 
       // Qualquer outro cenário — idle, pós-reunião antiga, ou até uma sala

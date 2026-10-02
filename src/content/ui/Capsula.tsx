@@ -32,7 +32,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { MeetingPhase, PanelPrefs } from '@/shared/types/domain';
-import type { DecisaoDeRegistro } from '@/features/meeting/consent';
+import type { DecisaoDeRegistro, GravacaoAnterior } from '@/features/meeting/consent';
 import { formatElapsedClock } from '@/shared/ui/format';
 import { Icon } from '@/shared/ui/Icon';
 import { Sheen, SHEEN_HOST_POSITIONED, trackSheen } from '@/shared/ui/Sheen';
@@ -55,6 +55,8 @@ interface Props {
   startedAt: number | null;
   /** Título da reunião detectada esperando resposta. `null` = não há pergunta. */
   perguntandoSobre: string | null;
+  /** A última gravação desta sala, oferecida para continuar. */
+  gravacaoAnterior?: GravacaoAnterior | null;
   /** A pessoa disse "agora não" para esta participação. */
   recusado: boolean;
   /** `false` = há legenda na tela que a captura não está conseguindo ler. */
@@ -75,6 +77,7 @@ export function Capsula({
   phase,
   startedAt,
   perguntandoSobre,
+  gravacaoAnterior = null,
   recusado,
   saudavel,
   prefs,
@@ -186,7 +189,7 @@ export function Capsula({
     MARGEM_DA_PERGUNTA,
     paraBaixo
       ? floating.geometry.capsule.top + 52
-      : floating.geometry.capsule.top - 172,
+      : floating.geometry.capsule.top - (gravacaoAnterior ? 236 : 172),
   );
 
   return (
@@ -243,13 +246,40 @@ export function Capsula({
             vídeo.
           </p>
 
-          <div className="mt-3 flex gap-1.5">
+          {gravacaoAnterior && (
+            <p className="mt-2 text-micro leading-relaxed text-muted/90">
+              Esta sala já tem uma gravação:{' '}
+              <strong className="font-medium">{gravacaoAnterior.title}</strong> ·{' '}
+              {new Date(gravacaoAnterior.endedAt).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}{' '}
+              · {gravacaoAnterior.segmentos} fala(s).
+            </p>
+          )}
+
+          {gravacaoAnterior && (
+            <button
+              type="button"
+              onClick={() => callbacks.onResponder(`continuar:${gravacaoAnterior.id}`)}
+              className="mt-3 w-full rounded-full border border-primary/45 bg-primary/[0.16] px-3 py-2 text-caption font-medium text-glow transition-colors duration-200 hover:bg-primary/25"
+            >
+              Continuar de onde parou
+            </button>
+          )}
+          <div className={`${gravacaoAnterior ? 'mt-1.5' : 'mt-3'} flex gap-1.5`}>
             <button
               type="button"
               onClick={() => callbacks.onResponder('aceito')}
-              className="flex-1 rounded-full border border-primary/45 bg-primary/[0.16] px-3 py-2 text-caption font-medium text-glow transition-colors duration-200 hover:bg-primary/25"
+              className={`flex-1 rounded-full px-3 py-2 text-caption transition-colors duration-200 ${
+                gravacaoAnterior
+                  ? 'border border-white/15 text-foreground hover:bg-white/[0.07]'
+                  : 'border border-primary/45 bg-primary/[0.16] font-medium text-glow hover:bg-primary/25'
+              }`}
             >
-              Iniciar captura
+              {gravacaoAnterior ? 'Nova gravação' : 'Iniciar captura'}
             </button>
             <button
               type="button"

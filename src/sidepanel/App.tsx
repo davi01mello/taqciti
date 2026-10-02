@@ -388,6 +388,8 @@ export function App() {
         />
         <Pergunta
           titulo={detectada.title}
+          anterior={detectada.anterior ?? null}
+          onContinuar={(id) => void responder(`continuar:${id}`)}
           onAceitar={() => void responder('aceito')}
           onRecusar={() => void responder('recusado')}
         />

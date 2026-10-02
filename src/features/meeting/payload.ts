@@ -69,6 +69,7 @@ export function buildMeetingRecord(
   const payload = buildMeetingPayload(normalized);
   return {
     id: session.meetingId,
+    ...(session.meetingCode ? { meetingCode: session.meetingCode } : {}),
     title: session.title,
     startedAt: session.startedAt,
     endedAt,

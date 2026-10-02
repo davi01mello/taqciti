@@ -187,6 +187,12 @@ export type HistoryStatus = 'recording' | 'ready';
 
 export interface MeetingRecord {
   id: string; // = meetingId
+  /**
+   * O código da sala do Meet de onde a gravação veio (`abc-defg-hij`). É o que
+   * permite, ao voltar à mesma sala, oferecer continuar ESTA gravação.
+   * Ausente nas gravações anteriores a 03/10/2026.
+   */
+  meetingCode?: string;
   title: string;
   startedAt: number;
   endedAt: number;

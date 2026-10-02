@@ -259,3 +259,36 @@ describe('o portão não morre na primeira falha do storage de sessão', () => {
     expect(enviadas(sendMessage)).not.toContain('meet/detected');
   });
 });
+
+describe('continuar a gravação desta sala', () => {
+  it('a pergunta anuncia a gravação anterior, e "continuar" pede ao background ESSA gravação', async () => {
+    const { STORAGE_KEYS } = await import('@/shared/config/constants');
+    const chromeGlobal = (globalThis as unknown as { chrome: { storage: { local: { set: (v: unknown) => Promise<void> }; session: { get: (k: string) => Promise<Record<string, unknown>> } } } }).chrome;
+    await chromeGlobal.storage.local.set({
+      [STORAGE_KEYS.history]: [
+        {
+          id: 'rec-1', meetingCode: SALA.meetingCode, title: 'Planning de ontem', startedAt: 1, endedAt: 2, durationSeconds: 1,
+          participants: [], segments: [{ captionId: 'c', speaker: 'Ana', text: 'oi', startOffsetMs: 0, endOffsetMs: 1 }],
+          status: 'ready', metadata: { capturedCaptions: true, droppedSegments: 0, reconnectCount: 0, wasDiscardedAndRestarted: false },
+        },
+      ],
+    });
+    const fake = fakeProvider();
+    await montarControlador(fake);
+    fake.entrarNaSala();
+    await assentar();
+
+    const anunciada = (await chromeGlobal.storage.session.get(STORAGE_KEYS.pendingMeeting))[STORAGE_KEYS.pendingMeeting] as {
+      participacaoId: string;
+      anterior?: { id: string };
+    };
+    expect(anunciada.anterior?.id).toBe('rec-1');
+
+    const { guardarDecisao } = await import('@/features/meeting/consent');
+    await guardarDecisao(anunciada.participacaoId, 'continuar:rec-1');
+    await assentar();
+
+    const detectada = sendMessage.mock.calls.map((c) => c[0] as { type: string; continuarId?: string }).find((m) => m.type === 'meet/detected');
+    expect(detectada?.continuarId).toBe('rec-1');
+  });
+});

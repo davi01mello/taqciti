@@ -185,3 +185,34 @@ describe('a reunião anunciada para quem pergunta', () => {
     await expect(lerReuniaoDetectada()).resolves.toBeNull();
   });
 });
+
+describe('a gravação anterior da mesma sala', () => {
+  it('a mais recente encerrada, com fala, da MESMA sala; as sem sala ficam de fora', async () => {
+    const { installChromeStorageMock } = await import('@/test/chromeStorageMock');
+    const { STORAGE_KEYS } = await import('@/shared/config/constants');
+    const { gravacaoAnteriorDaSala, autorizaCaptura, gravacaoAContinuar } = await import('./consent');
+    const seg = [{ captionId: 'c', speaker: 'Ana', text: 'oi', startOffsetMs: 0, endOffsetMs: 1 }];
+    const rec = (id: string, extra: Record<string, unknown>) => ({
+      id, title: id, startedAt: 1, endedAt: 1, durationSeconds: 1, participants: [], segments: seg, status: 'ready',
+      metadata: { capturedCaptions: true, droppedSegments: 0, reconnectCount: 0, wasDiscardedAndRestarted: false }, ...extra,
+    });
+    installChromeStorageMock({
+      local: {
+        [STORAGE_KEYS.history]: [
+          rec('antiga-sem-sala', { endedAt: 900 }),
+          rec('desta-velha', { meetingCode: 'abc-defg-hij', endedAt: 100 }),
+          rec('desta-nova', { meetingCode: 'abc-defg-hij', endedAt: 500 }),
+          rec('desta-ao-vivo', { meetingCode: 'abc-defg-hij', endedAt: 800, status: 'recording' }),
+          rec('desta-vazia', { meetingCode: 'abc-defg-hij', endedAt: 700, segments: [] }),
+          rec('outra-sala', { meetingCode: 'xyz-xyzx-xyz', endedAt: 999 }),
+        ],
+      },
+    });
+    expect((await gravacaoAnteriorDaSala('abc-defg-hij'))?.id).toBe('desta-nova');
+    expect(await gravacaoAnteriorDaSala('nunca-vista')).toBeNull();
+    expect(autorizaCaptura('continuar:desta-nova')).toBe(true);
+    expect(autorizaCaptura('recusado')).toBe(false);
+    expect(gravacaoAContinuar('continuar:desta-nova')).toBe('desta-nova');
+    expect(gravacaoAContinuar('aceito')).toBeNull();
+  });
+});

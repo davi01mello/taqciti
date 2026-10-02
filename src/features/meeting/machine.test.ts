@@ -470,3 +470,36 @@ describe('presença, histórico de participação e falantes observados', () => 
     expect(transition(IDLE_STATE, { type: 'LANGUAGE_WARNING_DISMISSED' })).toBe(IDLE_STATE);
   });
 });
+
+describe('continuar uma gravação guardada da mesma sala', () => {
+  const guardada = {
+    id: 'rec-ontem',
+    meetingCode: 'abc-defg-hij',
+    title: 'Daily do painel',
+    startedAt: T0 - 86_400_000,
+    endedAt: T0 - 86_400_000 + 600_000,
+    durationSeconds: 600,
+    participants: [{ name: 'Ana', isHost: true }],
+    segments: [{ captionId: 'old-1', speaker: 'Ana', text: 'Ficamos aqui ontem.', startOffsetMs: 0, endOffsetMs: 2_000 }],
+    status: 'ready' as const,
+    metadata: { capturedCaptions: true, droppedSegments: 1, reconnectCount: 0, wasDiscardedAndRestarted: false },
+  };
+
+  it('reabre a gravação: mesmo id, falas antigas preservadas, novas entram nela', () => {
+    let s = transition(IDLE_STATE, detected({ captionsEnabled: true, at: T0, continuar: guardada }));
+    expect(s.phase).toBe('recording');
+    expect(s.session).toMatchObject({ meetingId: 'rec-ontem', title: 'Daily do painel', startedAt: guardada.startedAt, endedAt: null });
+    expect(s.session!.segments).toHaveLength(1);
+    s = transition(s, chunk('new-1', 'Retomando de onde paramos.', T0 + 5_000));
+    expect(s.session!.segments.map((x) => x.text)).toEqual(['Ficamos aqui ontem.', 'Retomando de onde paramos.']);
+    // O instante da fala nova é contado desde o início da gravação original.
+    expect(s.session!.segments[1]!.startOffsetMs).toBeGreaterThan(86_000_000);
+    expect(s.session!.droppedSegments).toBe(1);
+  });
+
+  it('gravação de OUTRA sala nunca é continuada: vira gravação nova', () => {
+    const s = transition(IDLE_STATE, detected({ continuar: { ...guardada, meetingCode: 'zzz-zzzz-zzz' } }));
+    expect(s.session!.meetingId).toBe('m-1');
+    expect(s.session!.segments).toHaveLength(0);
+  });
+});

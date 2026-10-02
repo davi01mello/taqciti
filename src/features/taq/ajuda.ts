@@ -149,6 +149,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'O TaqCiti pergunta “Deseja registrar esta reunião?” ao lado da cápsula: clique em “Iniciar captura”. Na sidebar, a mesma pergunta tem o botão “Registrar”.',
       'O TaqCiti liga as legendas do Meet sozinho e as esconde da tela. Enquanto isso, a sidebar mostra “Preparando a transcrição…”.',
       'As falas aparecem na sidebar, em “Reunião”, na aba “Transcrição”.',
+      'Se a sala já tem uma gravação guardada, a pergunta mostra qual é e oferece “Continuar de onde parou” (as falas novas entram nela) ou “Nova gravação”.',
     ],
     preRequisitos: [
       'Reunião no Google Meet (meet.google.com).',
@@ -159,9 +160,12 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Nada é capturado antes de a pessoa aceitar.',
       'Respondendo “Agora não”, não há botão para começar depois na mesma participação; a pergunta volta ao entrar de novo na reunião depois de 10 minutos, ou depois de reiniciar o navegador.',
       'Se o TaqCiti não conseguir ligar as legendas, não há controle para ligá-las à mão pela extensão. O que a tela mostra nesse caso não está documentado.',
+      'Voltar à mesma sala em até 10 minutos continua a gravação sem perguntar. Continuar uma gravação só é oferecido para gravações feitas a partir de 03/10/2026, que guardam de que sala vieram.',
     ],
     rotulos: [
       'Deseja registrar esta reunião?',
+      'Continuar de onde parou',
+      'Nova gravação',
       'Iniciar captura',
       'Agora não',
       'Registrar',
