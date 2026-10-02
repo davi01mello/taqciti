@@ -55,7 +55,20 @@ export const ESPECIALISTAS_DE_MODELO: Readonly<Record<string, string>> = {
   meeting_copilot: INSTRUCOES_COPILOTO,
 };
 
-function executorDeModelo(instrucoes: string): ExecutorDeAgente {
+/**
+ * A ferramenta sem a qual o pedido não está feito, por especialista. Só é
+ * cobrada quando foi oferecida — ou seja, quando a política autorizou aquele
+ * efeito para ESTE pedido (`registre o desalinhamento` sim; `compare` não).
+ */
+const EXIGIDA: Readonly<Record<string, string>> = {
+  meeting_analyst: 'save_analysis',
+  communication: 'prepare_message',
+  scheduling: 'prepare_event',
+  handoff_analysis: 'save_finding',
+  continuity: 'record_decision',
+};
+
+function executorDeModelo(instrucoes: string, exigir?: string): ExecutorDeAgente {
   return async (tarefa, ambiente) => {
     const entrada =
       tarefa.entrada && typeof tarefa.entrada === 'object' && Object.keys(tarefa.entrada).length
@@ -69,6 +82,7 @@ function executorDeModelo(instrucoes: string): ExecutorDeAgente {
       instrucoes,
       contexto,
       historico: ambiente.historico,
+      ...(exigir ? { exigir } : {}),
     });
   };
 }
@@ -267,7 +281,7 @@ const revisaoDePrivacidade = executorDeterministico(
 /** Liga os especialistas implementados num registro que já os tem catalogados. */
 export function ativarEspecialistas(agentes: RegistroDeAgentes): RegistroDeAgentes {
   for (const [id, instrucoes] of Object.entries(ESPECIALISTAS_DE_MODELO))
-    agentes.ativar(id, executorDeModelo(instrucoes), instrucoes);
+    agentes.ativar(id, executorDeModelo(instrucoes, EXIGIDA[id]), instrucoes);
   agentes.ativar('capture_monitor', monitorDeCaptura, null);
   agentes.ativar('quality_review', revisaoDeDocumento('qualidade'), null);
   agentes.ativar('evidence_verifier', revisaoDeDocumento('fontes'), null);

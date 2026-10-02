@@ -123,6 +123,22 @@ modelo, em janela móvel de 24 h** (mensagem do provedor: "Limit 200000, Used
 (as rodadas de ontem saem dela à noite), ou o Dev Tier do Groq, ou uma chave
 Gemini paga com política privada.
 
+### Rodada de 03/10/2026 — cotas livres (Groq `gpt-oss-120b`, depois `gpt-oss-20b`)
+
+| Jornada | Resultado ao vivo |
+| --- | --- |
+| Sugerir compromissos | ✓ (120b e 20b) — cartão de sugestões, nada gravado, "critérios de aceite" sem dono |
+| Registrar compromissos | ✓ (120b e 20b) — gravados com fonte, dono só onde a fala atribui |
+| Registrar de novo | ✓ no teste, mas o 120b **duplicou** um compromisso com outras palavras → corrigido: mesma fala da mesma reunião é o mesmo compromisso |
+| Analisar | ✓ no 120b (salvou, cobertura 3/3); ✗ no 20b (respondeu sem salvar) → corrigido: ferramenta exigida por especialista, cobrada uma vez pelo runtime |
+| Comparar fontes | ✓ (120b e 20b) — achados com as duas fontes; o 120b registrou um segundo achado (prazo) que parece complementar, não desalinhamento |
+| Decisão revista | ✓ (20b) — `record_decision` + `resolve_finding`, achado resolvido com histórico |
+| Rascunho | ✓ no dia 1 (Gemini); hoje parou na cota |
+| Horário | **não validado ao vivo** — cota acabou nas duas rodadas |
+| Captura | ✓ (3–4 ms, sem modelo) |
+
+As duas cotas diárias do Groq (200 mil tokens por modelo) acabaram de novo.
+
 ## Verificação visual
 
 `scripts/verify-trabalho.cjs` (Edge, perfil isolado, dados `[TESTE]`, sem IA)

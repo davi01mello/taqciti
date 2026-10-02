@@ -317,9 +317,20 @@ export async function registrarCompromissos(
       const descricao = n.descricao.trim();
       if (!descricao) continue;
       const chave = chaveDoItem('compromisso', n.reuniaoId, descricao);
+      // O mesmo combinado dito com outras palavras ("Entregar o protótipo" ×
+      // "Desenvolver o protótipo", visto ao vivo) sai da MESMA fala: a mesma
+      // reunião e o mesmo trecho de origem são o mesmo compromisso.
+      const mesmaFala = (c: Compromisso) =>
+        !!n.reuniaoId &&
+        c.reuniaoId === n.reuniaoId &&
+        n.evidencias.some((e) =>
+          c.evidencias.some(
+            (x) => x.registroId === e.registroId && x.segmento !== undefined && x.segmento === e.segmento,
+          ),
+        );
       const existente =
-        t.compromissos.find((c) => c.chave === chave) ??
-        criados.find((c) => c.chave === chave);
+        t.compromissos.find((c) => c.chave === chave || mesmaFala(c)) ??
+        criados.find((c) => c.chave === chave || mesmaFala(c));
       if (existente) {
         if (!jaExistiam.includes(existente) && !criados.includes(existente))
           jaExistiam.push(existente);

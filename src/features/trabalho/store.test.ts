@@ -60,6 +60,20 @@ describe('compromissos', () => {
     expect(compromissos[0]!.estado).toBe('concluido');
   });
 
+  it('o mesmo combinado com outras palavras, da mesma fala, não duplica (visto ao vivo)', async () => {
+    const fala = ev('Eu fico com o protótipo navegável até sexta', 'm-1', 2);
+    await registrarCompromissos(
+      [{ descricao: 'Desenvolver protótipo navegável', responsavel: null, prazo: null, reuniaoId: 'm-1', evidencias: [fala] }],
+      { origem: 'taq' },
+    );
+    const b = await registrarCompromissos(
+      [{ descricao: 'Entregar o protótipo navegável', responsavel: null, prazo: null, reuniaoId: 'm-1', evidencias: [fala] }],
+      { origem: 'taq' },
+    );
+    expect(b.criados).toHaveLength(0);
+    expect((await lerTrabalho()).compromissos).toHaveLength(1);
+  });
+
   it('sem dono continua sem dono; sem prazo continua sem prazo', async () => {
     const { criados } = await registrarCompromissos(
       [{ descricao: 'Revisar o contrato', responsavel: { nome: '  ', confirmado: false }, prazo: null, evidencias: [] }],

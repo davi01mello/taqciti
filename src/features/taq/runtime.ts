@@ -150,6 +150,12 @@ export interface ConfiguracaoDoCiclo {
   instrucoes: string;
   contexto: string;
   historico: readonly MensagemDoTurno[];
+  /**
+   * A ferramenta sem a qual a tarefa não está feita (o analista salva a
+   * análise). Oferecida e não usada na resposta final: o runtime cobra uma vez.
+   * Não oferecida (pedido só de leitura): nada é cobrado.
+   */
+  exigir?: string;
 }
 
 export async function executarCiclo(
@@ -177,6 +183,9 @@ export async function executarCiclo(
   const cartoes: CartaoDaResposta[] = [];
   /** Escritas locais que uma ferramenta confirmou nesta tarefa. */
   let escritasConfirmadas = 0;
+  /** Ferramentas que rodaram com sucesso — ver `ConfiguracaoDoCiclo.exigir`. */
+  const usadasComSucesso = new Set<string>();
+  let cobrouExigida = false;
   const usosPorFerramenta = new Map<string, number>();
   const assinaturas = new Map<string, number>();
 
@@ -349,6 +358,24 @@ export async function executarCiclo(
         });
         return fim('falhou');
       }
+      // A ferramenta que o especialista existe para usar (o analista salva a
+      // análise) foi oferecida e não rodou: uma cobrança, uma vez, se couber.
+      // Visto ao vivo: o modelo respondeu a análise em texto e nada foi salvo.
+      const exigida = cfg.exigir && ofertadas.find((f) => f.nome === cfg.exigir);
+      if (exigida && !usadasComSucesso.has(exigida.nome) && !cobrouExigida && !ultimo && resposta.tipo === 'final') {
+        cobrouExigida = true;
+        mensagens.push(
+          { papel: 'modelo', texto, chamadas: [] },
+          {
+            papel: 'pessoa',
+            texto:
+              `Aviso do runtime: este pedido exige ${exigida.nome}, e ela não foi chamada. ` +
+              `Chame ${exigida.nome} com o que você já leu (cada item com o rN) e depois responda. ` +
+              'Se não for possível, explique por quê.',
+          },
+        );
+        continue;
+      }
       const conferidas = await conferirCitacoes(texto, livro, ambiente.armazenamento);
       if (conferidas.naoVerificadas.length) {
         limitacoes.push(
@@ -451,6 +478,7 @@ export async function executarCiclo(
           resumo: r.ok && def ? def.resumir(r.conteudo) : `erro: ${r.codigoDeErro}`,
         });
         if (r.ok && def?.efeito === 'escrita_local') escritasConfirmadas += 1;
+        if (r.ok) usadasComSucesso.add(chamada.nome);
         if (!r.ok && r.codigoDeErro) {
           erros.push({
             codigo: r.codigoDeErro,

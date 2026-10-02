@@ -409,12 +409,15 @@ describe('cota por minuto do provedor', () => {
 
 describe('afirmação de escrita sem escrita (visto ao vivo)', () => {
   it('"Decisão nova registrada" sem ferramenta de escrita sai com o aviso', async () => {
-    const { modelo } = roteiro([
+    const { modelo, pedidos } = roteiro([
+      final('**Decisão nova registrada**: o PDF fica para a fase 2.'),
+      // A cobrança do runtime chega; o modelo insiste sem chamar a ferramenta.
       final('**Decisão nova registrada**: o PDF fica para a fase 2.'),
     ]);
     const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
       pedido('Ficou decidido que o PDF fica para a fase 2. Registre essa decisão.'),
     );
+    expect(JSON.stringify(pedidos[1]!.mensagens)).toMatch(/exige record_decision/);
     expect(r.resposta).toMatch(/nada foi gravado nesta execução/);
     expect(r.limitacoes.join(' ')).toMatch(/nada foi gravado/);
     expect((await lerTrabalho()).decisoes).toHaveLength(0);
@@ -465,5 +468,28 @@ describe('delegação direta pela dica de roteamento', () => {
     expect(peloTitulo(lista, 'captura do planejamento do painel', (x) => x.t)).toBeUndefined();
     expect(peloTitulo(lista, 'captura do planejamento do painel B', (x) => x.t)).toBeUndefined();
     expect(peloTitulo([{ t: 'Daily de dados' }, { t: 'Planejamento do painel' }], 'a captura do planejamento do painel', (x) => x.t)).toEqual({ t: 'Planejamento do painel' });
+  });
+});
+
+describe('ferramenta exigida (visto ao vivo: análise respondida sem salvar)', () => {
+  it('o analista que responde sem salvar é cobrado uma vez, e então salva', async () => {
+    const { modelo, pedidos } = roteiro([
+      pede('read_meeting', { reuniao_id: 'm-plan' }),
+      final('A reunião definiu a visualização como escopo da fase 1.'),
+      (p) => {
+        expect(JSON.stringify(p.mensagens)).toMatch(/exige save_analysis/);
+        return pede('save_analysis', {
+          reuniao_id: 'm-plan',
+          decisoes: [{ texto: 'Fase 1 só com visualização', refs: ['r1'] }],
+        });
+      },
+      final('Análise salva: uma decisão.'),
+    ]);
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Analise a reunião de planejamento do painel'),
+    );
+    expect(pedidos).toHaveLength(4);
+    expect(r.cartoes?.[0]).toMatchObject({ tipo: 'analise' });
+    expect((await lerTrabalho()).analises).toHaveLength(1);
   });
 });
