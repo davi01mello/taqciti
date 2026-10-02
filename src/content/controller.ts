@@ -44,6 +44,11 @@ import {
 import { enviarNoChat } from './providers/googleMeet/chat';
 import type { MeetingSession } from '@/features/meeting/provider';
 
+/** Novas tentativas do portão da captura quando o storage de sessão falha. */
+const TENTATIVAS_DO_PORTAO = 3;
+/** Espera antes da 1ª nova tentativa; triplica a cada uma (1 s, 3 s, 9 s). */
+const ESPERA_DO_PORTAO_MS = 1_000;
+
 const PARTICIPANTS_POLL_MS = 5000;
 
 export class ContentController {
@@ -312,10 +317,33 @@ export class ContentController {
    *
    * O silêncio é o problema a evitar aqui, não a exceção.
    */
-  private considerarReuniaoComLog(session: MeetingSession): void {
-    void this.considerarReuniao(session).catch((error) =>
-      logger.error('portão da captura falhou: a pergunta não vai aparecer', error),
-    );
+  private considerarReuniaoComLog(session: MeetingSession, tentativa = 0): void {
+    void this.considerarReuniao(session).catch((error) => {
+      /*
+       * A sala era marcada como "já anunciada" ANTES das leituras do storage
+       * de sessão. Se a primeira falhava — a aba do Meet carregou antes de o
+       * service worker liberar a área de sessão, o caso de abrir o navegador
+       * com a reunião restaurada —, todo `onMeetingStart` seguinte daquela sala
+       * era ignorado, e a pergunta nunca aparecia naquela reunião. Agora a sala
+       * volta a poder ser anunciada, e a tentativa se repete (acordando o
+       * background, que libera a área no boot) enquanto a pessoa estiver nela.
+       */
+      if (this.salaAnunciada === session.meetingCode) this.salaAnunciada = null;
+      if (tentativa >= TENTATIVAS_DO_PORTAO) {
+        logger.error('portão da captura falhou: a pergunta não vai aparecer', error);
+        return;
+      }
+      logger.warn('portão da captura falhou; tentando de novo', { tentativa: tentativa + 1 });
+      setTimeout(() => {
+        const aindaNaSala =
+          this.salaAtual?.meetingCode === session.meetingCode ||
+          this.provider.detectMeeting()?.meetingCode === session.meetingCode;
+        if (!aindaNaSala || this.salaAnunciada === session.meetingCode) return;
+        void sendMessage({ type: 'ui/getState' })
+          .catch(() => undefined)
+          .finally(() => this.considerarReuniaoComLog(session, tentativa + 1));
+      }, ESPERA_DO_PORTAO_MS * 3 ** tentativa);
+    });
   }
 
   // ---------- o portão: registrar esta reunião? ----------

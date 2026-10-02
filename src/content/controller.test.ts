@@ -1,4 +1,4 @@
-﻿/**
+/**
  * O PORTÃO DA CAPTURA: nada é registrado antes de a pessoa dizer que sim.
  *
  * Este é o teste que impede a regressão mais cara do produto — a extensão
@@ -228,5 +228,34 @@ describe('detectar uma reunião não é começar a registrá-la', () => {
     const anunciada = await lerReuniaoDetectada();
     expect(anunciada?.participacaoId).toBeTruthy();
     expect(anunciada?.participacaoId).not.toBe(anterior.id);
+  });
+});
+
+describe('o portão não morre na primeira falha do storage de sessão', () => {
+  /*
+   * Abrir o navegador com a reunião restaurada: a aba do Meet roda antes de o
+   * service worker liberar a área de sessão, e a primeira leitura é recusada.
+   * Antes, a sala ficava marcada como anunciada e a pergunta nunca aparecia.
+   */
+  it('a primeira leitura recusada não impede a pergunta de aparecer', async () => {
+    const sessao = (globalThis as unknown as { chrome: { storage: { session: { get: ReturnType<typeof vi.fn> } } } })
+      .chrome.storage.session;
+    const fake = fakeProvider();
+    await montarControlador(fake);
+
+    const original = sessao.get.getMockImplementation()!;
+    let recusas = 1;
+    sessao.get.mockImplementation(async (...args: unknown[]) => {
+      if (recusas-- > 0) throw new Error('Access to storage is not allowed from this context.');
+      return (original as (...a: unknown[]) => unknown)(...args);
+    });
+    fake.entrarNaSala();
+    await assentar(1_400);
+
+    const { STORAGE_KEYS } = await import('@/shared/config/constants');
+    const anunciada = (await sessao.get(STORAGE_KEYS.pendingMeeting)) as Record<string, { meetingCode?: string }>;
+    expect(anunciada[STORAGE_KEYS.pendingMeeting]?.meetingCode).toBe(SALA.meetingCode);
+    // E continua sem captura: a pergunta apareceu, ninguém respondeu.
+    expect(enviadas(sendMessage)).not.toContain('meet/detected');
   });
 });
