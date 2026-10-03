@@ -51,7 +51,6 @@ import {
   revogarTokenDoConector,
 } from '@/shared/services/conector';
 
-import { Capacidades } from './Capacidades';
 import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
 
 function Cabecalho({ titulo, sub }: { titulo: string; sub: string }) {
@@ -135,9 +134,10 @@ function EnderecoNovo({ criado }: { criado: TokenRecemCriado }) {
  * guia que só descreve o caminho feliz falha exatamente na hora em que
  * alguém precisa dele.
  */
-function ComoConectar() {
+function ComoConectar({ so }: { so: 'Claude' | 'ChatGPT' }) {
   return (
     <div className="tq-guia">
+      {so === 'Claude' && (
       <details open>
         <summary>Conectar na Claude</summary>
         <ol className="tq-passos">
@@ -165,8 +165,10 @@ function ComoConectar() {
           </li>
         </ol>
       </details>
+      )}
 
-      <details>
+      {so === 'ChatGPT' && (
+      <details open>
         <summary>Conectar no ChatGPT</summary>
         <ol className="tq-passos">
           <li>Copie o mesmo endereço — ele serve para os dois.</li>
@@ -192,7 +194,9 @@ function ComoConectar() {
           caminho manual lá embaixo funciona sempre.
         </p>
       </details>
+      )}
 
+      {so === 'Claude' && (
       <details>
         <summary>Por que a Claude avisa que “não verificou” o servidor</summary>
         <p>
@@ -206,6 +210,7 @@ function ComoConectar() {
           problema. Seguir em frente é o caminho certo aqui.
         </p>
       </details>
+      )}
 
       <details>
         <summary>As duas contas — e por que não precisam ser a mesma</summary>
@@ -244,14 +249,23 @@ function ComoConectar() {
 
 // ----------------------------------------------------------------- a página
 
+/**
+ * Conexões é um HUB curto: em cima o que falta conectar, embaixo o que já
+ * está. Cada "Conectar" abre o caminho certo ali mesmo, no próprio tile — o
+ * login do Google, o endereço do conector para a Claude ou o ChatGPT. O que
+ * ainda não existe nesta versão (Gmail, Agenda, WhatsApp) aparece com "Em
+ * breve", sem botão: um botão que não inicia fluxo real seria decorativo.
+ */
 export function PaginaConexoes({
   registros,
-  taq,
 }: {
   registros: MeetingRecord[];
-  /** O estado do assistente — ver Capacidades. Ausente: o painel não aparece. */
+  /** Mantido por compatibilidade: a lista de capacidades saiu desta página. */
   taq?: DisponibilidadeDoTaq;
 }) {
+  const [aberto, setAberto] = useState<string | null>(null);
+  /** Para quem foi o endereço recém-criado: é no tile dele que ele aparece. */
+  const [criadoPara, setCriadoPara] = useState<string | null>(null);
   const [estado, setEstado] = useState<EstadoDaSincronizacao | null>(null);
   const [tokens, setTokens] = useState<TokenDoConector[]>([]);
   const [email, setEmail] = useState<string | null>(null);
@@ -318,6 +332,7 @@ export function PaginaConexoes({
     try {
       const novo = await criarTokenDoConector(rotuloNovo.trim() || undefined);
       setCriado(novo);
+      setCriadoPara(null);
       setRotuloNovo('');
       await carregarTokens();
     } catch (e) {
@@ -374,286 +389,369 @@ export function PaginaConexoes({
   const comConteudo = registros.filter(temConteudo);
   const ativos = tokens.filter((t) => !t.revogadoEm);
   const naoUsados = ativos.filter((t) => !t.usadoEm);
+  const ligada = estado?.situacao === 'ligada';
+
+  /** O assistente já tem endereço: o rótulo é o que o tile deu ao gerá-lo. */
+  const temEndereco = (nome: string) =>
+    ativos.some((t) => (t.rotulo ?? '').toLowerCase().includes(nome.toLowerCase()));
+
+  const gerarPara = async (nome: string) => {
+    setRotuloNovo(nome);
+    setOcupado(true);
+    setErro(null);
+    try {
+      const novo = await criarTokenDoConector(nome);
+      setCriado(novo);
+      setCriadoPara(nome);
+      await carregarTokens();
+    } catch (e) {
+      setErro(e instanceof ConectorIndisponivel ? e.message : 'Não foi possível gerar.');
+    } finally {
+      setOcupado(false);
+      setRotuloNovo('');
+    }
+  };
+
+  /** O caminho de um assistente (Claude ou ChatGPT): sincronizar, gerar, colar. */
+  const fluxoDoAssistente = (nome: 'Claude' | 'ChatGPT') => {
+    if (!ligada)
+      return (
+        <div className="tq-hub-fluxo">
+          <p className="tq-hub-nota">
+            O {nome} consulta as reuniões pelo servidor do TaqCiti. Primeiro ligue a
+            sincronização com a sua conta Google — a janela do Google abre só com o seu clique.
+          </p>
+          <div className="tq-acoes">
+            <button
+              type="button"
+              className="tq-acao tq-acao-principal"
+              disabled={ocupado || estado?.situacao === 'sem-oauth'}
+              onClick={aoLigar}
+            >
+              Ligar sincronização
+            </button>
+            <button type="button" className="tq-acao" onClick={() => setAberto(null)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+    return (
+      <div className="tq-hub-fluxo">
+        {criado && criadoPara === nome ? (
+          <>
+            <EnderecoNovo criado={criado} />
+            <ComoConectar so={nome} />
+          </>
+        ) : (
+          <>
+            <p className="tq-hub-nota">
+              Gera um endereço só para o {nome}. Ele vale como senha: quem tiver o link
+              alcança o seu acervo, e ele aparece uma vez só.
+            </p>
+            <div className="tq-acoes">
+              <button
+                type="button"
+                className="tq-acao tq-acao-principal"
+                disabled={ocupado}
+                onClick={() => void gerarPara(nome)}
+              >
+                Gerar endereço
+              </button>
+              <button type="button" className="tq-acao" onClick={() => setAberto(null)}>
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const pendentes: Array<{
+    id: string;
+    nome: string;
+    faz: string;
+    icone: React.ReactNode;
+    fluxo?: React.ReactNode;
+    emBreve?: true;
+  }> = [
+    ...(!ligada
+      ? [
+          {
+            id: 'google',
+            nome: 'Conta Google',
+            faz: 'Sincroniza o acervo para os assistentes consultarem.',
+            icone: <span>G</span>,
+            fluxo: fluxoDoGoogle(),
+          },
+        ]
+      : []),
+    ...(!temEndereco('Claude')
+      ? [{ id: 'claude', nome: 'Claude', faz: 'Responde sobre as suas reuniões dentro da Claude.', icone: <span>C</span>, fluxo: fluxoDoAssistente('Claude') }]
+      : []),
+    ...(!temEndereco('ChatGPT')
+      ? [{ id: 'chatgpt', nome: 'ChatGPT', faz: 'Busca e abre as suas reuniões no ChatGPT.', icone: <span>G</span>, fluxo: fluxoDoAssistente('ChatGPT') }]
+      : []),
+    { id: 'gmail', nome: 'Gmail', faz: 'Envia e-mails e atas, com a sua confirmação.', icone: <Icon name="doc" size={18} />, emBreve: true },
+    { id: 'agenda', nome: 'Google Agenda', faz: 'Marca a próxima reunião e envia o convite.', icone: <Icon name="history" size={18} />, emBreve: true },
+    { id: 'whatsapp', nome: 'WhatsApp', faz: 'Envia atas e recados por mensagem.', icone: <Icon name="chats" size={18} />, emBreve: true },
+  ];
+
+  function fluxoDoGoogle() {
+    if (estado?.situacao === 'sem-oauth')
+      return (
+        <p className="tq-hub-nota">
+          Falta registrar o cliente OAuth desta extensão — sem ele o Chrome não identifica a sua
+          conta. O roteiro está em <code>docs/google-oauth-setup.md</code>.
+        </p>
+      );
+    return (
+      <div className="tq-hub-fluxo">
+        {estado?.situacao === 'precisa-permissao' ? (
+          <p className="tq-hub-nota">
+            A sessão do Google expirou. Reconectar resolve — nada foi perdido.
+          </p>
+        ) : (
+          <>
+            {estado?.situacao === 'desligada' && estado.motivo && (
+              <p className="tq-hub-nota tq-hub-falha">O Google recusou: {estado.motivo}</p>
+            )}
+            <p className="tq-hub-nota">
+              Abre o login do Google — escolha a sua conta do CITi. Enquanto estiver desligado,
+              nada sai deste computador e o resto do produto funciona igual.
+            </p>
+          </>
+        )}
+        <div className="tq-acoes">
+          <button
+            type="button"
+            className="tq-acao tq-acao-principal"
+            disabled={ocupado}
+            onClick={aoLigar}
+          >
+            {estado?.situacao === 'precisa-permissao' ? 'Reconectar' : 'Ligar sincronização'}
+          </button>
+          <button type="button" className="tq-acao" onClick={() => setAberto(null)}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="tq-pagina">
+    <div className="tq-pagina tq-conexoes">
       <Cabecalho
         titulo="Conexões"
-        sub="Dê à Claude e ao ChatGPT acesso às suas reuniões — copiando e colando um link."
+        sub="As ferramentas que o TaqCiti usa para responder, enviar e agendar por você."
       />
 
       {estado === null ? (
         <p className="tq-vazio">Verificando…</p>
       ) : (
         <>
-          {estado.situacao === 'sem-oauth' && (
-            <div className="tq-aviso">
-              <strong>Falta registrar o cliente OAuth desta extensão.</strong> Sem ele o
-              Chrome não tem como identificar sua conta, e a sincronização não pode ser
-              ligada. O mesmo vale para o envio ao Google Docs. O roteiro está em{' '}
-              <code>docs/google-oauth-setup.md</code>.
-            </div>
-          )}
+          {erro && <div className="tq-aviso">{erro}</div>}
 
-          {estado.situacao === 'desligada' && (
-            <>
-              {estado.motivo && (
-                <div className="tq-aviso tq-aviso-falha">
-                  <strong>O Google recusou ligar a sincronização.</strong> {estado.motivo}
-                </div>
-              )}
-              <div className="tq-aviso">
-                Sincronizar envia suas reuniões, documentos, conversas e notas para o
-                servidor do TaqCiti, para que um assistente possa consultá-los.{' '}
-                <strong>Enquanto estiver desligado, nada sai desta máquina</strong> e o
-                resto do produto funciona igual.
-              </div>
-              <p className="tq-meta">
-                O clique abre a tela de login do Google — a mesma que qualquer site mostra
-                — com a lista de contas para escolher. Selecione a sua conta do CITi ali;
-                não importa qual conta o Chrome já estiver usando.
-              </p>
-              <div className="tq-acoes">
-                <button
-                  type="button"
-                  className="tq-acao tq-acao-principal"
-                  disabled={ocupado}
-                  onClick={aoLigar}
+          <section className="tq-hub-grupo" aria-labelledby="tq-hub-pendentes">
+            <h2 id="tq-hub-pendentes">
+              Para conectar <span className="tq-hub-conta">{pendentes.length}</span>
+            </h2>
+            <ul className="tq-hub">
+              {pendentes.map((c) => (
+                <li
+                  key={c.id}
+                  className={`tq-hub-tile${aberto === c.id ? ' aberta' : ''}${c.emBreve ? ' em-breve' : ''}`}
                 >
-                  <Icon name="link" size={15} />
-                  Ligar sincronização
-                </button>
-              </div>
-              <p className="tq-meta">
-                Não pedimos acesso ao seu Drive aqui — isso só é pedido se você usar
-                “enviar para o Google Docs”.
-              </p>
-            </>
-          )}
+                  <div className="tq-hub-tile-topo">
+                    <span className="tq-hub-icone" aria-hidden="true">
+                      {c.icone}
+                    </span>
+                    <div>
+                      <b>{c.nome}</b>
+                      <p>{c.faz}</p>
+                    </div>
+                    {c.emBreve ? (
+                      <span className="tq-hub-breve">Em breve</span>
+                    ) : (
+                      aberto !== c.id && (
+                        <button
+                          type="button"
+                          className="tq-acao tq-pilula"
+                          onClick={() => setAberto(c.id)}
+                        >
+                          Conectar
+                        </button>
+                      )
+                    )}
+                  </div>
+                  {aberto === c.id && c.fluxo}
+                </li>
+              ))}
+            </ul>
+          </section>
 
-          {estado.situacao === 'precisa-permissao' && (
-            <>
-              <div className="tq-aviso">
-                <strong>A sessão do Google expirou.</strong> Costuma ser revogação de
-                acesso nas configurações da conta, ou tempo demais sem usar. Reconectar
-                resolve — nada foi perdido.
-              </div>
-              <div className="tq-acoes">
-                <button
-                  type="button"
-                  className="tq-acao tq-acao-principal"
-                  disabled={ocupado}
-                  onClick={aoLigar}
-                >
-                  <Icon name="link" size={15} />
-                  Reconectar
-                </button>
-                <button
-                  type="button"
-                  className="tq-acao tq-acao-perigo"
-                  disabled={ocupado}
-                  onClick={aoDesligar}
-                >
-                  Desligar
-                </button>
-              </div>
-            </>
-          )}
-
-          {estado.situacao === 'ligada' && (
-            <>
-              <div className="tq-acoes">
-                <span className="tq-chip">
-                  <Icon name="check" size={14} /> {email ?? estado.email ?? 'conectado'}
+          <section className="tq-hub-grupo" aria-labelledby="tq-hub-conectadas">
+            <h2 id="tq-hub-conectadas">
+              Conectadas{' '}
+              <span className="tq-hub-conta">{1 + (ligada ? 1 : 0) + ativos.length}</span>
+            </h2>
+            <ul className="tq-hub-lista">
+              <li>
+                <span className="tq-hub-icone" aria-hidden="true">
+                  <Icon name="chats" size={16} />
                 </span>
-                <button
-                  type="button"
-                  className="tq-acao tq-acao-perigo"
-                  disabled={ocupado}
-                  onClick={aoDesligar}
-                >
-                  Desligar
-                </button>
-              </div>
-              <p className="tq-meta">
-                Esta é a conta que diz de quem é o acervo — só as reuniões dela aparecem
-                para o assistente. A conta que você usa na Claude ou no ChatGPT pode ser
-                outra, inclusive pessoal; as duas não precisam combinar.
-              </p>
-              <p className="tq-meta">
-                Desligar para de enviar daqui para frente. O que já subiu continua lá —
-                revogar os endereços abaixo é o que tira o acesso dos assistentes.
-              </p>
+                <div>
+                  <b>Google Meet</b>
+                  <small>ouve as legendas — funciona sozinho</small>
+                </div>
+                <span className="tq-hub-ok" aria-label="conectado">
+                  <Icon name="check" size={16} />
+                </span>
+              </li>
 
-              {erro && <div className="tq-aviso">{erro}</div>}
-
-              <h2 className="tq-secao-titulo">Endereços do conector</h2>
-              <p className="tq-meta">
-                Um endereço é um link que você cola na Claude ou no ChatGPT — e é só isso
-                que a conexão exige, sem instalar nada e sem criar conta em lugar nenhum.
-                Ele já vai autenticado, então <strong>vale como senha</strong>: quem tiver
-                o link alcança seu acervo. Gere um por assistente, e revogue o que não
-                usa.
-              </p>
-
-              {criado ? (
-                <EnderecoNovo criado={criado} />
-              ) : (
-                ativos.length > 0 && (
-                  <p className="tq-meta">
-                    Um endereço já criado não aparece de novo — o servidor guarda só um
-                    resumo dele. Perdeu o seu? Gere outro e revogue o antigo.
-                  </p>
-                )
+              {ligada && (
+                <li>
+                  <span className="tq-hub-icone" aria-hidden="true">
+                    <span>G</span>
+                  </span>
+                  <div>
+                    <b>Conta Google</b>
+                    <small>{email ?? estado.email ?? 'sincronização ligada'}</small>
+                  </div>
+                  {confirmandoId === 'google' ? (
+                    <span className="tq-acoes">
+                      <button
+                        type="button"
+                        className="tq-linkish tq-linkish-perigo"
+                        disabled={ocupado}
+                        onClick={() => {
+                          setConfirmandoId(null);
+                          void aoDesligar();
+                        }}
+                      >
+                        Desligar
+                      </button>
+                      <button type="button" className="tq-linkish" onClick={() => setConfirmandoId(null)}>
+                        Cancelar
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="tq-linkish"
+                      disabled={ocupado}
+                      title="Desligar para de enviar daqui para frente. O que já subiu continua lá."
+                      onClick={() => setConfirmandoId('google')}
+                    >
+                      Desconectar
+                    </button>
+                  )}
+                </li>
               )}
 
-              <div className="tq-acoes">
+              {ativos.map((t) => (
+                <li key={t.id}>
+                  <span className="tq-hub-icone" aria-hidden="true">
+                    <Icon name="link" size={16} />
+                  </span>
+                  <div>
+                    <b>{t.rotulo ?? 'Endereço do conector'}</b>
+                    <small>
+                      criado em {dataCurta(t.criadoEm)}
+                      {t.usadoEm ? ` · último uso em ${dataCurta(t.usadoEm)}` : ' · nunca usado'}
+                    </small>
+                  </div>
+                  {confirmandoId === t.id ? (
+                    <span className="tq-acoes">
+                      <button
+                        type="button"
+                        className="tq-linkish tq-linkish-perigo"
+                        disabled={ocupado}
+                        onClick={() => aoRevogar(t.id)}
+                      >
+                        Revogar
+                      </button>
+                      <button type="button" className="tq-linkish" onClick={() => setConfirmandoId(null)}>
+                        Cancelar
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="tq-linkish"
+                      disabled={ocupado}
+                      onClick={() => setConfirmandoId(t.id)}
+                    >
+                      Revogar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            {ativos.length > 2 && naoUsados.length > 0 && (
+              <p className="tq-hub-nota tq-hub-muitos">
+                {ativos.length} endereços ativos — cada um vale como senha.{' '}
+                {confirmandoLimpeza ? (
+                  <>
+                    <button
+                      type="button"
+                      className="tq-linkish tq-linkish-perigo"
+                      disabled={ocupado}
+                      onClick={aoRevogarNaoUsados}
+                    >
+                      Confirmar
+                    </button>
+                    <button type="button" className="tq-linkish" onClick={() => setConfirmandoLimpeza(false)}>
+                      Cancelar
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="tq-linkish" onClick={() => setConfirmandoLimpeza(true)}>
+                    Revogar os {naoUsados.length} que nunca foram usados
+                  </button>
+                )}
+              </p>
+            )}
+
+            {/* Gerar outro endereço, com nome livre, para quem já conectou os dois. */}
+            {ligada && temEndereco('Claude') && temEndereco('ChatGPT') && (
+              <div className="tq-acoes tq-hub-outro">
                 <input
                   type="text"
                   className="tq-rotulo-input"
-                  placeholder="Nome deste endereço (opcional) — ex.: Claude do trabalho"
+                  placeholder="Nome de outro endereço (opcional)"
                   value={rotuloNovo}
                   onChange={(e) => setRotuloNovo(e.target.value)}
                   disabled={ocupado}
                   maxLength={60}
                 />
-                {/* Verde só enquanto não houver nenhum: aí ele é a única coisa
-                    a fazer. Com endereços já criados, gerar mais um é opção
-                    entre outras, e um botão gritando seria convite a
-                    acumular credencial sem motivo. */}
-                <button
-                  type="button"
-                  className={`tq-acao${ativos.length === 0 ? ' tq-acao-principal' : ''}`}
-                  disabled={ocupado}
-                  onClick={aoGerar}
-                >
+                <button type="button" className="tq-acao" disabled={ocupado} onClick={aoGerar}>
                   <Icon name="plus" size={15} />
                   Gerar endereço
                 </button>
               </div>
-
-              {ativos.length > 2 && (
-                <div className="tq-aviso">
-                  Você tem <strong>{ativos.length} endereços ativos</strong>. Normalmente
-                  bastam dois — um por assistente. Cada endereço vale como senha do seu
-                  acervo inteiro, então sobrar credencial esquecida é risco, não
-                  conveniência.
-                  {naoUsados.length > 0 && (
-                    <div className="tq-acoes tq-aviso-acao">
-                      {confirmandoLimpeza ? (
-                        <>
-                          <span className="tq-confirma-inline">
-                            Revogar os {naoUsados.length} endereços nunca usados?
-                          </span>
-                          <button
-                            type="button"
-                            className="tq-linkish tq-linkish-perigo"
-                            disabled={ocupado}
-                            onClick={aoRevogarNaoUsados}
-                          >
-                            Confirmar
-                          </button>
-                          <button
-                            type="button"
-                            className="tq-linkish"
-                            disabled={ocupado}
-                            onClick={() => setConfirmandoLimpeza(false)}
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="tq-linkish"
-                          disabled={ocupado}
-                          onClick={() => setConfirmandoLimpeza(true)}
-                        >
-                          Revogar os {naoUsados.length} que nunca foram usados
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {ativos.length === 0 ? (
-                <p className="tq-vazio">
-                  Nenhum endereço ativo — gere um acima para conectar a Claude ou o
-                  ChatGPT.
-                </p>
-              ) : (
-                <div className="tq-lista tq-lista-densa">
-                  {ativos.map((t) => (
-                    <div key={t.id} className="tq-item">
-                      <span>
-                        <strong>{t.rotulo ?? 'Endereço do conector'}</strong>
-                        <small>
-                          criado em {dataCurta(t.criadoEm)}
-                          {t.usadoEm
-                            ? ` · último uso em ${dataCurta(t.usadoEm)}`
-                            : ' · nunca usado'}
-                        </small>
-                      </span>
-                      {confirmandoId === t.id ? (
-                        <span className="tq-acoes">
-                          <button
-                            type="button"
-                            className="tq-linkish tq-linkish-perigo"
-                            disabled={ocupado}
-                            onClick={() => aoRevogar(t.id)}
-                          >
-                            Confirmar
-                          </button>
-                          <button
-                            type="button"
-                            className="tq-linkish"
-                            disabled={ocupado}
-                            onClick={() => setConfirmandoId(null)}
-                          >
-                            Cancelar
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="tq-linkish"
-                          disabled={ocupado}
-                          onClick={() => setConfirmandoId(t.id)}
-                        >
-                          Revogar
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {ativos.length > 0 && <ComoConectar />}
-            </>
-          )}
+            )}
+            {criado && criadoPara === null && <EnderecoNovo criado={criado} />}
+          </section>
         </>
       )}
 
-      <h2 className="tq-secao-titulo">Sem conectar: o caminho manual</h2>
-      <p className="tq-meta">
-        Funciona sempre, inclusive com a sincronização desligada. Serve bem para mandar
-        uma reunião só.
+      <p className="tq-hub-pe">
+        Envio e agendamento sempre vão pedir a sua confirmação. Sem conexões, tudo continua
+        funcionando neste computador.
       </p>
 
       <div className="tq-guia">
         <details>
-          <summary>Baixar a transcrição e arrastar para o assistente</summary>
+          <summary>Sem conectar: o caminho manual</summary>
           <p>
-            O arquivo <code>.txt</code> sai com o título, a data e as falas na ordem — é
-            exatamente o que a extensão capturou. Nos dois assistentes, prefira anexar o
-            arquivo a colar o texto: o anexo não consome o limite da janela de mensagem do
-            mesmo jeito.
+            Baixe a transcrição em <code>.txt</code> e anexe na Claude ou no ChatGPT — funciona
+            sempre, inclusive com a sincronização desligada.
           </p>
           {comConteudo.length === 0 ? (
-            <p className="tq-vazio">
-              Nenhuma reunião com transcrição para exportar ainda.
-            </p>
+            <p className="tq-vazio">Nenhuma reunião com transcrição para exportar ainda.</p>
           ) : (
             <div className="tq-lista tq-lista-densa">
               {comConteudo.slice(0, 6).map((r) => (
@@ -674,8 +772,7 @@ export function PaginaConexoes({
           )}
         </details>
       </div>
-
-      {taq && <Capacidades taq={taq} />}
     </div>
   );
 }
+

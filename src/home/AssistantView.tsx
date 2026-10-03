@@ -307,10 +307,14 @@ export function AssistantView({
   return (
     <section className="tq-palco" aria-label="Conversa com o assistente">
       <div className="tq-conversa">
+        {/*
+         * A abertura é só a marca viva e o slogan. Sem saudação grande e sem o
+         * nome do assistente: fora da conversa ele não tem nome — é presença.
+         */}
         {vazia ? (
           <div className="tq-abertura">
-            <h1>O que vamos organizar?</h1>
-            <p>Pergunte sobre suas reuniões e documentos, ou peça um documento.</p>
+            <MarcaDoTaq estado="repouso" tamanho={56} ouve />
+            <p className="tq-slogan">Sempre te ouvindo</p>
           </div>
         ) : (
           historico
@@ -340,7 +344,7 @@ export function AssistantView({
             rows={1}
             value={rascunho}
             aria-label="Mensagem para o assistente"
-            placeholder={vazia ? 'Escreva aqui…' : 'Continue a conversa…'}
+            placeholder={vazia ? 'Pergunte sobre suas reuniões…' : 'Continue a conversa…'}
             onFocus={() => onEscrevendo(true)}
             onBlur={() => onEscrevendo(false)}
             onChange={(e) => {
@@ -413,8 +417,10 @@ export function AssistantView({
          * é descobrir tarde demais — e faz a tela parecer um chat que falhou,
          * em vez de um chat que ainda não existe.
          */}
-        <AvisoDoTaq taq={taq} onVerificarDeNovo={onVerificarDeNovo} />
-        <p className="tq-dica-teclas">Enter envia · Shift+Enter quebra linha</p>
+        <div className="tq-escrita-pe">
+          <AvisoDoTaq taq={taq} onVerificarDeNovo={onVerificarDeNovo} />
+          <p className="tq-dica-teclas">Enter envia, Shift+Enter quebra linha</p>
+        </div>
       </form>
 
       <input
@@ -459,20 +465,29 @@ function AvisoDoTaq({
   taq: DisponibilidadeDoTaq;
   onVerificarDeNovo: () => void;
 }) {
+  // Uma linha só, com o ponto de estado à esquerda. Sem o nome do assistente:
+  // isto é o estado do produto, e não uma fala dele.
   if (taq.fase === 'pronto') {
     return (
-      <p className="tq-com-ia" role="status">
-        Taq conectado. Os trechos que ele consulta vão ao provedor de IA.
+      <p
+        className="tq-com-ia tq-status-ia"
+        role="status"
+        title="Os trechos que o assistente consulta vão ao provedor de IA."
+      >
+        IA conectada
       </p>
     );
   }
   return (
-    <p className="tq-sem-ia" role="status">
+    <p
+      className={`tq-sem-ia tq-status-ia${taq.fase === 'verificando' ? ' verificando' : ' fora'}`}
+      role="status"
+    >
       {taq.fase === 'verificando'
-        ? 'Verificando o assistente…'
+        ? 'Verificando a IA…'
         : taq.fase === 'pendente'
-          ? `Taq com configuração pendente: ${taq.motivos.join(' ')}`
-          : 'Taq fora do ar. Sua mensagem fica salva.'}
+          ? `IA com configuração pendente: ${taq.motivos.join(' ')}`
+          : 'IA fora do ar. Sua mensagem fica salva.'}
       {taq.fase !== 'verificando' && (
         <>
           {' '}

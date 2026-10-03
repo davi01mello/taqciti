@@ -292,7 +292,7 @@ describe('o compositor', () => {
       STORAGE_KEYS.conversations
     ];
     expect(guardadas).toEqual([]);
-    expect(host.textContent).toContain('O que vamos organizar?');
+    expect(host.textContent).toContain('Sempre te ouvindo');
   });
 
   it('Enter envia; Shift+Enter não', async () => {
@@ -367,7 +367,7 @@ describe('o menu de conversas', () => {
     await act(async () => q<HTMLButtonElement>('.tq-conversas-botao').click());
     await act(async () => q<HTMLButtonElement>('.tq-conversas-nova').click());
     expect(host.textContent).not.toContain('texto guardado');
-    expect(host.textContent).toContain('O que vamos organizar?');
+    expect(host.textContent).toContain('Sempre te ouvindo');
 
     await act(async () => q<HTMLButtonElement>('.tq-conversas-botao').click());
     const item = q<HTMLButtonElement>('.tq-conversas-lista li button');

@@ -18,15 +18,17 @@ import { documentosDaReuniao } from '@/features/documents/store';
 import { usePlatform } from '@/shared/platform/context';
 import { downloadTranscript, transcriptToText } from '@/features/history/export';
 import { Icon } from '@/shared/ui/Icon';
-import { TranscriptView } from '@/shared/ui/TranscriptView';
 import {
   countWords,
   formatCount,
   formatDate,
   formatDurationHuman,
+  formatOffset,
   formatTime,
   hostName,
+  speakerLabel,
 } from '@/shared/ui/format';
+import { Carta, IconeEnviar } from './Carta';
 import { GerarDocumento } from './GerarDocumento';
 import { NotasDaReuniao } from './NotasDaReuniao';
 import { PrintsDaReuniao } from './PrintsDaReuniao';
@@ -65,6 +67,10 @@ interface ReunioesProps {
   onEscreverNota: (meetingId: string, texto: string) => void;
   onApagarNota: (meetingId: string) => Promise<boolean>;
   onAbrirDocumento: (id: string) => void;
+  /** A carta manda para Conexões quando o canal não está conectado. */
+  onIrConexoes?: () => void;
+  /** "Criar documento" em texto livre: o pedido segue para a conversa. */
+  onPedirDocumento?: (registro: MeetingRecord, texto: string) => void;
 }
 
 export function PaginaReunioes({
@@ -79,6 +85,8 @@ export function PaginaReunioes({
   onEscreverNota,
   onApagarNota,
   onAbrirDocumento,
+  onIrConexoes = () => {},
+  onPedirDocumento = () => {},
 }: ReunioesProps) {
   // A reunião pode sumir (apagada aqui mesmo, ou noutra aba): a tela volta
   // para a lista em vez de ficar num detalhe sem dono.
@@ -116,9 +124,13 @@ export function PaginaReunioes({
         onApagarNota={onApagarNota}
         onAbrirDocumento={onAbrirDocumento}
         onVoltar={() => onAbrir(null)}
+        onIrConexoes={onIrConexoes}
+        onPedirDocumento={onPedirDocumento}
       />
     );
   }
+
+  const grupos = agruparPorSemana(registros);
 
   return (
     <div className="tq-pagina">
@@ -132,9 +144,13 @@ export function PaginaReunioes({
           registrar quando o TaqCiti perguntar, e a transcrição aparece aqui.
         </Vazio>
       ) : (
-        <div className="tq-lista">
+        <>
           {erroDaLista && <p role="alert">{erroDaLista}</p>}
-          {registros.map((r) => {
+          {grupos.map(([nomeDoGrupo, doGrupo]) => (
+          <section key={nomeDoGrupo} className="tq-grupo" aria-label={nomeDoGrupo}>
+          <h2 className="tq-grupo-titulo">{nomeDoGrupo}</h2>
+          <div className="tq-lista">
+          {doGrupo.map((r) => {
             const vinculados = documentosDaReuniao(documentos, r.id).length;
 
             /* A pergunta ocupa o LUGAR do item, e não uma caixa por cima: é o
@@ -185,19 +201,26 @@ export function PaginaReunioes({
 
             return (
               <div key={r.id} className="tq-item-linha">
-                <button type="button" className="tq-item" onClick={() => onAbrir(r.id)}>
-                  <span>
-                    <strong>{r.title}</strong>
-                    <small>
-                      {formatDate(r.startedAt)} · {formatTime(r.startedAt)} ·{' '}
-                      {formatDurationHuman(r.durationSeconds)} · {r.segments.length}{' '}
-                      {r.segments.length === 1 ? 'fala' : 'falas'}
-                      {notas[r.id] && ' · com nota'}
-                      {vinculados > 0 && ' · com documento'}
-                      {r.status === 'recording' ? ' · ao vivo' : ''}
-                    </small>
+                <button type="button" className="tq-item tq-linha-reuniao" onClick={() => onAbrir(r.id)}>
+                  <strong>{r.title}</strong>
+                  <span className="tq-meta">
+                    {r.status === 'recording' ? (
+                      <span className="tq-ao-vivo-txt">Ao vivo agora</span>
+                    ) : (
+                      <span>{formatDate(r.startedAt)}</span>
+                    )}
+                    <span className="tq-relogio">{formatTime(r.startedAt)}</span>
+                    {r.status !== 'recording' && (
+                      <span>{formatDurationHuman(r.durationSeconds)}</span>
+                    )}
                   </span>
-                  <Icon name="arrowUpRight" size={16} />
+                  {(r.segments.length > 0 || notas[r.id] || vinculados > 0) && (
+                    <small>
+                      {r.segments.length > 0 && `“${r.segments.at(-1)!.text}”`}
+                      {notas[r.id] && <span className="tq-linha-selo">com nota</span>}
+                      {vinculados > 0 && <span className="tq-linha-selo">com documento</span>}
+                    </small>
+                  )}
                 </button>
                 {/* A que está sendo gravada não se apaga: a captura ainda escreve nela. */}
                 {r.status !== 'recording' && (
@@ -217,9 +240,61 @@ export function PaginaReunioes({
               </div>
             );
           })}
-        </div>
+          </div>
+          </section>
+          ))}
+        </>
       )}
     </div>
+  );
+}
+
+/** Esta semana e antes: a lista longa lê por tempo, e não como uma fila só. */
+function agruparPorSemana(registros: MeetingRecord[]): Array<[string, MeetingRecord[]]> {
+  const corte = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentes = registros.filter((r) => r.startedAt >= corte);
+  const antigas = registros.filter((r) => r.startedAt < corte);
+  return [
+    ['Esta semana', recentes] as [string, MeetingRecord[]],
+    ['Antes', antigas] as [string, MeetingRecord[]],
+  ].filter(([, lista]) => lista.length > 0);
+}
+
+/**
+ * A transcrição, na leitura da HOME.
+ *
+ * Quem fala: VOCÊ em verde, os OUTROS em roxo — a mesma regra da sidebar e do
+ * chat. A cor nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome.
+ * Falas seguidas da mesma pessoa não repetem o nome.
+ *
+ * `content-visibility` em cada fala, no lugar de virtualizar: a reunião de duas
+ * horas rola tão leve quanto a de cinco minutos, e o Ctrl+F continua achando.
+ */
+function FalasDaReuniao({ registro }: { registro: MeetingRecord }) {
+  if (registro.segments.length === 0)
+    return <p className="tq-vazio">Nenhuma fala foi capturada nesta reunião.</p>;
+  const eu = hostName(registro.participants);
+  return (
+    <ol className="tq-falas" aria-label="Falas da reunião">
+      {registro.segments.map((s, i) => {
+        const nome = s.speaker ?? 'Alguém';
+        const rotulo = speakerLabel(nome, eu);
+        const seguida = i > 0 && (registro.segments[i - 1]?.speaker ?? 'Alguém') === nome;
+        return (
+          <li
+            key={`${s.captionId}:${i}`}
+            className={`tq-fala${rotulo !== nome ? ' voce' : ''}${seguida ? ' seguida' : ''}`}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 56px' }}
+          >
+            <div className="tq-fala-quem">
+              <b>{rotulo}</b>
+              <span>{formatOffset(s.startOffsetMs)}</span>
+            </div>
+            <p className="tq-fala-texto">{s.text}</p>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -254,6 +329,8 @@ function DetalheDaReuniao({
   onApagarNota,
   onAbrirDocumento,
   onVoltar,
+  onIrConexoes,
+  onPedirDocumento,
 }: {
   registro: MeetingRecord;
   nota: string;
@@ -263,8 +340,15 @@ function DetalheDaReuniao({
   onApagarNota: (meetingId: string) => Promise<boolean>;
   onAbrirDocumento: (id: string) => void;
   onVoltar: () => void;
+  onIrConexoes: () => void;
+  onPedirDocumento: (registro: MeetingRecord, texto: string) => void;
 }) {
   const platform = usePlatform();
+  const [carta, setCarta] = useState<{
+    assunto: string;
+    corpo: string;
+    anexo: string | null;
+  } | null>(null);
   const cabemDuas = useCabemDuasColunas();
   const [titulo, setTitulo] = useState(registro.title);
   const cancelouTitulo = useRef(false);
@@ -340,12 +424,124 @@ function DetalheDaReuniao({
       />
 
       <p className="tq-meta">
-        {formatDate(registro.startedAt)} · {formatTime(registro.startedAt)} ·{' '}
-        {formatDurationHuman(registro.durationSeconds)}
-        {palavras > 0 && ` · ${formatCount(palavras)} palavras`}
-        {registro.participants.length > 0 &&
-          ` · ${registro.participants.map((p) => p.name).join(', ')}`}
+        <span>{formatDate(registro.startedAt)}</span>
+        <span className="tq-relogio">{formatTime(registro.startedAt)}</span>
+        <span>{formatDurationHuman(registro.durationSeconds)}</span>
+        {palavras > 0 && <span>{formatCount(palavras)} palavras</span>}
+        {registro.participants.length > 0 && (
+          <span>{registro.participants.map((p) => p.name).join(', ')}</span>
+        )}
       </p>
+
+      {/*
+       * As AÇÕES, em pílulas neutras lado a lado — o desenho da HOME antiga.
+       * Nenhuma "chama" atenção: a cor fica para o que a ação produz (a
+       * caixinha da IA, a carta). O que cada uma abre nasce logo abaixo da
+       * fileira, na largura toda, e não num menu flutuante.
+       */}
+      <div className="tq-rodape-acoes tq-acoes-reuniao">
+        <button
+          type="button"
+          className="tq-acao tq-pilula"
+          title="Copiar a transcrição"
+          onClick={copiar}
+        >
+          <Icon name="copy" size={15} />
+          Copiar
+        </button>
+        <button
+          type="button"
+          className="tq-acao tq-pilula"
+          title="Baixar a transcrição em .txt"
+          onClick={() => downloadTranscript(registro)}
+        >
+          <Icon name="arrowDown" size={15} />
+          Baixar .txt
+        </button>
+
+        <GerarDocumento
+          registro={registro}
+          onAbrirDocumento={onAbrirDocumento}
+          onPedirLivre={(texto) => onPedirDocumento(registro, texto)}
+          onEnviar={(d) =>
+            setCarta({
+              assunto: d.title,
+              corpo: `Oi,\n\nSegue “${d.title}”, da reunião ${registro.title}.\n\n`,
+              anexo: `${d.title}.pdf`,
+            })
+          }
+        />
+
+        <button
+          type="button"
+          className="tq-acao tq-pilula"
+          aria-expanded={carta !== null}
+          onClick={() =>
+            setCarta((atual) =>
+              atual
+                ? null
+                : {
+                    assunto: registro.title,
+                    corpo: `Oi,\n\nSegue a transcrição da reunião ${registro.title}, de ${formatDate(registro.startedAt)}.\n\n`,
+                    anexo: 'Transcrição.txt',
+                  },
+            )
+          }
+        >
+          <IconeEnviar />
+          Enviar
+        </button>
+
+        {/* A que está sendo gravada não se apaga, como na lista: a captura
+            ainda escreve nela, e o pedido seria recusado depois de confirmado. */}
+        {registro.status !== 'recording' && (
+          <div className="tq-menu-secundario">
+            <button
+              type="button"
+              className="tq-acao tq-pilula tq-acao-icone"
+              aria-haspopup="true"
+              aria-expanded={menuAberto}
+              title="Mais ações"
+              aria-label="Mais ações"
+              onClick={() => setMenuAberto((v) => !v)}
+            >
+              <Icon name="chevron" size={14} />
+            </button>
+            {menuAberto && (
+              <div className="tq-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="perigo"
+                  onClick={() => {
+                    setMenuAberto(false);
+                    setConfirmando(true);
+                  }}
+                >
+                  Apagar reunião
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {aviso && (
+          <p className="tq-aviso-curto" role="status">
+            {aviso}
+          </p>
+        )}
+
+        {carta && (
+          <Carta
+            key={`${carta.assunto}:${carta.anexo ?? ''}`}
+            assunto={carta.assunto}
+            corpo={carta.corpo}
+            anexo={carta.anexo}
+            onFechar={() => setCarta(null)}
+            onIrConexoes={onIrConexoes}
+          />
+        )}
+      </div>
 
       {/* O acesso aos documentos desta reunião: uma linha de atalhos, e não
           mais um painel permanentemente aberto disputando a largura. */}
@@ -365,8 +561,6 @@ function DetalheDaReuniao({
           ))}
         </div>
       )}
-
-      <PrintsDaReuniao meetingId={registro.id} titulo={registro.title} />
 
       {!cabemDuas && (
         <div className="tq-alternar" role="tablist" aria-label="O que mostrar">
@@ -404,13 +598,7 @@ function DetalheDaReuniao({
               rolagem a mais aqui dentro seria a caixa aninhada que engole a
               roda do mouse. */}
           <div className="tq-coluna-corpo">
-            <TranscriptView
-              neutral
-              segments={registro.segments}
-              selfName={hostName(registro.participants)}
-              emptyMessage="Nenhuma fala foi capturada nesta reunião."
-              scroll={false}
-            />
+            <FalasDaReuniao registro={registro} />
           </div>
         </Coluna>
 
@@ -427,69 +615,8 @@ function DetalheDaReuniao({
             onEscrever={onEscreverNota}
             onApagar={onApagarNota}
           />
+          <PrintsDaReuniao meetingId={registro.id} titulo={registro.title} />
         </Coluna>
-      </div>
-
-      <div className="tq-rodape-acoes">
-        <button
-          type="button"
-          className="tq-acao"
-          title="Copiar a transcrição"
-          onClick={copiar}
-        >
-          <Icon name="doc" size={14} />
-          Copiar
-        </button>
-        <button
-          type="button"
-          className="tq-acao"
-          title="Baixar a transcrição em .txt"
-          onClick={() => downloadTranscript(registro)}
-        >
-          <Icon name="arrowDown" size={14} />
-          Baixar .txt
-        </button>
-
-        <GerarDocumento registro={registro} onAbrirDocumento={onAbrirDocumento} />
-
-        {/* A que está sendo gravada não se apaga, como na lista: a captura
-            ainda escreve nela, e o pedido seria recusado depois de confirmado. */}
-        {registro.status !== 'recording' && (
-        <div className="tq-menu-secundario">
-          <button
-            type="button"
-            className="tq-acao tq-acao-icone"
-            aria-haspopup="true"
-            aria-expanded={menuAberto}
-            title="Mais ações"
-            aria-label="Mais ações"
-            onClick={() => setMenuAberto((v) => !v)}
-          >
-            <Icon name="chevron" size={14} />
-          </button>
-          {menuAberto && (
-            <div className="tq-menu" role="menu">
-              <button
-                type="button"
-                role="menuitem"
-                className="perigo"
-                onClick={() => {
-                  setMenuAberto(false);
-                  setConfirmando(true);
-                }}
-              >
-                Apagar reunião
-              </button>
-            </div>
-          )}
-        </div>
-        )}
-
-        {aviso && (
-          <p className="tq-aviso-curto" role="status">
-            {aviso}
-          </p>
-        )}
       </div>
 
       {confirmando && (

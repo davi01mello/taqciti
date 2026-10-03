@@ -1780,43 +1780,8 @@ html {
   position: relative;
 }
 
-.tq-gerar-menu {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 8px);
-  z-index: 20;
-  min-width: 210px;
-  padding: 5px;
-  border-radius: 12px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  background: rgb(31 33 35 / 0.97);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.38);
-}
-
-.tq-gerar-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 10px 12px;
-  border-radius: 9px;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 12.5px;
-  color: rgb(214 217 221);
-  cursor: pointer;
-}
-
-.tq-gerar-menu button:hover {
-  background: rgb(255 255 255 / 0.07);
-}
-
-.tq-gerar-menu button.ocupado {
-  pointer-events: none;
-  opacity: 0.55;
-}
+/* As opções do catálogo moram dentro da caixinha da IA (`.tq-caixa-ia-opcoes`,
+   no bloco do Espectro); a classe fica como gancho dos testes. */
 
 .tq-gerar-erro {
   margin: 6px 0 2px;
@@ -2306,5 +2271,1217 @@ body.tq-pointer-in .tq-halo {
 @media (max-width: 520px) {
   .tq-cap {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ===================================================================
+ * O ESPECTRO — a direção visual aprovada em 02/10/2026.
+ *
+ * Verde é quem fala na reunião (as pessoas); violeta são as ideias que voltam
+ * dela (o assistente). A regra que mais aparece na tela é a de QUEM FALA: você
+ * em verde, os outros em roxo — na transcrição e no chat. O papel (#f3f4f1)
+ * é o que vira documento: a carta e as miniaturas da estante.
+ *
+ * Tudo aqui é escopo da HOME (`.tq-home`); os tokens globais não mudam.
+ * =================================================================== */
+.tq-home {
+  --voz: #5ccb85;
+  --voz-clara: #90dfad;
+  --voz-funda: #0c3120;
+  --ideia: #9b82f5;
+  --ideia-clara: #cdc0fc;
+  --papel: #f3f4f1;
+  --tinta-papel: #15171a;
+  --cinza-papel: #5c6269;
+  --traco-papel: rgba(21, 23, 26, 0.12);
+  --e-texto: #edeeef;
+  --e-texto-2: #c4c8cd;
+  --e-cinza: #969ba1;
+  --e-traco: rgba(255, 255, 255, 0.08);
+  --e-placa: rgba(255, 255, 255, 0.045);
+  --e-placa-forte: rgba(255, 255, 255, 0.085);
+  --e-atencao: #e8c4a0;
+}
+
+/* ------------------------------------------------------------ títulos */
+.tq-brand {
+  font-size: 25px;
+}
+
+.tq-pagina h1,
+.tq-pagina-topo h1 {
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.02;
+  letter-spacing: -0.6px;
+  color: var(--e-texto);
+}
+
+.tq-pagina-topo p {
+  color: var(--e-cinza);
+  max-width: 64ch;
+}
+
+.tq-reuniao .tq-titulo-editavel,
+.tq-documento-topo .tq-titulo-editavel {
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  font-size: clamp(28px, 3.6vw, 40px);
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+}
+
+.tq-reuniao > .tq-meta,
+.tq-linha-reuniao .tq-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  color: var(--e-cinza);
+}
+
+.tq-relogio {
+  font-variant-numeric: tabular-nums;
+  color: var(--e-texto-2);
+  font-weight: 600;
+}
+
+/* ------------------------------------------- a reunião ao vivo, no topo */
+.tq-topo-direita .tq-captando {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 8px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 999px;
+  background: rgba(92, 203, 133, 0.07);
+  border: 1px solid rgba(92, 203, 133, 0.2);
+  color: var(--e-texto);
+  letter-spacing: 0;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tq-topo-direita .tq-captando:hover {
+  background: rgba(92, 203, 133, 0.12);
+}
+
+.tq-captando-txt {
+  display: grid;
+  line-height: 1.25;
+}
+
+.tq-captando-txt b {
+  font-size: 12.5px;
+  font-weight: 600;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tq-captando-txt > span {
+  font-size: 11px;
+  color: var(--voz-clara);
+}
+
+@media (max-width: 820px) {
+  .tq-captando-txt {
+    display: none;
+  }
+  .tq-topo-direita .tq-captando {
+    padding: 6px;
+  }
+}
+
+/* ---------------------------------------------- o assistente: o slogan */
+.tq-abertura {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  text-align: left;
+  margin: 22vh 0 32px;
+}
+
+.tq-slogan {
+  margin: 0;
+  font-family: var(--font-titulo);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--e-cinza);
+}
+
+/* Quem fala, no chat: a sua mensagem numa placa verde; a resposta em lilás. */
+.tq-turno-voce .tq-bolha {
+  padding: 10px 15px;
+  border-radius: 18px 18px 6px 18px;
+  background: rgba(92, 203, 133, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(92, 203, 133, 0.14);
+  color: var(--voz-clara);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.tq-turno-agente .tq-agente-nome {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ideia);
+}
+
+.tq-turno-agente .tq-resp-texto,
+.tq-turno-agente .tq-indisponivel {
+  color: rgb(214 207 250);
+  font-size: 15px;
+}
+
+.tq-turno-agente .tq-md strong,
+.tq-turno-agente .tq-md h3 {
+  color: rgb(236 232 254);
+}
+
+.tq-turno-agente .tq-md h4 {
+  color: var(--ideia-clara);
+}
+
+/*
+ * O compositor: o texto nasce direto na página, grande, na Barlow. Sem placa e
+ * sem botão de enviar à vista — Enter envia. O botão continua no DOM, só para
+ * leitor de tela e teclado; o "+" de anexar continua, e gira ao abrir.
+ */
+.tq-campo textarea {
+  font-family: var(--font-titulo);
+  font-size: 24px;
+  line-height: 1.35;
+  min-height: 44px;
+  max-height: 200px;
+  caret-color: var(--ideia);
+}
+
+.tq-campo textarea::placeholder {
+  color: #6e7379;
+}
+
+.tq-escrita .tq-enviar {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tq-mais {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 6px;
+}
+
+.tq-escrita-pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-top: 10px;
+}
+
+.tq-escrita-pe .tq-dica-teclas {
+  margin: 0;
+  font-size: 11px;
+  color: var(--e-cinza);
+}
+
+.tq-status-ia {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--e-cinza);
+}
+
+.tq-status-ia::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--voz);
+  box-shadow: 0 0 0 3px rgba(92, 203, 133, 0.12);
+}
+
+.tq-status-ia.fora::before {
+  background: var(--e-atencao);
+  box-shadow: 0 0 0 3px rgba(232, 196, 160, 0.12);
+}
+
+.tq-status-ia.verificando::before {
+  background: var(--e-cinza);
+  box-shadow: none;
+  animation: tq-piscar 1.2s ease-in-out infinite;
+}
+
+.tq-status-ia .tq-linkish {
+  font-size: 11.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@keyframes tq-piscar {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ------------------------------------------------ reuniões: a lista */
+.tq-grupo + .tq-grupo {
+  margin-top: 26px;
+}
+
+.tq-grupo-titulo {
+  margin: 0 0 6px;
+  font-family: var(--font-texto);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--e-cinza);
+}
+
+.tq-item.tq-linha-reuniao {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 20px;
+  align-items: baseline;
+  padding: 16px 12px;
+}
+
+.tq-linha-reuniao strong {
+  font-family: var(--font-titulo);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.1px;
+  min-width: 0;
+}
+
+.tq-linha-reuniao .tq-meta {
+  margin: 0;
+  justify-content: flex-end;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.tq-linha-reuniao small {
+  grid-column: 1 / -1;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--e-cinza);
+}
+
+.tq-linha-selo {
+  margin-left: 10px;
+  color: var(--voz-clara);
+  font-size: 12px;
+}
+
+.tq-ao-vivo-txt {
+  color: var(--voz-clara);
+}
+
+/* ---------------------------------------------- reunião: as pílulas */
+.tq-acoes-reuniao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 14px 0;
+  border-block: 1px solid var(--e-traco);
+}
+
+.tq-home .tq-pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--e-texto-2);
+  font-size: 13px;
+  font-weight: 400;
+  transition:
+    background 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+
+.tq-home .tq-pilula:hover:not(:disabled),
+.tq-home .tq-pilula[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--e-texto);
+}
+
+.tq-home .tq-pilula.tq-acao-icone {
+  width: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* O que cada pílula abre nasce embaixo da fileira, na largura toda. */
+.tq-acoes-reuniao .tq-gerar {
+  display: contents;
+}
+
+.tq-acoes-reuniao .tq-caixa-ia,
+.tq-acoes-reuniao .tq-gerar-resultado,
+.tq-acoes-reuniao .tq-carta-caixa {
+  flex: 1 0 100%;
+  order: 5;
+  margin-top: 8px;
+}
+
+.tq-acoes-reuniao .tq-aviso-curto {
+  margin: 0 0 0 6px;
+  color: var(--voz-clara);
+}
+
+/* ---------------------------------- a caixinha da IA: "qual documento?" */
+.tq-caixa-ia {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 14px;
+  max-width: 640px;
+  padding: 16px 44px 16px 16px;
+  border-radius: 18px;
+  background: rgba(155, 130, 245, 0.06);
+  border: 1px solid rgba(155, 130, 245, 0.2);
+  animation: tq-chegar 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.tq-caixa-ia-corpo {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tq-caixa-ia-pergunta {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: rgb(214 207 250);
+}
+
+.tq-caixa-ia-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tq-caixa-ia-opcoes button {
+  padding: 7px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 130, 245, 0.3);
+  font-size: 13px;
+  color: var(--e-texto-2);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+}
+
+.tq-caixa-ia-opcoes button:hover {
+  background: rgba(155, 130, 245, 0.12);
+  border-color: rgba(155, 130, 245, 0.55);
+  color: var(--e-texto);
+}
+
+.tq-caixa-ia-campo input {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-bottom: 1px solid rgba(155, 130, 245, 0.2);
+  background: none;
+  color: var(--e-texto);
+  font: inherit;
+  font-size: 14px;
+  caret-color: var(--ideia);
+}
+
+.tq-caixa-ia-campo input:focus {
+  outline: none;
+  border-bottom-color: rgba(155, 130, 245, 0.5);
+}
+
+.tq-caixa-ia-campo input::placeholder {
+  color: #7d8288;
+}
+
+.tq-caixa-ia-fechar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--e-cinza);
+  cursor: pointer;
+}
+
+.tq-caixa-ia-fechar:hover {
+  background: var(--e-placa);
+  color: var(--e-texto);
+}
+
+@keyframes tq-chegar {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* -------------------------------------------------- a transcrição */
+.tq-falas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  max-width: 68ch;
+}
+
+.tq-fala {
+  position: relative;
+  padding: 9px 4px 9px 0;
+  margin-top: 8px;
+}
+
+.tq-fala.seguida {
+  margin-top: 0;
+  padding-top: 1px;
+}
+
+.tq-fala-quem {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--e-cinza);
+}
+
+/* Quem fala: você em verde, os outros em roxo. O "(Eu)" continua escrito. */
+.tq-fala-quem b {
+  font-weight: 600;
+  color: rgb(180 166 242);
+}
+
+.tq-fala-quem span {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.tq-fala.seguida .tq-fala-quem {
+  display: none;
+}
+
+.tq-fala-texto {
+  margin: 3px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgb(212 205 248);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.tq-fala.voce .tq-fala-texto {
+  color: rgb(178 230 197);
+}
+
+.tq-fala.voce .tq-fala-quem b {
+  color: var(--voz-clara);
+}
+
+/* ------------------------------------------------- documentos: a estante */
+.tq-lista.tq-estante {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 34px 26px;
+  margin-top: 26px;
+}
+
+.tq-documento-item {
+  position: relative;
+  display: block;
+  /* A lixeira se posiciona pela altura da miniatura (1,3 × a largura). */
+  container-type: inline-size;
+}
+
+.tq-documento-item .tq-item {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  backdrop-filter: none;
+}
+
+.tq-documento-item .tq-item:hover {
+  background: none;
+}
+
+.tq-documento-item .tq-item > span:last-child {
+  display: grid;
+  gap: 4px;
+}
+
+.tq-documento-item strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.tq-miniatura {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1.3;
+  max-width: 100%;
+  padding: 16px 15px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--papel);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.9);
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.25s;
+}
+
+.tq-documento-item .tq-item:hover .tq-miniatura {
+  transform: translateY(-4px) rotate(-0.6deg);
+  box-shadow: 0 26px 50px -18px rgba(0, 0, 0, 0.95);
+}
+
+.tq-miniatura-titulo {
+  display: block;
+  padding: 0 26px 7px 0;
+  border-bottom: 1.5px solid var(--tinta-papel);
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.05;
+  color: var(--tinta-papel);
+}
+
+/* A marca no papel é a PRETA, a mesma da ata. */
+.tq-miniatura-marca {
+  position: absolute;
+  top: 15px;
+  right: 13px;
+  filter: brightness(0);
+}
+
+.tq-miniatura i {
+  display: block;
+  height: 4px;
+  margin-top: 7px;
+  border-radius: 2px;
+  background: rgba(21, 23, 26, 0.16);
+}
+
+.tq-miniatura i.h {
+  width: 40%;
+  height: 5px;
+  margin-top: 12px;
+  background: rgba(21, 23, 26, 0.55);
+}
+
+/* No pé da página, longe da marca preta do canto de cima. */
+.tq-documento-item .tq-item-apagar {
+  position: absolute;
+  top: calc(130cqw - 46px);
+  right: 8px;
+  background: rgba(21, 23, 26, 0.75);
+  color: rgb(236 238 240);
+}
+
+/* --------------------------------------------------------- a carta */
+.tq-carta-caixa {
+  max-width: 620px;
+  margin-top: 8px;
+}
+
+.tq-carta {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 26px 30px 22px;
+  border-radius: 6px;
+  background: var(--papel);
+  color: var(--tinta-papel);
+  font-family: var(--font-titulo);
+  box-shadow:
+    0 30px 70px -30px rgba(0, 0, 0, 0.9),
+    0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  animation: tq-carta-chegar 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes tq-carta-chegar {
+  from {
+    opacity: 0;
+    transform: translateY(24px) rotate(0.6deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tq-carta-selo {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  filter: brightness(0);
+  opacity: 0.85;
+}
+
+.tq-carta-canais {
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  margin-bottom: 10px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(21, 23, 26, 0.07);
+}
+
+.tq-home .tq-carta-canais button {
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-family: var(--font-titulo);
+  font-size: 13px;
+  color: var(--cinza-papel);
+  cursor: pointer;
+}
+
+.tq-home .tq-carta-canais button[aria-selected='true'] {
+  background: #fff;
+  color: var(--tinta-papel);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.tq-carta-linha {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--traco-papel);
+}
+
+.tq-carta-linha span {
+  font-size: 13px;
+  color: var(--cinza-papel);
+}
+
+.tq-carta-linha input {
+  min-height: 40px;
+  border: 0;
+  background: none;
+  color: var(--tinta-papel);
+  font: inherit;
+  font-size: 15px;
+  caret-color: var(--tinta-papel);
+}
+
+.tq-carta-linha input:focus {
+  outline: none;
+}
+
+.tq-carta-linha input::placeholder {
+  color: rgba(21, 23, 26, 0.35);
+}
+
+/* O corpo é papel pautado: a pauta acompanha o texto ao rolar. */
+.tq-carta-corpo {
+  min-height: 192px;
+  margin-top: 12px;
+  resize: vertical;
+  border: 0;
+  background: repeating-linear-gradient(transparent 0 31px, rgba(21, 23, 26, 0.08) 31px 32px);
+  background-attachment: local;
+  color: var(--tinta-papel);
+  font: inherit;
+  font-size: 15px;
+  line-height: 32px;
+  caret-color: var(--tinta-papel);
+}
+
+.tq-carta-corpo:focus,
+.tq-home .tq-carta-corpo:focus-visible,
+.tq-home .tq-carta-linha input:focus-visible {
+  outline: none;
+}
+
+.tq-carta-anexo {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(21, 23, 26, 0.07);
+  font-size: 12.5px;
+  color: var(--tinta-papel);
+}
+
+.tq-carta-anexo::before {
+  content: '';
+  width: 9px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+
+.tq-carta-pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tq-carta-aviso {
+  flex: 1 1 220px;
+  margin: 0;
+  font-size: 13px;
+  color: #8a5a2b;
+}
+
+.tq-home .tq-carta-aviso button {
+  padding: 0;
+  font-family: var(--font-titulo);
+  color: var(--tinta-papel);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tq-home .tq-carta-descartar {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-family: var(--font-titulo);
+  font-size: 14px;
+  color: var(--cinza-papel);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tq-home .tq-carta-descartar:hover {
+  background: rgba(21, 23, 26, 0.06);
+}
+
+.tq-home .tq-carta-enviar {
+  min-height: 38px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--tinta-papel);
+  color: var(--papel);
+  font-family: var(--font-titulo);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tq-home .tq-carta-enviar:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.tq-home .tq-carta :focus-visible {
+  outline-color: var(--tinta-papel);
+}
+
+@media (max-width: 600px) {
+  .tq-carta {
+    padding: 22px 18px 18px;
+  }
+}
+
+/* --------------------------------------------------- acompanhamento */
+.tq-acomp-abas {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--e-traco);
+}
+
+.tq-home .tq-acomp-abas button[role='tab'] {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--e-cinza);
+  cursor: pointer;
+}
+
+.tq-home .tq-acomp-abas button[role='tab']:hover,
+.tq-home .tq-acomp-abas button[aria-selected='true'] {
+  color: var(--e-texto);
+}
+
+.tq-acomp-abas button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--e-texto);
+}
+
+.tq-acomp-conta {
+  font-size: 12px;
+  color: var(--e-cinza);
+  font-variant-numeric: tabular-nums;
+}
+
+.tq-home .tq-acomp-novo {
+  margin: 0 0 4px auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--e-texto-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tq-home .tq-acomp-novo:hover,
+.tq-home .tq-acomp-novo[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--e-texto);
+}
+
+.tq-acomp-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  animation: tq-chegar 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.tq-acomp-form input {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 11px;
+  border: 1px solid var(--e-traco);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--e-texto);
+  font: inherit;
+  font-size: 14px;
+}
+
+.tq-acomp-form input.principal {
+  grid-column: 1 / -1;
+  font-size: 15px;
+}
+
+.tq-acomp-form input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.tq-acomp-form input::placeholder {
+  color: #6e7379;
+}
+
+.tq-acomp-form .tq-acoes {
+  grid-column: 1 / -1;
+}
+
+.tq-acomp-lista {
+  display: grid;
+}
+
+.tq-acomp-linha {
+  position: relative;
+}
+
+.tq-acomp-linha .tq-c-lista {
+  margin: 0;
+}
+
+.tq-acomp-lixo {
+  position: absolute;
+  top: 10px;
+  right: 4px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--e-cinza);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    background 0.2s,
+    color 0.2s;
+}
+
+.tq-acomp-linha:hover .tq-acomp-lixo,
+.tq-acomp-lixo:focus-visible {
+  opacity: 1;
+}
+
+.tq-acomp-lixo:hover {
+  background: rgba(224, 110, 105, 0.12);
+  color: rgb(240 178 172);
+}
+
+.tq-acomp-confirma {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 110, 105, 0.28);
+  background: rgba(224, 110, 105, 0.07);
+}
+
+.tq-acomp-confirma p {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--e-texto-2);
+}
+
+@media (pointer: coarse) {
+  .tq-acomp-lixo {
+    opacity: 1;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 600px) {
+  .tq-acomp-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------- conexões: o hub */
+.tq-hub-grupo {
+  margin-top: 26px;
+}
+
+.tq-hub-grupo h2 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0 0 12px;
+  font-family: var(--font-texto);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--e-cinza);
+}
+
+.tq-hub-conta {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tq-hub {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 10px;
+}
+
+.tq-hub-tile {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--e-traco);
+  background: rgba(255, 255, 255, 0.025);
+  transition:
+    border-color 0.25s,
+    background 0.25s;
+}
+
+.tq-hub-tile:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.tq-hub-tile.aberta {
+  grid-column: 1 / -1;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.16);
+  animation: tq-chegar 0.28s ease both;
+}
+
+.tq-hub-tile.em-breve {
+  opacity: 0.6;
+}
+
+.tq-hub-tile-topo {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.tq-hub-tile-topo b {
+  display: block;
+  font-family: var(--font-titulo);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.tq-hub-tile-topo p {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  color: var(--e-cinza);
+  text-wrap: pretty;
+}
+
+.tq-hub-icone {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--e-placa-forte);
+  color: var(--e-texto-2);
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.tq-hub-breve {
+  font-size: 12px;
+  color: var(--e-cinza);
+  white-space: nowrap;
+}
+
+.tq-hub-fluxo {
+  display: grid;
+  gap: 10px;
+  padding-left: 52px;
+}
+
+.tq-hub-nota {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--e-texto-2);
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+
+.tq-hub-nota.tq-hub-falha {
+  color: var(--e-atencao);
+}
+
+.tq-hub-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tq-hub-lista li {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tq-hub-lista .tq-hub-icone {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+
+.tq-hub-lista b {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tq-hub-lista small {
+  display: block;
+  font-size: 12px;
+  color: var(--voz-clara);
+}
+
+.tq-hub-ok {
+  padding-right: 8px;
+  color: var(--voz-clara);
+}
+
+.tq-hub-muitos {
+  margin-top: 12px;
+  color: var(--e-atencao);
+}
+
+.tq-hub-outro {
+  margin-top: 14px;
+}
+
+.tq-hub-pe {
+  margin: 26px 0 14px;
+  max-width: 70ch;
+  font-size: 12.5px;
+  color: var(--e-cinza);
+}
+
+@media (max-width: 600px) {
+  .tq-hub-fluxo {
+    padding-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-caixa-ia,
+  .tq-carta,
+  .tq-acomp-form,
+  .tq-hub-tile.aberta,
+  .tq-status-ia.verificando::before {
+    animation: none;
   }
 }

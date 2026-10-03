@@ -588,6 +588,31 @@ export async function registrarDecisao(
   });
 }
 
+// ------------------------------------------------------------------ exclusão
+
+export type ListaDoTrabalho = 'compromissos' | 'decisoes' | 'achados';
+
+/**
+ * Tira um item do acompanhamento, a pedido da pessoa (a HOME confirma antes,
+ * no lugar do item). Quem dependia dele perde só a ligação; a decisão que ele
+ * substituiu continua substituída — o registro de que houve troca não some.
+ */
+export async function excluirDoTrabalho(lista: ListaDoTrabalho, id: string): Promise<boolean> {
+  return transacao((t) => {
+    const antes = t[lista].length;
+    if (lista === 'compromissos') {
+      t.compromissos = t.compromissos.filter((c) => c.id !== id);
+      for (const c of t.compromissos) c.dependeDe = c.dependeDe.filter((d) => d !== id);
+    } else if (lista === 'decisoes') {
+      t.decisoes = t.decisoes.filter((d) => d.id !== id);
+    } else {
+      t.achados = t.achados.filter((a) => a.id !== id);
+    }
+    const mudou = t[lista].length !== antes;
+    return { resultado: mudou, mudou };
+  });
+}
+
 // ------------------------------------------------------------------ achados
 
 export interface NovoAchado {

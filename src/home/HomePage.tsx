@@ -77,9 +77,21 @@ import {
   type FonteDaResposta,
 } from './conversations';
 import { useConversaAberta } from './useConversaAberta';
+import { formatElapsedClock } from '@/shared/ui/format';
+import type { MeetingRecord } from '@/shared/types/domain';
 
 /** Chave do rascunho enquanto a conversa nova ainda não existe no storage. */
 const RASCUNHO_NOVA = '\u0000nova';
+
+/** O relógio da reunião ao vivo: só ele re-renderiza a cada segundo. */
+function RelogioAoVivo({ desde }: { desde: number }) {
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return <span className="tq-relogio">{formatElapsedClock(agora - desde)}</span>;
+}
 
 export function HomePage() {
   const pedido = useMemo(() => lerPedidoDaHome(window.location.search), []);
@@ -360,6 +372,43 @@ export function HomePage() {
     [conversa, taq.fase, acoesDaTela, escolherConversa],
   );
 
+  /**
+   * "Criar documento" em texto livre, na tela da reunião: o pedido vira uma
+   * pergunta numa conversa nova, com a reunião como contexto explícito, e segue
+   * para o Taq como qualquer outra. É a conversa que decide o que dá para fazer
+   * com o pedido — a caixinha não adivinha um tipo de documento por conta própria.
+   */
+  const pedirDocumento = useCallback(
+    (registro: MeetingRecord, texto: string) => {
+      const contexto = { meetingId: registro.id, meetingTitle: registro.title };
+      void navegar(async () => {
+        try {
+          const id = await acrescentarMensagem(null, {
+            texto,
+            contexto,
+            meetingId: registro.id,
+          });
+          escolherConversa(id);
+          definirSecao('assistente');
+          if (taq.fase === 'pronto') {
+            setDesfecho(null);
+            void perguntarAoTaq({ conversaId: id, texto, contexto, acoes: acoesDaTela }).then(
+              (r) => setDesfecho(r && !r.resposta ? mensagemDoDesfecho(r) : null),
+            );
+          }
+        } catch {
+          setErroNavegacao('Não foi possível guardar o pedido neste computador.');
+        }
+      });
+    },
+    [navegar, escolherConversa, taq.fase, acoesDaTela],
+  );
+
+  const irParaConexoes = useCallback(
+    () => void navegar(() => definirSecao('conexoes')),
+    [navegar],
+  );
+
   const abrirFonte = useCallback(
     (fonte: FonteDaResposta) =>
       fonte.tipo === 'reuniao'
@@ -391,11 +440,24 @@ export function HomePage() {
           </span>
         </div>
         <div className="tq-topo-direita">
-          {meeting.phase === 'recording' && (
-            <span className="tq-captando" role="status">
-              <MarcaDaEscuta estado="capturando" pulso={meeting.session?.segments.length} tamanho={18} />
-              capturando legendas
-            </span>
+          {/* A reunião ao vivo, no topo: o glifo da escuta, o nome dela e o
+              relógio. Clicar leva à reunião na seção Reuniões. */}
+          {meeting.phase === 'recording' && meeting.session && (
+            <button
+              type="button"
+              className="tq-captando"
+              title="Abrir a reunião"
+              onClick={() => irParaReuniao(meeting.session!.meetingId)}
+            >
+              <MarcaDaEscuta estado="capturando" pulso={meeting.session.segments.length} tamanho={18} />
+              <span className="tq-captando-txt">
+                <b>{meeting.session.title}</b>
+                <span role="status">
+                  capturando legendas{' '}
+                  <RelogioAoVivo desde={meeting.session.startedAt} />
+                </span>
+              </span>
+            </button>
           )}
           <button
             type="button"
@@ -513,6 +575,8 @@ export function HomePage() {
             onEscreverNota={escreverNota}
             onApagarNota={apagarNotaDaReuniao}
             onAbrirDocumento={abrirDocumento}
+            onIrConexoes={irParaConexoes}
+            onPedirDocumento={pedirDocumento}
           />
         )}
 
@@ -526,6 +590,7 @@ export function HomePage() {
             abertoId={documentoAberto}
             onAbrir={setDocumentoAberto}
             onIrParaReuniao={irParaReuniao}
+            onIrConexoes={irParaConexoes}
           />
         )}
 

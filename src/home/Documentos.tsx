@@ -43,6 +43,8 @@ import {
 import { baixarComoTexto } from '@/document/baixarDocumento';
 import { Icon } from '@/shared/ui/Icon';
 import { formatDate, formatTime } from '@/shared/ui/format';
+import { SinalTaqciti } from '@/shared/ui/SinalTaqciti';
+import { Carta, IconeEnviar } from './Carta';
 
 interface Props {
   documentos: DocumentoGuardado[];
@@ -55,7 +57,12 @@ interface Props {
   onAbrir: (id: string | null) => void;
   /** Ir para a reunião de origem, na seção Reuniões. */
   onIrParaReuniao: (meetingId: string) => void;
+  /** A carta manda para Conexões quando o canal não está conectado. */
+  onIrConexoes?: () => void;
 }
+
+/** As linhas da página em miniatura: `h` é título de seção, vazio é texto. */
+const LINHAS_DA_MINIATURA = ['h', '', '', '', 'h', '', '', '', '', 'h', '', '', ''] as const;
 
 export function PaginaDocumentos({
   documentos,
@@ -66,8 +73,10 @@ export function PaginaDocumentos({
   abertoId,
   onAbrir,
   onIrParaReuniao,
+  onIrConexoes = () => {},
 }: Props) {
   const aberto = abertoId ? (documentos.find((d) => d.id === abertoId) ?? null) : null;
+  const [cartaAberta, setCartaAberta] = useState(false);
   /** O documento da lista cuja remoção está à espera de confirmação. */
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [erroDaLista, setErroDaLista] = useState('');
@@ -96,6 +105,7 @@ export function PaginaDocumentos({
         }
         onVoltar={() => onAbrir(null)}
         onIrParaReuniao={onIrParaReuniao}
+        onIrConexoes={onIrConexoes}
       />
     );
   }
@@ -116,10 +126,31 @@ export function PaginaDocumentos({
         </p>
       ) : !carregado ? (
         <p className="tq-vazio">Lendo os documentos…</p>
-      ) : documentos.length === 0 ? (
-        <p className="tq-vazio">Nenhum documento guardado ainda.</p>
       ) : (
-        <div className="tq-lista">
+        <>
+          <div className="tq-acoes-reuniao">
+            <button
+              type="button"
+              className="tq-acao tq-pilula"
+              aria-expanded={cartaAberta}
+              onClick={() => setCartaAberta((v) => !v)}
+            >
+              <IconeEnviar />
+              Escrever e-mail
+            </button>
+            {cartaAberta && (
+              <Carta onFechar={() => setCartaAberta(false)} onIrConexoes={onIrConexoes} />
+            )}
+          </div>
+          {documentos.length === 0 && (
+            <p className="tq-vazio">
+              Nenhum documento guardado ainda. Abra uma reunião e use “Criar documento”.
+            </p>
+          )}
+        </>
+      )}
+      {carregado && !erro && documentos.length > 0 && (
+        <div className="tq-lista tq-estante">
           {erroDaLista && <p role="alert">{erroDaLista}</p>}
           {documentos.map((d) => {
             const reuniao = d.meetingId
@@ -167,18 +198,32 @@ export function PaginaDocumentos({
             }
 
             return (
-              <div key={d.id} className="tq-item-linha">
+              <div key={d.id} className="tq-item-linha tq-documento-item">
                 <button type="button" className="tq-item" onClick={() => onAbrir(d.id)}>
+                  {/* A página em miniatura: o título no papel, a marca preta no
+                      canto e as linhas do texto até o pé. É enfeite, então
+                      fica fora da árvore de acessibilidade. */}
+                  <span className="tq-miniatura" aria-hidden="true">
+                    <span className="tq-miniatura-titulo">{d.tipo ?? 'Documento'}</span>
+                    <span className="tq-miniatura-marca">
+                      <SinalTaqciti altura={10} />
+                    </span>
+                    {LINHAS_DA_MINIATURA.map((k, i) => (
+                      <i
+                        key={i}
+                        className={k}
+                        style={k ? undefined : { width: `${62 + ((i * 37) % 36)}%` }}
+                      />
+                    ))}
+                  </span>
                   <span>
                     <strong>{d.title}</strong>
                     <small>
                       {formatDate(d.updatedAt)} · {formatTime(d.updatedAt)}
-                      {d.tipo && ` · ${d.tipo}`}
                       {reuniao && ` · de "${reuniao.title}"`}
                       {d.origem === 'demo' && ' · demonstração'}
                     </small>
                   </span>
-                  <Icon name="arrowUpRight" size={16} />
                 </button>
                 <button
                   type="button"
@@ -217,13 +262,16 @@ function EditorDeDocumento({
   reuniao,
   onVoltar,
   onIrParaReuniao,
+  onIrConexoes,
 }: {
   documento: DocumentoGuardado;
   reuniao: MeetingRecord | null;
   onVoltar: () => void;
   onIrParaReuniao: (meetingId: string) => void;
+  onIrConexoes: () => void;
 }) {
   const [estado, setEstado] = useState<EstadoDaGravacaoDoDocumento>('parado');
+  const [cartaAberta, setCartaAberta] = useState(false);
   /*
    * Rascunhos locais do que está sendo digitado.
    *
@@ -422,6 +470,15 @@ function EditorDeDocumento({
           <Icon name="arrowDown" size={14} />
           Baixar .{documento.formato === 'texto' ? 'txt' : 'md'}
         </button>
+        <button
+          type="button"
+          className="tq-acao"
+          aria-expanded={cartaAberta}
+          onClick={() => setCartaAberta((v) => !v)}
+        >
+          <IconeEnviar size={14} />
+          Enviar
+        </button>
 
         <div className="tq-menu-secundario">
           <button
@@ -452,6 +509,16 @@ function EditorDeDocumento({
           )}
         </div>
       </div>
+
+      {cartaAberta && (
+        <Carta
+          assunto={titulo}
+          corpo={conteudo}
+          anexo={null}
+          onFechar={() => setCartaAberta(false)}
+          onIrConexoes={onIrConexoes}
+        />
+      )}
 
       {confirmando && (
         <div className="tq-confirma" role="alertdialog" aria-label="Apagar documento?">

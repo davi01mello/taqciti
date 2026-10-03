@@ -36,6 +36,7 @@ import { useEffect, useRef, useState } from 'react';
 import { protegerEdicao } from '@/shared/services/navigation';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { Icon } from '@/shared/ui/Icon';
+import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { guardarDocumento, type DocumentoGuardado } from '@/features/documents/store';
 import {
   DOCUMENT_TYPE_LABELS,
@@ -88,10 +89,15 @@ interface Props {
   registro: MeetingRecord;
   /** Abrir o documento recém-salvo, na seção Documentos. */
   onAbrirDocumento: (id: string) => void;
+  /** O pedido em texto livre: vai para a conversa, com a reunião como contexto. */
+  onPedirLivre?: (texto: string) => void;
+  /** Abrir a carta com o documento recém-salvo anexado. */
+  onEnviar?: (documento: DocumentoGuardado) => void;
 }
 
-export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
+export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnviar }: Props) {
   const [aberto, setAberto] = useState(false);
+  const [livre, setLivre] = useState('');
   const [estado, setEstado] = useState<Estado>({ fase: 'parado' });
   /** Quantas perguntas foram para a conversa com o Taq, na última geração. */
   const [perguntasNoTaq, setPerguntasNoTaq] = useState(0);
@@ -225,46 +231,95 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
     }
   };
 
+  const emCurso =
+    estado.fase === 'gerando' || estado.fase === 'salvando'
+      ? (TIPOS.find((t) => t.tipo === estado.tipo)?.rotulo ?? 'o documento')
+      : null;
+
   return (
     <div className="tq-gerar" ref={caixaRef}>
       <button
         type="button"
-        className="tq-acao"
+        className="tq-acao tq-pilula"
         aria-haspopup="true"
         aria-expanded={aberto}
-        title="Gerar um documento a partir desta reunião"
-        onClick={() => setAberto((v) => !v)}
+        title="Criar um documento a partir desta reunião"
+        onClick={() => setAberto((v) => (ocupado ? true : !v))}
       >
-        <Icon name="sparkles" size={14} />
-        Gerar documento
+        <Icon name="doc" size={15} />
+        Criar documento
       </button>
 
+      {/*
+       * A CAIXINHA DA IA: a marca viva pergunta qual documento, e as respostas
+       * que existem de verdade (o catálogo) já estão ali para um clique. O
+       * campo livre leva o pedido para a conversa — é lá que o assistente
+       * decide o que dá para fazer com ele, em vez de esta caixa adivinhar.
+       */}
       {aberto && (
-        <div className="tq-gerar-menu" role="menu">
-          {TIPOS.map(({ tipo, rotulo, finalidade }) => {
-            const emCurso =
-              (estado.fase === 'gerando' || estado.fase === 'salvando') &&
-              estado.tipo === tipo;
-            return (
-              <button
-                key={tipo}
-                type="button"
-                role="menuitem"
-                aria-disabled={ocupado}
-                className={ocupado ? 'ocupado' : undefined}
-                title={finalidade}
-                onClick={() => gerar(tipo)}
-              >
-                {emCurso
-                  ? estado.fase === 'salvando'
-                    ? 'Salvando…'
-                    : `Gerando ${rotulo}…`
-                  : rotulo}
-              </button>
-            );
-          })}
-          {estado.fase === 'erroNaGeracao' && (
-            <p className="tq-gerar-erro">{estado.mensagem}</p>
+        <div className={`tq-caixa-ia${ocupado ? ' trabalhando' : ''}`}>
+          <MarcaDoTaq
+            estado={estado.fase === 'gerando' ? 'preparando' : estado.fase === 'salvando' ? 'escrevendo' : 'repouso'}
+            tamanho={28}
+          />
+          <div className="tq-caixa-ia-corpo">
+            {emCurso ? (
+              <p className="tq-caixa-ia-pergunta" role="status">
+                {estado.fase === 'salvando' ? 'Salvando…' : `Gerando ${emCurso}…`}
+              </p>
+            ) : (
+              <>
+                <p className="tq-caixa-ia-pergunta">Qual documento você quer criar?</p>
+                <div className="tq-caixa-ia-opcoes tq-gerar-menu" role="menu">
+                  {TIPOS.map(({ tipo, rotulo, finalidade }) => (
+                    <button
+                      key={tipo}
+                      type="button"
+                      role="menuitem"
+                      title={finalidade}
+                      onClick={() => gerar(tipo)}
+                    >
+                      {rotulo}
+                    </button>
+                  ))}
+                </div>
+                {onPedirLivre && (
+                  <form
+                    className="tq-caixa-ia-campo"
+                    data-tq-escrita
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const limpo = livre.trim();
+                      if (!limpo) return;
+                      setAberto(false);
+                      setLivre('');
+                      onPedirLivre(limpo);
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={livre}
+                      placeholder="Ou descreva o que precisa…"
+                      aria-label="Descreva o documento"
+                      onChange={(e) => setLivre(e.target.value)}
+                    />
+                  </form>
+                )}
+                {estado.fase === 'erroNaGeracao' && (
+                  <p className="tq-gerar-erro">{estado.mensagem}</p>
+                )}
+              </>
+            )}
+          </div>
+          {!ocupado && (
+            <button
+              type="button"
+              className="tq-caixa-ia-fechar"
+              aria-label="Fechar"
+              onClick={() => setAberto(false)}
+            >
+              <Icon name="close" size={14} />
+            </button>
           )}
         </div>
       )}
@@ -290,6 +345,15 @@ export function GerarDocumento({ registro, onAbrirDocumento }: Props) {
             >
               Abrir documento
             </button>
+            {onEnviar && (
+              <button
+                type="button"
+                className="tq-acao"
+                onClick={() => onEnviar(estado.documento)}
+              >
+                Enviar
+              </button>
+            )}
             <button
               type="button"
               className="tq-acao"

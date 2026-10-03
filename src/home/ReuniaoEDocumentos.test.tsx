@@ -317,8 +317,8 @@ describe('a reunião na HOME', () => {
     // O título é um campo editável, não um `h1` dentro de um cartão de vidro.
     expect(q<HTMLInputElement>('.tq-titulo-editavel').value).toBe('Planning da semana');
     expect(host.querySelector('.glass')).toBeNull();
-    // "Gerar documento" existe, como ação compacta entre as outras do rodapé.
-    const gerar = porTexto('.tq-rodape-acoes .tq-acao', 'Gerar documento');
+    // "Criar documento" existe, como pílula entre as outras ações da reunião.
+    const gerar = porTexto('.tq-acoes-reuniao .tq-acao', 'Criar documento');
     expect(gerar).toBeDefined();
     expect(gerar!.classList.contains('tq-acao')).toBe(true);
   });

@@ -184,7 +184,7 @@ it('responde com fonte, grava a resposta, e a fonte abre a reunião', async () =
     { corpo: turno({ texto: 'O deploy ficou na sexta [r1].' }) },
   ]);
   await montar();
-  await ate(() => host.textContent!.includes('Taq conectado'));
+  await ate(() => host.textContent!.includes('IA conectada'));
 
   await enviar('Quando ficou o deploy?');
   await ate(() => host.textContent!.includes('O deploy ficou na sexta'));
@@ -238,7 +238,7 @@ it('falha do provedor aparece como falha, sem resposta gravada', async () => {
     },
   ]);
   await montar();
-  await ate(() => host.textContent!.includes('Taq conectado'));
+  await ate(() => host.textContent!.includes('IA conectada'));
 
   await enviar('Oi');
   await ate(() => host.textContent!.includes('Falha de execução'));
@@ -258,7 +258,7 @@ it('falha do provedor aparece como falha, sem resposta gravada', async () => {
 it('pergunta o tipo com opções do catálogo, sem ir ao servidor, e o clique continua o pedido', async () => {
   servidor(PRONTO, [{ corpo: turno({ texto: 'Vou montar a ata.' }) }]);
   await montar();
-  await ate(() => host.textContent!.includes('Taq conectado'));
+  await ate(() => host.textContent!.includes('IA conectada'));
 
   await enviar('Crie um documento da reunião da sprint');
   await ate(() => host.querySelectorAll('.tq-resp-opcoes button').length === 2);
