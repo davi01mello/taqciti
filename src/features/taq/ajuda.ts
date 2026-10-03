@@ -986,7 +986,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'O rascunho aparece num cartão editável. Use “Copiar”, ou “Abrir no e-mail” quando você mesmo tiver escrito o endereço no pedido.',
     ],
     limitacoes: [
-      'O TaqCiti não envia nada: não há integração de e-mail, WhatsApp ou Slack.',
+      'O TaqCiti não envia nada: não há integração de e-mail nem de mensagens.',
       'Nome com mais de uma pessoa nos participantes aparece como ambíguo.',
     ],
     rotulos: ['Copiar', 'Abrir no e-mail'],
@@ -1164,10 +1164,10 @@ export const FORA_DO_APP: readonly ForaDoApp[] = [
   },
   {
     id: 'enviar_mensagens',
-    titulo: 'Enviar ou compartilhar por e-mail, WhatsApp ou Slack',
+    titulo: 'Enviar ou compartilhar por e-mail ou mensagem',
     situacao: 'indisponivel',
     resposta:
-      'O TaqCiti não envia nem compartilha nada por conta própria: não há integração de e-mail, WhatsApp ou Slack. O Taq prepara um rascunho, que você copia ou abre no seu programa de e-mail.',
+      'O TaqCiti não envia nem compartilha nada por conta própria: não há integração de e-mail nem de mensagens. O Taq prepara um rascunho, que você copia ou abre no seu programa de e-mail.',
     palavras: ['email', 'e-mail', 'enviar', 'mandar', 'compartilhar', 'whatsapp', 'slack', 'mensagem para'],
   },
   {

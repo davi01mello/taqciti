@@ -198,7 +198,7 @@
   font-size: var(--fs-ui);
   color: var(--s-texto-2);
   padding: 6px 10px;
-  min-height: 36px;
+  min-height: var(--alt-controle);
   border-radius: 10px;
 }
 
@@ -226,8 +226,8 @@
 .tq-icone {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: var(--alt-controle);
+  height: var(--alt-controle);
   flex: 0 0 auto;
   border-radius: 10px;
   color: var(--s-cinza);
@@ -290,7 +290,7 @@
   align-items: center;
   gap: 0 8px;
   padding: 6px 10px;
-  min-height: 40px;
+  min-height: 36px;
   border-radius: 11px;
   border: 0;
   text-align: left;
@@ -467,7 +467,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: var(--alt-controle-principal);
   padding: 0 16px;
   border-radius: 12px;
   font-size: var(--fs-ui);
@@ -550,7 +550,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 38px;
+  min-height: 34px;
   padding: 0 8px;
   border-radius: 11px;
   border: 1px solid var(--s-traco);
@@ -679,7 +679,7 @@
 }
 
 .tq-pergunta h2 {
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.15;
 }
 
@@ -737,7 +737,7 @@
 }
 
 .tq-pergunta-acoes button {
-  min-height: 44px;
+  min-height: 40px;
   font-size: var(--fs-corpo);
 }
 
@@ -1271,7 +1271,7 @@
   gap: 8px;
   flex: 1;
   min-width: 0;
-  min-height: 40px;
+  min-height: 36px;
   padding: 2px 8px;
   margin-left: -8px;
   border-radius: 12px;
@@ -1716,7 +1716,7 @@
   justify-content: center;
   flex-shrink: 0;
   gap: 6px;
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 12px 0 10px;
   border-radius: 12px;
   background: var(--s-placa-forte);
@@ -1774,7 +1774,7 @@
   margin: 0 auto 16px;
 }
 .tq-conversa-vazio h2 {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.2px;
 }
@@ -1843,7 +1843,7 @@
   height: 18px;
 }
 .tq-conversa-menu button {
-  min-height: 44px;
+  min-height: 38px;
 }
 .tq-rolavel > * {
   flex-shrink: 0;
@@ -2178,4 +2178,23 @@
 .tq-voce-acoes {
   justify-self: end;
   margin-top: -4px;
+}
+
+
+/* Tela de toque: os alvos voltam aos 44px, onde o dedo precisa deles. */
+@media (pointer: coarse) {
+  .tq-side .tq-acao,
+  .tq-side .tq-botao-principal,
+  .tq-side .tq-botao-fantasma,
+  .tq-side .tq-modo,
+  .tq-side .tq-nova,
+  .tq-side .tq-seletor-conversa,
+  .tq-side .tq-linkish,
+  .tq-conversa-menu button {
+    min-height: 44px;
+  }
+  .tq-icone {
+    width: 44px;
+    height: 44px;
+  }
 }

@@ -7,14 +7,14 @@
 
 .tq-cartoes {
   display: grid;
-  gap: 10px;
-  margin: 12px 0 0;
+  gap: 8px;
+  margin: 10px 0 0;
 }
 
 .tq-c {
   min-width: 0;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.025);
   font-size: var(--fs-corpo);
@@ -28,14 +28,14 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 /* O título do cartão na Barlow, como o título de seção da ata. */
 .tq-c-cab h4 {
   margin: 0;
   font-family: var(--font-titulo);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.3;
   color: rgb(240 242 244);
@@ -210,9 +210,9 @@
   min-height: 30px;
   padding: 3px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(144, 223, 173, 0.32);
-  background: rgba(144, 223, 173, 0.05);
-  color: rgb(214 236 222);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: rgb(214 218 222);
   font: inherit;
   font-size: var(--fs-ui);
   text-decoration: none;
@@ -222,7 +222,9 @@
 .tq-c .tq-c-acoes button:hover:not(:disabled),
 .tq-c .tq-c-botao-link:hover,
 .tq-c .tq-c-motivo button:hover:not(:disabled) {
-  background: rgba(144, 223, 173, 0.12);
+  background: rgba(144, 223, 173, 0.1);
+  border-color: rgba(144, 223, 173, 0.4);
+  color: rgb(232 240 235);
 }
 
 .tq-c .tq-c-acoes button:disabled,
@@ -409,8 +411,8 @@
 
 /* A página "Acompanhamento" usa os mesmos itens dos cartões. */
 .tq-acompanhamento > .tq-c {
-  margin-top: 14px;
-  padding: 14px 16px;
+  margin-top: 10px;
+  padding: 12px 14px;
 }
 
 .tq-acompanhamento .tq-c .tq-c-acoes button[aria-pressed='true'] {

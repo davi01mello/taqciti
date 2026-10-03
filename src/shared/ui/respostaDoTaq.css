@@ -13,7 +13,7 @@
 .tq-resp-texto {
   margin: 0;
   font-size: var(--fs-leitura);
-  line-height: 1.8;
+  line-height: 1.65;
   color: rgb(222 225 228);
 }
 
@@ -23,7 +23,7 @@
 }
 
 .tq-md > * + * {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .tq-md h3,
@@ -41,7 +41,7 @@
 
 .tq-md > * + h3,
 .tq-md > * + h4 {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .tq-md strong {

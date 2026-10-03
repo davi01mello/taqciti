@@ -1,7 +1,7 @@
 {
-  "quando": "2026-10-02T03:52:54.689Z",
+  "quando": "2026-10-03T01:23:04.898Z",
   "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\7d22c2ac-84b7-4d45-aa7f-fd4f504129bb\\scratchpad\\dist-dev",
-  "browser": "154.0.4258.48",
+  "browser": "154.0.4258.53",
   "dados": "[TESTE] sintéticos; geração simulada, sem IA",
   "vistos": [
     "Abrir HOME",
@@ -158,6 +158,8 @@
       ],
       "nao_vistos": [
         "Deseja registrar esta reunião?",
+        "Continuar de onde parou",
+        "Nova gravação",
         "Iniciar captura",
         "Preparando a transcrição…"
       ]

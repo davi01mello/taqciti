@@ -172,4 +172,17 @@
   --fs-corpo: 13px;
   --fs-leitura: 14px;
   --fs-titulo: 17px;
+
+  /* ── Densidade ──────────────────────────────────────────────────────────
+   *
+   * O passo de espaço é de 4 em 4 (4/8/12/16), e o controle comum tem 32px
+   * de altura — 36px para a ação principal de um contexto. Em tela de toque
+   * (`pointer: coarse`) os alvos voltam a 44px, em cada folha de estilo.
+   */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --alt-controle: 32px;
+  --alt-controle-principal: 36px;
 }
