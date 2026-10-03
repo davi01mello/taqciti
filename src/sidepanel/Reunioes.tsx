@@ -1,84 +1,58 @@
 /**
- * As reuniões já registradas — o que a seção "Transcrição" mostra quando não
- * há nenhuma em curso.
+ * As reuniões já registradas — o histórico da sidebar.
+ *
+ * ── Uma lista limpa, uma leitura limpa ───────────────────────────────────
+ *
+ * Direção "Espectro" (02/10/2026): a lista tem só título, data, hora e
+ * duração. Abrir uma reunião mostra APENAS a transcrição dela — voltar, título,
+ * a linha de informações e as falas. Sem botões, sem abas, sem notas.
+ *
+ * O que saiu daqui não sumiu do produto: baixar o .txt, as notas e tudo o que
+ * se faz COM uma reunião guardada moram na HOME, que tem tela para isso. A
+ * sidebar é a coluna de acompanhar; a HOME é a mesa de trabalho.
  *
  * ── Por que aqui, e não numa terceira seção ──────────────────────────────
  *
- * Transcrição é o assunto: a de agora quando existe, as de antes quando não
- * existe. Uma seção "Histórico" separada faria a sidebar ter três seletores
- * para dois assuntos, e obrigaria a escolher entre "ver a transcrição" e "ver
- * as transcrições" — que é a mesma coisa em dois tempos.
- *
- * As CONVERSAS guardadas não estão aqui: elas são o assunto do outro seletor, e
- * o menu de conversas lá dentro já lista todas, com data. Duplicá-las aqui
- * seria a mesma lista em dois lugares, divergindo no primeiro ajuste.
- *
- * ── Por que a nota é editável daqui ──────────────────────────────────────
- *
- * A nota é do registro, não do momento. Reabrir uma reunião de ontem e
- * acrescentar uma linha é o uso normal — e continua sem tocar a transcrição,
- * porque são chaves separadas no storage.
+ * Transcrição é o assunto da seção "Reunião": a de agora quando existe, as de
+ * antes quando não existe (ou pelo ícone de lista, no topo). Um terceiro
+ * seletor faria a sidebar ter três botões para dois assuntos.
  */
-import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
-import type { Nota, EstadoDaGravacao } from '@/features/annotations/notes';
-import { downloadTranscript } from '@/features/history/export';
 import { Icon } from '@/shared/ui/Icon';
 import {
   formatDate,
   formatDurationHuman,
+  formatOffset,
   formatTime,
   hostName,
   speakerLabel,
 } from '@/shared/ui/format';
-import { EDITOR_DE_NOTA_ID, EstadoDaNota } from './Notas';
-import { AbasDaReuniao, ParteDaReuniao } from './AbasDaReuniao';
 
 interface Props {
   registros: MeetingRecord[];
   carregado: boolean;
-  notas: Record<string, Nota>;
-  rascunhosNota: Record<string, string>;
-  estadoDaNota: EstadoDaGravacao;
+  /** "Agora não" nesta participação: a lista diz isso, em uma linha. */
   recusada: boolean;
-  onEscreverNota: (meetingId: string, texto: string) => void;
-  onAbrirNaHome: (recordId?: string) => void;
+  /** A reunião aberta. Levantada para o `App`: "Finalizar" abre a recém-salva. */
+  abertaId: string | null;
+  onAbrir: (id: string | null) => void;
 }
 
-export function Reunioes({
-  registros,
-  carregado,
-  notas,
-  rascunhosNota,
-  estadoDaNota,
-  recusada,
-  onEscreverNota,
-  onAbrirNaHome,
-}: Props) {
-  const [abertaId, setAbertaId] = useState<string | null>(null);
+export function Reunioes({ registros, carregado, recusada, abertaId, onAbrir }: Props) {
   const aberta = abertaId ? (registros.find((r) => r.id === abertaId) ?? null) : null;
 
   if (aberta) {
-    return (
-      <DetalheDaReuniao
-        registro={aberta}
-        nota={rascunhosNota[aberta.id] ?? notas[aberta.id]?.texto ?? ''}
-        estadoDaNota={estadoDaNota}
-        onEscreverNota={onEscreverNota}
-        onVoltar={() => setAbertaId(null)}
-        onAbrirNaHome={() => onAbrirNaHome(aberta.id)}
-      />
-    );
+    return <DetalheDaReuniao registro={aberta} onVoltar={() => onAbrir(null)} />;
   }
 
   return (
-    <div className="tq-rolavel">
-      <div className="tq-reuniao-topo">
-        <h2>{recusada ? 'Captura desligada' : 'Nenhuma reunião em curso'}</h2>
+    <div className="tq-rolavel tq-historico">
+      <div className="tq-secao-cabeca">
+        <h2 className="tq-secao-titulo">Reuniões</h2>
         <p className="tq-fino">
           {recusada
-            ? 'Esta reunião não está sendo registrada. As anteriores continuam aqui.'
-            : 'Entre numa reunião do Google Meet e o TaqCiti pergunta se deve registrá-la.'}
+            ? 'Captura desligada nesta reunião. As anteriores continuam aqui.'
+            : 'As reuniões guardadas neste computador, da mais recente para a mais antiga.'}
         </p>
       </div>
 
@@ -93,17 +67,12 @@ export function Reunioes({
         <ul className="tq-lista">
           {registros.map((r) => (
             <li key={r.id}>
-              <button type="button" onClick={() => setAbertaId(r.id)}>
+              <button type="button" onClick={() => onAbrir(r.id)}>
                 <strong>{r.title}</strong>
-                <small className="tq-meta-linha">
-                  <span>{formatDate(r.startedAt)}</span>
-                  <span className="tq-relogio">{formatTime(r.startedAt)}</span>
-                  <span>
-                    {r.segments.length} {r.segments.length === 1 ? 'fala' : 'falas'}
-                  </span>
-                  {notas[r.id] && <span className="tq-com-nota">com nota</span>}
-                </small>
-                <Icon name="chevron" size={14} className="tq-lista-seta" />
+                <span className="tq-lista-meta">
+                  {formatDate(r.startedAt)} <span className="tq-relogio">{formatTime(r.startedAt)}</span>{' '}
+                  {formatDurationHuman(r.durationSeconds)}
+                </span>
               </button>
             </li>
           ))}
@@ -115,24 +84,16 @@ export function Reunioes({
 
 function DetalheDaReuniao({
   registro,
-  nota,
-  estadoDaNota,
-  onEscreverNota,
   onVoltar,
-  onAbrirNaHome,
 }: {
   registro: MeetingRecord;
-  nota: string;
-  estadoDaNota: EstadoDaGravacao;
-  onEscreverNota: (meetingId: string, texto: string) => void;
   onVoltar: () => void;
-  onAbrirNaHome: () => void;
 }) {
-  const semFala = registro.segments.length === 0;
-  const [notasEmFoco, setNotasEmFoco] = useState(false);
+  const eu = hostName(registro.participants);
+  const total = registro.segments.length;
 
   return (
-    <div className="tq-rolavel">
+    <div className="tq-rolavel tq-detalhe">
       <button type="button" className="tq-voltar" onClick={onVoltar}>
         <Icon name="chevron" size={13} className="tq-girado" />
         Reuniões
@@ -144,79 +105,42 @@ function DetalheDaReuniao({
           <span>{formatDate(registro.startedAt)}</span>
           <span className="tq-relogio">{formatTime(registro.startedAt)}</span>
           <span>{formatDurationHuman(registro.durationSeconds)}</span>
+          <span>
+            {total} {total === 1 ? 'fala' : 'falas'}
+          </span>
         </p>
       </div>
 
-      <div className="tq-acoes-linha">
-        <button
-          type="button"
-          className="tq-botao-fantasma"
-          onClick={() => downloadTranscript(registro)}
-          disabled={semFala}
-        >
-          <Icon name="arrowDown" size={14} />
-          Baixar .txt
-        </button>
-        <button type="button" className="tq-botao-fantasma" onClick={onAbrirNaHome}>
-          Abrir na HOME
-        </button>
-      </div>
-      {semFala && (
+      {total === 0 ? (
         <p className="tq-fino">
           Esta reunião não tem transcrição: as legendas do Meet não chegaram a produzir
-          fala nenhuma. Não há o que baixar.
+          fala nenhuma.
         </p>
+      ) : (
+        <section className="tq-falas tq-falas-estatica" aria-label="Transcrição">
+          {/* A mesma leitura da reunião ao vivo: você em verde, os outros em
+              roxo, falas seguidas da mesma pessoa sem repetir o nome. */}
+          {registro.segments.map((s, i) => {
+            const nome = s.speaker ?? 'Alguém';
+            const rotulo = speakerLabel(nome, eu);
+            const seguida = i > 0 && registro.segments[i - 1]?.speaker === s.speaker;
+            return (
+              <article
+                key={s.captionId}
+                className={`tq-fala${rotulo !== nome ? ' minha' : ''}${
+                  seguida ? ' seguida' : ''
+                }`}
+              >
+                <span className="tq-fala-quem">
+                  <span className="tq-fala-nome">{rotulo}</span>
+                  <span className="tq-fala-hora">{formatOffset(s.startOffsetMs)}</span>
+                </span>
+                <span className="tq-fala-texto">{s.text}</span>
+              </article>
+            );
+          })}
+        </section>
       )}
-
-      <AbasDaReuniao
-        notas={notasEmFoco}
-        notaExiste={nota.trim().length > 0}
-        onNotas={setNotasEmFoco}
-      />
-      <div className="tq-reuniao-alternada">
-        <ParteDaReuniao ativa={notasEmFoco}>
-          <section className="tq-notas">
-            <div className="tq-notas-topo">
-              <h3>Nota desta reunião</h3>
-              <EstadoDaNota estado={estadoDaNota} />
-            </div>
-            <textarea
-              id={EDITOR_DE_NOTA_ID}
-              className="tq-notas-campo"
-              value={nota}
-              placeholder="Anote algo sobre esta reunião…"
-              aria-label={`Nota de ${registro.title}`}
-              onChange={(e) => onEscreverNota(registro.id, e.target.value)}
-            />
-          </section>
-        </ParteDaReuniao>
-        <ParteDaReuniao ativa={!notasEmFoco}>
-          {!semFala && (
-            <section className="tq-falas tq-falas-estatica">
-              {/* Mesma leitura da reunião em curso: a própria fala com o fio
-                  verde, falas seguidas da mesma pessoa sem repetir o nome. */}
-              {registro.segments.map((s, i) => {
-                const nome = s.speaker ?? 'Alguém';
-                const rotulo = speakerLabel(nome, hostName(registro.participants));
-                const seguida = i > 0 && registro.segments[i - 1]?.speaker === s.speaker;
-                return (
-                  <article
-                    key={s.captionId}
-                    className={`tq-fala${rotulo !== nome ? ' minha' : ''}${
-                      seguida ? ' seguida' : ''
-                    }`}
-                  >
-                    <span className="tq-fala-quem">
-                      <span className="tq-fala-nome">{rotulo}</span>
-                    </span>
-                    <span className="tq-fala-texto">{s.text}</span>
-                  </article>
-                );
-              })}
-            </section>
-          )}
-        </ParteDaReuniao>
-      </div>
     </div>
   );
 }

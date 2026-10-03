@@ -34,20 +34,34 @@
  *   --s-perigo   o que não se desfaz
  */
 .tq-side {
-  --s-fundo: rgb(17 18 19);
-  --s-placa: rgb(255 255 255 / 0.045);
-  --s-placa-forte: rgb(255 255 255 / 0.085);
+  /*
+   * O ESPECTRO (direção aprovada em 02/10/2026): verde é quem fala na reunião,
+   * violeta são as ideias que voltam dela — o assistente. Os dois nunca
+   * aparecem como enfeite: verde é a SUA fala e a captura viva; violeta é o
+   * assistente trabalhando e a fala dos OUTROS na transcrição.
+   */
+  --s-fundo: rgb(8 11 14);
+  --s-placa: rgb(255 255 255 / 0.05);
+  --s-placa-forte: rgb(255 255 255 / 0.09);
   --s-texto: rgb(237 238 239);
   --s-texto-2: rgb(196 200 205);
   --s-cinza: rgb(150 155 161);
   --s-traco: rgb(255 255 255 / 0.08);
   --s-atencao: rgb(232 196 160);
   --s-perigo: rgb(var(--c-danger));
+  --s-ideia: rgb(155 130 245);
+  --s-ideia-clara: rgb(205 192 252);
+  /* A fala: você em verde, os outros em roxo. "(Eu)" continua escrito. */
+  --s-fala-voce: rgb(178 230 197);
+  --s-fala-outros: rgb(212 205 248);
+  --s-nome-outros: rgb(180 166 242);
 
   position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
   background: var(--s-fundo);
   color: var(--s-texto);
   font-family: var(--font-texto);
@@ -189,6 +203,84 @@
 
 .tq-centrado {
   text-align: center;
+}
+
+/* ------------------------------------------------------- o chão do painel */
+
+/*
+ * A onda ancorada no pé do painel, atrás de tudo; a vinheta e o grão por cima,
+ * sem pegar o ponteiro. Tudo o que é conteúdo (cabeçalho, seletores, palco)
+ * fica num plano acima da onda — ver `.tq-side > header, nav, .tq-palco`.
+ */
+.tq-onda {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 250px;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
+  mask-image: linear-gradient(transparent, #000 38%);
+}
+
+.tq-vinheta {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(0 0 0 / 0.42) 100%);
+}
+
+.tq-grao {
+  position: absolute;
+  inset: -50%;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.2 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: tq-grao 1.2s steps(4) infinite;
+}
+
+@keyframes tq-grao {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-3%, 2%);
+  }
+  50% {
+    transform: translate(2%, -3%);
+  }
+  75% {
+    transform: translate(-1%, -2%);
+  }
+}
+
+.tq-side > .tq-side-topo,
+.tq-side > .tq-modos,
+.tq-side > .tq-palco,
+.tq-side > .tq-corpo {
+  position: relative;
+  z-index: 2;
+}
+
+/* O clarão do print: um flash de câmera sobre o painel, rápido. */
+.tq-clarao {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-grao,
+  .tq-captura-estado.vivo::before {
+    animation: none;
+  }
 }
 
 .tq-linkish {
@@ -335,9 +427,14 @@
   }
 }
 
-/* Verde: acontecendo AGORA. Âmbar: parado, e por um motivo que importa. */
+/* Verde: acontecendo AGORA. Violeta: o assistente trabalhando. Âmbar: parado,
+   e por um motivo que importa. */
 .tq-modo-estado.vivo {
   color: rgb(var(--c-glow));
+}
+
+.tq-modo-estado.ideia {
+  color: var(--s-ideia);
 }
 
 .tq-modo-estado.atencao {
@@ -359,7 +456,7 @@
 }
 
 /* O estado de quem está selecionado continua na sua cor — a seleção não o apaga. */
-.tq-modo.atual .tq-modo-estado:not(.vivo):not(.atencao) {
+.tq-modo.atual .tq-modo-estado:not(.vivo):not(.atencao):not(.ideia) {
   color: rgb(170 175 181);
 }
 
@@ -401,6 +498,26 @@
 
 .tq-painel.ativo {
   visibility: visible;
+}
+
+/*
+ * As camadas da seção "Reunião": a reunião ao vivo e, por cima, o histórico
+ * aberto pelo ícone de lista. Mesma regra das abas: a ativa HERDA a
+ * visibilidade do painel (`inherit`, nunca `visible`), senão ela ressuscitaria
+ * dentro do painel escondido. Ver `.tq-reuniao-parte.ativa`.
+ */
+.tq-camada {
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  visibility: hidden;
+}
+
+.tq-camada.ativa {
+  visibility: inherit;
 }
 
 /* ---------------------------------------------------------------- corpo */
@@ -540,7 +657,8 @@
  */
 .tq-acoes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* "Pergunta rápida" é o nome mais longo: ganha a coluna mais larga. */
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.95fr) minmax(0, 1.35fr);
   gap: 6px;
 }
 
@@ -571,11 +689,131 @@
   opacity: 0.4;
 }
 
-/* Aberto fica MARCADO: o segundo clique precisa ser obviamente o que recolhe. */
-.tq-side .tq-acao.aberta {
-  background: rgb(255 255 255 / 0.11);
-  border-color: rgb(255 255 255 / 0.22);
-  color: rgb(246 248 250);
+/* A pergunta rápida aberta fica MARCADA, no violeta de quem vai responder: o
+   segundo clique precisa ser obviamente o que recolhe. */
+.tq-side .tq-acao[aria-expanded='true'] {
+  background: rgb(155 130 245 / 0.12);
+  border-color: rgb(155 130 245 / 0.4);
+  color: rgb(217 208 252);
+}
+
+/* "Print guardado com a reunião.  Ver  Desfazer" — some sozinho. */
+.tq-aviso-print {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: var(--fs-ui);
+  color: rgb(var(--c-glow));
+}
+
+.tq-side .tq-aviso-print button {
+  min-height: 24px;
+  font-size: var(--fs-ui);
+  color: var(--s-texto-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tq-side .tq-aviso-print button:hover {
+  color: var(--s-texto);
+}
+
+/* ------------------------------------------------------- pergunta rápida */
+
+/*
+ * Feita e respondida embaixo das ações. Sem caixa: um fio violeta em cima, a
+ * marca viva ao lado do campo, e a resposta alinhada ao texto da pergunta.
+ */
+.tq-rapida {
+  display: grid;
+  gap: 8px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid rgb(155 130 245 / 0.18);
+}
+
+.tq-rapida-campo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.tq-rapida-campo input {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  background: none;
+  color: var(--s-texto);
+  font: inherit;
+  font-size: var(--fs-leitura);
+  caret-color: var(--s-ideia);
+}
+
+.tq-rapida-campo input:focus,
+.tq-side .tq-rapida-campo input:focus-visible {
+  outline: none;
+}
+
+.tq-rapida-campo input::placeholder {
+  color: rgb(125 130 136);
+}
+
+.tq-rapida-resposta,
+.tq-rapida-pe,
+.tq-rapida-nota {
+  padding-left: 30px;
+}
+
+.tq-rapida-nota {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
+}
+
+.tq-rapida-texto {
+  margin: 0;
+  font-size: var(--fs-leitura);
+  line-height: 1.6;
+  color: rgb(214 207 250);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+
+.tq-rapida-texto p {
+  margin: 0 0 6px;
+}
+
+.tq-rapida-procurando {
+  font-size: var(--fs-ui);
+  color: var(--s-cinza);
+}
+
+.tq-rapida-aviso {
+  margin: 0;
+  font-size: var(--fs-ui);
+  color: var(--s-atencao);
+}
+
+.tq-rapida-pe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+.tq-side .tq-rapida-pe button {
+  min-height: 28px;
+  font-size: var(--fs-ui);
+  color: var(--s-cinza);
+}
+
+.tq-side .tq-rapida-pe button.principal {
+  color: rgb(201 189 250);
+}
+
+.tq-side .tq-rapida-pe button:hover {
+  color: var(--s-texto);
 }
 
 /*
@@ -617,11 +855,24 @@
  */
 .tq-reuniao-faixa {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0 8px;
   border-bottom: 1px solid var(--s-traco);
   margin-top: 2px;
+}
+
+/* Na coluna mínima, três abas e "Encerrar agora" (armado) não cabem numa
+   linha: o botão desce, encostado à direita, em vez de encavalar nas abas. */
+.tq-reuniao-faixa .tq-finalizar {
+  margin-left: auto;
+}
+
+@container coluna (max-width: 330px) {
+  .tq-side .tq-reuniao-abas button {
+    padding: 0 6px;
+  }
 }
 
 /*
@@ -744,6 +995,9 @@
 /* ------------------------------------------------------------- reunião */
 
 .tq-reuniao-topo h2 {
+  font-size: 20px;
+  line-height: 1.12;
+  letter-spacing: -0.2px;
   overflow-wrap: anywhere;
 }
 
@@ -826,66 +1080,129 @@
 
 /* --------------------------------------------------------------- prints */
 
+/* Os prints: grade de duas colunas, com o momento da reunião em que cada um
+   foi tirado. O recém-tirado ganha a borda verde até se sair da aba. */
 .tq-prints {
   display: grid;
+  align-content: start;
   gap: 8px;
+  padding-top: 12px;
 }
 
-.tq-previa {
-  display: grid;
-  gap: 8px;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 12px;
-  padding: 8px;
-}
-
-.tq-previa img {
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-  display: block;
-}
-
-.tq-print-tiras {
+.tq-prints-grade {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 8px;
+}
+
+.tq-side .tq-prints-grade button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  text-align: left;
+  border-radius: 9px;
+}
+
+.tq-prints-grade img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--s-traco);
+  transition: border-color 0.2s;
+}
+
+.tq-prints-grade button:hover img {
+  border-color: rgb(255 255 255 / 0.28);
+}
+
+.tq-prints-grade li.novo img {
+  border-color: rgb(var(--c-primary) / 0.6);
+}
+
+.tq-prints-hora {
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
+  font-variant-numeric: tabular-nums;
+}
+
+/* O print aberto ocupa o painel inteiro, sem sair dele. */
+.tq-print-visor {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: rgb(4 6 8 / 0.94);
+  backdrop-filter: blur(6px);
+  animation: tq-visor 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes tq-visor {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.tq-print-visor img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.9);
+}
+
+.tq-print-visor-barra {
+  display: flex;
+  align-items: center;
   gap: 6px;
 }
 
-.tq-print-tiras li {
-  position: relative;
+.tq-print-visor-barra span {
+  flex: 1;
+  font-size: var(--fs-ui);
+  color: var(--s-texto-2);
+  font-variant-numeric: tabular-nums;
 }
 
-.tq-print-tiras img {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  border-radius: 7px;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  display: block;
+.tq-side .tq-print-visor-barra button {
+  min-height: var(--alt-controle);
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  color: var(--s-texto-2);
+  background: var(--s-placa);
+  border: 1px solid var(--s-traco);
 }
 
-.tq-print-tiras button {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 0.6);
-  color: rgb(230 232 235);
-  opacity: 0.8;
-  transition: opacity 0.2s;
+.tq-side .tq-print-visor-barra button:hover {
+  background: var(--s-placa-forte);
+  color: var(--s-texto);
 }
 
-.tq-print-tiras li:hover button,
-.tq-print-tiras button:focus-visible {
-  opacity: 1;
+.tq-side .tq-print-visor-barra button.perigo {
+  color: rgb(var(--c-danger) / 0.9);
+}
+
+.tq-side .tq-print-visor-barra button.perigo:hover {
+  background: var(--tint-danger);
+  color: var(--s-perigo);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-print-visor {
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------- transcrição */
@@ -895,15 +1212,36 @@
   min-height: 120px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: none;
   display: grid;
   gap: 0;
   align-content: start;
-  padding-top: 6px;
+  padding: 14px 0 6px;
+  /* As falas somem no alto em vez de serem cortadas pela faixa das abas. */
+  mask-image: linear-gradient(transparent, #000 32px, #000 calc(100% - 8px), transparent);
 }
 
+.tq-falas::-webkit-scrollbar {
+  display: none;
+}
+
+/* No histórico a transcrição é a tela: rola com o resto, sem máscara. */
 .tq-falas-estatica {
+  flex: none;
   overflow: visible;
   min-height: 0;
+  padding: 4px 0 24px;
+  border-top: 1px solid var(--s-traco);
+  mask-image: none;
+}
+
+/* A fala que ainda está na legenda tem o lugar dela na lista, invisível. */
+.tq-fala.chegando {
+  opacity: 0;
+}
+
+.tq-falas-vazio {
+  padding-top: 18px;
 }
 
 /*
@@ -960,7 +1298,7 @@
   border-color: rgb(var(--c-primary) / 0.4);
 }
 
-.tq-fala.marcada .tq-fala-nome {
+.tq-fala.marcada .tq-fala-marca {
   color: rgb(var(--c-glow));
 }
 
@@ -976,7 +1314,7 @@
 
 .tq-fala-nome {
   font-weight: 600;
-  color: rgb(178 183 189);
+  color: var(--s-nome-outros);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1023,45 +1361,28 @@
 /*
  * ── De quem é a fala ─────────────────────────────────────────────────────
  *
- * A SUA fala ganha um fio verde à esquerda, e o texto fica no mesmo branco
- * das outras. Antes o texto inteiro era verde: metade da transcrição pintada
- * com a cor que, no resto do painel, quer dizer "acontecendo agora" — o verde
- * deixava de significar alguma coisa. O fio diz "esta é você" sem disputar a
- * leitura.
+ * Pedido explícito (02/10/2026): VOCÊ em verde, os OUTROS em roxo — o mesmo
+ * espectro do resto do painel, em tons claros para a leitura não cansar. Isto
+ * substitui o fio verde que marcava só a sua fala.
  *
- * E a marca nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome.
- * Quem não distingue a cor lê a mesma coisa.
+ * E a cor nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome. Quem
+ * não distingue a cor lê a mesma coisa.
  */
 .tq-fala-texto {
   display: block;
   font-size: var(--fs-leitura);
-  line-height: 1.6;
-  color: var(--s-texto-2);
+  line-height: 1.55;
+  color: var(--s-fala-outros);
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
-.tq-fala.minha::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgb(var(--c-primary) / 0.75);
-}
-
-.tq-fala.minha.seguida::before {
-  top: 4px;
-}
-
 .tq-fala.minha .tq-fala-texto {
-  color: var(--s-texto);
+  color: var(--s-fala-voce);
 }
 
 .tq-fala.minha .tq-fala-nome {
-  color: rgb(var(--c-glow) / 0.9);
+  color: rgb(var(--c-glow));
 }
 
 .tq-fala-acoes {
@@ -1393,10 +1714,12 @@
   margin: 0;
   padding: 9px 13px;
   border-radius: 16px 16px 5px 16px;
-  background: var(--s-placa-forte);
+  /* Você em verde, como na transcrição: a placa é sua. */
+  background: rgb(var(--c-primary) / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(var(--c-primary) / 0.14);
   font-size: var(--fs-leitura);
-  line-height: 1.55;
-  color: var(--s-texto);
+  line-height: 1.5;
+  color: rgb(var(--c-glow));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1511,24 +1834,16 @@
 }
 
 /*
- * O compositor é uma placa com o botão de enviar DENTRO dela. Sem placa, o
- * campo era uma linha de texto cinza solta sobre a onda, e a primeira vez que
- * se abria a conversa não era óbvio onde clicar para escrever.
+ * O compositor é TRANSPARENTE (direção "Espectro"): sem placa, sem borda e sem
+ * botão à vista — o texto nasce direto no painel, com o cursor violeta de quem
+ * vai responder. O botão de enviar existe só para leitor de tela; Enter envia,
+ * e a dica aparece quando há o que enviar.
  */
 .tq-compositor {
+  position: relative;
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
-  padding: 4px 6px 4px 12px;
-  border-radius: 18px;
-  background: rgb(26 28 30 / 0.92);
-  border: 1px solid rgb(255 255 255 / 0.1);
-  box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.6);
-  transition:
-    border-color 0.2s,
-    box-shadow 0.2s;
+  padding: 6px 2px 0;
 }
 
 .tq-compositor textarea {
@@ -1537,14 +1852,14 @@
   min-height: 44px;
   max-height: 140px;
   overflow-y: auto;
-  padding: 11px 4px;
+  padding: 10px 0;
   border: 0;
   background: none;
   color: var(--s-texto);
   font: inherit;
-  font-size: var(--fs-leitura);
-  line-height: 1.6;
-  caret-color: rgb(var(--c-glow));
+  font-size: 15px;
+  line-height: 1.5;
+  caret-color: var(--s-ideia);
 }
 
 .tq-compositor textarea:focus {
@@ -1552,31 +1867,17 @@
 }
 
 .tq-compositor textarea::placeholder {
-  color: rgb(162 165 169);
+  color: rgb(125 130 136);
 }
 
-.tq-enviar {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  margin-bottom: 4px;
-  border-radius: 12px;
-  color: rgb(163 166 170);
-  transition:
-    background 0.2s,
-    color 0.2s,
-    opacity 0.2s;
+.tq-escrita-dica {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
-.tq-enviar:not(:disabled):hover {
-  background: rgb(var(--c-primary) / 0.14);
-  color: rgb(var(--c-glow));
-}
-
-.tq-enviar:disabled {
-  opacity: 0.32;
-  cursor: default;
+.tq-escrita-dica.visivel {
+  opacity: 1;
 }
 
 /* ------------------------------------------------------------ reuniões */
@@ -1598,15 +1899,21 @@
   border-top: 1px solid rgb(255 255 255 / 0.05);
 }
 
+/*
+ * Cada reunião é uma linha: o título à esquerda, "data  hora  duração" à
+ * direita na mesma linha quando cabe. Só isso — a direção "Espectro" tirou a
+ * contagem de falas e o "com nota" da lista.
+ */
 .tq-lista button {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 2px 10px;
   width: 100%;
   text-align: left;
-  padding: 10px 8px 10px 10px;
-  border-radius: 10px;
+  padding: 11px 8px;
+  border-radius: 12px;
   transition: background 0.2s;
 }
 
@@ -1615,36 +1922,38 @@
 }
 
 .tq-lista strong {
-  grid-column: 1;
+  min-width: 0;
   font-size: var(--fs-corpo);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--s-texto);
   overflow-wrap: anywhere;
 }
 
-.tq-lista small {
-  grid-column: 1;
+.tq-lista-meta {
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tq-secao-cabeca {
+  display: grid;
+  gap: 2px;
+}
+
+.tq-side .tq-secao-titulo {
+  font-size: 24px;
+  line-height: 1.05;
+  letter-spacing: -0.3px;
+}
+
+.tq-secao-cabeca .tq-fino {
   margin: 0;
 }
 
-.tq-lista-seta {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  transform: rotate(-90deg);
-  color: var(--s-cinza);
-  opacity: 0.6;
-  transition:
-    opacity 0.2s,
-    transform 0.2s var(--motion-flow);
-}
-
-.tq-lista button:hover .tq-lista-seta {
-  opacity: 1;
-  transform: rotate(-90deg) translateY(2px);
-}
-
-.tq-com-nota {
-  color: rgb(var(--c-glow) / 0.85);
+.tq-icone[aria-pressed='true'] {
+  background: var(--s-placa-forte);
+  color: var(--s-texto);
 }
 
 .tq-voltar {
@@ -1787,37 +2096,9 @@
 }
 .tq-escrita-palco {
   position: relative;
-  isolation: isolate;
   flex-shrink: 0;
-  padding: 22px 4px 50px;
-  margin-top: 16px;
-}
-.tq-escrita-palco > :not(.tq-wave) {
-  position: relative;
-  z-index: 1;
-}
-.tq-escrita-palco .tq-wave {
-  position: absolute;
-  pointer-events: none;
-  width: 100%;
-  height: 180px;
-  left: 0;
-  bottom: 0;
-  opacity: 0.9;
-  mask-image: linear-gradient(transparent, #000 45%, #000 75%, transparent);
-}
-.tq-side .tq-enviar {
-  background: rgb(255 255 255 / 0.08);
-  color: var(--s-texto-2);
-}
-/* Há o que enviar: o botão vira a ação principal da tela. */
-.tq-side .tq-enviar:not(:disabled) {
-  background: rgb(var(--c-primary));
-  color: rgb(var(--c-primary-deep));
-}
-.tq-side .tq-enviar:not(:disabled):hover {
-  background: rgb(var(--c-glow));
-  color: rgb(var(--c-primary-deep));
+  padding: 14px 2px 12px;
+  margin-top: 12px;
 }
 .tq-escrita-rodape {
   display: flex;
@@ -1825,20 +2106,13 @@
   justify-content: flex-end;
   gap: 4px 8px;
   min-height: 20px;
-  padding-top: 4px;
+  padding-top: 2px;
   font-size: var(--fs-meta);
   color: var(--s-cinza);
 }
-.tq-compositor:focus-within {
-  border-color: rgb(255 255 255 / 0.22);
-  box-shadow:
-    0 0 0 3px rgb(255 255 255 / 0.04),
-    0 8px 24px -12px rgb(0 0 0 / 0.6);
-}
 .tq-side .tq-botao-principal svg,
 .tq-side .tq-botao-fantasma svg,
-.tq-side .tq-linkish svg,
-.tq-print-tiras button svg {
+.tq-side .tq-linkish svg {
   width: 18px;
   height: 18px;
 }
@@ -1891,10 +2165,6 @@
   border-radius: 2px;
   background: var(--s-texto);
 }
-/* Sem a faixa (no histórico), as abas levam o traço de baixo sozinhas. */
-.tq-rolavel > .tq-reuniao-abas {
-  border-bottom: 1px solid var(--s-traco);
-}
 
 /* O ponto de "já tem nota": era o selo do botão Nota, e veio com ele. */
 .tq-aba-selo {
@@ -1917,31 +2187,70 @@
 }
 
 /*
- * O palco da transcrição: a lista rola por dentro, e a onda fica ancorada no
- * pé, atrás dela. `isolation` cria o contexto de empilhamento local, para o
- * `z-index` da lista valer aqui dentro e não disputar com o resto da sidebar.
+ * O palco da transcrição: a lista rola por dentro e, embaixo dela, logo acima
+ * da onda do painel, o PALCO DA LEGENDA — onde a fala nova chega em letra
+ * grande antes de pousar na lista. Ele ocupa espaço mesmo vazio: é o vão em
+ * que a onda aparece, e o lugar fixo para onde o olho vai quando algo chega.
  */
 .tq-transcricao-palco {
   position: relative;
-  isolation: isolate;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.tq-transcricao-palco > :not(.tq-wave) {
-  position: relative;
-  z-index: 1;
-}
-.tq-transcricao-palco .tq-wave {
-  position: absolute;
+
+.tq-palco-legenda {
+  flex: 0 0 auto;
+  min-height: 132px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 2px 70px;
   pointer-events: none;
-  left: 0;
-  bottom: 0;
+}
+
+.tq-legenda {
+  display: grid;
+  gap: 7px;
   width: 100%;
-  height: 120px;
-  opacity: 0.55;
-  mask-image: linear-gradient(transparent, #000 55%, #000 100%);
+  animation: tq-legenda-chegar 0.46s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes tq-legenda-chegar {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+    filter: blur(8px);
+  }
+}
+
+.tq-legenda-quem {
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--s-nome-outros);
+}
+
+.tq-legenda.minha .tq-legenda-quem {
+  color: rgb(var(--c-glow));
+}
+
+.tq-legenda-texto {
+  display: inline-block;
+  transform-origin: 0 0;
+  font-family: var(--font-titulo);
+  font-weight: 500;
+  font-size: 21px;
+  line-height: 1.22;
+  letter-spacing: -0.2px;
+  color: #fff;
+  text-wrap: balance;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.75);
+  /* Fala longa não empurra a coluna: a legenda mostra o fim, que é o novo. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .tq-reuniao-parte {
   grid-area: 1 / 1;
@@ -1976,20 +2285,25 @@
   flex: 1;
   min-height: 0;
   max-height: none;
-  padding-top: 10px;
-}
-/* Dentro da aba, o editor não leva moldura própria: a aba já é o recorte, e
-   uma caixa dentro da caixa só tirava largura do campo. */
-.tq-reuniao-parte .tq-notas-inline {
-  border: 0;
-  border-radius: 0;
-  background: none;
-  padding: 10px 0 0;
+  padding-top: 12px;
 }
 .tq-reuniao-parte .tq-notas-campo {
   flex: 1;
   min-height: 120px;
   max-height: none;
+}
+.tq-notas-pe {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
+}
+.tq-aba-conta {
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
+  font-variant-numeric: tabular-nums;
 }
 /* ------------------------------------------------------------- o agente */
 
@@ -2026,11 +2340,19 @@
   min-width: 0;
 }
 
+/* Dentro da conversa o assistente tem nome — em violeta, a cor das ideias. */
 .tq-agente-nome {
   display: flex;
   align-items: center;
   gap: 6px;
   margin: 0;
+  color: var(--s-ideia);
+}
+
+/* A resposta em lilás claro: é dela que se fala quando se diz "as ideias". */
+.tq-side .tq-turno-agente .tq-resp-texto,
+.tq-side .tq-msg-ia {
+  color: rgb(214 207 250);
 }
 
 /*

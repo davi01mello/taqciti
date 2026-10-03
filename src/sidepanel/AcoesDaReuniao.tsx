@@ -1,5 +1,13 @@
 /**
- * A FILEIRA DE AÇÕES da reunião — print, pausa e perguntar à IA.
+ * A FILEIRA DE AÇÕES da reunião — print, pausa e a pergunta rápida.
+ *
+ * ── O que mudou com a direção "Espectro" ─────────────────────────────────
+ *
+ * "Print" tira o print na hora (com o clarão de câmera e um "Desfazer"), em vez
+ * de abrir uma seção com outro botão dentro; os guardados ficam na aba Prints.
+ * "Perguntar" virou "Pergunta rápida": a pergunta é feita e respondida AQUI,
+ * embaixo das ações, sem sair da reunião — e "Continuar na conversa" leva as
+ * duas para a conversa quando o assunto rende.
  *
  * ── Por que as três ficam à vista ────────────────────────────────────────
  *
@@ -39,32 +47,37 @@ interface Props {
   /** `false` quando a reunião já terminou: não há o que pausar. */
   viva: boolean;
   pausada: boolean;
-  printAberto: boolean;
+  capturando: boolean;
   quantosPrints: number;
+  rapidaAberta: boolean;
   onPrint: () => void;
   onPausar: () => void;
-  onPerguntar: () => void;
+  onRapida: () => void;
 }
 
 export function AcoesDaReuniao({
   viva,
   pausada,
-  printAberto,
+  capturando,
   quantosPrints,
+  rapidaAberta,
   onPrint,
   onPausar,
-  onPerguntar,
+  onRapida,
 }: Props) {
   return (
     <div className="tq-acoes" role="group" aria-label="Ações desta reunião">
       <button
         type="button"
-        className={`tq-acao${printAberto ? ' aberta' : ''}`}
-        aria-expanded={printAberto}
+        className="tq-acao"
         onClick={onPrint}
+        // Depois do fim, a aba mostra "você saiu da chamada": um print dela não
+        // é um print da reunião.
+        disabled={!viva || capturando}
+        title={viva ? 'Guardar o que está na tela da reunião' : 'A reunião já terminou.'}
       >
         <Icon name="image" size={16} />
-        <span>Print</span>
+        <span>{capturando ? 'Print…' : 'Print'}</span>
         {quantosPrints > 0 && <span className="tq-acao-conta">{quantosPrints}</span>}
       </button>
 
@@ -79,9 +92,15 @@ export function AcoesDaReuniao({
         <span>{pausada ? 'Retomar' : 'Pausar'}</span>
       </button>
 
-      <button type="button" className="tq-acao" onClick={onPerguntar}>
+      <button
+        type="button"
+        className="tq-acao tq-acao-rapida"
+        aria-expanded={rapidaAberta}
+        aria-controls="tq-rapida"
+        onClick={onRapida}
+      >
         <Icon name="sparkles" size={16} />
-        <span>Perguntar</span>
+        <span>Pergunta rápida</span>
       </button>
     </div>
   );

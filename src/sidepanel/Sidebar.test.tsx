@@ -224,8 +224,26 @@ describe('os dois seletores', () => {
     // A tela ao vivo saiu; no lugar dela, o histórico.
     expect(host.textContent).not.toContain('Finalizar reunião');
     expect(host.textContent).not.toContain('Transcrevendo');
-    expect(host.textContent).toContain('Nenhuma reunião em curso');
+    expect(q('.tq-secao-titulo').textContent).toBe('Reuniões');
     expect(seletor('Reunião').getAttribute('aria-current')).toBe('page');
+  });
+
+  /*
+   * O histórico se abre no MEIO da reunião, pelo ícone do topo, sem encerrar
+   * nada — e a reunião ao vivo continua montada embaixo, com a rolagem dela.
+   */
+  it('o ícone de lista abre o histórico sem tirar a reunião ao vivo', async () => {
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+    const falas = q('.tq-falas');
+
+    await clicar(q<HTMLButtonElement>('button[aria-label="Reuniões"]'));
+    expect(q('.tq-secao-titulo').textContent).toBe('Reuniões');
+    expect(falas.closest('[aria-hidden="true"]')).not.toBeNull();
+
+    await clicar(seletor('Reunião'));
+    expect(host.querySelector('.tq-secao-titulo')).toBeNull();
+    expect(q('.tq-falas')).toBe(falas);
   });
 
   it('sem reunião nenhuma, a captura está desligada', async () => {
@@ -293,7 +311,7 @@ describe('as ações da reunião', () => {
     const nomes = todos<HTMLButtonElement>('.tq-acao').map((b) => b.textContent);
     expect(nomes.some((n) => n?.includes('Print'))).toBe(true);
     expect(nomes.some((n) => n?.includes('Pausar'))).toBe(true);
-    expect(nomes.some((n) => n?.includes('Perguntar'))).toBe(true);
+    expect(nomes.some((n) => n?.includes('Pergunta rápida'))).toBe(true);
   });
 
   /*
@@ -359,14 +377,62 @@ describe('as ações da reunião', () => {
     expect(pedidos()).toContainEqual({ type: 'ui/finish' });
   });
 
-  it('"Perguntar" leva a reunião como contexto e abre a conversa', async () => {
+  /*
+   * A pergunta rápida não é atalho de mentira: a pergunta vai para uma
+   * conversa de verdade, com a reunião como contexto, e "Continuar na
+   * conversa" abre exatamente essa conversa. Sem assistente conectado, ela diz
+   * isso no lugar da resposta — e não finge uma.
+   */
+  it('a pergunta rápida grava a pergunta com a reunião e continua na conversa', async () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();
 
-    await clicar(acao('Perguntar'));
+    await clicar(acao('Pergunta rápida'));
+    expect(acao('Pergunta rápida').getAttribute('aria-expanded')).toBe('true');
+    // Continua na reunião: nada de pular para a conversa.
+    expect(seletor('Reunião').getAttribute('aria-current')).toBe('page');
+
+    const campo = q<HTMLInputElement>('.tq-rapida-campo input');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        campo,
+        'Quem ficou com o protótipo?',
+      );
+      campo.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      q<HTMLFormElement>('.tq-rapida-campo').requestSubmit();
+    });
+    await act(async () => {});
+
+    expect(q('.tq-rapida-aviso').textContent).toContain('não está conectado');
+    const gravadas = storage.local.values[STORAGE_KEYS.conversations] as Conversation[];
+    expect(gravadas).toHaveLength(1);
+    expect(gravadas[0]!.meetingId).toBe('m-1');
+    expect(gravadas[0]!.messages[0]!.text).toBe('Quem ficou com o protótipo?');
+
+    const continuar = todos<HTMLButtonElement>('.tq-rapida-pe button').find((b) =>
+      b.textContent?.includes('Continuar na conversa'),
+    )!;
+    await clicar(continuar);
+
+    expect(seletor('Conversa').getAttribute('aria-current')).toBe('page');
+    expect(q('.tq-msg-voce').textContent).toBe('Quem ficou com o protótipo?');
+  });
+
+  it('"Perguntar sobre o trecho" leva o trecho como contexto e abre a conversa', async () => {
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+
+    await clicar(q<HTMLButtonElement>('.tq-fala-corpo'));
+    const perguntar = todos<HTMLButtonElement>('.tq-fala-acoes button').find((b) =>
+      b.textContent?.includes('Perguntar sobre o trecho'),
+    )!;
+    await clicar(perguntar);
 
     expect(seletor('Conversa').getAttribute('aria-current')).toBe('page');
     expect(q('.tq-contexto-pendente').textContent).toContain('Planning da semana');
+    expect(q('.tq-contexto-pendente').textContent).toContain('fechar o escopo');
   });
 
   /*

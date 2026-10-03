@@ -51,14 +51,24 @@ describe('a seção escondida fica escondida inteira', () => {
     expect(bloco('.tq-reuniao-parte')).toMatch(/visibility:\s*hidden/);
   });
 
+  /* A mesma regra para a reunião ao vivo debaixo do histórico aberto. */
+  it('a camada ativa da seção herda a visibilidade em vez de forçá-la', () => {
+    expect(bloco('.tq-camada')).toMatch(/visibility:\s*hidden/);
+    const regra = bloco('.tq-camada.ativa');
+    expect(regra).toMatch(/visibility:\s*inherit/);
+    expect(regra).not.toMatch(/visibility:\s*visible/);
+  });
+
   /*
-   * A onda é decoração: se ela pegasse o ponteiro, clicar numa fala perto do
-   * rodapé da transcrição deixaria de selecioná-la.
+   * A onda, a vinheta e o grão são decoração: se pegassem o ponteiro, clicar
+   * numa fala perto do rodapé deixaria de selecioná-la.
    */
-  it('a onda da transcrição não intercepta o ponteiro', () => {
-    const regra = bloco('.tq-transcricao-palco .tq-wave');
-    expect(regra).toMatch(/pointer-events:\s*none/);
-    expect(regra).toMatch(/position:\s*absolute/);
-    expect(regra).toMatch(/bottom:\s*0/);
+  it('o chão do painel não intercepta o ponteiro', () => {
+    const onda = bloco('.tq-onda');
+    expect(onda).toMatch(/pointer-events:\s*none/);
+    expect(onda).toMatch(/position:\s*absolute/);
+    expect(onda).toMatch(/bottom:\s*0/);
+    expect(bloco('.tq-vinheta')).toMatch(/pointer-events:\s*none/);
+    expect(bloco('.tq-grao')).toMatch(/pointer-events:\s*none/);
   });
 });

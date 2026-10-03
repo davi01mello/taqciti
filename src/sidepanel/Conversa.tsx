@@ -402,7 +402,7 @@ export function Conversa({
 
         {reuniaoDaConversa && (
           <p className="tq-contexto-fixo" title="A reunião que esta conversa acompanha">
-            <Icon name="history" size={12} /> {reuniaoDaConversa.title}
+            Sobre: {reuniaoDaConversa.title}
           </p>
         )}
 
@@ -416,8 +416,9 @@ export function Conversa({
          */}
         <div className="tq-disponibilidade">
           <span className={pronto ? 'tq-com-ia' : 'tq-sem-ia'}>
+            {/* Fora das mensagens o assistente não tem nome: ele é a marca. */}
             {pronto
-              ? 'Taq conectado'
+              ? 'Assistente conectado'
               : taq.fase === 'verificando'
                 ? 'Verificando o assistente…'
                 : 'Assistente não conectado'}
@@ -425,7 +426,7 @@ export function Conversa({
           <button
             type="button"
             className="tq-ajuda"
-            aria-label={pronto ? 'Sobre o Taq' : 'Sobre o assistente não conectado'}
+            aria-label={pronto ? 'Sobre o assistente' : 'Sobre o assistente não conectado'}
             aria-expanded={ajudaAberta}
             aria-controls="tq-ajuda-ia"
             onClick={() => setAjudaAberta((v) => !v)}
@@ -437,7 +438,7 @@ export function Conversa({
           <p className="tq-ajuda-texto" id="tq-ajuda-ia">
             {pronto ? (
               <>
-                O Taq responde com base nas suas reuniões e documentos ({taq.modelo}).
+                O assistente responde com base nas suas reuniões e documentos ({taq.modelo}).
                 Tudo fica guardado neste computador, mas os trechos que ele consulta para
                 responder são enviados ao provedor de IA pelo servidor do TaqCiti.
               </>
@@ -514,10 +515,10 @@ export function Conversa({
         </div>
 
         {/*
-         * Sem onda atrás do campo. Ela era decoração aqui e sinal lá: o que a
-         * onda diz é "há captura correndo", e isso se lê na transcrição, onde
-         * ela agora mora (ver `OndaDaTranscricao`, em Reuniao.tsx). Atrás do
-         * compositor ela só concorria com o texto que se está escrevendo.
+         * O compositor é TRANSPARENTE (direção "Espectro"): sem placa e sem
+         * botão à vista, o texto nasce direto no painel e Enter envia. O botão
+         * de enviar continua existindo para leitor de tela e teclado, e a dica
+         * "Enter envia" aparece assim que há o que enviar.
          */}
         <div className="tq-escrita-palco">
           {contexto && (
@@ -572,17 +573,21 @@ export function Conversa({
             />
             <button
               type="submit"
-              className="tq-enviar"
-              aria-label={pronto ? 'Enviar ao Taq' : 'Salvar rascunho'}
-              title={pronto ? 'Enviar ao Taq' : 'Salvar rascunho'}
+              className="tq-enviar tq-so-leitor"
               disabled={!rascunho.trim() || gravando || trabalhando}
             >
-              <Icon name={pronto ? 'arrowUp' : salvo ? 'check' : 'arrowDown'} size={20} />
+              {pronto ? 'Enviar' : 'Salvar rascunho'}
             </button>
           </form>
           <div className="tq-escrita-rodape">
             <span role="status">
               {gravando ? 'Salvando…' : salvo && !pronto ? 'Salvo neste computador' : ''}
+            </span>
+            <span
+              className={`tq-escrita-dica${rascunho.trim() && !trabalhando ? ' visivel' : ''}`}
+              aria-hidden="true"
+            >
+              {pronto ? 'Enter envia' : 'Enter salva'}
             </span>
           </div>
           {erro && (

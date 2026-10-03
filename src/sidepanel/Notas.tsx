@@ -51,17 +51,14 @@ interface Props {
   texto: string;
   estado: EstadoDaGravacao;
   onEscrever: (meetingId: string, texto: string) => void;
-  onRecolher: () => void;
 }
 
-export function EditorDeNota({
-  ativa = true,
-  meetingId,
-  texto,
-  estado,
-  onEscrever,
-  onRecolher,
-}: Props) {
+/*
+ * Só o campo e uma linha embaixo. O título "Nota desta reunião" e o "Recolher"
+ * saíram com a direção "Espectro": a aba já diz o que é, e recolher é voltar à
+ * aba Transcrição.
+ */
+export function EditorDeNota({ ativa = true, meetingId, texto, estado, onEscrever }: Props) {
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
 
   /*
@@ -78,23 +75,7 @@ export function EditorDeNota({
   }, [ativa]);
 
   return (
-    <section className="tq-notas tq-notas-inline" aria-label="Nota desta reunião">
-      <div className="tq-notas-topo">
-        <h3>Nota desta reunião</h3>
-        <div className="tq-notas-topo-direita">
-          <EstadoDaNota estado={estado} />
-          <button
-            type="button"
-            className="tq-icone-pequeno"
-            onClick={onRecolher}
-            title="Recolher a nota"
-            aria-label="Recolher a nota. O texto fica guardado."
-          >
-            <span aria-hidden="true">Recolher</span>
-          </button>
-        </div>
-      </div>
-
+    <section className="tq-notas" aria-label="Nota desta reunião">
       {estado === 'falhou' && (
         <button
           type="button"
@@ -108,16 +89,16 @@ export function EditorDeNota({
       <textarea
         id={EDITOR_DE_NOTA_ID}
         ref={campoRef}
-        className="tq-notas-campo tq-notas-campo-inline"
+        className="tq-notas-campo"
         value={texto}
         placeholder="Anote algo sobre esta reunião…"
         aria-label="Notas desta reunião"
         onChange={(e) => onEscrever(meetingId, e.target.value)}
       />
 
-      <p className="tq-fino">
-        Fica neste computador, separada da transcrição. Aparece depois no histórico, aqui e
-        na HOME.
+      <p className="tq-notas-pe">
+        <span>Fica neste computador, separada da transcrição.</span>
+        <EstadoDaNota estado={estado} />
       </p>
     </section>
   );

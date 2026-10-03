@@ -149,9 +149,11 @@ export function Seletores({
       >
         <MarcaDoTaq estado={agente} tamanho={20} sinal={sinalDoAgente} ouve />
         <span className="tq-modo-nome">Conversa</span>
+        {/* O assistente trabalhando é violeta, não verde: verde é quem fala na
+            reunião, violeta são as ideias que voltam dela. */}
         <span
           className={`tq-modo-estado${
-            agenteTrabalhando ? ' vivo' : agenteFalhou ? ' atencao' : ''
+            agenteTrabalhando ? ' ideia' : agenteFalhou ? ' atencao' : ''
           }`}
         >
           {palavraAgente}

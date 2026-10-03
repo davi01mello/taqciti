@@ -1,32 +1,36 @@
 /**
- * A tela da reunião em andamento: as ações, a transcrição, os prints e o aviso
- * no chat.
+ * A tela da reunião em andamento: as ações, a pergunta rápida, as abas
+ * (transcrição, notas, prints) e o aviso no chat.
  *
  * ── O que NUNCA acontece aqui ────────────────────────────────────────────
  *
  * Nada nesta tela modifica o texto capturado. A marcação é metadado guardado à
  * parte (ver features/annotations/marks.ts), a nota é outro registro, o print é
- * outro ainda, e a pergunta à IA vai para a conversa. A transcrição é o que foi
- * dito; tudo o mais é o que a pessoa acrescentou em volta.
+ * outro ainda, e a pergunta à IA vai para uma conversa. A transcrição é o que
+ * foi dito; tudo o mais é o que a pessoa acrescentou em volta.
  *
  * ── A ordem da tela ──────────────────────────────────────────────────────
  *
- * Ações primeiro, transcrição depois. É o contrário do que era, e o motivo é o
- * uso: a transcrição rola sozinha e cresce sem parar; qualquer controle depois
- * dela é um controle que foge da tela em três minutos de reunião. As ações
- * ficam ancoradas no topo, e só a lista de falas rola.
+ * Ações primeiro, transcrição depois: a transcrição rola sozinha e cresce sem
+ * parar; qualquer controle depois dela é um controle que foge da tela em três
+ * minutos de reunião. As ações ficam ancoradas no topo, e só a lista rola.
  *
- * ── O trecho selecionado ─────────────────────────────────────────────────
+ * ── A fala chegando (direção "Espectro") ─────────────────────────────────
  *
- * Um clique numa fala a seleciona — realce discreto, e uma fileira de controles
- * que pertence àquele trecho. É assim que marcar e perguntar têm um alvo
- * explícito, em vez de um botão genérico que agiria sobre "a transcrição" e
- * deixaria a pessoa adivinhar sobre o quê.
+ * Uma fala nova acende três coisas de uma vez: a faísca no glifo da escuta (o
+ * seletor "Reunião"), um pulso que atravessa a onda do painel, e a LEGENDA —
+ * a fala em letra grande, logo acima da onda, que depois voa e pousa no lugar
+ * dela na transcrição. É o momento em que a voz vira escrita, visível.
+ *
+ * Com movimento reduzido, com outra aba aberta ou com a seção fora de vista, a
+ * fala entra direto na lista: a legenda é um gesto de quem está olhando.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { LiveSegment, MeetingState } from '@/shared/types/domain';
 import { usePlatform } from '@/shared/platform/context';
 import type { EstadoDaGravacao } from '@/features/annotations/notes';
+import type { EstadoDoAgente } from '@/features/agent/atividade';
+import { anunciarEscrita } from '@/features/agent/escuta';
 import {
   lerMarcas,
   marcarTrecho,
@@ -53,48 +57,74 @@ import {
 import { EXPLICACAO, type MotivoDeFalha } from '@/background/captura';
 import type { ContextoDaPergunta } from '@/home/conversations';
 import { Icon } from '@/shared/ui/Icon';
+import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
+import { Markdown } from '@/shared/ui/Markdown';
 import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
-import { WaveField } from '@/home/WaveField';
-import { useAnimacao } from '@/home/useAnimacao';
 import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
 import { EditorDeNota } from './Notas';
-import { AbasDaReuniao, ParteDaReuniao } from './AbasDaReuniao';
+import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
+
+/** O que a pergunta rápida devolve à tela. */
+export interface RespostaRapida {
+  /** A conversa em que pergunta (e resposta) ficaram. `null` se nem gravou. */
+  conversaId: string | null;
+  resposta: string | null;
+  /** Por que não houve resposta, numa frase. */
+  aviso: string | null;
+}
 
 interface Props {
   state: MeetingState;
+  /** A seção está à vista (seletor "Reunião", fora do histórico). */
+  visivel?: boolean;
   notaExiste: boolean;
   rascunhoNota: string;
   estadoDaNota: EstadoDaGravacao;
   onEscreverNota: (meetingId: string, texto: string) => void;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
+  taqPronto?: boolean;
+  /** O agente, quando é a pergunta rápida que ele está respondendo. */
+  agente?: EstadoDoAgente | null;
+  onPerguntarRapido?: (texto: string, ctx: ContextoDaPergunta) => Promise<RespostaRapida>;
+  onCancelarRapida?: () => void;
+  onContinuarNaConversa?: (conversaId: string) => void;
 }
+
+const movimentoReduzido = () =>
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function Reuniao({
   state,
+  visivel = true,
   notaExiste,
   rascunhoNota,
   estadoDaNota,
   onEscreverNota,
   onPerguntarSobre,
+  taqPronto = false,
+  agente = null,
+  onPerguntarRapido,
+  onCancelarRapida = () => {},
+  onContinuarNaConversa = () => {},
 }: Props) {
   const platform = usePlatform();
   const sessao = state.session;
   const fase = state.phase;
 
   /*
-   * Aberto ou recolhido é estado desta tela, e sobrevive a trocar de seletor
-   * porque a seção inteira continua montada (ver `Painel` em App.tsx). O
-   * TEXTO da nota não mora aqui de propósito — ver o cabeçalho de Notas.tsx.
+   * A aba escolhida é estado desta tela, e sobrevive a trocar de seletor
+   * porque a seção inteira continua montada (ver `Painel` em App.tsx). O TEXTO
+   * da nota não mora aqui de propósito — ver o cabeçalho de Notas.tsx.
    */
-  const [notaAberta, setNotaAberta] = useState(false);
-  const [printAberto, setPrintAberto] = useState(false);
+  const [aba, setAba] = useState<AbaDaReuniao>('transcricao');
+  const [rapidaAberta, setRapidaAberta] = useState(false);
   const [prints, setPrints] = useState<Print[]>([]);
 
   const meetingId = sessao?.meetingId ?? null;
   useEffect(() => {
     if (meetingId === null) return;
     return observarPrints((todos) =>
-      setPrints(todos.filter((p) => p.meetingId === meetingId)),
+      setPrints(todos.filter((p) => p.meetingId === meetingId).sort((a, b) => b.at - a.at)),
     );
   }, [meetingId]);
 
@@ -107,6 +137,8 @@ export function Reuniao({
     const t = setInterval(() => setAgora(Date.now()), 1000);
     return () => clearInterval(t);
   }, [fase]);
+
+  const print = usePrint(meetingId);
 
   if (!sessao || fase === 'idle') return null;
 
@@ -126,18 +158,15 @@ export function Reuniao({
   const duracao = formatElapsedClock((sessao.endedAt ?? agora) - sessao.startedAt);
   const viva = fase === 'recording' || fase === 'paused';
   const interrompida = fase === 'recording' && sessao.captureHealthy === false;
-
-  const perguntarSobreAReuniao = () =>
-    onPerguntarSobre({ meetingId: sessao.meetingId, meetingTitle: sessao.title });
+  const quando = (p: Print) => formatOffset(p.at - sessao.startedAt);
 
   return (
-    <div className="tq-rolavel">
+    <div className="tq-rolavel tq-ao-vivo">
       {/*
        * O título e, embaixo, o estado com o relógio. O relógio é o único
        * número que muda sozinho na tela, e é o que se procura ao olhar para o
        * painel no meio da reunião ("quanto tempo já foi?") — por isso ele tem
-       * peso próprio, e o resto da linha é cinza. Sem "·" entre as partes: o
-       * espaço já separa, e o ponto do meio é ruído numa linha de 260px.
+       * peso próprio, e o resto da linha é cinza.
        */}
       <div className="tq-reuniao-topo">
         <h2>{sessao.title}</h2>
@@ -163,16 +192,54 @@ export function Reuniao({
       <AcoesDaReuniao
         viva={viva}
         pausada={fase === 'paused'}
-        printAberto={printAberto}
+        capturando={print.ocupado}
         quantosPrints={prints.length}
-        onPrint={() => setPrintAberto((v) => !v)}
+        rapidaAberta={rapidaAberta}
+        onPrint={() => void print.tirar()}
         onPausar={() =>
           void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
         }
-        onPerguntar={perguntarSobreAReuniao}
+        onRapida={() => setRapidaAberta((v) => !v)}
       />
 
-      {printAberto && <Prints meetingId={sessao.meetingId} prints={prints} viva={viva} />}
+      {print.recente && (
+        <p className="tq-aviso-print" role="status">
+          <span>Print guardado com a reunião.</span>
+          <button
+            type="button"
+            onClick={() => {
+              print.esquecer();
+              setAba('prints');
+            }}
+          >
+            Ver
+          </button>
+          <button type="button" onClick={() => void print.desfazer()}>
+            Desfazer
+          </button>
+        </p>
+      )}
+      {print.erro && (
+        <p className="tq-aviso-falha" role="status">
+          {print.erro}
+        </p>
+      )}
+
+      {rapidaAberta && (
+        <PerguntaRapida
+          meetingId={sessao.meetingId}
+          titulo={sessao.title}
+          taqPronto={taqPronto}
+          agente={agente}
+          onPerguntar={onPerguntarRapido}
+          onCancelar={onCancelarRapida}
+          onContinuar={(id) => {
+            setRapidaAberta(false);
+            onContinuarNaConversa(id);
+          }}
+          onFechar={() => setRapidaAberta(false)}
+        />
+      )}
 
       {fase === 'paused' && (
         <p className="tq-aviso-caixa">
@@ -205,101 +272,556 @@ export function Reuniao({
           são os botões que se aperta sem pensar. */}
       <div className="tq-reuniao-faixa">
         <AbasDaReuniao
-          notas={notaAberta}
+          aba={aba}
+          onAba={setAba}
           notaExiste={notaExiste}
-          onNotas={setNotaAberta}
+          quantosPrints={prints.length}
         />
         {viva && (
           <FinalizarReuniao onFinalizar={() => void platform.send({ type: 'ui/finish' })} />
         )}
       </div>
       <div className="tq-reuniao-alternada">
-        <ParteDaReuniao ativa={notaAberta}>
+        <ParteDaReuniao ativa={aba === 'notas'}>
           <EditorDeNota
-            ativa={notaAberta}
+            ativa={aba === 'notas'}
             meetingId={sessao.meetingId}
             texto={rascunhoNota}
             estado={estadoDaNota}
             onEscrever={onEscreverNota}
-            onRecolher={() => setNotaAberta(false)}
           />
         </ParteDaReuniao>
-        <ParteDaReuniao ativa={!notaAberta}>
-          {/*
-           * A onda é ancorada AQUI, no pé da transcrição, e não atrás do campo
-           * de escrita da conversa: ela é o sinal de que há captura correndo, e
-           * o lugar em que isso se lê é a lista de falas. Fica atrás do texto,
-           * decorativa, sem capturar o ponteiro.
-           */}
-          <div className="tq-transcricao-palco">
-            {sessao.segments.length === 0 ? (
-              <p className="tq-fino tq-centrado">
-                {fase === 'ended'
-                  ? 'Nenhuma fala foi capturada nesta reunião — as legendas do Meet não chegaram a produzir texto.'
-                  : fase === 'paused'
-                    ? 'Captura pausada. As falas voltam a aparecer aqui quando você retomar.'
-                    : interrompida
-                      ? 'A captura não está conseguindo ler as legendas. O TaqCiti está tentando religar.'
-                      : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
-              </p>
-            ) : (
-              <ListaDeFalas
-                meetingId={sessao.meetingId}
-                titulo={sessao.title}
-                segmentos={sessao.segments}
-                selfName={hostName(sessao.participants)}
-                onPerguntarSobre={onPerguntarSobre}
-              />
-            )}
-            <OndaDaTranscricao capturando={fase === 'recording'} />
-          </div>
+        <ParteDaReuniao ativa={aba === 'prints'}>
+          <PrintsDaReuniao
+            prints={prints}
+            recenteId={print.recente?.id ?? null}
+            quando={quando}
+            viva={viva}
+          />
+        </ParteDaReuniao>
+        <ParteDaReuniao ativa={aba === 'transcricao'}>
+          {sessao.segments.length === 0 ? (
+            <p className="tq-fino tq-centrado tq-falas-vazio">
+              {fase === 'paused'
+                ? 'Captura pausada. As falas voltam a aparecer aqui quando você retomar.'
+                : interrompida
+                  ? 'A captura não está conseguindo ler as legendas. O TaqCiti está tentando religar.'
+                  : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
+            </p>
+          ) : (
+            <TranscricaoAoVivo
+              meetingId={sessao.meetingId}
+              titulo={sessao.title}
+              segmentos={sessao.segments}
+              selfName={hostName(sessao.participants)}
+              legendaLigada={visivel && aba === 'transcricao' && fase === 'recording'}
+              onPerguntarSobre={onPerguntarSobre}
+            />
+          )}
         </ParteDaReuniao>
       </div>
+      <div className="tq-clarao" ref={print.clarao} aria-hidden="true" />
     </div>
   );
 }
 
-// ---------- a onda, no pé da transcrição ----------
+// ---------- o print ----------
 
 /**
- * O fundo vivo da transcrição.
+ * O print da aba da reunião, num clique.
  *
- * `captando` só enquanto a captura corre de verdade — uma onda subindo com a
- * reunião pausada seria a animação contando uma história que não está
- * acontecendo. E ela NÃO mede áudio: a extensão nunca ouviu microfone nenhum, e
- * o que a faz reagir é a chegada de um trecho novo (ver `MarcaDaEscuta.tsx`).
+ * A captura é sempre por gesto, e o background confere que a aba da reunião é
+ * a que está à vista antes de capturar — `captureVisibleTab` pega a aba ATIVA,
+ * não a que se pede, e sem essa conferência um print do e-mail de alguém seria
+ * guardado como "print da reunião". Ver src/background/captura.ts.
+ *
+ * O print é GUARDADO no instante da captura; o aviso embaixo das ações tem
+ * "Desfazer" por alguns segundos. Nada vai para a IA.
  */
-function OndaDaTranscricao({ capturando }: { capturando: boolean }) {
-  const { animando, movimentoReduzido } = useAnimacao(false);
+function usePrint(meetingId: string | null) {
+  const platform = usePlatform();
+  const [recente, setRecente] = useState<Print | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const clarao = useRef<HTMLDivElement | null>(null);
+
+  // O aviso some sozinho: é confirmação, não tarefa.
+  useEffect(() => {
+    if (!recente) return;
+    const t = setTimeout(() => setRecente(null), 3600);
+    return () => clearTimeout(t);
+  }, [recente]);
+  useEffect(() => {
+    if (!erro) return;
+    const t = setTimeout(() => setErro(null), 6000);
+    return () => clearTimeout(t);
+  }, [erro]);
+
+  const tirar = useCallback(async () => {
+    if (meetingId === null) return;
+    setOcupado(true);
+    setErro(null);
+    try {
+      const r = await platform.send<
+        | { ok: true; dataUrl: string; meetingId?: string | null }
+        | { ok: false; motivo: MotivoDeFalha }
+      >({ type: 'ui/print' });
+      if (!r || !r.ok) {
+        setErro(r ? EXPLICACAO[r.motivo] : 'Não foi possível capturar a tela.');
+        return;
+      }
+      try {
+        // A reunião que o BACKGROUND capturou: se a sessão trocou no meio da
+        // captura, o print vai para a reunião em que foi tirado.
+        const guardado = await guardarPrint(r.meetingId ?? meetingId, r.dataUrl, 0, 0);
+        setRecente(guardado);
+        // O clarão de câmera: rápido, sobre a coluna. Só com movimento.
+        if (!movimentoReduzido()) {
+          clarao.current?.animate?.([{ opacity: 0.5 }, { opacity: 0 }], {
+            duration: 320,
+            easing: 'ease-out',
+          });
+        }
+      } catch {
+        setErro('Não coube no armazenamento local. Apague algum print e tente de novo.');
+      }
+    } catch {
+      setErro('Não foi possível capturar a tela.');
+    } finally {
+      setOcupado(false);
+    }
+  }, [meetingId, platform]);
+
+  const desfazer = useCallback(async () => {
+    if (!recente) return;
+    setRecente(null);
+    await apagarPrint(recente.id);
+  }, [recente]);
+
+  return { tirar, desfazer, esquecer: () => setRecente(null), recente, erro, ocupado, clarao };
+}
+
+/** Os prints guardados: grade de duas colunas e, ao abrir um, o visor. */
+function PrintsDaReuniao({
+  prints,
+  recenteId,
+  quando,
+  viva,
+}: {
+  prints: Print[];
+  recenteId: string | null;
+  quando: (p: Print) => string;
+  viva: boolean;
+}) {
+  const [abertoId, setAbertoId] = useState<string | null>(null);
+  const aberto = prints.find((p) => p.id === abertoId) ?? null;
+  const fechar = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (aberto) fechar.current?.focus();
+  }, [aberto]);
+
   return (
-    <WaveField
-      estado={capturando && !movimentoReduzido ? 'captando' : 'repouso'}
-      animando={animando}
-      pulso={0}
-      discreta
-    />
+    <section className="tq-prints" aria-label="Prints da reunião">
+      {prints.length === 0 ? (
+        <p className="tq-fino">
+          Nenhum print ainda. Use Print durante a reunião para guardar o que está na tela.
+        </p>
+      ) : (
+        <ul className="tq-prints-grade">
+          {prints.map((p) => (
+            <li key={p.id} className={p.id === recenteId ? 'novo' : undefined}>
+              <button
+                type="button"
+                aria-label={`Abrir o print de ${quando(p)}`}
+                onClick={() => setAbertoId(p.id)}
+              >
+                <img src={p.dataUrl} alt="" />
+                <span className="tq-prints-hora">{quando(p)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {viva && prints.length >= MAX_POR_REUNIAO && (
+        <p className="tq-fino" role="status">
+          Limite de {MAX_POR_REUNIAO} prints por reunião: o próximo substitui o mais antigo.
+        </p>
+      )}
+
+      {/* O print aberto ocupa a coluna, sem sair dela. */}
+      {aberto && (
+        <div
+          className="tq-print-visor"
+          role="dialog"
+          aria-label={`Print da reunião, ${quando(aberto)}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setAbertoId(null);
+          }}
+        >
+          <img src={aberto.dataUrl} alt={`Print da reunião, ${quando(aberto)}`} />
+          <div className="tq-print-visor-barra">
+            <span>Print de {quando(aberto)}</span>
+            <button
+              type="button"
+              className="perigo"
+              onClick={() => {
+                setAbertoId(null);
+                void apagarPrint(aberto.id);
+              }}
+            >
+              Apagar
+            </button>
+            <button type="button" ref={fechar} onClick={() => setAbertoId(null)}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------- a pergunta rápida ----------
+
+type FaseDaRapida = 'escrevendo' | 'procurando' | 'respondida';
+
+/**
+ * Pergunte sem sair da reunião. A resposta nasce ali mesmo, embaixo das ações.
+ *
+ * Quem responde aparece só como a marca viva — sem nome fora do chat: o nome
+ * do assistente mora dentro da conversa. "Continuar na conversa" abre a
+ * conversa em que a pergunta foi gravada, com a resposta já lá.
+ */
+function PerguntaRapida({
+  meetingId,
+  titulo,
+  taqPronto,
+  agente,
+  onPerguntar,
+  onCancelar,
+  onContinuar,
+  onFechar,
+}: {
+  meetingId: string;
+  titulo: string;
+  taqPronto: boolean;
+  agente: EstadoDoAgente | null;
+  onPerguntar?: (texto: string, ctx: ContextoDaPergunta) => Promise<RespostaRapida>;
+  onCancelar: () => void;
+  onContinuar: (conversaId: string) => void;
+  onFechar: () => void;
+}) {
+  const [texto, setTexto] = useState('');
+  const [fase, setFase] = useState<FaseDaRapida>('escrevendo');
+  const [resultado, setResultado] = useState<RespostaRapida | null>(null);
+  const campo = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const q = requestAnimationFrame(() => campo.current?.focus());
+    return () => cancelAnimationFrame(q);
+  }, []);
+
+  const perguntar = async () => {
+    const limpo = texto.trim();
+    if (!limpo || fase === 'procurando' || !onPerguntar) return;
+    setFase('procurando');
+    setResultado(null);
+    const r = await onPerguntar(limpo, { meetingId, meetingTitle: titulo });
+    setResultado(r);
+    setFase('respondida');
+  };
+
+  const estadoDaMarca =
+    fase === 'procurando'
+      ? (agente?.atividade ?? 'preparando')
+      : fase === 'respondida'
+        ? resultado?.resposta
+          ? 'concluido'
+          : 'falhou'
+        : 'repouso';
+
+  return (
+    <div
+      className="tq-rapida"
+      id="tq-rapida"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && fase !== 'procurando') onFechar();
+      }}
+    >
+      <form
+        className="tq-rapida-campo"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void perguntar();
+        }}
+      >
+        <MarcaDoTaq
+          estado={estadoDaMarca}
+          tamanho={20}
+          sinal={agente ? agente.parcial.length || (agente.etapa ?? '') : ''}
+          ouve
+        />
+        <input
+          ref={campo}
+          type="text"
+          value={texto}
+          autoComplete="off"
+          placeholder="O que você quer saber desta reunião?"
+          aria-label="Pergunta rápida sobre esta reunião"
+          disabled={fase === 'procurando'}
+          onChange={(e) => {
+            setTexto(e.target.value);
+            anunciarEscrita();
+          }}
+        />
+        <button type="submit" className="tq-so-leitor">
+          Perguntar
+        </button>
+      </form>
+
+      {!taqPronto && fase === 'escrevendo' && (
+        <p className="tq-rapida-nota">
+          O assistente não está conectado: a pergunta fica guardada numa conversa, sem
+          resposta.
+        </p>
+      )}
+
+      {fase !== 'escrevendo' && (
+        <div className="tq-rapida-resposta" aria-live="polite">
+          {fase === 'procurando' ? (
+            <>
+              {agente?.parcial ? (
+                <p className="tq-rapida-texto">{agente.parcial}</p>
+              ) : (
+                <span className="tq-rapida-procurando">
+                  {agente?.etapa ? `${agente.etapa}…` : 'Procurando nesta reunião…'}
+                </span>
+              )}
+            </>
+          ) : resultado?.resposta ? (
+            <div className="tq-rapida-texto">
+              <Markdown texto={resultado.resposta.replace(/\s?\[r\d+\]/g, '')} />
+            </div>
+          ) : (
+            <p className="tq-rapida-aviso">{resultado?.aviso}</p>
+          )}
+        </div>
+      )}
+
+      {fase === 'procurando' ? (
+        <div className="tq-rapida-pe">
+          <button type="button" onClick={onCancelar}>
+            Cancelar
+          </button>
+        </div>
+      ) : fase === 'respondida' ? (
+        <div className="tq-rapida-pe">
+          {resultado?.conversaId && (
+            <button
+              type="button"
+              className="principal"
+              onClick={() => onContinuar(resultado.conversaId!)}
+            >
+              Continuar na conversa
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setTexto('');
+              setResultado(null);
+              setFase('escrevendo');
+              campo.current?.focus();
+            }}
+          >
+            Outra pergunta
+          </button>
+          <button type="button" onClick={onFechar}>
+            Fechar
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------- a transcrição ao vivo, com a legenda ----------
+
+/** Quanto a legenda fica parada depois da última mudança de texto. */
+const LEGENDA_PARADA_MS = 1900;
+/** Fala que não para de crescer pousa assim mesmo depois disto. */
+const LEGENDA_MAXIMA_MS = 6000;
+
+function TranscricaoAoVivo({
+  meetingId,
+  titulo,
+  segmentos,
+  selfName,
+  legendaLigada,
+  onPerguntarSobre,
+}: {
+  meetingId: string;
+  titulo: string;
+  segmentos: readonly LiveSegment[];
+  selfName: string | null;
+  legendaLigada: boolean;
+  onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
+}) {
+  const listaRef = useRef<HTMLDivElement | null>(null);
+  const textoDaLegenda = useRef<HTMLSpanElement | null>(null);
+  const quemDaLegenda = useRef<HTMLSpanElement | null>(null);
+  /** A fala que está na legenda, ainda escondida na lista. */
+  const [legendaId, setLegendaId] = useState<string | null>(null);
+  const inicioDaLegenda = useRef(0);
+  const voando = useRef(false);
+
+  // A contagem inicial é o que já estava na tela: não é fala nova.
+  const contagemAntes = useRef(segmentos.length);
+  useLayoutEffect(() => {
+    const antes = contagemAntes.current;
+    contagemAntes.current = segmentos.length;
+    if (segmentos.length <= antes) return;
+    const ultima = segmentos.at(-1);
+    if (!ultima || !legendaLigada || movimentoReduzido()) {
+      setLegendaId(null);
+      return;
+    }
+    // Uma fala nova com outra ainda na legenda: a anterior entra direto.
+    voando.current = false;
+    inicioDaLegenda.current = Date.now();
+    setLegendaId(ultima.captionId);
+  }, [segmentos, legendaLigada]);
+
+  // Saiu de vista: a legenda entra direto na lista.
+  useEffect(() => {
+    if (!legendaLigada) setLegendaId(null);
+  }, [legendaLigada]);
+
+  const legenda = legendaId ? (segmentos.find((s) => s.captionId === legendaId) ?? null) : null;
+  // Quem foi apagado da sessão (correção da legenda do Meet) não fica preso.
+  useEffect(() => {
+    if (legendaId && !legenda) setLegendaId(null);
+  }, [legendaId, legenda]);
+
+  /*
+   * O pouso: a legenda voa até o lugar da fala na lista, encolhendo para o
+   * corpo de leitura, e a fala aparece embaixo dela. Espera o texto parar de
+   * mudar — a legenda do Meet cresce enquanto a pessoa fala.
+   */
+  const textoAtual = legenda?.text ?? '';
+  useEffect(() => {
+    if (!legendaId) return;
+    const decorrido = Date.now() - inicioDaLegenda.current;
+    const espera = Math.max(0, Math.min(LEGENDA_PARADA_MS, LEGENDA_MAXIMA_MS - decorrido));
+    const t = setTimeout(() => {
+      const origem = textoDaLegenda.current;
+      const destinoLi = listaRef.current?.querySelector<HTMLElement>(
+        `[data-caption="${CSS.escape(legendaId)}"]`,
+      );
+      const destino = destinoLi?.querySelector<HTMLElement>('.tq-fala-texto');
+      if (!origem || !destinoLi || !destino || typeof origem.animate !== 'function') {
+        setLegendaId(null);
+        return;
+      }
+      voando.current = true;
+      const a = origem.getBoundingClientRect();
+      const b = destino.getBoundingClientRect();
+      const escala = parseFloat(getComputedStyle(destino).fontSize) /
+        parseFloat(getComputedStyle(origem).fontSize);
+      quemDaLegenda.current?.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: 180,
+        fill: 'forwards',
+      });
+      const voo = origem.animate(
+        [
+          { transform: 'none', opacity: 1 },
+          {
+            transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${escala})`,
+            opacity: 1,
+            offset: 0.78,
+          },
+          {
+            transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${escala})`,
+            opacity: 0,
+          },
+        ],
+        { duration: 680, easing: 'cubic-bezier(.35,.7,.1,1)', fill: 'forwards' },
+      );
+      destinoLi.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 260,
+        delay: 470,
+        fill: 'forwards',
+        easing: 'ease-out',
+      });
+      void voo.finished
+        .catch(() => undefined)
+        .then(() => {
+          if (!voando.current) return;
+          voando.current = false;
+          setLegendaId((atual) => (atual === legendaId ? null : atual));
+        });
+    }, espera);
+    return () => clearTimeout(t);
+  }, [legendaId, textoAtual]);
+
+  return (
+    <div className="tq-transcricao-palco">
+      <ListaDeFalas
+        listaRef={listaRef}
+        meetingId={meetingId}
+        titulo={titulo}
+        segmentos={segmentos}
+        selfName={selfName}
+        chegandoId={legendaId}
+        onPerguntarSobre={onPerguntarSobre}
+      />
+      <div className="tq-palco-legenda" aria-hidden="true">
+        {legenda && (
+          <div
+            className={`tq-legenda${
+              speakerLabel(legenda.speaker ?? 'Alguém', selfName) !== (legenda.speaker ?? 'Alguém')
+                ? ' minha'
+                : ''
+            }`}
+            key={legenda.captionId}
+          >
+            <span className="tq-legenda-quem" ref={quemDaLegenda}>
+              {speakerLabel(legenda.speaker ?? 'Alguém', selfName)}
+            </span>
+            <span className="tq-legenda-texto" ref={textoDaLegenda}>
+              &ldquo;{legenda.text}&rdquo;
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 // ---------- a transcrição, com marcação e seleção ----------
 
 function ListaDeFalas({
+  listaRef,
   meetingId,
   titulo,
   segmentos,
   selfName,
+  chegandoId,
   onPerguntarSobre,
 }: {
+  listaRef: React.MutableRefObject<HTMLDivElement | null>;
   meetingId: string;
   titulo: string;
   segmentos: readonly LiveSegment[];
-  /** Quem é "eu" nesta reunião: a fala dessa pessoa ganha o fio verde. */
+  /** Quem é "eu" nesta reunião: a fala dessa pessoa vem em verde. */
   selfName: string | null;
+  /** A fala que ainda está na legenda: tem lugar na lista, mas invisível. */
+  chegandoId: string | null;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
 }) {
   const [marcas, setMarcas] = useState<MarcasDaReuniao>({});
   const [selecionado, setSelecionado] = useState<string | null>(null);
-  const listaRef = useRef<HTMLDivElement | null>(null);
   const noFim = useRef(true);
 
   useEffect(() => {
@@ -314,14 +836,12 @@ function ListaDeFalas({
    * E acompanha mexendo no `scrollTop` DESTA lista, não com `scrollIntoView`.
    * `scrollIntoView` rola todos os ancestrais roláveis até o elemento aparecer
    * — e o ancestral aqui é a coluna inteira da reunião. O efeito era a fileira
-   * de ações e o título subirem para fora da tela sozinhos, a cada fala nova,
-   * poucos segundos depois de a reunião começar. Ancorar as ações no topo é
-   * metade do motivo de elas terem vindo para cá.
+   * de ações e o título subirem para fora da tela sozinhos, a cada fala nova.
    */
   useEffect(() => {
     const lista = listaRef.current;
     if (lista && noFim.current) lista.scrollTop = lista.scrollHeight;
-  }, [segmentos.length]);
+  }, [segmentos.length, listaRef]);
 
   const aoRolar = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -336,16 +856,14 @@ function ListaDeFalas({
         /*
          * Fala SEGUIDA da mesma pessoa: o nome não se repete. Numa coluna
          * estreita, "Ana Duarte (Eu)" em cima de cada frase de um mesmo
-         * raciocínio dobrava a altura da lista sem dizer nada novo. O horário
-         * continua lá, só mais apagado — ver `.tq-fala.seguida`.
+         * raciocínio dobrava a altura da lista sem dizer nada novo.
          */
         const seguida = i > 0 && segmentos[i - 1]?.speaker === s.speaker;
         /*
          * Quem falou. O "(Eu)" é o mesmo rótulo do histórico na HOME, e sai da
          * MESMA conta: "eu" é o participante marcado como anfitrião (ver
          * `hostName`). A comparação é a de `speakerLabel`, e não uma segunda
-         * regra escrita aqui — duas contas de "sou eu" divergiriam na primeira
-         * reunião em que o nome viesse com espaço a mais.
+         * regra escrita aqui.
          */
         const nome = s.speaker ?? 'Alguém';
         const rotulo = speakerLabel(nome, selfName);
@@ -353,9 +871,10 @@ function ListaDeFalas({
         return (
           <article
             key={s.captionId}
+            data-caption={s.captionId}
             className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}${
               ehVoce ? ' minha' : ''
-            }${seguida ? ' seguida' : ''}`}
+            }${seguida ? ' seguida' : ''}${s.captionId === chegandoId ? ' chegando' : ''}`}
           >
             <button
               type="button"
@@ -557,154 +1076,5 @@ function AvisoNoChat({
         </p>
       )}
     </div>
-  );
-}
-
-// ---------- prints ----------
-
-/**
- * O print da aba da reunião.
- *
- * A captura é sempre por clique, e o background confere que a aba da reunião é
- * a que está à vista antes de capturar — `captureVisibleTab` pega a aba ATIVA,
- * não a que se pede, e sem essa conferência um print do e-mail de alguém seria
- * guardado como "print da reunião". Ver src/background/captura.ts.
- *
- * O print é GUARDADO no instante da captura, e a prévia mostra o que foi
- * guardado, com "Descartar" para desfazer. Antes a prévia vivia só na memória
- * do painel até o "Salvar": ir à aba do TaqCiti, recolher a seção ou o painel
- * recarregar jogava o print fora, e a pessoa só descobria depois. Nada vai
- * para a IA.
- */
-function Prints({
-  meetingId,
-  prints,
-  viva,
-}: {
-  meetingId: string;
-  prints: Print[];
-  /** Só se captura enquanto a reunião está viva; depois, só se vê. */
-  viva: boolean;
-}) {
-  const platform = usePlatform();
-  /** O print que acabou de ser tirado, em destaque até ser visto. */
-  const [recenteId, setRecenteId] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const recente = prints.find((p) => p.id === recenteId) ?? null;
-
-  const tirar = async () => {
-    setOcupado(true);
-    setErro(null);
-    try {
-      const r = await platform.send<
-        | { ok: true; dataUrl: string; meetingId?: string | null }
-        | { ok: false; motivo: MotivoDeFalha }
-      >({ type: 'ui/print' });
-      if (!r || !r.ok) {
-        setErro(r ? EXPLICACAO[r.motivo] : 'Não foi possível capturar a tela.');
-        return;
-      }
-      try {
-        // A reunião que o BACKGROUND capturou: se a sessão trocou no meio da
-        // captura, o print vai para a reunião em que foi tirado.
-        const guardado = await guardarPrint(r.meetingId ?? meetingId, r.dataUrl, 0, 0);
-        setRecenteId(guardado.id);
-      } catch {
-        setErro('Não coube no armazenamento local. Apague algum print e tente de novo.');
-      }
-    } catch {
-      setErro('Não foi possível capturar a tela.');
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const descartar = async () => {
-    if (!recente) return;
-    setRecenteId(null);
-    await apagarPrint(recente.id);
-  };
-
-  return (
-    <section className="tq-prints" aria-label="Prints da reunião">
-      <div className="tq-acoes-linha">
-        <button
-          type="button"
-          className="tq-botao-fantasma"
-          onClick={() => void tirar()}
-          // Depois do fim, a aba mostra a tela "você saiu da chamada": um
-          // print dela não é um print da reunião.
-          disabled={ocupado || !viva}
-          title={viva ? undefined : 'A reunião já terminou — não há mais o que capturar.'}
-        >
-          <Icon name="image" size={14} />
-          {ocupado ? 'Capturando…' : 'Capturar a aba da reunião'}
-        </button>
-        {prints.length > 0 && (
-          <span className="tq-fino">
-            {prints.length} {prints.length === 1 ? 'print' : 'prints'}
-          </span>
-        )}
-      </div>
-
-      {viva && prints.length >= MAX_POR_REUNIAO && (
-        <p className="tq-fino" role="status">
-          Limite de {MAX_POR_REUNIAO} prints por reunião: o próximo substitui o mais antigo.
-        </p>
-      )}
-
-      {erro && (
-        <p className="tq-aviso-falha" role="status">
-          {erro}
-        </p>
-      )}
-
-      {recente && (
-        <div className="tq-previa">
-          <img src={recente.dataUrl} alt="Print que acabou de ser guardado" />
-          <div className="tq-acoes-linha">
-            <span className="tq-fino" role="status">
-              Guardado com a reunião
-            </span>
-            <button
-              type="button"
-              className="tq-botao-principal"
-              onClick={() => setRecenteId(null)}
-            >
-              Ok
-            </button>
-            <button
-              type="button"
-              className="tq-botao-fantasma"
-              onClick={() => void descartar()}
-            >
-              Descartar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {prints.length > 0 && (
-        <ul className="tq-print-tiras">
-          {prints.filter((p) => p.id !== recenteId).map((p) => (
-            <li key={p.id}>
-              <img
-                src={p.dataUrl}
-                alt={`Print de ${new Date(p.at).toLocaleTimeString('pt-BR')}`}
-              />
-              <button
-                type="button"
-                title="Apagar este print"
-                aria-label="Apagar este print"
-                onClick={() => void apagarPrint(p.id)}
-              >
-                <Icon name="close" size={11} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
