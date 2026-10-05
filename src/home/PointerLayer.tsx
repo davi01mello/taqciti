@@ -136,6 +136,13 @@ export function PointerLayer({ comMovimento }: Props) {
         desligar();
         return;
       }
+      // Diálogos modais (visualizador de imagem, por exemplo) ficam fora do
+      // cursor desenhado: o overlay cobre a camada e `cursor: none` apagaria
+      // o cursor nativo, deixando o "Baixar" sem cursor nenhum.
+      if ((e.target as Element | null)?.closest?.('[role="dialog"]')) {
+        desligar();
+        return;
+      }
       mouse.x = e.clientX;
       mouse.y = e.clientY;
       if (!dentro) {

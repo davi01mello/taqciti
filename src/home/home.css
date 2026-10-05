@@ -1909,6 +1909,7 @@ html {
   pointer-events: none;
   z-index: 60;
   opacity: 0;
+  /* nunca captura clique, nem atrás de overlays */
   transition: opacity 0.18s;
 }
 
@@ -1997,6 +1998,17 @@ body.tq-pointer-in .tq-halo {
   body.tq-pointer-in .tq-home * {
     cursor: none;
   }
+}
+
+/* Dentro de um diálogo o cursor nativo volta, com o cursor de clique nos
+   controles (inclusive o link de download). */
+body .tq-home [role='dialog'],
+body .tq-home [role='dialog'] * {
+  cursor: auto;
+}
+body .tq-home [role='dialog'] a,
+body .tq-home [role='dialog'] button {
+  cursor: pointer;
 }
 
 @media (pointer: coarse) {

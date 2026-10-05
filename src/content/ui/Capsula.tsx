@@ -151,7 +151,7 @@ export function Capsula({
     : degradada
       ? 'religando…'
       : phase === 'recording'
-        ? formatElapsedClock(agora - (startedAt ?? agora))
+        ? `Gravando ${formatElapsedClock(agora - (startedAt ?? agora))}`
         : phase === 'paused'
           ? 'pausado'
           : phase === 'captionsRequired'
@@ -198,7 +198,11 @@ export function Capsula({
         ref={floating.capsuleRef as RefObject<HTMLButtonElement>}
         type="button"
         title="TaqCiti — clique para abrir a sidebar, arraste para mover"
-        aria-label="Abrir a sidebar do TaqCiti"
+        aria-label={
+          phase === 'recording' && !degradada && !perguntando
+            ? 'Gravando esta reunião. Abrir a sidebar do TaqCiti'
+            : 'Abrir a sidebar do TaqCiti'
+        }
         {...floating.dragHandlers}
         onPointerMove={(event) => {
           floating.dragHandlers.onPointerMove(event);
