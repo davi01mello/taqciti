@@ -14,8 +14,21 @@
  * O que funciona hoje está à mão, na mesma folha: abrir o rascunho no app de
  * e-mail do computador (um `mailto:` com destinatário, assunto e texto) e
  * copiar o texto para colar onde quiser.
+ *
+ * ── A carta e o Taq ───────────────────────────────────────────────────────
+ *
+ * A carta não envia por conta própria: quem envia é o agente, pelo mesmo
+ * caminho do chat (`send_email`), com diretório, idempotência e a decisão de
+ * mostrar uma prévia ou não tomada em código. A folha só entrega o pedido:
+ *
+ *   - "Redigir com o Taq" pede o texto do e-mail, com a reunião como contexto;
+ *     a resposta vem na conversa, para a pessoa ler e colar aqui;
+ *   - "Enviar" (com o Gmail e o diretório conectados) entrega o e-mail como
+ *     está escrito — para, assunto e mensagem, palavra por palavra — e o Taq
+ *     envia ou mostra a prévia, e diz o que aconteceu.
  */
 import { useEffect, useRef, useState } from 'react';
+import { capacidadesDisponiveis } from '@/features/integracoes/estado';
 import { SinalTaqciti } from '@/shared/ui/SinalTaqciti';
 
 type Canal = 'email' | 'mensagem';
@@ -25,11 +38,44 @@ interface Props {
   corpo?: string;
   /** O nome do que iria anexado. Só o nome: o anexo é dito, não carregado. */
   anexo?: string | null;
+  /** Entrega um pedido ao Taq (a conversa abre com a reunião como contexto). */
+  onPedirAoTaq?: (texto: string) => void;
   onFechar: () => void;
   onIrConexoes: () => void;
 }
 
-export function Carta({ assunto = '', corpo = '', anexo = null, onFechar, onIrConexoes }: Props) {
+/** O pedido de envio: o conteúdo vai entre marcas, para o Taq não reescrevê-lo. */
+export function pedidoDeEnvio(p: { para: string; assunto: string; texto: string; anexo: string | null }): string {
+  return [
+    'Envie este e-mail, exatamente como está escrito, sem mudar nenhuma palavra do assunto nem da mensagem.',
+    `Para: ${p.para.trim()}`,
+    `Assunto: ${p.assunto.trim()}`,
+    ...(p.anexo ? [`Anexo: ${p.anexo} (a transcrição ou o documento desta reunião)`] : []),
+    'Mensagem:',
+    '"""',
+    p.texto.trim(),
+    '"""',
+  ].join('\n');
+}
+
+export function pedidoDeRedacao(p: { para: string; assunto: string; texto: string }): string {
+  return [
+    'Redija o texto de um e-mail com base nesta reunião, em português, direto e cordial. ' +
+      'Responda aqui na conversa só com o assunto e a mensagem, para eu revisar.',
+    ...(p.para.trim() ? [`Para: ${p.para.trim()}`] : []),
+    ...(p.assunto.trim() ? [`Assunto sugerido: ${p.assunto.trim()}`] : []),
+    ...(p.texto.trim() ? ['O que já escrevi:', '"""', p.texto.trim(), '"""'] : []),
+  ].join('\n');
+}
+
+export function Carta({
+  assunto = '',
+  corpo = '',
+  anexo = null,
+  onPedirAoTaq,
+  onFechar,
+  onIrConexoes,
+}: Props) {
   const [canal, setCanal] = useState<Canal>('email');
   const [para, setPara] = useState('');
   const [titulo, setTitulo] = useState(assunto);
@@ -43,6 +89,19 @@ export function Carta({ assunto = '', corpo = '', anexo = null, onFechar, onIrCo
     caixaRef.current?.scrollIntoView?.({ block: 'nearest' });
   }, []);
 
+  // O envio pelo Taq só é oferecido com o Gmail E o diretório de pé: é o que
+  // `send_email` exige. Sem eles, a carta continua dizendo o que falta.
+  const [emailPronto, setEmailPronto] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    void capacidadesDisponiveis()
+      .then((c) => vivo && setEmailPronto(c.has('email') && c.has('diretorio')))
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!copiado) return;
     const t = setTimeout(() => setCopiado(false), 1800);
@@ -50,6 +109,13 @@ export function Carta({ assunto = '', corpo = '', anexo = null, onFechar, onIrCo
   }, [copiado]);
 
   const nomeDoCanal = canal === 'email' ? 'o Gmail' : 'o WhatsApp';
+  const podeEnviarPeloTaq =
+    canal === 'email' &&
+    emailPronto &&
+    !!onPedirAoTaq &&
+    para.trim().length > 0 &&
+    titulo.trim().length > 0 &&
+    texto.trim().length > 0;
   const mailto =
     `mailto:${encodeURIComponent(para.trim())}` +
     `?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(texto)}`;
@@ -115,12 +181,27 @@ export function Carta({ assunto = '', corpo = '', anexo = null, onFechar, onIrCo
         {anexo && <span className="tq-carta-anexo">{anexo}</span>}
 
         <div className="tq-carta-pe">
-          <p className="tq-carta-aviso" role="status">
-            Para enviar daqui, conecte {nomeDoCanal}.{' '}
-            <button type="button" onClick={onIrConexoes}>
-              Abrir Conexões
+          {canal === 'email' && emailPronto ? (
+            <p className="tq-carta-aviso" role="status">
+              O Taq envia pela sua conta do CITi e conta aqui o que aconteceu.
+            </p>
+          ) : (
+            <p className="tq-carta-aviso" role="status">
+              Para enviar daqui, conecte {nomeDoCanal}.{' '}
+              <button type="button" onClick={onIrConexoes}>
+                Abrir Conexões
+              </button>
+            </p>
+          )}
+          {onPedirAoTaq && (
+            <button
+              type="button"
+              className="tq-carta-descartar"
+              onClick={() => onPedirAoTaq(pedidoDeRedacao({ para, assunto: titulo, texto }))}
+            >
+              Redigir com o Taq
             </button>
-          </p>
+          )}
           {canal === 'email' && (
             <a className="tq-carta-descartar" href={mailto}>
               Abrir no e-mail
@@ -144,8 +225,18 @@ export function Carta({ assunto = '', corpo = '', anexo = null, onFechar, onIrCo
           <button
             type="button"
             className="tq-carta-enviar"
-            disabled
-            title={`Conecte ${nomeDoCanal} em Conexões para enviar daqui.`}
+            disabled={!podeEnviarPeloTaq}
+            title={
+              podeEnviarPeloTaq
+                ? 'O Taq envia este e-mail pela sua conta do CITi.'
+                : canal === 'email' && emailPronto
+                  ? 'Preencha para quem, o assunto e a mensagem.'
+                  : `Conecte ${nomeDoCanal} em Conexões para enviar daqui.`
+            }
+            onClick={() => {
+              if (!podeEnviarPeloTaq) return;
+              onPedirAoTaq?.(pedidoDeEnvio({ para, assunto: titulo, texto, anexo }));
+            }}
           >
             Enviar
           </button>

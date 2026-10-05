@@ -155,6 +155,14 @@ export const STORAGE_KEYS = {
    * (captura, acompanhamento, documento, operação). Ver `features/avisos`.
    */
   avisos: 'taq:avisos',
+
+  /**
+   * chrome.storage.local — quem, pelo NOME, já foi reconhecido (ou descartado)
+   * como gente do CITi no diretório. O Meet entrega o nome do falante, não o
+   * e-mail; este cache evita buscar o mesmo nome a cada fala. Ver
+   * `features/integracoes/colegas.ts`.
+   */
+  colegasDoCiti: 'taq:colegas-citi',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

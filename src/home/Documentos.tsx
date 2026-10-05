@@ -59,6 +59,8 @@ interface Props {
   onIrParaReuniao: (meetingId: string) => void;
   /** A carta manda para Conexões quando o canal não está conectado. */
   onIrConexoes?: () => void;
+  /** A carta entrega o pedido ao Taq (redigir, enviar); a reunião é o contexto, se houver. */
+  onPedirAoTaq?: (reuniao: MeetingRecord | null, texto: string) => void;
 }
 
 /** As linhas da página em miniatura: `h` é título de seção, vazio é texto. */
@@ -74,6 +76,7 @@ export function PaginaDocumentos({
   onAbrir,
   onIrParaReuniao,
   onIrConexoes = () => {},
+  onPedirAoTaq,
 }: Props) {
   const aberto = abertoId ? (documentos.find((d) => d.id === abertoId) ?? null) : null;
   const [cartaAberta, setCartaAberta] = useState(false);
@@ -106,6 +109,7 @@ export function PaginaDocumentos({
         onVoltar={() => onAbrir(null)}
         onIrParaReuniao={onIrParaReuniao}
         onIrConexoes={onIrConexoes}
+        onPedirAoTaq={onPedirAoTaq}
       />
     );
   }
@@ -139,7 +143,18 @@ export function PaginaDocumentos({
               Escrever e-mail
             </button>
             {cartaAberta && (
-              <Carta onFechar={() => setCartaAberta(false)} onIrConexoes={onIrConexoes} />
+              <Carta
+                onPedirAoTaq={
+                  onPedirAoTaq
+                    ? (texto) => {
+                        setCartaAberta(false);
+                        onPedirAoTaq(null, texto);
+                      }
+                    : undefined
+                }
+                onFechar={() => setCartaAberta(false)}
+                onIrConexoes={onIrConexoes}
+              />
             )}
           </div>
           {documentos.length === 0 && (
@@ -263,12 +278,14 @@ function EditorDeDocumento({
   onVoltar,
   onIrParaReuniao,
   onIrConexoes,
+  onPedirAoTaq,
 }: {
   documento: DocumentoGuardado;
   reuniao: MeetingRecord | null;
   onVoltar: () => void;
   onIrParaReuniao: (meetingId: string) => void;
   onIrConexoes: () => void;
+  onPedirAoTaq?: (reuniao: MeetingRecord | null, texto: string) => void;
 }) {
   const [estado, setEstado] = useState<EstadoDaGravacaoDoDocumento>('parado');
   const [cartaAberta, setCartaAberta] = useState(false);
@@ -515,6 +532,14 @@ function EditorDeDocumento({
           assunto={titulo}
           corpo={conteudo}
           anexo={null}
+          onPedirAoTaq={
+            onPedirAoTaq
+              ? (texto) => {
+                  setCartaAberta(false);
+                  onPedirAoTaq(reuniao, texto);
+                }
+              : undefined
+          }
           onFechar={() => setCartaAberta(false)}
           onIrConexoes={onIrConexoes}
         />

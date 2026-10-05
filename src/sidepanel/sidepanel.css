@@ -1412,11 +1412,17 @@
   text-wrap: pretty;
 }
 
-.tq-fala.minha .tq-fala-texto {
+/* Você: branco. O pessoal do CITi (e-mail @citi.org.br): verde. De fora: roxo. */
+.tq-fala.minha .tq-fala-texto,
+.tq-fala.minha .tq-fala-nome {
+  color: var(--s-texto);
+}
+
+.tq-fala.citi .tq-fala-texto {
   color: var(--s-fala-voce);
 }
 
-.tq-fala.minha .tq-fala-nome {
+.tq-fala.citi .tq-fala-nome {
   color: rgb(var(--c-glow));
 }
 
@@ -2267,6 +2273,10 @@
 }
 
 .tq-legenda.minha .tq-legenda-quem {
+  color: var(--s-texto);
+}
+
+.tq-legenda.citi .tq-legenda-quem {
   color: rgb(var(--c-glow));
 }
 

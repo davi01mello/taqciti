@@ -25,7 +25,7 @@
  * Com movimento reduzido, com outra aba aberta ou com a seção fora de vista, a
  * fala entra direto na lista: a legenda é um gesto de quem está olhando.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LiveSegment, MeetingState } from '@/shared/types/domain';
 import { usePlatform } from '@/shared/platform/context';
 import type { EstadoDaGravacao } from '@/features/annotations/notes';
@@ -62,6 +62,8 @@ import type { EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
 import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { Markdown } from '@/shared/ui/Markdown';
 import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
+import { papelDoFalante } from '@/features/integracoes/colegas';
+import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 import { useAvisosDaReuniao } from '@/features/avisos/useAvisosDaReuniao';
 import { souOrganizador, useAvisosVisiveis } from '@/features/avisos/useAvisos';
 import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
@@ -818,6 +820,15 @@ function TranscricaoAoVivo({
     return () => clearTimeout(t);
   }, [legendaId, textoAtual]);
 
+  const nomesDosFalantes = useMemo(
+    () => segmentos.map((s) => s.speaker ?? 'Alguém'),
+    [segmentos],
+  );
+  const colegas = useColegasDoCiti(nomesDosFalantes);
+  const papelDaLegenda = legenda
+    ? papelDoFalante(legenda.speaker ?? 'Alguém', selfName, colegas)
+    : 'externo';
+
   return (
     <div className="tq-transcricao-palco">
       <ListaDeFalas
@@ -826,6 +837,7 @@ function TranscricaoAoVivo({
         titulo={titulo}
         segmentos={segmentos}
         selfName={selfName}
+        colegas={colegas}
         chegandoId={legendaId}
         onPerguntarSobre={onPerguntarSobre}
       />
@@ -833,9 +845,7 @@ function TranscricaoAoVivo({
         {legenda && (
           <div
             className={`tq-legenda${
-              speakerLabel(legenda.speaker ?? 'Alguém', selfName) !== (legenda.speaker ?? 'Alguém')
-                ? ' minha'
-                : ''
+              papelDaLegenda === 'eu' ? ' minha' : papelDaLegenda === 'citi' ? ' citi' : ''
             }`}
             key={legenda.captionId}
           >
@@ -860,6 +870,7 @@ function ListaDeFalas({
   titulo,
   segmentos,
   selfName,
+  colegas,
   chegandoId,
   onPerguntarSobre,
 }: {
@@ -867,8 +878,10 @@ function ListaDeFalas({
   meetingId: string;
   titulo: string;
   segmentos: readonly LiveSegment[];
-  /** Quem é "eu" nesta reunião: a fala dessa pessoa vem em verde. */
+  /** Quem é "eu" nesta reunião: a fala dessa pessoa vem em branco. */
   selfName: string | null;
+  /** Os falantes do CITi (e-mail @citi.org.br): a fala deles vem em verde. */
+  colegas: ReadonlySet<string>;
   /** A fala que ainda está na legenda: tem lugar na lista, mas invisível. */
   chegandoId: string | null;
   onPerguntarSobre: (contexto: ContextoDaPergunta) => void;
@@ -920,13 +933,13 @@ function ListaDeFalas({
          */
         const nome = s.speaker ?? 'Alguém';
         const rotulo = speakerLabel(nome, selfName);
-        const ehVoce = rotulo !== nome;
+        const papel = papelDoFalante(nome, selfName, colegas);
         return (
           <article
             key={s.captionId}
             data-caption={s.captionId}
             className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}${
-              ehVoce ? ' minha' : ''
+              papel === 'eu' ? ' minha' : papel === 'citi' ? ' citi' : ''
             }${seguida ? ' seguida' : ''}${s.captionId === chegandoId ? ' chegando' : ''}`}
           >
             <button

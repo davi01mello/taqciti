@@ -400,14 +400,17 @@ export function HomePage() {
    * com o pedido — a caixinha não adivinha um tipo de documento por conta própria.
    */
   const pedirDocumento = useCallback(
-    (registro: MeetingRecord, texto: string) => {
-      const contexto = { meetingId: registro.id, meetingTitle: registro.title };
+    (registro: MeetingRecord | null, texto: string) => {
+      // Sem reunião (um documento solto, uma carta avulsa): a conversa nasce
+      // sem contexto e o Taq enxerga o que a HOME enxerga.
+      const contexto = registro
+        ? { meetingId: registro.id, meetingTitle: registro.title }
+        : undefined;
       void navegar(async () => {
         try {
           const id = await acrescentarMensagem(null, {
             texto,
-            contexto,
-            meetingId: registro.id,
+            ...(contexto ? { contexto, meetingId: registro?.id } : {}),
           });
           escolherConversa(id);
           definirSecao('assistente');
@@ -614,6 +617,7 @@ export function HomePage() {
             onAbrir={setDocumentoAberto}
             onIrParaReuniao={irParaReuniao}
             onIrConexoes={irParaConexoes}
+            onPedirAoTaq={pedirDocumento}
           />
         )}
 

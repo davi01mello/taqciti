@@ -2828,11 +2828,17 @@ body .tq-home [role='dialog'] button {
   text-wrap: pretty;
 }
 
-.tq-fala.voce .tq-fala-texto {
+/* Você: branco. O pessoal do CITi (e-mail @citi.org.br): verde. De fora: roxo. */
+.tq-fala.voce .tq-fala-texto,
+.tq-fala.voce .tq-fala-quem b {
+  color: var(--e-texto);
+}
+
+.tq-fala.citi .tq-fala-texto {
   color: rgb(178 230 197);
 }
 
-.tq-fala.voce .tq-fala-quem b {
+.tq-fala.citi .tq-fala-quem b {
   color: var(--voz-clara);
 }
 

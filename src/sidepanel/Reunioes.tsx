@@ -27,6 +27,8 @@ import {
   hostName,
   speakerLabel,
 } from '@/shared/ui/format';
+import { papelDoFalante } from '@/features/integracoes/colegas';
+import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 
 interface Props {
   registros: MeetingRecord[];
@@ -91,6 +93,7 @@ function DetalheDaReuniao({
 }) {
   const eu = hostName(registro.participants);
   const total = registro.segments.length;
+  const colegas = useColegasDoCiti(registro.segments.map((s) => s.speaker ?? 'Alguém'));
 
   return (
     <div className="tq-rolavel tq-detalhe">
@@ -118,16 +121,18 @@ function DetalheDaReuniao({
         </p>
       ) : (
         <section className="tq-falas tq-falas-estatica" aria-label="Transcrição">
-          {/* A mesma leitura da reunião ao vivo: você em verde, os outros em
-              roxo, falas seguidas da mesma pessoa sem repetir o nome. */}
+          {/* A mesma leitura da reunião ao vivo: você em branco, o pessoal do
+              CITi em verde, os de fora em roxo; falas seguidas da mesma pessoa
+              sem repetir o nome. */}
           {registro.segments.map((s, i) => {
             const nome = s.speaker ?? 'Alguém';
             const rotulo = speakerLabel(nome, eu);
+            const papel = papelDoFalante(nome, eu, colegas);
             const seguida = i > 0 && registro.segments[i - 1]?.speaker === s.speaker;
             return (
               <article
                 key={s.captionId}
-                className={`tq-fala${rotulo !== nome ? ' minha' : ''}${
+                className={`tq-fala${papel === 'eu' ? ' minha' : papel === 'citi' ? ' citi' : ''}${
                   seguida ? ' seguida' : ''
                 }`}
               >

@@ -28,6 +28,8 @@ import {
   hostName,
   speakerLabel,
 } from '@/shared/ui/format';
+import { papelDoFalante } from '@/features/integracoes/colegas';
+import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 import { Carta, IconeEnviar } from './Carta';
 import { GerarDocumento } from './GerarDocumento';
 import { NotasDaReuniao } from './NotasDaReuniao';
@@ -263,14 +265,16 @@ function agruparPorSemana(registros: MeetingRecord[]): Array<[string, MeetingRec
 /**
  * A transcrição, na leitura da HOME.
  *
- * Quem fala: VOCÊ em verde, os OUTROS em roxo — a mesma regra da sidebar e do
- * chat. A cor nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome.
+ * Quem fala: VOCÊ em branco, o pessoal do CITi (e-mail @citi.org.br) em verde
+ * e os de fora em roxo — a mesma regra da sidebar. A cor nunca vem sozinha: o
+ * "(Eu)" continua escrito ao lado do nome.
  * Falas seguidas da mesma pessoa não repetem o nome.
  *
  * `content-visibility` em cada fala, no lugar de virtualizar: a reunião de duas
  * horas rola tão leve quanto a de cinco minutos, e o Ctrl+F continua achando.
  */
 function FalasDaReuniao({ registro }: { registro: MeetingRecord }) {
+  const colegas = useColegasDoCiti(registro.segments.map((s) => s.speaker ?? 'Alguém'));
   if (registro.segments.length === 0)
     return <p className="tq-vazio">Nenhuma fala foi capturada nesta reunião.</p>;
   const eu = hostName(registro.participants);
@@ -279,11 +283,14 @@ function FalasDaReuniao({ registro }: { registro: MeetingRecord }) {
       {registro.segments.map((s, i) => {
         const nome = s.speaker ?? 'Alguém';
         const rotulo = speakerLabel(nome, eu);
+        const papel = papelDoFalante(nome, eu, colegas);
         const seguida = i > 0 && (registro.segments[i - 1]?.speaker ?? 'Alguém') === nome;
         return (
           <li
             key={`${s.captionId}:${i}`}
-            className={`tq-fala${rotulo !== nome ? ' voce' : ''}${seguida ? ' seguida' : ''}`}
+            className={`tq-fala${papel === 'eu' ? ' voce' : papel === 'citi' ? ' citi' : ''}${
+              seguida ? ' seguida' : ''
+            }`}
             style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 56px' }}
           >
             <div className="tq-fala-quem">
@@ -537,6 +544,10 @@ function DetalheDaReuniao({
             assunto={carta.assunto}
             corpo={carta.corpo}
             anexo={carta.anexo}
+            onPedirAoTaq={(texto) => {
+              setCarta(null);
+              onPedirDocumento(registro, texto);
+            }}
             onFechar={() => setCarta(null)}
             onIrConexoes={onIrConexoes}
           />
