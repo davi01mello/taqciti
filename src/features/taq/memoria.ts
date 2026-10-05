@@ -21,7 +21,9 @@
  */
 import type { Conversation, RegistroLembrado } from '@/home/conversations';
 import type { Escopo, RegistroSelecionado, ResultadoDoAgente } from './contratos';
-import type { ArmazenamentoDoTaq } from './armazenamento';
+import type { MeetingRecord } from '@/shared/types/domain';
+import type { DocumentoGuardado } from '@/features/documents/store';
+import { versaoDaReuniao, type ArmazenamentoDoTaq } from './armazenamento';
 import { podeLerDocumento, podeLerReuniao } from './politica';
 
 export interface LembradoRevalidado {
@@ -33,11 +35,20 @@ export interface LembradoRevalidado {
   tituloAnterior?: string;
 }
 
+export interface FonteRevalidada extends LembradoRevalidado {
+  /** O registro mudou desde que a pessoa o escolheu (falas novas, edição). */
+  alterada: boolean;
+}
+
 export interface MemoriaRevalidada {
   foco?: LembradoRevalidado;
   recentes: LembradoRevalidado[];
   /** Quantos ponteiros caíram: registro apagado ou fora do escopo. */
   descartados: number;
+  /** As fontes que a pessoa escolheu para ESTA conversa, já conferidas. */
+  fontes?: FonteRevalidada[];
+  /** Fontes escolhidas que já não existem ou saíram do escopo. */
+  fontesPerdidas?: number;
 }
 
 /**
@@ -45,22 +56,51 @@ export interface MemoriaRevalidada {
  * escopo? mudou de nome? O que não passa não chega ao modelo.
  */
 export async function revalidarMemoria(
-  conversa: Pick<Conversation, 'memoria'> | undefined,
+  conversa: Pick<Conversation, 'memoria' | 'contexto'> | undefined,
   escopo: Escopo,
   armazenamento: ArmazenamentoDoTaq,
 ): Promise<MemoriaRevalidada> {
   const memoria = conversa?.memoria;
-  if (!memoria?.recentes.length && !memoria?.foco) return { recentes: [], descartados: 0 };
-  const reunioes = new Map(
-    (await armazenamento.listarReunioes())
-      .filter((r) => podeLerReuniao(escopo, r.id))
-      .map((r) => [r.id, r.title]),
+  const escolhidas = conversa?.contexto ?? [];
+  if (!memoria?.recentes.length && !memoria?.foco && !escolhidas.length)
+    return { recentes: [], descartados: 0 };
+  const todasReunioes = (await armazenamento.listarReunioes()).filter((r) =>
+    podeLerReuniao(escopo, r.id),
   );
-  const documentos = new Map(
-    (await armazenamento.listarDocumentos())
-      .filter((d) => podeLerDocumento(escopo, d))
-      .map((d) => [d.id, d.title]),
+  const todosDocumentos = (await armazenamento.listarDocumentos()).filter((d) =>
+    podeLerDocumento(escopo, d),
   );
+  const reunioes = new Map(todasReunioes.map((r) => [r.id, r.title]));
+  const documentos = new Map(todosDocumentos.map((d) => [d.id, d.title]));
+
+  const fontes: FonteRevalidada[] = [];
+  let fontesPerdidas = 0;
+  for (const f of escolhidas) {
+    const atual =
+      f.tipo === 'reuniao'
+        ? todasReunioes.find((r) => r.id === f.id)
+        : todosDocumentos.find((d) => d.id === f.id);
+    if (!atual) {
+      fontesPerdidas += 1;
+      continue;
+    }
+    const versaoAtual =
+      f.tipo === 'reuniao'
+        ? versaoDaReuniao(atual as MeetingRecord)
+        : String((atual as DocumentoGuardado).updatedAt);
+    fontes.push({
+      tipo: f.tipo,
+      id: f.id,
+      titulo: atual.title,
+      ...(atual.title !== f.titulo ? { tituloAnterior: f.titulo } : {}),
+      alterada: versaoAtual !== f.versao,
+    });
+  }
+  const dasFontes = {
+    ...(escolhidas.length ? { fontes, fontesPerdidas } : {}),
+  };
+  if (!memoria?.recentes.length && !memoria?.foco)
+    return { recentes: [], descartados: 0, ...dasFontes };
   const conferir = (l: RegistroLembrado): LembradoRevalidado | null => {
     const atual = (l.tipo === 'reuniao' ? reunioes : documentos).get(l.id);
     if (atual === undefined) return null;
@@ -77,6 +117,7 @@ export async function revalidarMemoria(
     ...(foco ? { foco } : {}),
     recentes: recentes.filter((r): r is LembradoRevalidado => r !== null),
     descartados: recentes.filter((r) => r === null).length,
+    ...dasFontes,
   };
 }
 
@@ -87,10 +128,25 @@ export function focoDaTarefa(m: MemoriaRevalidada): RegistroSelecionado | undefi
 
 /** As linhas do contexto inicial sobre a memória. Vazio quando não há o que dizer. */
 export function linhasDaMemoria(m: MemoriaRevalidada): string[] {
-  if (!m.foco && !m.recentes.length && !m.descartados) return [];
+  const temFontes = !!m.fontes?.length || !!m.fontesPerdidas;
+  if (!m.foco && !m.recentes.length && !m.descartados && !temFontes) return [];
   const nome = (l: LembradoRevalidado) =>
     `${l.tipo} ${l.id} "${l.titulo}"${l.tituloAnterior ? ` (antes chamado "${l.tituloAnterior}")` : ''}`;
-  const linhas = ['', 'Memória desta conversa (registros usados em respostas anteriores; já conferidos):'];
+  const linhas: string[] = [];
+  if (temFontes) {
+    linhas.push('', 'Fontes que a PESSOA escolheu para esta conversa (já conferidas; leia-as com as ferramentas):');
+    for (const f of m.fontes ?? []) {
+      linhas.push(
+        `- ESCOLHIDA: ${nome(f)}${f.alterada ? ' — MUDOU desde que foi escolhida: leia de novo, não use o que lembra' : ''}`,
+      );
+    }
+    if (m.fontesPerdidas)
+      linhas.push(
+        `- ${m.fontesPerdidas} fonte(s) escolhida(s) foram apagadas ou saíram do escopo: não as cite.`,
+      );
+  }
+  if (!m.foco && !m.recentes.length && !m.descartados) return linhas;
+  linhas.push('', 'Memória desta conversa (registros usados em respostas anteriores; já conferidos):');
   if (m.foco) linhas.push(`- EM FOCO (o último de que a conversa falou): ${nome(m.foco)}`);
   for (const r of m.recentes) {
     if (m.foco && r.tipo === m.foco.tipo && r.id === m.foco.id) continue;

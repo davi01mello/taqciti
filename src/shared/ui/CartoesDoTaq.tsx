@@ -42,6 +42,7 @@ import { ROTULO_DA_AVALIACAO, ROTULO_DA_SITUACAO } from '@/features/taq/captura'
 import { linkDoGoogleAgenda } from '@/features/taq/agenda';
 import { acharSensiveis, avisosDeExposicao } from '@/features/taq/privacidade';
 import { BotaoCopiar } from './BotaoCopiar';
+import { CartaoDeTela } from './CartaoDeTela';
 import './cartoesDoTaq.css';
 
 type Versoes = ReturnType<typeof useVersoesDasReunioes>;
@@ -170,6 +171,14 @@ export function ItemDeCompromisso({
     else if (r.tipo === 'conflito') setErro('O compromisso mudou em outra tela. Confira e tente de novo.');
     else if (r.tipo !== 'ok') setErro('Este compromisso não está mais guardado.');
   };
+  const aceitar = async () => {
+    setOcupado(true);
+    setErro(null);
+    const r = await atualizarCompromisso(c.id, c.revisao, { situacao: 'aceito' }, { origem: 'pessoa' }).catch(() => null);
+    setOcupado(false);
+    if (!r) setErro('Não foi possível gravar. Nada mudou.');
+    else if (r.tipo === 'conflito') setErro('O compromisso mudou em outra tela. Confira e tente de novo.');
+  };
   return (
     <li className={`tq-c-item tq-c-estado-${c.estado}`}>
       <p className="tq-c-titulo">{c.descricao}</p>
@@ -177,6 +186,9 @@ export function ItemDeCompromisso({
         <span>{c.responsavel ? `${c.responsavel.nome}${c.responsavel.confirmado ? '' : ' (sugerido)'}` : 'Sem responsável definido'}</span>
         <span>{c.prazo ? c.prazo.texto : 'Sem prazo acordado'}</span>
         <span className="tq-c-pilula">{ROTULO_DO_ESTADO[c.estado]}</span>
+        {c.situacao === 'candidato' && (
+          <span className="tq-c-pilula tq-c-alerta">Candidato extraído — aguardando revisão</span>
+        )}
         {situacao === 'prazo_passou_a_confirmar' && (
           <span className="tq-c-pilula tq-c-alerta">Prazo passou — situação a confirmar</span>
         )}
@@ -190,6 +202,15 @@ export function ItemDeCompromisso({
         <Fontes evidencias={c.evidencias} versoes={versoes} onAbrirFonte={onAbrirFonte} />
       </p>
       <div className="tq-c-acoes">
+        {c.situacao === 'candidato' && (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => void aceitar()}
+          >
+            Aceitar
+          </button>
+        )}
         {c.estado === 'aberto' ? (
           <button type="button" disabled={ocupado} onClick={() => void mudar('concluido')}>
             Marcar como concluído
@@ -794,6 +815,62 @@ function CartaoDeCaptura({ cartao }: { cartao: Extract<CartaoDaResposta, { tipo:
   );
 }
 
+// ------------------------------------------------------------ ação externa
+
+const ROTULO_DA_ACAO_EXTERNA = {
+  aguardando_confirmacao: 'Aguardando você',
+  aceito: 'Aceito pelo Google',
+  falhou: 'Não foi feito',
+  desconhecido: 'Resultado desconhecido',
+} as const;
+
+const NOME_DA_ACAO_EXTERNA = {
+  email: 'E-mail',
+  evento_criar: 'Evento',
+  evento_remarcar: 'Remarcar evento',
+  evento_cancelar: 'Cancelar evento',
+} as const;
+
+function CartaoDeAcaoExterna({ cartao }: { cartao: Extract<CartaoDaResposta, { tipo: 'acao_externa' }> }) {
+  return (
+    <Cartao
+      titulo={`${NOME_DA_ACAO_EXTERNA[cartao.operacao]} — ${cartao.titulo}`}
+      selo={ROTULO_DA_ACAO_EXTERNA[cartao.estado]}
+    >
+      <ul className="tq-c-lista">
+        {cartao.linhas.map((l, i) => (
+          <li key={i} className="tq-c-item">
+            {l}
+          </li>
+        ))}
+      </ul>
+      {cartao.alertas.length > 0 && (
+        <ul className="tq-c-lacunas">
+          {cartao.alertas.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      )}
+      {cartao.link && (
+        <div className="tq-c-acoes">
+          <a href={cartao.link} target="_blank" rel="noreferrer">
+            Abrir no Google Agenda
+          </a>
+        </div>
+      )}
+      <p className="tq-c-mudo">
+        {cartao.estado === 'aguardando_confirmacao'
+          ? 'Nada foi enviado. Diga “envie” (ou “pode enviar”) para confirmar.'
+          : cartao.estado === 'desconhecido'
+            ? 'O Taq não sabe se saiu. Confira antes de pedir de novo: ele não reenvia sozinho.'
+            : cartao.estado === 'aceito'
+              ? '“Aceito” quer dizer que o Google recebeu o pedido; não que alguém leu ou respondeu.'
+              : 'O Google recusou; nada foi enviado nem criado.'}
+      </p>
+    </Cartao>
+  );
+}
+
 // ------------------------------------------------------------------ revisão
 
 const ROTULO_DA_FONTE = {
@@ -883,6 +960,18 @@ export function CartoesDoTaq({
             return <CartaoDeEvento key={i} cartao={c} />;
           case 'estado_da_captura':
             return <CartaoDeCaptura key={i} cartao={c} />;
+          case 'captura_de_tela':
+            return (
+              <CartaoDeTela
+                key={i}
+                cartao={c}
+                onAbrirReuniao={(id) =>
+                  onAbrirFonte({ ref: '', tipo: 'reuniao', registroId: id, titulo: c.titulo ?? '', trecho: '' })
+                }
+              />
+            );
+          case 'acao_externa':
+            return <CartaoDeAcaoExterna key={i} cartao={c} />;
           case 'revisao_de_documento':
             return <CartaoDeRevisao key={i} cartao={c} onAbrirDocumento={onAbrirDocumento} />;
           default:

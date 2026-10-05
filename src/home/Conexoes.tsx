@@ -52,6 +52,7 @@ import {
 } from '@/shared/services/conector';
 
 import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
+import { FluxoContaDoCiti, LinhaContaDoCiti, useContaDoCiti } from './ContaDoCiti';
 
 function Cabecalho({ titulo, sub }: { titulo: string; sub: string }) {
   return (
@@ -275,6 +276,8 @@ export function PaginaConexoes({
   const [rotuloNovo, setRotuloNovo] = useState('');
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false);
+  /** A conta do CITi: diretório, e-mail e agenda (`features/integracoes`). */
+  const conta = useContaDoCiti();
 
   const carregarTokens = useCallback(async () => {
     try {
@@ -493,8 +496,17 @@ export function PaginaConexoes({
     ...(!temEndereco('ChatGPT')
       ? [{ id: 'chatgpt', nome: 'ChatGPT', faz: 'Busca e abre as suas reuniões no ChatGPT.', icone: <span>G</span>, fluxo: fluxoDoAssistente('ChatGPT') }]
       : []),
-    { id: 'gmail', nome: 'Gmail', faz: 'Envia e-mails e atas, com a sua confirmação.', icone: <Icon name="doc" size={18} />, emBreve: true },
-    { id: 'agenda', nome: 'Google Agenda', faz: 'Marca a próxima reunião e envia o convite.', icone: <Icon name="history" size={18} />, emBreve: true },
+    ...(!conta.conexao
+      ? [
+          {
+            id: 'conta-citi',
+            nome: 'Conta do CITi',
+            faz: 'Acha colegas, envia e-mails e atas e marca reuniões, com a sua confirmação.',
+            icone: <span>@</span>,
+            fluxo: <FluxoContaDoCiti conta={conta} onCancelar={() => setAberto(null)} />,
+          },
+        ]
+      : []),
     { id: 'whatsapp', nome: 'WhatsApp', faz: 'Envia atas e recados por mensagem.', icone: <Icon name="chats" size={18} />, emBreve: true },
   ];
 
@@ -594,7 +606,7 @@ export function PaginaConexoes({
           <section className="tq-hub-grupo" aria-labelledby="tq-hub-conectadas">
             <h2 id="tq-hub-conectadas">
               Conectadas{' '}
-              <span className="tq-hub-conta">{1 + (ligada ? 1 : 0) + ativos.length}</span>
+              <span className="tq-hub-conta">{1 + (ligada ? 1 : 0) + (conta.conexao ? 1 : 0) + ativos.length}</span>
             </h2>
             <ul className="tq-hub-lista">
               <li>
@@ -649,6 +661,8 @@ export function PaginaConexoes({
                   )}
                 </li>
               )}
+
+              <LinhaContaDoCiti conta={conta} />
 
               {ativos.map((t) => (
                 <li key={t.id}>

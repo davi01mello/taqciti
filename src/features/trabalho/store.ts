@@ -79,6 +79,12 @@ export interface Compromisso extends Base {
   /** `null` = sem prazo acordado. `data` só quando o prazo é uma data. */
   prazo: { texto: string; data?: string } | null;
   estado: 'aberto' | 'concluido' | 'cancelado';
+  /**
+   * `candidato` = extraído automaticamente da legenda, ainda sem revisão
+   * humana; ausente ou `aceito` = registro aceito (por pessoa ou pelo Taq a
+   * pedido dela). Registros antigos não têm o campo e valem como aceitos.
+   */
+  situacao?: 'candidato' | 'aceito';
   /** Ids de compromissos dos quais este depende. */
   dependeDe: string[];
 }
@@ -153,13 +159,26 @@ export interface Analise extends Base {
   lacunas: string[];
 }
 
+/**
+ * Um compromisso que a pessoa EXCLUIU. A extração automática o reconheceria de
+ * novo na mesma fala e o recriaria: a exclusão é uma decisão humana, e fica.
+ */
+export interface DescarteDeCompromisso {
+  chave: string;
+  fontes: { registroId: string; segmento: number }[];
+}
+
 export interface Trabalho {
   versao: number;
   compromissos: Compromisso[];
   decisoes: Decisao[];
   achados: Achado[];
   analises: Analise[];
+  /** Limitado a `LIMITE_DE_DESCARTES`; ausente em registros antigos. */
+  descartados?: DescarteDeCompromisso[];
 }
+
+const LIMITE_DE_DESCARTES = 500;
 
 export const TRABALHO_VAZIO: Trabalho = {
   versao: VERSAO_DO_TRABALHO,
@@ -231,6 +250,13 @@ export function normalizarTrabalho(bruto: unknown): Trabalho {
     decisoes: comId<Decisao>(b.decisoes),
     achados: comId<Achado>(b.achados),
     analises: comId<Analise>(b.analises),
+    ...(ehLista(b.descartados)
+      ? {
+          descartados: (b.descartados as DescarteDeCompromisso[]).filter(
+            (d) => !!d && typeof d.chave === 'string' && Array.isArray(d.fontes),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -293,6 +319,8 @@ export interface NovoCompromisso {
   prazo: Compromisso['prazo'];
   reuniaoId?: string;
   evidencias: EvidenciaGuardada[];
+  /** `candidato` quando extraído da legenda sem revisão. Padrão: aceito. */
+  situacao?: 'candidato' | 'aceito';
   demo?: true;
 }
 
@@ -328,6 +356,18 @@ export async function registrarCompromissos(
             (x) => x.registroId === e.registroId && x.segmento !== undefined && x.segmento === e.segmento,
           ),
         );
+      // Candidato extraído automaticamente não ressuscita o que a pessoa excluiu.
+      if (
+        n.situacao === 'candidato' &&
+        (t.descartados ?? []).some(
+          (d) =>
+            d.chave === chave ||
+            d.fontes.some((f) =>
+              n.evidencias.some((e) => e.registroId === f.registroId && e.segmento === f.segmento),
+            ),
+        )
+      )
+        continue;
       const existente =
         t.compromissos.find((c) => c.chave === chave || mesmaFala(c)) ??
         criados.find((c) => c.chave === chave || mesmaFala(c));
@@ -344,6 +384,7 @@ export async function registrarCompromissos(
         responsavel: n.responsavel?.nome.trim() ? n.responsavel : null,
         prazo: n.prazo?.texto.trim() ? n.prazo : null,
         estado: 'aberto',
+        ...(n.situacao ? { situacao: n.situacao } : {}),
         dependeDe: [],
         evidencias: n.evidencias,
         revisao: 1,
@@ -365,6 +406,8 @@ export interface MudancaDeCompromisso {
   responsavel?: Compromisso['responsavel'];
   prazo?: Compromisso['prazo'];
   estado?: Compromisso['estado'];
+  /** Aceitar um candidato extraído. Nunca volta a `candidato`. */
+  situacao?: 'aceito';
 }
 
 /**
@@ -394,6 +437,10 @@ export async function atualizarCompromisso(
     if (mudanca.estado && mudanca.estado !== atual.estado) {
       eventos.push(evento(`estado: ${atual.estado} → ${mudanca.estado}`, autoria.origem, extra));
       atual.estado = mudanca.estado;
+    }
+    if (mudanca.situacao === 'aceito' && atual.situacao === 'candidato') {
+      eventos.push(evento('candidato aceito', autoria.origem, extra));
+      atual.situacao = 'aceito';
     }
     if (mudanca.responsavel !== undefined) {
       const antes = atual.responsavel?.nome ?? 'sem responsável';
@@ -601,6 +648,18 @@ export async function excluirDoTrabalho(lista: ListaDoTrabalho, id: string): Pro
   return transacao((t) => {
     const antes = t[lista].length;
     if (lista === 'compromissos') {
+      const saindo = t.compromissos.find((c) => c.id === id);
+      if (saindo) {
+        t.descartados = [
+          ...(t.descartados ?? []),
+          {
+            chave: saindo.chave,
+            fontes: saindo.evidencias
+              .filter((e) => e.segmento !== undefined)
+              .map((e) => ({ registroId: e.registroId, segmento: e.segmento as number })),
+          },
+        ].slice(-LIMITE_DE_DESCARTES);
+      }
       t.compromissos = t.compromissos.filter((c) => c.id !== id);
       for (const c of t.compromissos) c.dependeDe = c.dependeDe.filter((d) => d !== id);
     } else if (lista === 'decisoes') {

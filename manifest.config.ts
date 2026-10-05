@@ -111,6 +111,16 @@ export default defineManifest({
    * Separados, quem só sincroniza nunca vê o Drive ser mencionado.
    *
    * Se algum dia parecer que precisa de mais, PARE e pergunte ao autor.
+   *
+   * ── A conta do CITi (autorizado pelo autor, 05/10/2026) ─────────────────
+   *
+   * Os quatro últimos escopos são a conexão com a organização: achar colegas
+   * no diretório do Workspace, enviar e-mail como a própria pessoa e usar a
+   * agenda. Valem como TETO, como os de cima: cada capacidade pede só os seus
+   * (`features/integracoes/escopos.ts`, a fonte única desta lista), e a tela
+   * Conexões só os pede no clique de "Conectar conta do CITi". Nenhum lê a
+   * caixa de entrada. Os passos do Google Cloud estão em
+   * `docs/integracoes-google-workspace.md`.
    */
   oauth2: {
     client_id: OAUTH_CLIENT_ID,
@@ -118,6 +128,10 @@ export default defineManifest({
       'openid',
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/directory.readonly',
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/calendar.freebusy',
     ],
   },
 

@@ -14,6 +14,7 @@
  * não indica nada.
  */
 import { normalizar } from './busca';
+import { PEDIDO_DE_TELA } from './politica';
 
 interface Regra {
   agente: string;
@@ -27,6 +28,8 @@ interface Regra {
  * `continuity`, que registra a decisão e resolve o achado.
  */
 const REGRAS: readonly Regra[] = [
+  // Um quadro da tela sob pedido é operação do aplicativo (cartão com escolha e prévia).
+  { agente: 'app_assistant', padrao: PEDIDO_DE_TELA },
   { agente: 'capture_monitor', padrao: /\bcaptura\b.*\b(ok|confiavel|funcionando|problema|falh|lacuna|estado)/ },
   { agente: 'meeting_copilot', padrao: /\bo que (eu )?perdi\b|\bate agora\b.*\b(decid|falad)|\bnesta reuniao em andamento\b/ },
   {

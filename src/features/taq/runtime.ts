@@ -155,7 +155,7 @@ export interface ConfiguracaoDoCiclo {
    * análise). Oferecida e não usada na resposta final: o runtime cobra uma vez.
    * Não oferecida (pedido só de leitura): nada é cobrado.
    */
-  exigir?: string;
+  exigir?: string | readonly string[];
 }
 
 export async function executarCiclo(
@@ -361,7 +361,12 @@ export async function executarCiclo(
       // A ferramenta que o especialista existe para usar (o analista salva a
       // análise) foi oferecida e não rodou: uma cobrança, uma vez, se couber.
       // Visto ao vivo: o modelo respondeu a análise em texto e nada foi salvo.
-      const exigida = cfg.exigir && ofertadas.find((f) => f.nome === cfg.exigir);
+      // Mais de um nome = qualquer um deles basta (preparar o rascunho OU enviar).
+      const alternativas = typeof cfg.exigir === 'string' ? [cfg.exigir] : [...(cfg.exigir ?? [])];
+      const exigida =
+        alternativas.length && !alternativas.some((n) => usadasComSucesso.has(n))
+          ? ofertadas.find((f) => alternativas.includes(f.nome))
+          : undefined;
       if (exigida && !usadasComSucesso.has(exigida.nome) && !cobrouExigida && !ultimo && resposta.tipo === 'final') {
         cobrouExigida = true;
         mensagens.push(

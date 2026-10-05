@@ -755,6 +755,16 @@ export const createDocument: DefinicaoDeFerramenta<z.infer<typeof criacaoSchema>
     });
     if (pendencias.length) ctx.registrarAusentes(pendencias);
 
+    // Gerar de novo NUNCA sobrescreve: o documento anterior (e o que a pessoa
+    // editou nele) fica como está, e o Taq diz que ele existe.
+    const anteriores = (await ctx.armazenamento.listarDocumentos()).filter(
+      (d) =>
+        d.id !== documento.id &&
+        d.meetingId === reuniao.id &&
+        d.tipo === tipo.nome &&
+        podeLerDocumento(ctx.tarefa.escopo, d),
+    );
+
     /*
      * O documento já está salvo. Se sobrou o que só a pessoa sabe, quem pergunta
      * é o TAQ, na conversa — e a pergunta não segura nada: a resposta dela
@@ -780,6 +790,18 @@ export const createDocument: DefinicaoDeFerramenta<z.infer<typeof criacaoSchema>
       ja_existia: jaExistia,
       pendencias,
       vinculos: { reuniao: reuniao.id, conversa: ctx.tarefa.conversaId },
+      ...(anteriores.length
+        ? {
+            ja_havia_do_mesmo_tipo: anteriores.map((d) => ({
+              id: d.id,
+              titulo: d.title,
+              editado_pela_pessoa: d.updatedAt > d.createdAt,
+            })),
+            aviso_de_regeneracao:
+              'Já havia documento deste tipo para esta reunião. Nada foi sobrescrito: o anterior ' +
+              '(com as edições da pessoa) continua em Documentos. Diga isso, e que ela pode apagar o que não quiser.',
+          }
+        : {}),
       aviso:
         'Apresente como rascunho para revisão, destacando as pendências. Compartilhar é outra ação.',
     };

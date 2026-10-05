@@ -80,6 +80,35 @@ describe('monitor de captura', () => {
     const deOutra = { ...vivo, session: { ...vivo.session!, meetingId: 'outra' } } as MeetingState;
     expect(avaliarCaptura(reuniao({ status: 'recording' }), deOutra, agora).situacao).toBe('desconhecida');
   });
+  it('distingue legendas desligadas, silêncio provável e falha; lacunas sem instante inventado', () => {
+    const agora = 10_000_000;
+    const base = { meetingId: 'm-1', captureHealthy: true, captionsEnabled: true };
+    const vivo = (s: object) =>
+      ({ phase: 'recording', session: { ...base, ...s } }) as unknown as MeetingState;
+    const r = reuniao({
+      status: 'recording',
+      metadata: { capturedCaptions: true, droppedSegments: 0, reconnectCount: 2, wasDiscardedAndRestarted: false },
+    });
+
+    const semLegendas = avaliarCaptura(r, vivo({ captionsEnabled: false, lastChunkAt: agora - 1_000 }), agora);
+    expect(semLegendas.situacao).toBe('sem_legendas');
+    expect(semLegendas.avaliacao).not.toBe('problemas_detectados');
+
+    const silencio = avaliarCaptura(r, vivo({ lastChunkAt: agora - 5 * 60_000 }), agora);
+    expect(silencio.situacao).toBe('silencio_provavel');
+    expect(silencio.sinais.join(' ')).toMatch(/provavelmente silêncio; não é falha/);
+
+    const falha = avaliarCaptura(r, vivo({ captureHealthy: false, lastChunkAt: agora - 5 * 60_000 }), agora);
+    expect(falha.situacao).toBe('problema_na_captura');
+    expect(falha.avaliacao).toBe('problemas_detectados');
+
+    // A reconexão é lacuna conhecida, mas não tem instante: nada é inventado.
+    expect(silencio.lacunasConhecidas).toEqual([{ tipo: 'reconexao', quantidade: 2 }]);
+    expect(JSON.stringify(silencio.lacunasConhecidas)).not.toMatch(/Ms|instante/);
+
+    const desconhecido = avaliarCaptura(r, null, agora);
+    expect(desconhecido.situacao).toBe('desconhecida');
+  });
 });
 
 describe('revisão de documento', () => {

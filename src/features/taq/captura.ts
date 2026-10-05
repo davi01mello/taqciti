@@ -27,6 +27,10 @@ export type SituacaoDaCaptura =
   | 'capturando'
   | 'pausada'
   | 'aguardando_legendas'
+  /** Legendas desligadas no Meet: nada para capturar, e isso é diferente de silêncio. */
+  | 'sem_legendas'
+  /** Legendas ligadas e saudáveis, mas sem fala há um tempo: provavelmente silêncio. */
+  | 'silencio_provavel'
   | 'problema_na_captura'
   | 'encerrada'
   | 'desconhecida';
@@ -38,6 +42,11 @@ export interface AvaliacaoDaCaptura {
   sinais: string[];
   /** Intervalos sem fala transcrita, pelos tempos dos segmentos. */
   intervalos: Array<{ deMs: number; ateMs: number }>;
+  /**
+   * Lacunas que a captura SABE que teve, com a quantidade e sem instante: os
+   * contadores não guardam quando aconteceram, e o monitor não inventa.
+   */
+  lacunasConhecidas: Array<{ tipo: 'reconexao' | 'descartados' | 'leitura_degradada'; quantidade: number }>;
   ultimaAtualizacao?: number;
   segmentos: number;
 }
@@ -71,8 +80,10 @@ export function avaliarCaptura(
   else if (!sessao) situacao = 'desconhecida';
   else if (vivo!.phase === 'paused') situacao = 'pausada';
   else if (sessao.captureHealthy === false) situacao = 'problema_na_captura';
-  else if (vivo!.phase === 'captionsRequired' || !ultimo || agora - ultimo > SEM_TRECHO_MS)
-    situacao = 'aguardando_legendas';
+  else if (vivo!.phase === 'captionsRequired' || sessao.captionsEnabled === false)
+    situacao = 'sem_legendas';
+  else if (!ultimo) situacao = 'aguardando_legendas';
+  else if (agora - ultimo > SEM_TRECHO_MS) situacao = 'silencio_provavel';
   else situacao = 'capturando';
 
   if (situacao === 'desconhecida')
@@ -81,8 +92,16 @@ export function avaliarCaptura(
     problemas += 1;
     sinais.push('Há legenda na tela que a captura não está conseguindo ler agora.');
   }
-  if (situacao === 'aguardando_legendas' && ultimo)
-    sinais.push(`Nenhum trecho novo há ${minutos(agora - ultimo)} — pode ser silêncio ou legenda desligada.`);
+  if (situacao === 'sem_legendas') {
+    ressalvas += 1;
+    sinais.push('As legendas do Meet não estão ligadas, então não há o que capturar agora.');
+  }
+  if (situacao === 'aguardando_legendas')
+    sinais.push('A captura está de pé, mas nenhum trecho chegou ainda.');
+  if (situacao === 'silencio_provavel' && ultimo)
+    sinais.push(
+      `Nenhum trecho novo há ${minutos(agora - ultimo)}, com as legendas ligadas e a leitura saudável — provavelmente silêncio; não é falha detectada.`,
+    );
   if (!md.capturedCaptions) {
     problemas += 1;
     sinais.push('A captura não registrou legendas nesta reunião.');
@@ -121,11 +140,18 @@ export function avaliarCaptura(
     sinais.push('Nenhuma fala foi transcrita.');
   }
 
+  const lacunasConhecidas: AvaliacaoDaCaptura['lacunasConhecidas'] = [];
+  if (md.reconnectCount > 0) lacunasConhecidas.push({ tipo: 'reconexao', quantidade: md.reconnectCount });
+  if (md.droppedSegments > 0) lacunasConhecidas.push({ tipo: 'descartados', quantidade: md.droppedSegments });
+  if ((md.captureDegradedCount ?? 0) > 0)
+    lacunasConhecidas.push({ tipo: 'leitura_degradada', quantidade: md.captureDegradedCount! });
+
   return {
     situacao,
     avaliacao: problemas ? 'problemas_detectados' : ressalvas ? 'com_ressalvas' : 'sem_problemas_detectados',
     sinais,
     intervalos,
+    lacunasConhecidas,
     ...(ultimo ? { ultimaAtualizacao: ultimo } : {}),
     segmentos: r.segments.length,
   };
@@ -135,6 +161,8 @@ export const ROTULO_DA_SITUACAO: Record<SituacaoDaCaptura, string> = {
   capturando: 'Capturando',
   pausada: 'Pausada',
   aguardando_legendas: 'Aguardando legendas',
+  sem_legendas: 'Legendas desligadas',
+  silencio_provavel: 'Provável silêncio',
   problema_na_captura: 'Problema na captura',
   encerrada: 'Encerrada',
   desconhecida: 'Estado desconhecido',

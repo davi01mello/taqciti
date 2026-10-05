@@ -3,7 +3,7 @@
 interface WaveProps {
   size?: number;
   animated?: boolean;
-  tone?: 'green' | 'amber' | 'dim';
+  tone?: 'green' | 'amber' | 'red' | 'dim';
 }
 
 /*
@@ -16,6 +16,7 @@ interface WaveProps {
 const TONES = {
   green: ['#5ccb85', '#90dfad', '#5ccb85'],
   amber: ['#e8c164', '#e8c164', '#e8c164'],
+  red: ['#e2685f', '#e2685f', '#e2685f'],
   dim: ['#3a4753', '#4b5a68', '#3a4753'],
 } as const;
 

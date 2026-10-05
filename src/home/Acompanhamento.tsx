@@ -16,7 +16,11 @@
  * Excluir confirma NO LUGAR do item, sem modal: é o que deixa óbvio qual
  * registro está prestes a sumir.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { sincronizarAvisosDoAcompanhamento } from '@/features/avisos/produtores';
+import { type Aviso } from '@/features/avisos/store';
+import { useAvisosDaHome } from '@/features/avisos/useAvisos';
+import { ListaDeAvisos } from '@/shared/ui/ListaDeAvisos';
 import type { FonteDaResposta } from './conversations';
 import {
   excluirDoTrabalho,
@@ -46,8 +50,35 @@ function normal(t: string): string {
     .toLowerCase();
 }
 
-export function PaginaAcompanhamento({ onAbrirFonte }: { onAbrirFonte: (f: FonteDaResposta) => void }) {
+export function PaginaAcompanhamento({
+  onAbrirFonte,
+  onAbrirConversa,
+}: {
+  onAbrirFonte: (f: FonteDaResposta) => void;
+  onAbrirConversa?: (conversaId: string) => void;
+}) {
   const { trabalho, carregado } = useTrabalho();
+  const avisos = useAvisosDaHome();
+  // Mantém os avisos do acompanhamento fiéis aos registros, mesmo sem reunião
+  // aberta: tarefa que ganhou responsável deixa de pedir um.
+  useEffect(() => {
+    if (carregado) void sincronizarAvisosDoAcompanhamento(trabalho).catch(() => undefined);
+  }, [trabalho, carregado]);
+  const abrirAviso = (a: Aviso) => {
+    const acao = a.acao;
+    if (!acao) return;
+    if (acao.tipo === 'abrir_conversa') onAbrirConversa?.(acao.alvoId);
+    else if (acao.tipo === 'abrir_reuniao' || acao.tipo === 'abrir_documento')
+      onAbrirFonte({
+        ref: '',
+        tipo: acao.tipo === 'abrir_reuniao' ? 'reuniao' : 'documento',
+        registroId: acao.alvoId,
+        titulo: a.titulo,
+        trecho: '',
+      });
+    else if (a.reuniaoId)
+      onAbrirFonte({ ref: '', tipo: 'reuniao', registroId: a.reuniaoId, titulo: a.titulo, trecho: '' });
+  };
   const versoes = useVersoesDasReunioes();
   const [aba, setAba] = useState<ListaDoTrabalho>('compromissos');
   const [filtro, setFiltro] = useState<FiltroDeCompromisso>('abertos');
@@ -139,6 +170,25 @@ export function PaginaAcompanhamento({ onAbrirFonte }: { onAbrirFonte: (f: Fonte
         <h1>Acompanhamento</h1>
         <p>O que saiu das reuniões e precisa de alguém. Registre aqui com “Novo”, ou peça ao Taq na conversa.</p>
       </header>
+
+      {(avisos.visiveis.length > 0 || avisos.historico.length > 0) && (
+        <section className="tq-c tq-acomp-avisos" aria-label="Avisos do Taq">
+          <div className="tq-c-cab">
+            <h4>Avisos do Taq</h4>
+            {avisos.novos > 0 && (
+              <span className="tq-c-selo">{avisos.novos} {avisos.novos === 1 ? 'novo' : 'novos'}</span>
+            )}
+          </div>
+          <ListaDeAvisos
+            avisos={avisos.visiveis}
+            historico={avisos.historico}
+            participantes={[
+              ...new Set(trabalho.compromissos.flatMap((c) => (c.responsavel ? [c.responsavel.nome] : []))),
+            ]}
+            onAbrir={abrirAviso}
+          />
+        </section>
+      )}
 
       <div className="tq-acomp-abas" role="tablist" aria-label="O que acompanhar">
         {ABAS.map(([id, nome]) => (

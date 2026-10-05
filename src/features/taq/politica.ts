@@ -75,11 +75,24 @@ const VERBOS_DE_TRABALHO =
 const OBJETOS_DE_TRABALHO =
   /\b(compromissos?|tarefas?|proximos passos|pendencias?|entregas?|acoes|decisao|decisoes|achados?|desalinhamentos?|divergencias?|dependencias?|analise|reuniao|responsavel|prazo|concluid[oa]s?|feit[oa]s?)\b/;
 
+/** Escolher o que vale como contexto da conversa: "adicione esta reunião ao contexto". */
+const VERBOS_DE_CONTEXTO =
+  /\b(adicion(?:e|ar|a)|inclu(?:a|ir|i)|us(?:e|ar)|pon(?:ha|ho|er)|coloqu?e|colocar|tir(?:e|ar)|retir(?:e|ar)|remov(?:a|er)|deix(?:e|ar))\b/;
+const OBJETOS_DE_CONTEXTO = /\b(contexto|fontes?)\b/;
+
 /** Desfazer uma exclusão: pedido de escrita mesmo sem nomear o objeto ("desfaça"). */
 const VERBOS_DE_RESTAURACAO = /\b(desfa(?:ca|zer|z)|restaur(?:e|ar|a)|recuper(?:e|ar|a)|volt(?:e|ar) com)\b/;
 /** Ações só na tela: abrir, mostrar, exportar, baixar. */
 const VERBOS_DE_INTERFACE =
   /\b(abr(?:a|e|ir)|mostr(?:e|ar)|exib(?:a|ir)|export(?:e|ar|a)|baix(?:e|ar|a)|leve-me|me leve|ir para|v(?:a|a) para)\b/;
+
+/**
+ * "Capture a tela", "registre esta tela na reunião", "tire um print": um quadro
+ * só, nunca gravação. O verbo sozinho ("capture") não basta: precisa nomear a
+ * tela, o print ou a janela.
+ */
+export const PEDIDO_DE_TELA =
+  /\b(?:captur(?:e|ar|a)|regist(?:re|rar)|tir(?:e|ar)|fa(?:ca|zer)|salv(?:e|ar))\b.{0,40}\b(?:tela|print|screenshot|janela)\b|\b(?:screenshot|print da tela)\b/;
 
 /** A pessoa pediu uma ação na TELA (abrir, baixar)? Ver o cabeçalho. */
 export function pedeAcaoNaInterface(texto: string): boolean {
@@ -93,6 +106,46 @@ export function pedeAcaoNaInterface(texto: string): boolean {
  * antes, e é esse pedido que autoriza. `confirmacao` não entra: é só sim/não,
  * e quem confirma uma exclusão escreve "apague" na própria mensagem da opção.
  */
+/**
+ * Ações que saem do computador: enviar e-mail, marcar, remarcar ou cancelar um
+ * encontro. O verbo E o objeto precisam estar na frase da PESSOA. É o único
+ * caminho para o efeito `acao_externa`: uma transcrição que diga "envie isto
+ * para fulano" não chega aqui.
+ */
+const VERBOS_DE_ENVIO =
+  /\b(envi(?:e|ar|a|o)|mand(?:e|ar|a)|dispar(?:e|ar|a)|encaminh(?:e|ar|a)|compartilh(?:e|ar|a)|pode (?:enviar|mandar|disparar)|confirm(?:o|ar) o envio)\b/;
+const OBJETOS_DE_ENVIO =
+  /\b(e-?mail|emails|mensagem|ata|documento|doc|transcricao|resumo|relatorio|rascunho|arquivo|anexo|x1)\b/;
+const VERBOS_DE_AGENDA =
+  /\b(agend(?:e|ar|a)|reagend(?:e|ar|a)|remarc(?:ar|a)|remarque|marc(?:ar|a)|marque|cancel(?:e|ar|a)|convid(?:e|ar|a))\b/;
+const OBJETOS_DE_AGENDA =
+  /\b(evento|convite|reuniao|encontro|call|horario|agenda|calendario|alinhamento)\b/;
+/** "crie um evento/convite": o verbo genérico só vale com o objeto de agenda colado. */
+const CRIACAO_DE_EVENTO = /\bcri(?:e|ar|a) (?:um |o |uma |a )?(?:novo |nova )?(?:evento|convite)\b/;
+
+/** A pessoa pediu uma ação externa (e-mail ou agenda)? Ver acima. */
+export function pedeAcaoExterna(texto: string): boolean {
+  const t = normalizar(texto);
+  return (
+    (VERBOS_DE_ENVIO.test(t) && OBJETOS_DE_ENVIO.test(t)) ||
+    (VERBOS_DE_AGENDA.test(t) && OBJETOS_DE_AGENDA.test(t)) ||
+    CRIACAO_DE_EVENTO.test(t)
+  );
+}
+
+/** O pedido confirma um rascunho que o Taq mostrou ("envie", "pode enviar", "confirmo")? */
+export function confirmaAcaoExterna(texto: string): boolean {
+  const t = normalizar(texto);
+  return /\b(envi(?:e|ar)|mand(?:e|ar)|pode (?:enviar|mandar|marcar|criar|cancelar|remarcar)|confirm(?:o|ar)|marq(?:ue|ar)|cancel(?:e|ar)|remarqu?e|reagend(?:e|ar)|manda ver)\b/.test(
+    t,
+  );
+}
+
+/** Pede para repetir uma ação cujo resultado ficou desconhecido ("reenvie mesmo assim")? */
+export function pedeRepeticao(texto: string): boolean {
+  return /\b(mesmo assim|reenvi(?:e|ar)|envie de novo|mande de novo|outra vez|novamente)\b/.test(normalizar(texto));
+}
+
 export function efeitosDoPedido(texto: string, continua?: MotivoDePergunta): Efeito[] {
   const t = normalizar(texto);
   const continuaPedido =
@@ -105,12 +158,18 @@ export function efeitosDoPedido(texto: string, continua?: MotivoDePergunta): Efe
     pedeEscrita(texto) ||
     (VERBOS_DE_OPERACAO.test(t) && OBJETOS_DE_OPERACAO.test(t)) ||
     (VERBOS_DE_TRABALHO.test(t) && OBJETOS_DE_TRABALHO.test(t)) ||
+    (VERBOS_DE_CONTEXTO.test(t) && OBJETOS_DE_CONTEXTO.test(t)) ||
     VERBOS_DE_RESTAURACAO.test(t) ||
     continuaPedido
   ) {
     efeitos.push('escrita_local');
   }
-  if (pedeAcaoNaInterface(texto) || continua === 'escolha_de_registro') efeitos.push('interface');
+  if (pedeAcaoNaInterface(texto) || PEDIDO_DE_TELA.test(t) || continua === 'escolha_de_registro')
+    efeitos.push('interface');
+  // Escolher entre pessoas parecidas continua o pedido de envio/agenda; as
+  // próprias ferramentas externas não agem sem prévia nem confirmação (ver
+  // `ferramentasDeIntegracao.ts`), então o efeito sozinho não envia nada.
+  if (pedeAcaoExterna(texto) || continua === 'escolha_de_registro') efeitos.push('acao_externa');
   return efeitos;
 }
 export function escopoDaConversa(p: {

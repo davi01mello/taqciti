@@ -28,6 +28,7 @@
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage';
 import { comTravaLocal } from '@/shared/services/storageLock';
+import { removerAvisosDaConversa } from '@/features/avisos/store';
 import { desvincularDaConversa } from '@/features/documents/store';
 import type { CartaoDaResposta } from '@/features/taq/contratos';
 
@@ -116,7 +117,15 @@ export interface ConversationMessage {
    * que sai o link para o registro afetado, e não do texto da resposta.
    */
   operacoes?: Array<{
-    acao: 'abrir' | 'renomear' | 'apagar' | 'restaurar' | 'exportar';
+    acao:
+      | 'abrir'
+      | 'renomear'
+      | 'apagar'
+      | 'restaurar'
+      | 'exportar'
+      | 'preparar_copia'
+      | 'baixar'
+      | 'contexto';
     tipo: 'reuniao' | 'documento' | 'conversa';
     id: string;
     titulo: string;
@@ -181,6 +190,70 @@ export interface Conversation {
   meetingId?: string;
   /** Ver `MemoriaDaConversa`. Ausente em conversas que nunca usaram registro. */
   memoria?: MemoriaDaConversa;
+  /**
+   * As fontes que a PESSOA escolheu para esta conversa ("use esta reunião como
+   * contexto"). Diferente da memória: ela é automática; isto é decisão. Também
+   * só ponteiros, revalidados a cada execução, e isoladas por conversa.
+   */
+  contexto?: FonteDoContexto[];
+}
+
+export interface FonteDoContexto extends RegistroLembrado {
+  /**
+   * A versão do registro quando foi escolhido (`versaoDaReuniao` ou o
+   * `updatedAt` do documento). Mudou depois = o Taq avisa que a fonte mudou.
+   */
+  versao: string;
+}
+
+/** Quantas fontes uma conversa guarda: o contexto é escolhido, não acumulado. */
+export const MAX_FONTES_DO_CONTEXTO = 6;
+
+/**
+ * Escolhe uma fonte para o contexto da conversa. Conversa que não existe mais
+ * (apagada no meio) não é recriada: devolve `sem_conversa`.
+ */
+export async function adicionarFonteAoContexto(
+  conversaId: string,
+  fonte: Omit<FonteDoContexto, 'em'>,
+): Promise<'adicionada' | 'ja_estava' | 'cheio' | 'sem_conversa'> {
+  return comTravaLocal(STORAGE_KEYS.conversations, async () => {
+    const conversas = await lerConversas();
+    const conversa = conversas.find((c) => c.id === conversaId);
+    if (!conversa) return 'sem_conversa';
+    const atuais = conversa.contexto ?? [];
+    const i = atuais.findIndex((f) => f.tipo === fonte.tipo && f.id === fonte.id);
+    if (i >= 0) {
+      // Escolher de novo uma fonte que mudou "aceita" a versão nova.
+      if (atuais[i]!.versao === fonte.versao && atuais[i]!.titulo === fonte.titulo) return 'ja_estava';
+      conversa.contexto = atuais.map((f, j) => (j === i ? { ...fonte, em: Date.now() } : f));
+      await gravar(conversas);
+      return 'adicionada';
+    }
+    if (atuais.length >= MAX_FONTES_DO_CONTEXTO) return 'cheio';
+    conversa.contexto = [...atuais, { ...fonte, em: Date.now() }];
+    await gravar(conversas);
+    return 'adicionada';
+  });
+}
+
+export async function removerFonteDoContexto(
+  conversaId: string,
+  tipo: FonteDoContexto['tipo'],
+  id: string,
+): Promise<'removida' | 'nao_estava' | 'sem_conversa'> {
+  return comTravaLocal(STORAGE_KEYS.conversations, async () => {
+    const conversas = await lerConversas();
+    const conversa = conversas.find((c) => c.id === conversaId);
+    if (!conversa) return 'sem_conversa';
+    const atuais = conversa.contexto ?? [];
+    const ficam = atuais.filter((f) => !(f.tipo === tipo && f.id === id));
+    if (ficam.length === atuais.length) return 'nao_estava';
+    if (ficam.length) conversa.contexto = ficam;
+    else delete conversa.contexto;
+    await gravar(conversas);
+    return 'removida';
+  });
 }
 
 /** Teto de conversas guardadas. O storage local da extensão não é infinito, e
@@ -471,6 +544,8 @@ export async function apagarConversas(ids: readonly string[]): Promise<Resultado
     const ficam = execucoes.filter((e) => !e?.conversaId || !apagadas.includes(e.conversaId));
     if (ficam.length !== execucoes.length) await writeLocal(STORAGE_KEYS.taqExecucoes, ficam);
   });
+  // Os avisos que apontavam para ela não têm mais para onde levar.
+  await removerAvisosDaConversa(apagadas).catch(() => undefined);
   return { apagadas, documentosDesvinculados };
 }
 

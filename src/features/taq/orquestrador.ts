@@ -40,6 +40,7 @@ import {
   perguntaDeTipo,
 } from './ferramentas';
 import { FERRAMENTAS_DE_APP } from './ferramentasDeApp';
+import { ferramentasDeIntegracaoDisponiveis } from './ferramentasDeIntegracao';
 import { FERRAMENTAS_DE_TRABALHO } from './ferramentasDeTrabalho';
 import { ativarEspecialistas } from './especialistas';
 import {
@@ -217,6 +218,9 @@ export function criarOrquestrador(deps: {
       const ferramentas = new RegistroDeFerramentas();
       for (const f of [...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP, ...FERRAMENTAS_DE_TRABALHO])
         ferramentas.registrar(f);
+      // Diretório, e-mail e agenda só entram quando a capacidade está `available`
+      // (conta do CITi conectada, escopos concedidos): o resto o modelo nem vê.
+      for (const f of await ferramentasDeIntegracaoDisponiveis()) ferramentas.registrar(f);
       if (especialistas.length) ferramentas.registrar(criarDelegateTask(especialistas));
 
       // O foco da conversa, revalidado: registro apagado ou fora do escopo não entra.

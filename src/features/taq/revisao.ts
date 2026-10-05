@@ -29,7 +29,9 @@ export interface ProblemaDaRevisao {
     | 'nota_sem_fonte'
     | 'fonte_sem_nota'
     | 'fonte_alterada'
-    | 'fonte_indisponivel';
+    | 'fonte_indisponivel'
+    | 'campo_indispensavel'
+    | 'vinculo_quebrado';
   texto: string;
 }
 
@@ -98,6 +100,31 @@ export function revisarDocumento(
       }
     }
   }
+
+  // Campo indispensável do modelo: a linha "**Rótulo:** valor" tem de existir e
+  // dizer algo além de "A confirmar".
+  if (tipo) {
+    for (const c of tipo.campos.filter((x) => x.indispensavel)) {
+      const rotulo = c.rotulo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const linha = new RegExp(`\\*\\*${rotulo}:\\*\\*[ \\t]*(.*)`, 'i').exec(doc.content);
+      const valor = linha?.[1]?.trim() ?? '';
+      if (!linha || !valor || /^_?a confirmar\.?_?$/i.test(valor))
+        problemas.push({
+          gravidade: 'alta',
+          tipo: 'campo_indispensavel',
+          texto: `O campo indispensável “${c.rotulo}” ${linha ? 'está sem valor (A confirmar)' : 'não está no documento'}.`,
+        });
+    }
+  }
+
+  // Integridade do vínculo: o documento aponta para uma reunião que existe?
+  if (doc.meetingId && !reunioes.some((r) => r.id === doc.meetingId))
+    problemas.push({
+      gravidade: 'media',
+      tipo: 'vinculo_quebrado',
+      texto:
+        'A reunião de origem deste documento não está disponível (apagada ou fora do escopo): as fontes dele não podem ser conferidas.',
+    });
 
   const corpoSemFontes = secoes
     .filter((s) => !['fontes', 'pendencias'].includes(normalizar(s.titulo)))

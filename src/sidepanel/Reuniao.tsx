@@ -57,10 +57,15 @@ import {
 import { EXPLICACAO, type MotivoDeFalha } from '@/background/captura';
 import type { ContextoDaPergunta } from '@/home/conversations';
 import { Icon } from '@/shared/ui/Icon';
+import { derivarEstadoDaCaptura } from '@/shared/ui/estadoDaCaptura';
+import type { EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
 import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { Markdown } from '@/shared/ui/Markdown';
 import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
+import { useAvisosDaReuniao } from '@/features/avisos/useAvisosDaReuniao';
+import { souOrganizador, useAvisosVisiveis } from '@/features/avisos/useAvisos';
 import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
+import { SugestoesDoOrganizador } from './SugestoesDoOrganizador';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
 
@@ -93,6 +98,16 @@ interface Props {
 const movimentoReduzido = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** O que a linha de estado da reunião diz, por estado da captura. */
+const ROTULO_NA_REUNIAO: Partial<Record<EstadoDaCaptura, string>> = {
+  iniciando: 'Iniciando a captura',
+  capturando: 'Transcrevendo',
+  aguardando_fonte: 'Aguardando legendas',
+  interrompida: 'Captura interrompida',
+  erro: 'Erro na captura',
+  pausada: 'Pausada',
+};
+
 export function Reuniao({
   state,
   visivel = true,
@@ -118,9 +133,18 @@ export function Reuniao({
    */
   const [aba, setAba] = useState<AbaDaReuniao>('transcricao');
   const [rapidaAberta, setRapidaAberta] = useState(false);
+  const [avisosAberto, setAvisosAberto] = useState(false);
   const [prints, setPrints] = useState<Print[]>([]);
 
   const meetingId = sessao?.meetingId ?? null;
+
+  // Extração incremental, avisos do acompanhamento e da captura: só gravam.
+  useAvisosDaReuniao(state);
+  const organizador = souOrganizador(sessao?.participants);
+  const avisos = useAvisosVisiveis({
+    ...(meetingId ? { reuniaoId: meetingId } : {}),
+    souOrganizador: organizador,
+  });
   useEffect(() => {
     if (meetingId === null) return;
     return observarPrints((todos) =>
@@ -157,7 +181,8 @@ export function Reuniao({
 
   const duracao = formatElapsedClock((sessao.endedAt ?? agora) - sessao.startedAt);
   const viva = fase === 'recording' || fase === 'paused';
-  const interrompida = fase === 'recording' && sessao.captureHealthy === false;
+  const estadoCaptura = derivarEstadoDaCaptura({ phase: fase, session: sessao }, agora);
+  const interrompida = estadoCaptura === 'interrompida' || estadoCaptura === 'erro';
   const quando = (p: Print) => formatOffset(p.at - sessao.startedAt);
 
   return (
@@ -173,14 +198,10 @@ export function Reuniao({
         <p className="tq-reuniao-meta">
           <span
             className={`tq-captura-estado${
-              interrompida ? ' atencao' : fase === 'recording' ? ' vivo' : ' atencao'
+              estadoCaptura === 'capturando' || estadoCaptura === 'iniciando' ? ' vivo' : ' atencao'
             }`}
           >
-            {interrompida
-              ? 'Captura interrompida'
-              : fase === 'recording'
-                ? 'Transcrevendo'
-                : 'Pausada'}
+            {ROTULO_NA_REUNIAO[estadoCaptura] ?? 'Transcrevendo'}
           </span>
           <span className="tq-relogio">{duracao}</span>
           <span>
@@ -195,12 +216,44 @@ export function Reuniao({
         capturando={print.ocupado}
         quantosPrints={prints.length}
         rapidaAberta={rapidaAberta}
+        avisosNovos={avisos.novos}
+        avisosAberto={avisosAberto}
         onPrint={() => void print.tirar()}
         onPausar={() =>
           void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
         }
-        onRapida={() => setRapidaAberta((v) => !v)}
+        onRapida={() => {
+          setAvisosAberto(false);
+          setRapidaAberta((v) => !v);
+        }}
+        onAvisos={() => {
+          setRapidaAberta(false);
+          setAvisosAberto((v) => !v);
+        }}
       />
+
+      {avisosAberto && (
+        <SugestoesDoOrganizador
+          visiveis={avisos.visiveis}
+          historico={avisos.historico}
+          participantes={sessao.participants.map((p) => p.name)}
+          souOrganizador={organizador}
+          onFechar={() => setAvisosAberto(false)}
+          onAbrir={(a) => {
+            if (a.acao?.tipo === 'abrir_conversa') {
+              setAvisosAberto(false);
+              onContinuarNaConversa(a.acao.alvoId);
+            } else if (a.acao?.tipo === 'abrir_documento') {
+              void platform.send({ type: 'ui/openHome', documentId: a.acao.alvoId });
+            } else {
+              // Reunião e acompanhamento abrem a HOME na reunião de origem.
+              const recordId =
+                a.acao?.tipo === 'abrir_reuniao' ? a.acao.alvoId : a.reuniaoId;
+              void platform.send({ type: 'ui/openHome', ...(recordId ? { recordId } : {}) });
+            }
+          }}
+        />
+      )}
 
       {print.recente && (
         <p className="tq-aviso-print" role="status">

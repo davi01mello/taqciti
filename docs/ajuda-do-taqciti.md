@@ -123,3 +123,18 @@ captura, revisar documento, revisar exposição e "O que o Taq faz".
 **planejado** e passaram a **indisponível**, com a resposta do que existe no
 lugar (rascunho copiável, sugestão de horário, Acompanhamento, pergunta sob
 pedido). Nenhum especialista do catálogo segue `planned`.
+
+## Atualização de 05/10/2026 — o operador copia, baixa e escolhe fontes
+
+Quatro ferramentas novas do `app_assistant` (instruções `app-assistant-v5`), com
+a entrada correspondente na referência (todas `codigo`: conferidas no código, não
+na tela):
+
+| Funcionalidade (ajuda) | Ferramenta | Manual na tela × pelo Taq |
+| --- | --- | --- |
+| “Copiar a transcrição pela conversa” (`copiar_transcricao`) | `copy_transcript` | Manual: “Copiar”, na reunião da HOME. Pelo Taq: prepara o texto com “Copiar texto”; **quem copia é a pessoa**, o Taq nunca diz que copiou. Diz se a transcrição é parcial (reunião em andamento) ou final; nome de falante e horário só quando a captura os registrou. |
+| “Baixar um documento” (`baixar_documento`) | `download_document` | Manual: “Baixar .md” no editor. Pelo Taq: `.md` (versão salva, com as edições) ou `.html` (versão da geração, sem as edições). **PDF só pelo “Baixar” logo depois de gerar**: o Taq recusa e diz isso. |
+| “Escolher o que vale como contexto da conversa” (`fontes_do_contexto`) | `add_context_source` | Só pelo Taq: não há botão na tela. Persiste na conversa, volta ao reabrir, vale só para ela. |
+| “Tirar uma fonte do contexto da conversa” (`tirar_fonte_do_contexto`) | `remove_context_source` | Só pelo Taq. O registro não é apagado. |
+
+`export_transcript` agora também informa `situacao` (parcial ou final).

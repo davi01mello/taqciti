@@ -72,7 +72,7 @@ import { useConversaAberta } from '@/home/useConversaAberta';
 import { useAnimacao } from '@/home/useAnimacao';
 import type { MeetingState } from '@/shared/types/domain';
 import type { UiCommand } from '@/shared/types/messages';
-import type { EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
+import { derivarEstadoDaCaptura } from '@/shared/ui/estadoDaCaptura';
 import { Icon } from '@/shared/ui/Icon';
 import { Wordmark } from '@/shared/ui/Wordmark';
 import { Conversa } from './Conversa';
@@ -160,6 +160,18 @@ export function App() {
     (state.phase === 'recording' ||
       state.phase === 'paused' ||
       state.phase === 'captionsRequired');
+  /*
+   * Relógio só da captura em curso: "iniciando", "aguardando fonte" e "erro"
+   * dependem do tempo desde o último trecho, e sem um tick o estado só mudaria
+   * quando outro evento chegasse (que é justamente o que não está chegando).
+   */
+  const [agoraDaCaptura, setAgoraDaCaptura] = useState(() => Date.now());
+  useEffect(() => {
+    if (state.phase !== 'recording') return;
+    setAgoraDaCaptura(Date.now());
+    const t = setInterval(() => setAgoraDaCaptura(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, [state.phase]);
   /*
    * A decisão é chaveada pela PARTICIPAÇÃO — esta vez em que se entrou nesta
    * sala —, e não pelo código dela. O link do Meet é reutilizado, e chavear
@@ -455,7 +467,7 @@ export function App() {
   // ---------- a tela ----------
 
   const meetingId = sessao?.meetingId ?? null;
-  const captura = sessao === null ? 'desligada' : estadoDaCaptura(state);
+  const captura = sessao === null ? 'desligada' : derivarEstadoDaCaptura(state, agoraDaCaptura);
   const naReuniaoAoVivo = modo === 'transcricao' && emReuniao && !verHistorico;
 
   /*
@@ -626,29 +638,6 @@ export function App() {
   );
 }
 
-/**
- * O estado da captura, traduzido do estado da reunião.
- *
- * "Interrompida" é derivado de `captureHealthy`, que vem da aba do Meet: é a
- * única coisa que sabe que há legenda na tela que a captura não está lendo.
- */
-function estadoDaCaptura(state: MeetingState): EstadoDaCaptura {
-  switch (state.phase) {
-    case 'recording':
-      return state.session?.captureHealthy === false ? 'interrompida' : 'capturando';
-    case 'paused':
-      return 'pausada';
-    case 'captionsRequired':
-      return 'preparando';
-    case 'ended':
-      // Sem nenhuma fala não há transcrição salva: dizer "Salva" seria falso.
-      return (state.session?.segments.length ?? 0) > 0 ? 'salva' : 'desligada';
-    default:
-      // Sem reunião e "agora não" são o mesmo fato para a captura: ela está
-      // desligada. O que os separa é o texto da seção, não o indicador.
-      return 'desligada';
-  }
-}
 
 /**
  * Uma das duas seções. A que não está em uso continua montada e viva — só

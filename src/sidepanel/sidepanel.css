@@ -662,6 +662,25 @@
   gap: 6px;
 }
 
+/* Com o 4º botão (Avisos) a fileira passa a ter quatro colunas. */
+.tq-acoes:has(.tq-acao-avisos) {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 0.95fr) minmax(0, 1.3fr) minmax(0, 0.9fr);
+  gap: 4px;
+}
+
+/* O indicador: um ponto no canto, na cor da marca. Sem animação — a pessoa está
+   numa reunião, e o que se move chama o olho. */
+.tq-acao-ponto {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+  box-shadow: 0 0 0 2px var(--s-placa);
+}
+
 .tq-side .tq-acao {
   position: relative;
   display: flex;
@@ -695,6 +714,22 @@
   background: rgb(155 130 245 / 0.12);
   border-color: rgb(155 130 245 / 0.4);
   color: rgb(217 208 252);
+}
+
+/* O popup do 4º botão: inline, sem sombra de modal, no mesmo fio da pergunta rápida. */
+.tq-avisos-popup {
+  display: grid;
+  gap: 8px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid rgb(var(--c-primary) / 0.22);
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.tq-avisos-nota {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--s-cinza);
 }
 
 /* "Print guardado com a reunião.  Ver  Desfazer" — some sozinho. */

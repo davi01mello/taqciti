@@ -33,6 +33,8 @@ import { useHistoryState } from '@/features/history/useHistory';
 import { usePlatform } from '@/shared/platform/context';
 import type { UiCommand } from '@/shared/types/messages';
 import { useMeetingState } from '@/shared/hooks/useMeetingState';
+import { derivarEstadoDaCaptura } from '@/shared/ui/estadoDaCaptura';
+import type { EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
 import {
   apagarNota,
   criarGravadorDeNota,
@@ -84,6 +86,16 @@ import type { MeetingRecord } from '@/shared/types/domain';
 const RASCUNHO_NOVA = '\u0000nova';
 
 /** O relógio da reunião ao vivo: só ele re-renderiza a cada segundo. */
+const PALAVRA_NA_HOME: Partial<Record<EstadoDaCaptura, string>> = {
+  capturando: 'capturando legendas',
+  preparando: 'preparando a captura',
+  iniciando: 'iniciando a captura',
+  aguardando_fonte: 'aguardando legendas',
+  pausada: 'captura pausada',
+  interrompida: 'captura interrompida, religando',
+  erro: 'erro: as legendas não estão sendo lidas',
+};
+
 function RelogioAoVivo({ desde }: { desde: number }) {
   const [agora, setAgora] = useState(() => Date.now());
   useEffect(() => {
@@ -158,6 +170,15 @@ export function HomePage() {
   const [desfecho, setDesfecho] = useState<string | null>(null);
   useEffect(() => observarAgente(setAgente), []);
   const meeting = useMeetingState();
+  /* Tick só da captura em curso: "iniciando", "aguardando" e "erro" dependem do tempo. */
+  const [agoraDaCaptura, setAgoraDaCaptura] = useState(() => Date.now());
+  useEffect(() => {
+    if (meeting.phase !== 'recording') return;
+    setAgoraDaCaptura(Date.now());
+    const t = setInterval(() => setAgoraDaCaptura(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, [meeting.phase]);
+  const capturaDaReuniao = derivarEstadoDaCaptura(meeting, agoraDaCaptura);
   const { animando, movimentoReduzido, motivo } = useAnimacao(pausadoPeloUsuario);
 
   useEffect(() => observarConversas(setConversas), []);
@@ -442,19 +463,21 @@ export function HomePage() {
         <div className="tq-topo-direita">
           {/* A reunião ao vivo, no topo: o glifo da escuta, o nome dela e o
               relógio. Clicar leva à reunião na seção Reuniões. */}
-          {meeting.phase === 'recording' && meeting.session && (
+          {(meeting.phase === 'recording' || meeting.phase === 'paused' || meeting.phase === 'captionsRequired') && meeting.session && (
             <button
               type="button"
               className="tq-captando"
               title="Abrir a reunião"
               onClick={() => irParaReuniao(meeting.session!.meetingId)}
             >
-              <MarcaDaEscuta estado="capturando" pulso={meeting.session.segments.length} tamanho={18} />
+              <MarcaDaEscuta estado={capturaDaReuniao} pulso={meeting.session.segments.length} tamanho={18} />
               <span className="tq-captando-txt">
                 <b>{meeting.session.title}</b>
                 <span role="status">
-                  capturando legendas{' '}
-                  <RelogioAoVivo desde={meeting.session.startedAt} />
+                  {PALAVRA_NA_HOME[capturaDaReuniao] ?? 'capturando legendas'}{' '}
+                  {capturaDaReuniao === 'capturando' || capturaDaReuniao === 'aguardando_fonte' ? (
+                    <RelogioAoVivo desde={meeting.session.startedAt} />
+                  ) : null}
                 </span>
               </span>
             </button>
@@ -594,7 +617,15 @@ export function HomePage() {
           />
         )}
 
-        {secao === 'acompanhamento' && <PaginaAcompanhamento onAbrirFonte={abrirFonte} />}
+        {secao === 'acompanhamento' && (
+          <PaginaAcompanhamento
+            onAbrirFonte={abrirFonte}
+            onAbrirConversa={(id) => void navegar(() => {
+              escolherConversa(id);
+              definirSecao('assistente');
+            })}
+          />
+        )}
 
         {secao === 'conexoes' && <PaginaConexoes registros={records} taq={taq} />}
       </main>

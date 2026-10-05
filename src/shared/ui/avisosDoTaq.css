@@ -1,0 +1,165 @@
+/*
+ * Os avisos do Taq — popup do 4º botão (sidebar) e página Acompanhamento (HOME).
+ * Mesma paleta dos cartões: cinza sobre o escuro, verde na ação, âmbar no que
+ * pede atenção. Lista de blocos; empilha a 260px sem rolagem lateral.
+ */
+
+.tq-avisos {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tq-avisos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.tq-aviso {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: var(--fs-ui, 13px);
+  color: rgb(214 218 222);
+  overflow-wrap: anywhere;
+}
+
+.tq-aviso.novo {
+  border-color: rgb(var(--c-primary, 90 200 120) / 0.35);
+}
+
+.tq-aviso.status-falhou {
+  border-color: rgba(240, 120, 110, 0.4);
+}
+
+.tq-aviso.status-aguardando,
+.tq-aviso.status-parcial {
+  border-color: rgba(242, 201, 76, 0.35);
+}
+
+.tq-aviso-cab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tq-aviso-estado {
+  font-size: var(--fs-meta, 11px);
+  letter-spacing: 0.02em;
+  color: rgb(160 166 172);
+}
+
+.tq-aviso-ponto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--c-primary, 90 200 120));
+}
+
+.tq-aviso-titulo {
+  margin: 0;
+  line-height: 1.45;
+  color: rgb(236 238 240);
+}
+
+.tq-aviso-hist {
+  opacity: 0.6;
+}
+
+.tq-aviso-detalhe summary {
+  cursor: pointer;
+  font-size: var(--fs-meta, 11px);
+  color: rgb(160 166 172);
+}
+
+.tq-aviso-detalhe p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.tq-aviso-tec {
+  font-family: ui-monospace, monospace;
+  font-size: var(--fs-meta, 11px);
+  color: rgb(125 130 136);
+}
+
+.tq-aviso-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.tq-aviso-linha select,
+.tq-aviso-linha input {
+  min-height: 28px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+}
+
+.tq-avisos-acao {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgb(214 218 222);
+  font: inherit;
+}
+
+.tq-avisos-acao:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tq-avisos-acao:disabled {
+  opacity: 0.45;
+}
+
+.tq-avisos-acao.principal {
+  border-color: rgb(var(--c-primary, 90 200 120) / 0.45);
+  color: rgb(var(--c-glow, 150 230 170));
+}
+
+.tq-avisos-link {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgb(160 166 172);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tq-avisos-link:hover {
+  color: rgb(236 238 240);
+}
+
+.tq-avisos-msg {
+  margin: 0;
+  min-height: 0;
+  font-size: var(--fs-meta, 11px);
+  color: rgb(var(--c-glow, 150 230 170));
+}
+
+.tq-avisos-msg:empty {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-aviso,
+  .tq-avisos-acao {
+    transition: none;
+  }
+}

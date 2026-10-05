@@ -29,13 +29,13 @@ import {
 } from './tipos';
 
 export const INSTRUCOES_DOCUMENTOS = 'documents-v3';
-export const INSTRUCOES_APP = 'app-assistant-v4';
+export const INSTRUCOES_APP = 'app-assistant-v5';
 export const INSTRUCOES_ANALISTA = 'analyst-v1';
 export const INSTRUCOES_COMPROMISSOS = 'commitments-v1';
 export const INSTRUCOES_CONTINUIDADE = 'continuity-v1';
 export const INSTRUCOES_PASSAGEM = 'handoff-v1';
-export const INSTRUCOES_COMUNICACAO = 'communication-v1';
-export const INSTRUCOES_AGENDA = 'scheduling-v1';
+export const INSTRUCOES_COMUNICACAO = 'communication-v2';
+export const INSTRUCOES_AGENDA = 'scheduling-v2';
 export const INSTRUCOES_MEMORIA = 'memory-v1';
 export const INSTRUCOES_CONTEXTO = 'context-v1';
 export const INSTRUCOES_COPILOTO = 'copilot-v1';
@@ -60,15 +60,16 @@ export const ESPECIALISTAS_DE_MODELO: Readonly<Record<string, string>> = {
  * cobrada quando foi oferecida — ou seja, quando a política autorizou aquele
  * efeito para ESTE pedido (`registre o desalinhamento` sim; `compare` não).
  */
-const EXIGIDA: Readonly<Record<string, string>> = {
+const EXIGIDA: Readonly<Record<string, string | readonly string[]>> = {
   meeting_analyst: 'save_analysis',
-  communication: 'prepare_message',
-  scheduling: 'prepare_event',
+  // Com a integração disponível, enviar/marcar também cumpre o pedido.
+  communication: ['prepare_message', 'send_email'],
+  scheduling: ['prepare_event', 'list_availability', 'create_event', 'reschedule_event', 'cancel_event'],
   handoff_analysis: 'save_finding',
   continuity: 'record_decision',
 };
 
-function executorDeModelo(instrucoes: string, exigir?: string): ExecutorDeAgente {
+function executorDeModelo(instrucoes: string, exigir?: string | readonly string[]): ExecutorDeAgente {
   return async (tarefa, ambiente) => {
     const entrada =
       tarefa.entrada && typeof tarefa.entrada === 'object' && Object.keys(tarefa.entrada).length

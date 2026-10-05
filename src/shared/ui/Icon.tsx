@@ -25,6 +25,8 @@ export type IconName =
   // num conjunto próprio, porque ícone é vocabulário do design system: um
   // segundo conjunto divergiria em traço e tamanho no primeiro ajuste.
   | 'sparkles'
+  // Os avisos do Taq (4º botão da reunião).
+  | 'bell'
   | 'history'
   | 'doc'
   | 'link'
@@ -52,6 +54,12 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="m3.5 10 8.5-7 8.5 7" />
       <path d="M5.5 8.5V21h5v-7h3v7h5V8.5" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
     </>
   ),
   info: (

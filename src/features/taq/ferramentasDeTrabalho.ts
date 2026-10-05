@@ -44,6 +44,7 @@ import {
 import { versaoDaReuniao } from './armazenamento';
 import { normalizar, termosDe } from './busca';
 import { avaliarCaptura } from './captura';
+import { captureScreen } from './capturaDeTela';
 import type { Escopo } from './contratos';
 import { documentoNoEscopo, instante, reuniaoNoEscopo } from './ferramentas';
 import { diaLocal, fusoValido, localParaInstante, rotuloDoHorario } from './agenda';
@@ -892,6 +893,7 @@ export const getCaptureState: DefinicaoDeFerramenta<{ reuniao_id?: string }> = {
       avaliacao: a.avaliacao,
       sinais: a.sinais,
       intervalos: a.intervalos,
+      lacunasConhecidas: a.lacunasConhecidas,
       segmentos: a.segmentos,
       ...(a.ultimaAtualizacao ? { ultimaAtualizacao: a.ultimaAtualizacao } : {}),
     });
@@ -901,6 +903,7 @@ export const getCaptureState: DefinicaoDeFerramenta<{ reuniao_id?: string }> = {
       avaliacao: a.avaliacao,
       sinais: a.sinais,
       intervalos_sem_fala: a.intervalos.map((i) => `${instante(i.deMs)}–${instante(i.ateMs)}`),
+      lacunas_conhecidas_sem_instante: a.lacunasConhecidas,
       segmentos: a.segmentos,
     };
   },
@@ -1149,5 +1152,6 @@ export const FERRAMENTAS_DE_TRABALHO: readonly DefinicaoDeFerramenta[] = [
   checkDocument,
   prepareMessage,
   prepareEvent,
+  captureScreen,
   reviewPrivacy,
 ] as unknown as readonly DefinicaoDeFerramenta[];

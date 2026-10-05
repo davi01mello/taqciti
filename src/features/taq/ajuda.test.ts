@@ -1,4 +1,4 @@
-/**
+﻿/**
  * A referência de ajuda contra o aplicativo de verdade.
  *
  * O que estes testes seguram: a referência não pode citar botão que não existe,
@@ -17,11 +17,14 @@ import {
 } from './ajuda';
 import { FERRAMENTAS_BASE } from './ferramentas';
 import { FERRAMENTAS_DE_APP } from './ferramentasDeApp';
+import { FERRAMENTAS_DE_INTEGRACAO } from './ferramentasDeIntegracao';
 import { FERRAMENTAS_DE_TRABALHO } from './ferramentasDeTrabalho';
 import { criarRegistroPadrao } from './orquestrador';
 
 const REGISTRADAS = new Set(
-  [...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP, ...FERRAMENTAS_DE_TRABALHO].map((f) => f.nome),
+  [...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP, ...FERRAMENTAS_DE_TRABALHO, ...FERRAMENTAS_DE_INTEGRACAO].map(
+    (f) => f.nome,
+  ),
 );
 /** Ferramentas que não são operação de funcionalidade: leitura de conteúdo e a própria ajuda. */
 const SEM_FUNCIONALIDADE = new Set([
@@ -137,7 +140,7 @@ describe('get_usage_guide', () => {
     );
     const ata = guiaDeUso('Como gero uma ata?', REGISTRADAS);
     expect(idsDe(ata)[0]).toBe('gerar_documento');
-    expect(ata.guias[0]!.passos.join(' ')).toMatch(/“Gerar documento”/);
+    expect(ata.guias[0]!.passos.join(' ')).toMatch(/“Criar documento”/);
     expect(idsDe(guiaDeUso('Como edito um documento?', REGISTRADAS))).toContain(
       'editar_documento',
     );
@@ -179,14 +182,33 @@ describe('get_usage_guide', () => {
     expect(jira.aviso).toMatch(/não está documentado/);
   });
 
-  it('o que existe pela metade sai pela metade: rascunho sim, envio não; sugestão sim, evento não', () => {
+  it('e-mail e agenda dependem da conta do CITi: com ela o Taq executa; sem ela, só rascunho e sugestão', () => {
     const email = guiaDeUso('Dá para mandar a ata por e-mail para o cliente?', REGISTRADAS);
-    expect(idsDe(email)).toContain('rascunho_de_mensagem');
-    expect(email.fora_do_app[0]).toMatchObject({ situacao: 'indisponivel' });
-    expect(email.fora_do_app[0]!.resposta).toMatch(/não envia/);
+    expect(idsDe(email)).toContain('enviar_email');
+    // O guia traz o pré-requisito e a limitação: sem a conta, só rascunho.
+    const guia = email.guias.find((g) => idDoTitulo(g.titulo) === 'enviar_email')!;
+    expect(guia.pre_requisitos.join(' ')).toMatch(/conta do CITi conectada em “Conexões”/);
+    expect(guia.limitacoes.join(' ')).toMatch(/Sem a conta conectada o Taq só prepara o rascunho/);
+    // E o que continua inexistente segue dito como inexistente — sem prometer envio sem conta.
+    const whats = guiaDeUso('Integra com WhatsApp ou Slack?', REGISTRADAS);
+    expect(whats.fora_do_app[0]).toMatchObject({ situacao: 'indisponivel' });
+    expect(whats.fora_do_app[0]!.resposta).toMatch(/Sem a conta conectada ele não envia/);
+    expect(whats.fora_do_app[0]!.resposta).toMatch(/Conexões/);
+    const rascunho = guiaDeUso('Prepare um rascunho de e-mail para a Ana', REGISTRADAS);
+    expect(idsDe(rascunho)).toContain('rascunho_de_mensagem');
     const agenda = guiaDeUso('Consigo agendar a próxima reunião pelo TaqCiti?', REGISTRADAS);
     expect(idsDe(agenda)).toContain('sugerir_horario');
     expect(agenda.fora_do_app.map((x) => x.resposta).join(' ')).toMatch(/não consulta a agenda/);
+  });
+
+  it('sem a conta conectada, enviar e-mail NÃO conta como operação que o agente executa', () => {
+    const semConta = new Set([...REGISTRADAS].filter((n) => !FERRAMENTAS_DE_INTEGRACAO.some((f) => f.nome === n)));
+    const por = (s: ReadonlySet<string>, id: string) =>
+      capacidadesDoApp(s).funcionalidades.find((f) => f.id === id)!;
+    expect(por(semConta, 'enviar_email')).toMatchObject({ o_agente_executa: false });
+    expect(por(semConta, 'criar_evento')).toMatchObject({ o_agente_executa: false });
+    expect(por(REGISTRADAS, 'enviar_email')).toMatchObject({ o_agente_executa: true, ferramenta: 'send_email' });
+    expect(por(REGISTRADAS, 'conectar_conta_citi')).toMatchObject({ o_agente_executa: false });
   });
 
   it('compromissos: guia com os nomes da tela, e o agente executa', () => {
@@ -212,7 +234,11 @@ describe('get_app_capabilities', () => {
     const por = (id: string) => c.funcionalidades.find((f) => f.id === id)!;
     expect(por('apagar_reuniao')).toMatchObject({ o_agente_executa: true, ferramenta: 'delete_meeting' });
     expect(por('apagar_documento')).toMatchObject({ o_agente_executa: false });
-    expect(por('baixar_documento')).toMatchObject({ o_agente_executa: false });
+    expect(por('baixar_documento')).toMatchObject({
+      o_agente_executa: true,
+      ferramenta: 'download_document',
+    });
+    expect(por('fontes_do_contexto')).toMatchObject({ o_agente_executa: true });
     expect(por('enviar_google_docs')).toMatchObject({ o_agente_executa: false });
     expect(por('acompanhar_compromissos')).toMatchObject({ o_agente_executa: true, ferramenta: 'update_commitment' });
     // Todos os especialistas do catálogo estão ativos: nada sobra como "planejado".

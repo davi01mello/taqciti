@@ -37,6 +37,7 @@ import { formatElapsedClock } from '@/shared/ui/format';
 import { Icon } from '@/shared/ui/Icon';
 import { Sheen, SHEEN_HOST_POSITIONED, trackSheen } from '@/shared/ui/Sheen';
 import { Wave } from '@/shared/ui/Wave';
+import { derivarEstadoDaCaptura, LEITURA_DO_ESTADO } from '@/shared/ui/estadoDaCaptura';
 import { useFloating } from './useFloating';
 import { PANEL_OPEN_EVENT } from './mount';
 
@@ -61,6 +62,11 @@ interface Props {
   recusado: boolean;
   /** `false` = há legenda na tela que a captura não está conseguindo ler. */
   saudavel: boolean;
+  /** Instante do último trecho recebido; 
+ull = nenhum ainda. */
+  ultimoTrechoEm?: number | null;
+  /** Quantas falas já foram capturadas. */
+  falas?: number;
   prefs: PanelPrefs;
   callbacks: CapsulaCallbacks;
 }
@@ -80,6 +86,8 @@ export function Capsula({
   gravacaoAnterior = null,
   recusado,
   saudavel,
+  ultimoTrechoEm = null,
+  falas = 0,
   prefs,
   callbacks,
 }: Props) {
@@ -87,7 +95,6 @@ export function Capsula({
   const dicaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const perguntando = perguntandoSobre !== null;
-  const ativo = phase === 'recording' || phase === 'paused';
 
   // Relógio: só corre enquanto a captura está viva.
   const [agora, setAgora] = useState(() => Date.now());
@@ -136,32 +143,43 @@ export function Capsula({
   // justamente no momento em que tem algo a dizer.
   if (prefs.presence === 'closed' && !perguntando) return null;
 
-  const degradada = ativo && !saudavel;
+  const estado = derivarEstadoDaCaptura(
+    { phase, captureHealthy: saudavel, startedAt, lastChunkAt: ultimoTrechoEm, falas },
+    agora,
+  );
+  const gravando = estado === 'capturando' && !perguntando;
 
-  const tone = perguntando || degradada
+  const tone = perguntando
     ? 'amber'
-    : phase === 'recording'
-      ? 'green'
-      : phase === 'paused' || phase === 'captionsRequired'
-        ? 'amber'
-        : 'dim';
+    : estado === 'erro'
+      ? 'red'
+      : estado === 'capturando'
+        ? 'green'
+        : estado === 'desligada' || estado === 'salva'
+          ? 'dim'
+          : 'amber';
 
   const rotulo = perguntando
     ? 'registrar?'
-    : degradada
-      ? 'religando…'
-      : phase === 'recording'
-        ? `Gravando ${formatElapsedClock(agora - (startedAt ?? agora))}`
-        : phase === 'paused'
-          ? 'pausado'
-          : phase === 'captionsRequired'
-            ? 'preparando…'
-            : phase === 'ended'
-              ? 'salva'
-              : recusado
-                ? 'sem registro'
-                : 'TaqCiti';
-
+    : estado === 'erro'
+      ? 'erro na captura'
+      : estado === 'interrompida'
+        ? 'religando…'
+        : estado === 'capturando'
+          ? `Gravando ${formatElapsedClock(agora - (startedAt ?? agora))}`
+          : estado === 'iniciando'
+            ? 'iniciando…'
+            : estado === 'aguardando_fonte'
+              ? 'aguardando legendas'
+              : estado === 'pausada'
+                ? 'pausado'
+                : estado === 'preparando'
+                  ? 'preparando…'
+                  : phase === 'ended'
+                    ? 'salva'
+                    : recusado
+                      ? 'sem registro'
+                      : 'TaqCiti';
   /** A pergunta abre para cima ou para baixo, conforme onde a cápsula está. */
   const paraBaixo = floating.geometry.capsule.top < 220;
 
@@ -199,9 +217,9 @@ export function Capsula({
         type="button"
         title="TaqCiti — clique para abrir a sidebar, arraste para mover"
         aria-label={
-          phase === 'recording' && !degradada && !perguntando
-            ? 'Gravando esta reunião. Abrir a sidebar do TaqCiti'
-            : 'Abrir a sidebar do TaqCiti'
+          perguntando || estado === 'desligada'
+            ? 'Abrir a sidebar do TaqCiti'
+            : `${LEITURA_DO_ESTADO[estado]}. Abrir a sidebar do TaqCiti`
         }
         {...floating.dragHandlers}
         onPointerMove={(event) => {
@@ -218,16 +236,18 @@ export function Capsula({
         }`}
       >
         <Sheen />
-        <Wave size={16} animated={phase === 'recording'} tone={tone} />
-        <span className={phase === 'recording' && !degradada ? '' : 'text-muted'}>
+        <Wave size={16} animated={estado === 'capturando'} tone={tone} />
+        <span className={gravando ? '' : 'text-muted'}>
           {rotulo}
         </span>
-        {phase === 'recording' && !degradada && (
+        {gravando && (
           <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse-dot" />
         )}
         {perguntando && (
           <span className="h-1.5 w-1.5 rounded-full bg-[#f2c94c] animate-pulse-dot" />
         )}
+        {/* Só a MUDANÇA de estado é anunciada: o relógio, que muda a cada segundo, fica de fora. */}
+        <span className="sr-only" role="status">{perguntando ? '' : LEITURA_DO_ESTADO[estado]}</span>
       </button>
 
       {/* ---------- a solicitação, na própria página ---------- */}

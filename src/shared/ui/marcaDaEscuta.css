@@ -99,22 +99,37 @@
 
 /* A onda vira três pontos que digitam (…); as linhas são o esqueleto do
    texto que ainda não veio. */
-.tq-escuta[data-estado='preparando'] .tq-escuta-onda {
+.tq-escuta[data-estado='preparando'] .tq-escuta-onda,
+.tq-escuta[data-estado='iniciando'] .tq-escuta-onda,
+.tq-escuta[data-estado='aguardando_fonte'] .tq-escuta-onda {
   transform: scaleY(var(--ponto));
 }
 
-.tq-escuta[data-estado='preparando'] .tq-escuta-onda .v {
+.tq-escuta[data-estado='preparando'] .tq-escuta-onda .v,
+.tq-escuta[data-estado='iniciando'] .tq-escuta-onda .v,
+.tq-escuta[data-estado='aguardando_fonte'] .tq-escuta-onda .v {
   animation: tq-escuta-digitar 1.2s ease-in-out infinite;
   animation-delay: calc(var(--i) * 0.16s);
 }
 
-.tq-escuta[data-estado='preparando'] .tq-escuta-linha .e {
+.tq-escuta[data-estado='preparando'] .tq-escuta-linha .e,
+.tq-escuta[data-estado='iniciando'] .tq-escuta-linha .e,
+.tq-escuta[data-estado='aguardando_fonte'] .tq-escuta-linha .e {
   animation: tq-escuta-esqueleto 1.6s ease-in-out infinite;
   animation-delay: calc(var(--i) * 0.2s);
 }
 
-.tq-escuta[data-estado='preparando'] .e::before {
+.tq-escuta[data-estado='preparando'] .e::before,
+.tq-escuta[data-estado='iniciando'] .e::before {
   opacity: 0.55;
+}
+
+/* Aguardando a fonte: mais devagar e acinzentado — espera, não trabalha. */
+.tq-escuta[data-estado='aguardando_fonte'] .e::before {
+  opacity: 0.7;
+}
+.tq-escuta[data-estado='aguardando_fonte'] .tq-escuta-onda .v {
+  animation-duration: 2.4s;
 }
 
 /* --------------------------------------------------------------- pausada */
@@ -132,12 +147,19 @@
 
 /* A onda achata em âmbar; as linhas piscam devagar — há legenda, e a captura
    não a lê. */
-.tq-escuta[data-estado='interrompida'] .tq-escuta-onda {
+.tq-escuta[data-estado='interrompida'] .tq-escuta-onda,
+.tq-escuta[data-estado='erro'] .tq-escuta-onda {
   transform: scaleY(var(--ponto));
 }
 
 .tq-escuta[data-estado='interrompida'] .e::before {
   background: rgb(232 176 110);
+  opacity: 1;
+}
+
+/* Erro: vermelho-tijolo e parado — sem piscar, que seria ruído. */
+.tq-escuta[data-estado='erro'] .e::before {
+  background: rgb(226 104 96);
   opacity: 1;
 }
 
@@ -253,7 +275,9 @@
     transition: none !important;
   }
 
-  .tq-escuta[data-estado='preparando'] .tq-escuta-linha .e {
+  .tq-escuta[data-estado='preparando'] .tq-escuta-linha .e,
+  .tq-escuta[data-estado='iniciando'] .tq-escuta-linha .e,
+  .tq-escuta[data-estado='aguardando_fonte'] .tq-escuta-linha .e {
     opacity: 0.4;
   }
 

@@ -50,9 +50,13 @@ interface Props {
   capturando: boolean;
   quantosPrints: number;
   rapidaAberta: boolean;
+  /** Avisos do Taq ainda não lidos: um ponto discreto, nunca foco nem som. */
+  avisosNovos?: number;
+  avisosAberto?: boolean;
   onPrint: () => void;
   onPausar: () => void;
   onRapida: () => void;
+  onAvisos?: () => void;
 }
 
 export function AcoesDaReuniao({
@@ -61,9 +65,12 @@ export function AcoesDaReuniao({
   capturando,
   quantosPrints,
   rapidaAberta,
+  avisosNovos = 0,
+  avisosAberto = false,
   onPrint,
   onPausar,
   onRapida,
+  onAvisos,
 }: Props) {
   return (
     <div className="tq-acoes" role="group" aria-label="Ações desta reunião">
@@ -102,6 +109,26 @@ export function AcoesDaReuniao({
         <Icon name="sparkles" size={16} />
         <span>Pergunta rápida</span>
       </button>
+
+      {onAvisos && (
+        <button
+          type="button"
+          className="tq-acao tq-acao-avisos"
+          aria-expanded={avisosAberto}
+          aria-controls="tq-avisos-popup"
+          aria-label={
+            avisosNovos > 0
+              ? `Avisos do Taq, ${avisosNovos} ${avisosNovos === 1 ? 'novo' : 'novos'}`
+              : 'Avisos do Taq'
+          }
+          title="Sugestões e avisos do Taq para quem organiza"
+          onClick={onAvisos}
+        >
+          <Icon name="bell" size={16} />
+          <span>Avisos</span>
+          {avisosNovos > 0 && <span className="tq-acao-ponto" aria-hidden="true" />}
+        </button>
+      )}
     </div>
   );
 }

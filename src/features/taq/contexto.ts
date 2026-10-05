@@ -98,6 +98,27 @@ export async function montarContextoInicial(
   const conversa = conversas.find((c) => c.id === tarefa.conversaId);
   linhas.push(...linhasDaMemoria(await revalidarMemoria(conversa, escopo, armazenamento)));
 
+  // Pedido composto ("gere a ata e envie") que parou no meio: o que já foi
+  // produzido nesta conversa não se refaz. Quem retoma usa este documento, e só
+  // gera outro se a pessoa pedir uma versão nova.
+  const daConversa = documentos
+    .filter((d) => d.conversationId === tarefa.conversaId)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 5);
+  if (daConversa.length) {
+    linhas.push(
+      '',
+      'Documentos já produzidos NESTA conversa (para retomar um pedido que parou no meio, use-os; ' +
+        'não gere de novo, a menos que a pessoa peça uma versão nova):',
+    );
+    for (const d of daConversa) {
+      linhas.push(
+        `- documento ${d.id} "${d.title}" — ${d.tipo ?? 'documento'}, atualizado ${dia(d.updatedAt)}` +
+          `${d.updatedAt > d.createdAt ? ' (editado depois de criado)' : ''}`,
+      );
+    }
+  }
+
   const outras = conversas.filter(
     (c) => c.id !== tarefa.conversaId && podeLerConversa(escopo, c),
   );

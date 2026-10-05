@@ -433,3 +433,16 @@
   outline: 2px solid rgb(144 223 173);
   outline-offset: 2px;
 }
+
+/* Prévia da captura de tela (CartaoDeTela). */
+.tq-c-previa {
+  margin: 8px 0 0;
+}
+.tq-c-previa img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  object-fit: contain;
+}

@@ -45,10 +45,16 @@ export type EstadoDaCaptura =
   | 'capturando'
   /** Ligando as legendas do Meet — ainda não há o que capturar. */
   | 'preparando'
+  /** Reunião detectada, primeiros segundos: ainda nenhum trecho. */
+  | 'iniciando'
+  /** Captura de pé, nada chegando: silêncio ou legenda desligada. */
+  | 'aguardando_fonte'
   /** Pausa pedida por quem está na reunião. */
   | 'pausada'
   /** Legenda na tela que a captura não consegue ler. Estado próprio. */
   | 'interrompida'
+  /** Interrompida por tempo demais: a leitura não voltou. */
+  | 'erro'
   /** Reunião encerrada e salva. */
   | 'salva'
   /** Sem captura: não há reunião, ou o registro foi recusado. */
@@ -81,8 +87,11 @@ const X_DAS_LINHAS = 0.51;
 const VIVOS: ReadonlySet<EstadoDaCaptura> = new Set<EstadoDaCaptura>([
   'capturando',
   'preparando',
+  'iniciando',
+  'aguardando_fonte',
   'pausada',
   'interrompida',
+  'erro',
 ]);
 
 function movimentoReduzido(): boolean {

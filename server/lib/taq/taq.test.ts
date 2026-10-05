@@ -146,6 +146,15 @@ describe('instruções versionadas', () => {
     expect(app).toMatch(/get_usage_guide/);
   });
 
+  it('app-assistant v5: copiar a transcrição, baixar documento e contexto da conversa', () => {
+    const app = instrucoesDoTaq('app-assistant-v5');
+    expect(app).toMatch(/delete_conversation/);
+    expect(app).toMatch(/copy_transcript/);
+    expect(app).toMatch(/Nunca diga que copiou/);
+    expect(app).toMatch(/download_document/);
+    expect(app).toMatch(/add_context_source/);
+  });
+
   it('taq v7: coordena os especialistas de trabalho e não promete envio nem agenda', () => {
     const v7 = instrucoesDoTaq('taq-v7');
     expect(instrucoesDoTaq()).toBe(v7);
@@ -165,6 +174,8 @@ describe('instruções versionadas', () => {
       'handoff-v1',
       'communication-v1',
       'scheduling-v1',
+      'communication-v2',
+      'scheduling-v2',
       'memory-v1',
       'context-v1',
       'copilot-v1',
@@ -177,6 +188,12 @@ describe('instruções versionadas', () => {
     expect(instrucoesDoTaq('commitments-v1')).toMatch(/Citado não é responsável/);
     expect(instrucoesDoTaq('communication-v1')).toMatch(/Nunca diga que enviou/);
     expect(instrucoesDoTaq('scheduling-v1')).toMatch(/Nunca diga que agendou/);
+    // v2: pode enviar e agendar, mas só com o resultado da ferramenta, sem reenvio às cegas.
+    expect(instrucoesDoTaq('communication-v2')).toMatch(/Nunca diga que enviou, encaminhou ou agendou sem o resultado/);
+    expect(instrucoesDoTaq('communication-v2')).toMatch(/não reenvie/i);
+    expect(instrucoesDoTaq('communication-v2')).toMatch(/Não\*\* diga "entregue"/);
+    expect(instrucoesDoTaq('scheduling-v2')).toMatch(/Intenção de reunião numa transcrição não é pedido/);
+    expect(instrucoesDoTaq('scheduling-v2')).toMatch(/desconhecida/);
     expect(instrucoesDoTaq('handoff-v1')).toMatch(/Não julgue pessoas/);
     expect(instrucoesDoTaq('documents-v3')).toMatch(/nunca sobrescreva a edição dela/);
   });

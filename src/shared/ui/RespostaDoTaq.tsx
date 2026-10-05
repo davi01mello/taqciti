@@ -31,6 +31,9 @@ const ROTULO_DA_OPERACAO = {
   apagar: 'Apagada (na lixeira por 30 dias)',
   restaurar: 'Restaurada',
   exportar: 'Transcrição exportada',
+  preparar_copia: 'Texto pronto para copiar',
+  baixar: 'Documento baixado',
+  contexto: 'Contexto da conversa',
 } as const;
 
 function instante(ms: number): string {

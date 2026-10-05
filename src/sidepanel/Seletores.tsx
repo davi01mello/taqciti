@@ -55,8 +55,11 @@ interface Props {
 const PALAVRA_DA_CAPTURA: Record<EstadoDaCaptura, string> = {
   capturando: 'Ao vivo',
   preparando: 'Preparando',
+  iniciando: 'Iniciando',
+  aguardando_fonte: 'Aguardando',
   pausada: 'Pausada',
   interrompida: 'Interrompida',
+  erro: 'Erro',
   salva: 'Salva',
   desligada: 'Desligada',
 };
@@ -65,8 +68,11 @@ const PALAVRA_DA_CAPTURA: Record<EstadoDaCaptura, string> = {
 const LEITURA_DA_CAPTURA: Record<EstadoDaCaptura, string> = {
   capturando: 'capturando as legendas agora',
   preparando: 'preparando a captura',
+  iniciando: 'iniciando a captura',
+  aguardando_fonte: 'aguardando legendas, nenhuma fala chegou ainda',
   pausada: 'captura pausada',
   interrompida: 'captura interrompida',
+  erro: 'erro na captura, as legendas não estão sendo lidas',
   salva: 'transcrição salva',
   desligada: 'captura desligada',
 };
@@ -97,6 +103,9 @@ const CAPTURA_ATENCAO: ReadonlySet<EstadoDaCaptura> = new Set<EstadoDaCaptura>([
   'pausada',
   'interrompida',
   'preparando',
+  'iniciando',
+  'aguardando_fonte',
+  'erro',
 ]);
 
 export function Seletores({

@@ -2661,6 +2661,14 @@ body .tq-home [role='dialog'] button {
   margin-top: 8px;
 }
 
+/* `.tq-gerar` é `display: contents`: sem caixa própria, o `absolute` do
+   resultado ancorava no ancestral errado e o cartão saía da tela. */
+.tq-acoes-reuniao .tq-gerar-resultado {
+  position: static;
+  width: auto;
+  box-sizing: border-box;
+}
+
 .tq-acoes-reuniao .tq-aviso-curto {
   margin: 0 0 0 6px;
   color: var(--voz-clara);

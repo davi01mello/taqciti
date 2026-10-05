@@ -339,3 +339,27 @@ npx vitest run src/features/taq/taq.live.test.ts
   medidas, e execuções longas estouram os 120 s. O runtime encerra como
   `tempo_esgotado`, sem inventar resposta.
 - Sem streaming da resposta.
+
+## Contexto escolhido, transcrição e documentos (05/10/2026)
+
+- **Contexto escolhido** (`Conversation.contexto`): as fontes que a PESSOA fixou
+  para a conversa (`add_context_source` / `remove_context_source`), até 6, só
+  ponteiros com a `versao` de quando foram escolhidas (`versaoDaReuniao` ou o
+  `updatedAt` do documento). A cada execução `revalidarMemoria` as confere: fonte
+  alterada vem marcada "MUDOU desde que foi escolhida: leia de novo", fonte
+  apagada ou fora do escopo sai e é contada. É por conversa, nunca compartilhada,
+  e morre com ela (`apagarConversas`); escolher fonte numa conversa apagada
+  devolve `sem_conversa` e não a recria. Diferente da memória (automática, vem do
+  que a resposta usou), isto é decisão da pessoa.
+- **Autoria**: resposta anterior do Taq nunca é evidência; a transcrição copiada
+  não inventa falante nem horário.
+- **Pedido composto que parou**: o contexto inicial lista os documentos já
+  produzidos NESTA conversa; quem retoma ("envie a ata") usa o existente. Gerar de
+  novo nunca sobrescreve: `create_document` devolve `ja_havia_do_mesmo_tipo`
+  (com `editado_pela_pessoa`) e o Taq diz que o anterior continua em Documentos.
+- **Conferências determinísticas**: `revisarDocumento` agora aponta
+  `campo_indispensavel` (campo obrigatório do modelo ausente ou "A confirmar") e
+  `vinculo_quebrado` (reunião de origem indisponível). `conferirEnvio`
+  (`verificacaoDeEnvio.ts`) confere, antes de qualquer envio, destinatários
+  (endereço válido, autorizado pela pessoa, domínio da organização) e anexos
+  (existem, no escopo, com conteúdo). Não envia nada.

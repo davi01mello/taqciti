@@ -212,6 +212,14 @@ export const evidenciaDoCartaoSchema = z.object({
 const idsDeRegistro = z.array(z.string().min(1)).min(1).max(40);
 
 export const cartaoSchema = z.discriminatedUnion('tipo', [
+  /** Captura de tela sob pedido: o cartão traz os botões; quem captura é a pessoa, no clique. */
+  z.object({
+    tipo: z.literal('captura_de_tela'),
+    reuniaoId: z.string().min(1).optional(),
+    titulo: z.string().optional(),
+    /** A reunião tem aba aberta e ativa para o print da própria aba. */
+    emAndamento: z.boolean(),
+  }),
   z.object({ tipo: z.literal('compromissos'), ids: idsDeRegistro }),
   z.object({
     tipo: z.literal('sugestoes_de_compromisso'),
@@ -269,6 +277,8 @@ export const cartaoSchema = z.discriminatedUnion('tipo', [
       'capturando',
       'pausada',
       'aguardando_legendas',
+      'sem_legendas',
+      'silencio_provavel',
       'problema_na_captura',
       'encerrada',
       'desconhecida',
@@ -276,8 +286,26 @@ export const cartaoSchema = z.discriminatedUnion('tipo', [
     avaliacao: z.enum(['sem_problemas_detectados', 'com_ressalvas', 'problemas_detectados']),
     sinais: z.array(z.string()),
     intervalos: z.array(z.object({ deMs: z.number(), ateMs: z.number() })),
+    lacunasConhecidas: z
+      .array(z.object({ tipo: z.enum(['reconexao', 'descartados', 'leitura_degradada']), quantidade: z.number().int().positive() }))
+      .optional(),
     ultimaAtualizacao: z.number().optional(),
     segmentos: z.number().int().nonnegative(),
+  }),
+  z.object({
+    /**
+     * Uma ação que sai do computador (e-mail, evento): a prévia que espera a
+     * confirmação, ou o desfecho. `aceito` = o Google aceitou; não diz que
+     * alguém recebeu. `desconhecido` = pode ter saído: não reenviar sozinho.
+     */
+    tipo: z.literal('acao_externa'),
+    operacao: z.enum(['email', 'evento_criar', 'evento_remarcar', 'evento_cancelar']),
+    estado: z.enum(['aguardando_confirmacao', 'aceito', 'falhou', 'desconhecido']),
+    titulo: z.string().min(1),
+    linhas: z.array(z.string()).max(12),
+    alertas: z.array(z.string()),
+    /** Só um link do Google (evento criado). */
+    link: z.string().optional(),
   }),
   z.object({
     tipo: z.literal('revisao_de_documento'),
@@ -321,7 +349,16 @@ export const resultadoDoAgenteSchema = z.object({
   operacoes: z
     .array(
       z.object({
-        acao: z.enum(['abrir', 'renomear', 'apagar', 'restaurar', 'exportar']),
+        acao: z.enum([
+          'abrir',
+          'renomear',
+          'apagar',
+          'restaurar',
+          'exportar',
+          'preparar_copia',
+          'baixar',
+          'contexto',
+        ]),
         tipo: z.enum(['reuniao', 'documento', 'conversa']),
         id: z.string(),
         titulo: z.string(),

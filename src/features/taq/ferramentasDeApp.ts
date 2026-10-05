@@ -34,8 +34,17 @@ import { z } from 'zod/v4';
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { DocumentoGuardado } from '@/features/documents/store';
 import { downloadTranscript } from '@/features/history/export';
+import { baixarComoHtml, baixarComoTexto } from '@/document/baixarDocumento';
+import {
+  MAX_FONTES_DO_CONTEXTO,
+  adicionarFonteAoContexto,
+  removerFonteDoContexto,
+} from '@/home/conversations';
+import { formatElapsedClock } from '@/shared/ui/format';
+import { versaoDaReuniao } from './armazenamento';
 import { ASSUNTOS, capacidadesDoApp, guiaDeUso } from './ajuda';
 import { FERRAMENTAS_BASE } from './ferramentas';
+import { ferramentasDeIntegracaoDisponiveis } from './ferramentasDeIntegracao';
 import {
   DIAS_NA_LIXEIRA,
   descartarDaLixeira,
@@ -618,10 +627,236 @@ export const exportTranscript: DefinicaoDeFerramenta<z.infer<typeof reuniaoSchem
       exportada: true,
       reuniao: { id: r.id, titulo: r.title },
       formato: 'txt',
+      situacao: situacaoDaTranscricao(r),
+      segmentos: r.segments.length,
       ...alternativas(outras),
     };
   },
   resumir: () => 'transcrição exportada',
+};
+
+// ------------------------------------------------- copiar a transcrição
+
+const TETO_DA_COPIA = 40_000;
+
+/**
+ * A transcrição como texto, dizendo só o que a captura registrou: sem nome de
+ * falante, não se inventa "Falante"; o instante vem do `startOffsetMs` que a
+ * captura gravou. Falas seguidas da mesma pessoa não repetem o cabeçalho.
+ */
+export function transcricaoComoTexto(r: MeetingRecord): string {
+  let anterior: string | null | undefined;
+  return r.segments
+    .map((s, i) => {
+      const quem = s.speaker?.trim() || null;
+      const relogio = formatElapsedClock(s.startOffsetMs);
+      const agrupada = i > 0 && quem !== null && quem === anterior;
+      anterior = quem;
+      if (agrupada) return s.text;
+      return quem ? `[${relogio}] ${quem}: ${s.text}` : `[${relogio}] ${s.text}`;
+    })
+    .join('\n');
+}
+
+/** Parcial = a captura ainda acrescenta falas; final = a reunião foi fechada. */
+function situacaoDaTranscricao(r: MeetingRecord): 'parcial' | 'final' {
+  return r.status === 'recording' ? 'parcial' : 'final';
+}
+
+export const copyTranscript: DefinicaoDeFerramenta<z.infer<typeof reuniaoSchema>> = {
+  nome: 'copy_transcript',
+  descricao:
+    'Prepara o texto da transcrição para a pessoa COPIAR (botão “Copiar texto” da resposta). ' +
+    'Não copia para a área de transferência: quem copia é a pessoa. Diz se a transcrição é ' +
+    'parcial (reunião em andamento) ou final. Nada é enviado.',
+  schemaDeEntrada: reuniaoSchema,
+  efeito: 'leitura',
+  requisitos: ['reunioes'],
+  politica: { repeticao: 'idempotente', maxPorExecucao: 2 },
+  etapa: 'Preparando a transcrição para copiar',
+  async executar(args, ctx) {
+    const { registro: r, outras } = await resolverReuniao(args.reuniao, ctx);
+    exigirReuniao(ctx.tarefa.escopo, r.id);
+    if (!r.segments.length) {
+      throw new ErroDeFerramenta(
+        'sem_conteudo',
+        `A reunião “${r.title}” não tem transcrição para copiar.`,
+      );
+    }
+    const cabecalho = `${r.title} — ${dataBr(r.startedAt)} (transcrição ${situacaoDaTranscricao(r)})`;
+    let corpo = transcricaoComoTexto(r);
+    let cortada = false;
+    if (corpo.length > TETO_DA_COPIA) {
+      corpo = corpo.slice(0, TETO_DA_COPIA);
+      cortada = true;
+    }
+    ctx.registrarCopiavel(
+      `${cabecalho}\n\n${corpo}${cortada ? '\n\n[Texto cortado por tamanho: use “Baixar .txt” para a transcrição inteira.]' : ''}`,
+    );
+    ctx.registrarOperacao({
+      acao: 'preparar_copia',
+      tipo: 'reuniao',
+      id: r.id,
+      titulo: r.title,
+      ok: true,
+    });
+    return {
+      preparada: true,
+      reuniao: { id: r.id, titulo: r.title },
+      situacao: situacaoDaTranscricao(r),
+      segmentos: r.segments.length,
+      cortada,
+      aviso: 'O texto está na resposta, com o botão “Copiar texto”. Nada foi copiado nem enviado.',
+      ...alternativas(outras),
+    };
+  },
+  resumir: (s) => `transcrição ${String(s.situacao)} pronta para copiar`,
+};
+
+// ------------------------------------------------------ baixar documento
+
+const baixarDocumentoSchema = z.object({
+  documento: z.string().min(1).describe('O id, "ultimo" ou o nome como a pessoa disse.'),
+  formato: z
+    .enum(['md', 'html', 'pdf'])
+    .default('md')
+    .describe('md = a versão salva (editada). html = a versão como foi gerada. pdf: só pela tela.'),
+});
+
+export const downloadDocument: DefinicaoDeFerramenta<z.infer<typeof baixarDocumentoSchema>> = {
+  nome: 'download_document',
+  descricao:
+    'Baixa um documento como arquivo: .md é a versão SALVA (com as edições); .html é a versão como ' +
+    'foi gerada (sem as edições). PDF não sai por aqui: só pelo “Baixar” logo depois de gerar.',
+  schemaDeEntrada: baixarDocumentoSchema,
+  efeito: 'interface',
+  requisitos: ['documentos'],
+  politica: { repeticao: 'idempotente', maxPorExecucao: 2 },
+  etapa: 'Baixando o documento',
+  async executar(args, ctx) {
+    exigirTela(ctx);
+    const { registro: d, outras } = await resolverDocumento(args.documento, ctx);
+    exigirDocumento(ctx.tarefa.escopo, d);
+    if (args.formato === 'pdf') {
+      throw new ErroDeFerramenta(
+        'formato_indisponivel',
+        'PDF só sai pelo botão “Baixar” do resultado, logo depois de gerar o documento pela tela da ' +
+          'reunião. Posso baixar o .md (versão salva) agora.',
+      );
+    }
+    if (args.formato === 'html' && !d.html) {
+      throw new ErroDeFerramenta(
+        'formato_indisponivel',
+        'Este documento não tem a versão HTML da geração. Posso baixar o .md.',
+      );
+    }
+    try {
+      if (args.formato === 'html') baixarComoHtml(d.html!, d.title);
+      else baixarComoTexto(d.content, d.title, d.formato === 'texto' ? 'txt' : 'md');
+    } catch (e) {
+      ctx.registrarOperacao({ acao: 'baixar', tipo: 'documento', id: d.id, titulo: d.title, ok: false });
+      throw new ErroDeFerramenta(
+        'operacao_falhou',
+        `O download não começou: ${(e as Error)?.message ?? 'erro'}.`,
+      );
+    }
+    ctx.registrarOperacao({ acao: 'baixar', tipo: 'documento', id: d.id, titulo: d.title, ok: true });
+    return {
+      baixado: true,
+      documento: { id: d.id, titulo: d.title },
+      formato: args.formato === 'html' ? 'html' : d.formato === 'texto' ? 'txt' : 'md',
+      versao: args.formato === 'html' ? 'como foi gerada, sem as edições' : 'salva, com as edições',
+      ...alternativas(outras),
+    };
+  },
+  resumir: (s) => `documento baixado (${String(s.formato)})`,
+};
+
+// ---------------------------------------------- fontes do contexto
+
+const fonteSchema = z.object({
+  tipo: z.enum(['reuniao', 'documento']),
+  registro: z
+    .string()
+    .min(1)
+    .describe('O id, "atual"/"ultima" (reunião) ou "ultimo" (documento), ou o nome como a pessoa disse.'),
+});
+
+async function resolverFonte(
+  args: z.infer<typeof fonteSchema>,
+  ctx: ContextoDeFerramenta,
+): Promise<{ tipo: 'reuniao' | 'documento'; id: string; titulo: string; versao: string }> {
+  if (args.tipo === 'reuniao') {
+    const { registro: r } = await resolverReuniao(args.registro, ctx);
+    exigirReuniao(ctx.tarefa.escopo, r.id);
+    return { tipo: 'reuniao', id: r.id, titulo: r.title, versao: versaoDaReuniao(r) };
+  }
+  const { registro: d } = await resolverDocumento(args.registro, ctx);
+  exigirDocumento(ctx.tarefa.escopo, d);
+  return { tipo: 'documento', id: d.id, titulo: d.title, versao: String(d.updatedAt) };
+}
+
+export const addContextSource: DefinicaoDeFerramenta<z.infer<typeof fonteSchema>> = {
+  nome: 'add_context_source',
+  descricao:
+    'Põe uma reunião ou um documento no CONTEXTO desta conversa, até a pessoa tirar. O Taq passa a ' +
+    'tratá-lo como fonte escolhida e a conferi-lo a cada pergunta. Vale só para ESTA conversa.',
+  schemaDeEntrada: fonteSchema,
+  efeito: 'escrita_local',
+  requisitos: ['reunioes', 'documentos'],
+  politica: { repeticao: 'idempotente', maxPorExecucao: 3 },
+  etapa: 'Adicionando ao contexto',
+  async executar(args, ctx) {
+    const f = await resolverFonte(args, ctx);
+    const r = await adicionarFonteAoContexto(ctx.tarefa.conversaId, {
+      tipo: f.tipo,
+      id: f.id,
+      titulo: f.titulo,
+      versao: f.versao,
+    });
+    if (r === 'sem_conversa') {
+      throw new ErroDeFerramenta('conversa_inexistente', 'A conversa não existe mais. Nada foi gravado.');
+    }
+    if (r === 'cheio') {
+      throw new ErroDeFerramenta(
+        'contexto_cheio',
+        `O contexto guarda até ${MAX_FONTES_DO_CONTEXTO} fontes. Tire uma antes de adicionar outra.`,
+      );
+    }
+    ctx.registrarOperacao({ acao: 'contexto', tipo: f.tipo, id: f.id, titulo: f.titulo, ok: true });
+    return {
+      adicionada: r === 'adicionada',
+      ja_estava: r === 'ja_estava',
+      fonte: { tipo: f.tipo, id: f.id, titulo: f.titulo },
+    };
+  },
+  resumir: (s) => (s.ja_estava ? 'já estava no contexto' : 'fonte no contexto'),
+};
+
+export const removeContextSource: DefinicaoDeFerramenta<z.infer<typeof fonteSchema>> = {
+  nome: 'remove_context_source',
+  descricao:
+    'Tira uma reunião ou um documento do contexto desta conversa. O registro em si NÃO é apagado.',
+  schemaDeEntrada: fonteSchema,
+  efeito: 'escrita_local',
+  requisitos: ['reunioes', 'documentos'],
+  politica: { repeticao: 'idempotente', maxPorExecucao: 3 },
+  etapa: 'Tirando do contexto',
+  async executar(args, ctx) {
+    const f = await resolverFonte(args, ctx);
+    const r = await removerFonteDoContexto(ctx.tarefa.conversaId, f.tipo, f.id);
+    if (r === 'sem_conversa') {
+      throw new ErroDeFerramenta('conversa_inexistente', 'A conversa não existe mais. Nada foi gravado.');
+    }
+    ctx.registrarOperacao({ acao: 'contexto', tipo: f.tipo, id: f.id, titulo: f.titulo, ok: r === 'removida' });
+    return {
+      removida: r === 'removida',
+      nao_estava_no_contexto: r === 'nao_estava',
+      fonte: { tipo: f.tipo, id: f.id, titulo: f.titulo },
+      preservado: 'A reunião ou o documento continuam guardados.',
+    };
+  },
+  resumir: (s) => (s.removida ? 'fonte tirada do contexto' : 'não estava no contexto'),
 };
 
 // ------------------------------------------------------------------ ajuda
@@ -633,8 +868,12 @@ export const exportTranscript: DefinicaoDeFerramenta<z.infer<typeof reuniaoSchem
 // ferramenta removida some da resposta sem ninguém lembrar de atualizar texto.
 
 /** As ferramentas registradas — o mesmo conjunto que o orquestrador registra. */
-function ferramentasRegistradas(): ReadonlySet<string> {
-  return new Set([...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP].map((f) => f.nome));
+async function ferramentasRegistradas(): Promise<ReadonlySet<string>> {
+  // E-mail, diretório e agenda só contam como "o agente executa" quando a
+  // capacidade está disponível agora: sem a conta do CITi, a ajuda diz que o
+  // Taq só faz o rascunho.
+  const deIntegracao = await ferramentasDeIntegracaoDisponiveis();
+  return new Set([...FERRAMENTAS_BASE, ...FERRAMENTAS_DE_APP, ...deIntegracao].map((f) => f.nome));
 }
 
 const capacidadesSchema = z.object({
@@ -658,7 +897,7 @@ export const getAppCapabilities: DefinicaoDeFerramenta<
   politica: { repeticao: 'leitura', maxPorExecucao: 2 },
   etapa: 'Consultando o que o TaqCiti faz',
   async executar(args) {
-    return capacidadesDoApp(ferramentasRegistradas(), args.assunto);
+    return capacidadesDoApp(await ferramentasRegistradas(), args.assunto);
   },
   resumir: (s) => `${(s.funcionalidades as unknown[]).length} funcionalidade(s)`,
 };
@@ -684,7 +923,7 @@ export const getUsageGuide: DefinicaoDeFerramenta<z.infer<typeof guiaSchema>> = 
   politica: { repeticao: 'leitura', maxPorExecucao: 3 },
   etapa: 'Consultando a ajuda',
   async executar(args) {
-    return guiaDeUso(args.pergunta, ferramentasRegistradas(), args.assunto);
+    return guiaDeUso(args.pergunta, await ferramentasRegistradas(), args.assunto);
   },
   resumir: (s) => `${(s.guias as unknown[]).length} guia(s) de uso`,
 };
@@ -697,6 +936,10 @@ export const FERRAMENTAS_DE_APP: readonly DefinicaoDeFerramenta[] = [
   restoreMeeting,
   deleteConversation,
   exportTranscript,
+  copyTranscript,
+  downloadDocument,
+  addContextSource,
+  removeContextSource,
   getAppCapabilities,
   getUsageGuide,
 ] as unknown as readonly DefinicaoDeFerramenta[];

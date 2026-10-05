@@ -1,12 +1,12 @@
 {
-  "quando": "2026-10-03T01:23:04.898Z",
-  "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\7d22c2ac-84b7-4d45-aa7f-fd4f504129bb\\scratchpad\\dist-dev",
+  "quando": "2026-10-05T16:59:08.609Z",
+  "build": "..\\AppData\\Local\\Temp\\taqciti-verify-dev",
   "browser": "154.0.4258.53",
   "dados": "[TESTE] sintéticos; geração simulada, sem IA",
   "vistos": [
+    "Abrir",
     "Abrir HOME",
     "Abrir documento",
-    "Abrir na HOME",
     "Abrir navegação",
     "Acompanhamento",
     "Agora não",
@@ -26,14 +26,17 @@
     "Baixar o documento como arquivo de texto",
     "Baixar rascunho",
     "Cancelar",
-    "Capturar a aba da reunião",
+    "Conectadas",
+    "Conectar",
     "Conexões",
+    "Continuar na conversa",
     "Conversa",
     "Conversas",
     "Copiar",
     "Copiar a resposta",
     "Copiar sua mensagem",
     "Copiar texto",
+    "Criar documento",
     "Decisão",
     "Desfazer",
     "Desligar",
@@ -43,14 +46,13 @@
     "Documento",
     "Documentos",
     "Dúvida",
+    "Em breve",
     "Enviar ao Google Docs",
     "Escolher conversa",
+    "Fechar",
     "Finalizar",
     "Fontes",
-    "Gerar documento",
     "Imagem",
-    "Integrações",
-    "Ligar sincronização",
     "Mais ações",
     "Nome da reunião",
     "Nome do documento",
@@ -58,15 +60,15 @@
     "Notas da reunião",
     "Nova",
     "Nova conversa",
-    "O que o Taq faz",
+    "Para conectar",
     "Pausada",
     "Pausar",
     "Pausar movimento",
-    "Perguntar",
+    "Pergunta rápida",
     "Perguntar sobre o trecho",
     "Print",
+    "Prints",
     "Registrar",
-    "Remover brasas do fundo",
     "Retomar",
     "Reunião",
     "Reuniões",
@@ -77,12 +79,13 @@
   ],
   "ondeVisto": {
     "Pausar": "HOME · Assistente",
-    "Assistente": "HOME · Assistente",
     "Reuniões": "HOME · Assistente",
+    "Desfazer": "HOME · Assistente",
+    "Abrir": "HOME · Assistente",
+    "Assistente": "HOME · Assistente",
     "Documentos": "HOME · Assistente",
     "Conexões": "HOME · Assistente",
     "Abrir navegação": "HOME · Assistente",
-    "Desfazer": "HOME · Assistente",
     "Conversa": "HOME · Assistente",
     "Fontes": "HOME · Assistente",
     "Conversas": "HOME · Assistente",
@@ -102,39 +105,40 @@
     "Imagem": "HOME · anexar",
     "Documento": "HOME · anexar",
     "Transcrição": "HOME · reunião",
-    "Baixar .txt": "HOME · reunião",
+    "Baixar": "HOME · reunião",
     "Nome da reunião": "HOME · reunião",
     "Mais ações": "HOME · reunião",
     "Notas da reunião": "HOME · reunião",
     "Notas": "HOME · reunião",
-    "Gerar documento": "HOME · reunião",
-    "Baixar": "HOME · reunião",
+    "Criar documento": "HOME · reunião",
+    "Baixar .txt": "HOME · reunião",
     "Apagar reunião": "HOME · Mais ações da reunião",
     "Cancelar": "HOME · confirmar apagar reunião",
     "Apagar as notas desta reunião": "HOME · notas",
-    "Reunião": "HOME · menu Gerar documento",
-    "Ata de Reunião": "HOME · menu Gerar documento",
-    "Doc Conversa (X1)": "HOME · menu Gerar documento",
+    "Reunião": "HOME · menu Criar documento",
+    "Fechar": "HOME · menu Criar documento",
+    "Ata de Reunião": "HOME · menu Criar documento",
+    "Doc Conversa (X1)": "HOME · menu Criar documento",
     "Abrir documento": "HOME · resultado da geração",
     "Enviar ao Google Docs": "HOME · resultado da geração",
-    "Salvar": "HOME · editor",
     "Nome do documento": "HOME · editor",
+    "Salvar": "HOME · editor",
     "Baixar o documento como arquivo de texto": "HOME · editor",
     "Baixar .md": "HOME · editor",
     "Apagar documento": "HOME · Mais ações do documento",
     "Baixar rascunho": "HOME · editor com falha",
     "Sem conectar: o caminho manual": "HOME · Conexões",
-    "Ligar sincronização": "HOME · Conexões",
-    "O que o Taq faz": "HOME · Conexões",
-    "Integrações": "HOME · Conexões",
+    "Para conectar": "HOME · Conexões",
+    "Conectar": "HOME · Conexões",
+    "Em breve": "HOME · Conexões",
+    "Conectadas": "HOME · Conexões",
     "Abrir HOME": "sidebar · Conversa",
     "Escolher conversa": "sidebar · Conversa",
-    "Remover brasas do fundo": "sidebar · Conversa",
-    "Abrir na HOME": "sidebar · reunião guardada",
     "Finalizar": "sidebar · reunião simulada",
     "Print": "sidebar · reunião simulada",
-    "Perguntar": "sidebar · reunião simulada",
-    "Capturar a aba da reunião": "sidebar · prints",
+    "Prints": "sidebar · reunião simulada",
+    "Pergunta rápida": "sidebar · reunião simulada",
+    "Continuar na conversa": "sidebar · pergunta rápida",
     "Destaque": "sidebar · trecho selecionado",
     "Dúvida": "sidebar · trecho selecionado",
     "Decisão": "sidebar · trecho selecionado",
@@ -178,8 +182,7 @@
       "vistos": [
         "Finalizar",
         "Reunião",
-        "Baixar .txt",
-        "Abrir na HOME"
+        "Reuniões"
       ],
       "nao_vistos": [
         "Encerrar agora"
@@ -200,13 +203,29 @@
       "id": "prints",
       "vistos": [
         "Print",
-        "Capturar a aba da reunião",
-        "Salvar",
+        "Desfazer",
+        "Prints",
+        "Apagar",
+        "Fechar",
         "Reunião"
       ],
       "nao_vistos": [
+        "Print guardado com a reunião.",
+        "Ver"
+      ]
+    },
+    {
+      "id": "captura_de_tela_pelo_taq",
+      "vistos": [
+        "Abrir",
+        "Baixar"
+      ],
+      "nao_vistos": [
+        "Escolher a tela e capturar",
+        "Capturar a aba da reunião",
+        "Salvar na reunião",
         "Descartar",
-        "Apagar este print"
+        "Captura de tela"
       ]
     },
     {
@@ -227,7 +246,6 @@
       "id": "abrir_sidebar_e_home",
       "vistos": [
         "Abrir HOME",
-        "Abrir na HOME",
         "Assistente",
         "Reuniões",
         "Documentos",
@@ -240,7 +258,6 @@
       "id": "ver_reunioes",
       "vistos": [
         "Reuniões",
-        "Abrir na HOME",
         "Reunião"
       ],
       "nao_vistos": []
@@ -294,7 +311,7 @@
       "id": "contexto_da_conversa",
       "vistos": [
         "Reunião",
-        "Perguntar",
+        "Pergunta rápida",
         "Perguntar sobre o trecho",
         "Tirar o contexto desta pergunta",
         "Nova conversa",
@@ -305,8 +322,9 @@
     {
       "id": "perguntar_sobre_trecho",
       "vistos": [
+        "Pergunta rápida",
+        "Continuar na conversa",
         "Perguntar sobre o trecho",
-        "Perguntar",
         "Tirar o contexto desta pergunta",
         "Conversa"
       ],
@@ -358,9 +376,19 @@
       "nao_vistos": []
     },
     {
+      "id": "fontes_do_contexto",
+      "vistos": [],
+      "nao_vistos": []
+    },
+    {
+      "id": "tirar_fonte_do_contexto",
+      "vistos": [],
+      "nao_vistos": []
+    },
+    {
       "id": "gerar_documento",
       "vistos": [
-        "Gerar documento",
+        "Criar documento",
         "Ata de Reunião",
         "Doc Conversa (X1)",
         "Abrir documento",
@@ -410,6 +438,16 @@
       "nao_vistos": []
     },
     {
+      "id": "copiar_transcricao",
+      "vistos": [
+        "Copiar texto",
+        "Copiar",
+        "Reuniões",
+        "Baixar .txt"
+      ],
+      "nao_vistos": []
+    },
+    {
       "id": "baixar_documento",
       "vistos": [
         "Documentos",
@@ -423,7 +461,7 @@
       "id": "enviar_google_docs",
       "vistos": [
         "Enviar ao Google Docs",
-        "Gerar documento"
+        "Criar documento"
       ],
       "nao_vistos": []
     },
@@ -431,11 +469,11 @@
       "id": "sincronizar_e_conectar",
       "vistos": [
         "Conexões",
-        "Ligar sincronização",
         "Copiar",
         "Desligar"
       ],
       "nao_vistos": [
+        "Ligar sincronização",
         "Gerar endereço",
         "Conectar na Claude",
         "Conectar no ChatGPT",
@@ -446,8 +484,7 @@
       "id": "aparencia",
       "vistos": [
         "Desligar brasas do fundo",
-        "Pausar movimento",
-        "Remover brasas do fundo"
+        "Pausar movimento"
       ],
       "nao_vistos": []
     },
@@ -455,8 +492,10 @@
       "id": "capacidades_do_taq",
       "vistos": [
         "Conexões",
-        "O que o Taq faz",
-        "Integrações"
+        "Para conectar",
+        "Conectar",
+        "Em breve",
+        "Conectadas"
       ],
       "nao_vistos": []
     },
@@ -566,6 +605,55 @@
         "Copiar texto"
       ],
       "nao_vistos": []
+    },
+    {
+      "id": "conectar_conta_citi",
+      "vistos": [
+        "Conexões",
+        "Conectar"
+      ],
+      "nao_vistos": [
+        "Conta do CITi",
+        "Desconectar"
+      ]
+    },
+    {
+      "id": "enviar_email",
+      "vistos": [],
+      "nao_vistos": [
+        "Aguardando você",
+        "Aceito pelo Google",
+        "Resultado desconhecido",
+        "Não foi feito"
+      ]
+    },
+    {
+      "id": "procurar_colega",
+      "vistos": [],
+      "nao_vistos": []
+    },
+    {
+      "id": "consultar_agenda",
+      "vistos": [],
+      "nao_vistos": []
+    },
+    {
+      "id": "criar_evento",
+      "vistos": [],
+      "nao_vistos": [
+        "Aguardando você",
+        "Abrir no Google Agenda"
+      ]
+    },
+    {
+      "id": "remarcar_evento",
+      "vistos": [],
+      "nao_vistos": []
+    },
+    {
+      "id": "cancelar_evento",
+      "vistos": [],
+      "nao_vistos": []
     }
   ],
   "completas": [
@@ -585,17 +673,24 @@
     "anexar_arquivo",
     "copiar_resposta",
     "texto_para_claude",
+    "fontes_do_contexto",
+    "tirar_fonte_do_contexto",
     "gerar_documento",
     "ver_documentos",
     "editar_documento",
     "apagar_documento",
     "exportar_transcricao",
+    "copiar_transcricao",
     "baixar_documento",
     "enviar_google_docs",
     "aparencia",
     "capacidades_do_taq",
     "revisar_documento",
-    "revisar_exposicao"
+    "revisar_exposicao",
+    "procurar_colega",
+    "consultar_agenda",
+    "remarcar_evento",
+    "cancelar_evento"
   ],
   "verificacoes": {
     "turnos_na_tela": 0,

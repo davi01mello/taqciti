@@ -128,7 +128,7 @@ const CONVERSA = {
       await fn();
     } catch (e) {
       falhas.push(`${etapa}: ${e.message.split('\n')[0]}`);
-      console.log(`! ${etapa}: ${e.message.split('\n')[0]}`);
+      console.log(`! ${etapa}: ${e.message.split('\n').slice(0, 3).join(' | ')}`);
     }
   };
   try {
@@ -199,8 +199,8 @@ const CONVERSA = {
           }),
         }),
       );
-      await clicar(page, 'Gerar documento');
-      await colher(page, 'HOME · menu Gerar documento');
+      await clicar(page, 'Criar documento');
+      await colher(page, 'HOME · menu Criar documento');
       await clicar(page, 'Ata de Reunião', 'menuitem');
       await page.getByText('Salvo em Documentos').waitFor({ timeout: 10000 });
       await colher(page, 'HOME · resultado da geração');
@@ -296,8 +296,25 @@ const CONVERSA = {
       await side.waitForTimeout(800);
       await colher(side, 'sidebar · reunião simulada');
       await side.screenshot({ path: path.join(saida, 'sidebar-ao-vivo.png') });
+      // Fora do Meet o print falha com explicação — é o que se colhe aqui.
       await clicar(side, 'Print');
-      await colher(side, 'sidebar · prints');
+      await colher(side, 'sidebar · print');
+      await clicar(side, 'Prints', 'tab');
+      await colher(side, 'sidebar · aba prints');
+      await clicar(side, 'Transcrição', 'tab');
+      // A pergunta rápida: sem servidor, ela guarda a pergunta e diz isso.
+      await clicar(side, 'Pergunta rápida');
+      await side.getByRole('textbox', { name: 'Pergunta rápida sobre esta reunião' }).fill('[TESTE] quem ficou com o quê?');
+      await side.keyboard.press('Enter');
+      await side.getByRole('button', { name: 'Continuar na conversa' }).waitFor({ timeout: 8000 });
+      await colher(side, 'sidebar · pergunta rápida');
+      await side.screenshot({ path: path.join(saida, 'sidebar-pergunta-rapida.png') });
+      await clicar(side, 'Fechar');
+      // O histórico, aberto pelo ícone do topo sem encerrar a reunião.
+      await clicar(side, 'Reuniões');
+      await colher(side, 'sidebar · histórico durante a reunião');
+      await side.getByRole('button', { name: /^Reunião/ }).first().click();
+      await side.waitForTimeout(300);
       await side.locator('.tq-fala-corpo').first().click();
       await side.waitForTimeout(300);
       await colher(side, 'sidebar · trecho selecionado');

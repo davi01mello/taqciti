@@ -133,6 +133,28 @@ export const STORAGE_KEYS = {
    * Ver `features/trabalho/store.ts`.
    */
   trabalho: 'taq:trabalho',
+
+  /**
+   * chrome.storage.local — a conexão da conta Google do CITi com as integrações
+   * (e-mail, diretório, agenda): e-mail, domínio e escopos concedidos. NUNCA o
+   * token: ele vive no cache do Chrome (`chrome.identity`). Ver
+   * `features/integracoes/estado.ts`.
+   */
+  integracoes: 'taq:integracoes',
+
+  /**
+   * chrome.storage.local — o registro das ações externas (e-mails e eventos): o
+   * rascunho que espera confirmação e o desfecho de cada envio, com a chave de
+   * idempotência. É o que impede reenviar às cegas. Ver
+   * `features/integracoes/registroDeAcoes.ts`.
+   */
+  integracoesAcoes: 'taq:acoes-externas',
+
+  /**
+   * chrome.storage.local — avisos que o Taq produziu a partir de eventos reais
+   * (captura, acompanhamento, documento, operação). Ver `features/avisos`.
+   */
+  avisos: 'taq:avisos',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

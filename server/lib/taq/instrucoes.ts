@@ -39,6 +39,8 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   /** v6 e v4: memória e contexto da conversa; apagar conversas. */
   'taq-v6': 'v6.md',
   'app-assistant-v4': 'app-assistant-v4.md',
+  /** v5: copiar a transcrição, baixar documento e fontes do contexto da conversa. */
+  'app-assistant-v5': 'app-assistant-v5.md',
   /** v7: os especialistas de trabalho (análise, compromissos, continuidade, passagem, comunicação…). */
   'taq-v7': 'v7.md',
   /** v3: revisar com check_document; refazer cria documento novo, sem sobrescrever a edição humana. */
@@ -49,6 +51,9 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   'handoff-v1': 'handoff-v1.md',
   'communication-v1': 'communication-v1.md',
   'scheduling-v1': 'scheduling-v1.md',
+  /** v2: com a conta do CITi conectada, envia e-mail e mexe na agenda (prévia, confirmação, desfecho incerto). */
+  'communication-v2': 'communication-v2.md',
+  'scheduling-v2': 'scheduling-v2.md',
   'memory-v1': 'memory-v1.md',
   'context-v1': 'context-v1.md',
   'copilot-v1': 'copilot-v1.md',

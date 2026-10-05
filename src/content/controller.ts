@@ -109,10 +109,10 @@ export class ContentController {
 
   private readonly callbacks: CapsulaCallbacks = {
     /*
-     * A cápsula pede a sidebar; o background tenta abrir o painel nativo. Quase
-     * sempre o Chrome recusa, porque este clique acontece na PÁGINA e o gesto
-     * não atravessa a mensageria — a cápsula então explica o caminho que
-     * funciona. Ver src/background/sidePanel.ts.
+     * A cápsula pede a sidebar; o background abre o painel nativo da aba que
+     * mandou a mensagem (ui/openSidePanel, tratada antes de qualquer `await`,
+     * para preservar o gesto do clique). Se o Chrome recusar, a cápsula explica
+     * o caminho manual. Ver src/background/sidePanel.ts.
      */
     onAbrirSidebar: () =>
       sendMessage<{ ok?: boolean }>({ type: 'ui/openSidePanel' }).then(
@@ -603,6 +603,8 @@ export class ContentController {
           // revela), então é a cápsula que a mostra — e é aqui que a pessoa
           // está olhando quando a legenda para de chegar.
           saudavel: this.captureHealthy,
+          ultimoTrechoEm: state.session?.lastChunkAt ?? null,
+          falas: state.session?.segments.length ?? 0,
           prefs: this.prefs,
           callbacks: this.callbacks,
         }),

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Os especialistas implementados — `app_assistant` e `documents` — pela porta
  * de verdade: o Taq delega, o especialista roda o próprio ciclo com as
  * próprias ferramentas e instruções, e a resposta volta à pessoa.
@@ -191,8 +191,8 @@ describe('app_assistant — operações', () => {
     // Três chamadas, não quatro: o Taq não reescreve a resposta do especialista.
     expect(pedidos.map((p) => p.instrucoes)).toEqual([
       'taq-v7',
-      'app-assistant-v4',
-      'app-assistant-v4',
+      'app-assistant-v5',
+      'app-assistant-v5',
     ]);
     // O especialista tem as ferramentas DELE; o Taq, não.
     expect(pedidos[0]!.ferramentas.map((f) => f.nome)).not.toContain('rename_meeting');
@@ -331,7 +331,7 @@ describe('app_assistant — ajuda pela referência', () => {
       pede('get_usage_guide', { pergunta: 'como gero uma ata' }),
       (p) => {
         guia = resultadoDe(p, 'get_usage_guide');
-        return final('HOME → “Reuniões” → a reunião → “Gerar documento” → “Ata de Reunião”.');
+        return final('HOME → “Reuniões” → a reunião → “Criar documento” → “Ata de Reunião”.');
       },
     ]);
     const r = await executar('Como eu gero uma ata?', modelo);
@@ -341,7 +341,7 @@ describe('app_assistant — ajuda pela referência', () => {
     expect(nomes).not.toContain('delete_meeting');
     expect(guia).toMatchObject({ encontrou: true });
     const g = (guia.guias as Array<{ passos: string[]; o_agente_executa: boolean }>)[0]!;
-    expect(g.passos.join(' ')).toMatch(/“Gerar documento”/);
+    expect(g.passos.join(' ')).toMatch(/“Criar documento”/);
     expect(g.o_agente_executa).toBe(true);
     expect(r.operacoes ?? []).toEqual([]);
   });
