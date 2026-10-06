@@ -1460,6 +1460,30 @@
   margin-left: auto;
 }
 
+/* "Copiar o trecho": o mesmo botão da conversa, no tamanho das outras ações. */
+.tq-fala-acoes .tq-copiar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-ui);
+  color: var(--s-texto-2);
+  padding: 6px 10px;
+  min-height: var(--alt-controle);
+  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.tq-fala-acoes .tq-copiar:hover {
+  background: var(--s-placa);
+  color: var(--s-texto);
+}
+
+.tq-fala-acoes .tq-copiar.copiado {
+  color: rgb(170 226 190);
+}
+
 /* ---------------------------------------------------------------- notas */
 
 /*

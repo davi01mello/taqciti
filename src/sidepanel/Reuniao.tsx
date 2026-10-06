@@ -63,6 +63,7 @@ import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { Markdown } from '@/shared/ui/Markdown';
 import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
 import { papelDoFalante } from '@/features/integracoes/colegas';
+import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 import { useAvisosDaReuniao } from '@/features/avisos/useAvisosDaReuniao';
 import { souOrganizador, useAvisosVisiveis } from '@/features/avisos/useAvisos';
@@ -1016,6 +1017,7 @@ function ListaDeFalas({
                   <Icon name="sparkles" size={14} />
                   Perguntar sobre o trecho
                 </button>
+                <BotaoCopiar texto={`${nome}: ${s.text}`} rotulo="Copiar o trecho" />
               </div>
             )}
           </article>
