@@ -55,6 +55,9 @@ const ESPERA_DO_PORTAO_MS = 1_000;
 
 const PARTICIPANTS_POLL_MS = 5000;
 
+/** Quanto tempo, depois de sair de uma sala registrada, o "sim" vale para a próxima. */
+const HERANCA_ENTRE_SALAS_MS = 90_000;
+
 export class ContentController {
   private subscriptions: Unsubscribe[] = [];
   private participantsTimer: ReturnType<typeof setInterval> | null = null;
@@ -80,6 +83,8 @@ export class ContentController {
   private captureHealthy = true;
   /** A leitura falhou nesta sala: as legendas do Meet ficam visíveis até ela acabar. */
   private legendasLiberadasPorFalha = false;
+  /** Até quando o "sim" da sala que acabou de acabar vale para a próxima. */
+  private herancaAteEm = 0;
 
   /*
    * O PORTÃO DA CAPTURA.
@@ -147,6 +152,11 @@ export class ContentController {
   private async gravarAgora(): Promise<boolean> {
     const sala = this.provider.salaDaPagina?.();
     if (!sala) return false;
+    // Também é o "tentar de novo": zera as tentativas de ligar as legendas
+    // (que desistem em poucas) e religa a leitura.
+    this.captionAttempts = 0;
+    this.stopCaptionRetries();
+    this.provider.reattachCaptions?.();
     try {
       this.salaAnunciada = sala.meetingCode;
       this.salaAtual = sala;
@@ -196,6 +206,10 @@ export class ContentController {
         // mexe só se forem DESTA sala. Outra aba pode já ter aberto a sua, e
         // apagá-la aqui sumia com a pergunta da reunião nova.
         void fecharParticipacao(Date.now(), encerrada.meetingCode);
+        // Saltar entre salas (de grupo, e de volta) tira a pessoa da chamada por
+        // alguns segundos. Quem já tinha dito "sim" não é perguntado de novo se
+        // entrar numa sala logo em seguida, NESTA aba.
+        this.herancaAteEm = autorizaCaptura(this.decisao) ? Date.now() + HERANCA_ENTRE_SALAS_MS : 0;
         this.salaAnunciada = null;
         this.decisao = null;
         this.reuniaoPendente = null;
@@ -434,6 +448,16 @@ export class ContentController {
       this.decisao = 'recusado';
       await esquecerReuniao();
       this.rerender();
+      return;
+    }
+    if (previa === null && Date.now() < this.herancaAteEm) {
+      // Veio de uma sala que já estava sendo registrada, há poucos segundos:
+      // segue registrando, sem a pergunta (e a decisão fica guardada).
+      this.herancaAteEm = 0;
+      await guardarDecisao(participacao.id, 'aceito');
+      this.decisao = 'aceito';
+      await esquecerReuniao();
+      this.iniciarCaptura(session);
       return;
     }
 

@@ -177,6 +177,15 @@ export function Reuniao({
           Ligando as legendas do Meet e escondendo-as da tela. A captura começa assim que
           elas aparecerem.
         </p>
+        {/* Se o religar sozinho não der conta (uma sala de grupo, uma troca de
+            sala), a pessoa manda tentar de novo daqui — sem sair da tela. */}
+        <button
+          type="button"
+          className="tq-acao tq-pilula"
+          onClick={() => void platform.send({ type: 'ui/gravarAgora' })}
+        >
+          Tentar de novo
+        </button>
       </div>
     );
   }
@@ -311,7 +320,14 @@ export function Reuniao({
       {interrompida && (
         <p className="tq-aviso-caixa tq-aviso-atencao" role="status">
           A captura parou de ler as legendas do Meet. O TaqCiti está tentando religar
-          sozinho — o que já foi transcrito continua guardado.
+          sozinho — o que já foi transcrito continua guardado.{' '}
+          <button
+            type="button"
+            className="tq-acao tq-pilula"
+            onClick={() => void platform.send({ type: 'ui/gravarAgora' })}
+          >
+            Religar agora
+          </button>
         </p>
       )}
 

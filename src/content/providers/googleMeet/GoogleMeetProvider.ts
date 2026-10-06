@@ -197,6 +197,22 @@ export class GoogleMeetProvider implements MeetingProvider {
     return { meetingCode: codigo, title: cleanMeetingTitle(document.title, codigo) };
   }
 
+  /**
+   * Religa a leitura das legendas AGORA: solta o observer, acha a região de
+   * novo e pede ao Meet que as ligue. É o "tentar de novo" da pessoa, para
+   * quando o religar automático (que desiste depois de algumas tentativas)
+   * não deu conta — por exemplo, ao voltar de uma sala de grupo.
+   */
+  reattachCaptions(): void {
+    this.detachCaptionObserver();
+    this.captureStalled = false;
+    this.lastChunkAt = 0;
+    this.captureExpectedSince = this.captionsOn ? Date.now() : 0;
+    this.publishCaptureHealth();
+    this.requestEnableCaptions();
+    this.ensureCaptionObserver(true);
+  }
+
   forceMeeting(session: MeetingSession): void {
     this.forcada = session;
     this.poll();

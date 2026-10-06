@@ -79,6 +79,8 @@ export interface MeetingProvider {
   salaDaPagina?(): MeetingSession | null;
   /** A pessoa mandou gravar esta sala: vale a palavra dela até a sala acabar. */
   forceMeeting?(session: MeetingSession): void;
+  /** Religa a leitura das legendas agora — o "tentar de novo" da pessoa. */
+  reattachCaptions?(): void;
 
   /** Liga/desliga a observação do DOM. */
   start(): void;
