@@ -1097,17 +1097,17 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     assunto: 'exportacao',
     titulo: 'Preparar o rascunho de uma mensagem ou e-mail',
     oQueFaz:
-      'O Taq escreve um rascunho a partir das reuniões, confere os nomes contra os participantes e aponta dado sensível. Você edita, copia ou abre no seu programa de e-mail.',
+      'O Taq escreve um rascunho a partir das reuniões, confere os nomes contra os participantes e aponta dado sensível. Você edita e copia; enviar só se faz pelo Taq, aqui no chat.',
     onde: 'Conversa com o Taq',
     passos: [
       'Peça: ‘prepare um e-mail para a Ana sobre o prazo da entrega’.',
-      'O rascunho aparece num cartão editável. Use “Copiar”, ou “Abrir no e-mail” quando você mesmo tiver escrito o endereço no pedido.',
+      'O rascunho aparece num cartão editável. Use “Copiar”, ou peça ao Taq, na conversa, que envie.',
     ],
     limitacoes: [
       'Sem a conta do CITi conectada o TaqCiti não envia nada: só prepara o rascunho. Com ela, ver “Enviar um e-mail, com a ata ou a transcrição anexada”.',
       'Nome com mais de uma pessoa nos participantes aparece como ambíguo.',
     ],
-    rotulos: ['Copiar', 'Abrir no e-mail'],
+    rotulos: ['Copiar'],
     implementacao: [CARTOES, COPIAR],
     verificacao: 'codigo',
     ferramenta: 'prepare_message',

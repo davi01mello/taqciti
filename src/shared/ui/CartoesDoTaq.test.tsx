@@ -121,7 +121,7 @@ describe('compromissos', () => {
 });
 
 describe('sem integração, sem botão de integração', () => {
-  it('rascunho: copiar e abrir no e-mail (só com endereço), nunca “Enviar”', async () => {
+  it('rascunho: só copiar — o envio é do Taq no chat, sem botão nem mailto', async () => {
     await montar([
       {
         tipo: 'rascunho_de_mensagem',
@@ -134,12 +134,11 @@ describe('sem integração, sem botão de integração', () => {
       },
     ]);
     expect(botao('Enviar')).toBeUndefined();
-    const link = [...palco.querySelectorAll('a')].find((a) => a.textContent === 'Abrir no e-mail')!;
-    expect(link.getAttribute('href')).toMatch(/^mailto:bruno%40citi\.org\.br\?subject=Relat/);
+    expect(palco.querySelector('a[href^="mailto:"]')).toBeNull();
     expect(palco.textContent).toContain('Nada foi enviado');
   });
 
-  it('rascunho sem endereço: não há “Abrir no e-mail”; dado sensível digitado gera alerta na hora', async () => {
+  it('rascunho sem endereço: dado sensível digitado gera alerta na hora', async () => {
     await montar([
       {
         tipo: 'rascunho_de_mensagem',
@@ -150,7 +149,6 @@ describe('sem integração, sem botão de integração', () => {
         alertas: [],
       },
     ]);
-    expect([...palco.querySelectorAll('a')].some((a) => a.textContent === 'Abrir no e-mail')).toBe(false);
     expect(palco.textContent).toContain('mais de uma pessoa com esse nome: Ana Souza, Ana Lima');
     const texto = palco.querySelector('textarea')!;
     await act(async () => {

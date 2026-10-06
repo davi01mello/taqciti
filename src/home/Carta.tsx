@@ -11,15 +11,14 @@
  * um "Enviado para fulano" que não saiu é o pior tipo de mentira de interface,
  * porque a pessoa só descobre quando o destinatário diz que não recebeu.
  *
- * O que funciona hoje está à mão, na mesma folha: abrir o rascunho no app de
- * e-mail do computador (um `mailto:` com destinatário, assunto e texto) e
- * copiar o texto para colar onde quiser.
+ * O que funciona sem canal está à mão, na mesma folha: copiar o texto para
+ * colar onde quiser. Não há `mailto:` nem outro atalho: enviar só se faz pelo Taq.
  *
  * ── A carta e o Taq ───────────────────────────────────────────────────────
  *
- * A carta não envia por conta própria: quem envia é o agente, pelo mesmo
- * caminho do chat (`send_email`), com diretório, idempotência e a decisão de
- * mostrar uma prévia ou não tomada em código. A folha só entrega o pedido:
+ * O ÚNICO caminho de envio é o agente, pelo mesmo caminho do chat
+ * (`send_email`), com diretório, idempotência e a decisão de mostrar uma prévia
+ * ou não tomada em código. A carta não envia por conta própria; só entrega o pedido:
  *
  *   - "Redigir com o Taq" pede o texto do e-mail, com a reunião como contexto;
  *     a resposta vem na conversa, para a pessoa ler e colar aqui;
@@ -116,9 +115,6 @@ export function Carta({
     para.trim().length > 0 &&
     titulo.trim().length > 0 &&
     texto.trim().length > 0;
-  const mailto =
-    `mailto:${encodeURIComponent(para.trim())}` +
-    `?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(texto)}`;
 
   return (
     <div className="tq-carta-caixa" ref={caixaRef}>
@@ -201,11 +197,6 @@ export function Carta({
             >
               Redigir com o Taq
             </button>
-          )}
-          {canal === 'email' && (
-            <a className="tq-carta-descartar" href={mailto}>
-              Abrir no e-mail
-            </a>
           )}
           <button
             type="button"

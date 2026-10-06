@@ -9,7 +9,7 @@
  *   sugestões      "Registrar selecionados" → `registrarCompromissos`
  *   achados        "Marcar resolvido" / "Descartar com motivo" / "Reabrir"
  *   análise        "Corrigir" um item → `corrigirItemDaAnalise`
- *   rascunho       editar, "Copiar", "Abrir no e-mail" (mailto, só com endereço)
+ *   rascunho       editar e "Copiar"; o envio é só pelo Taq, no chat ("envie")
  *   horários       "Abrir no Google Agenda" (formulário preenchido, sem convidados)
  *
  * Os de registro (compromissos, decisões, achados, análise) são desenhados a
@@ -651,22 +651,12 @@ function CartaoDeRascunho({
   const [salvo, setSalvo] = useState<'salvo' | 'pendente' | 'falhou'>('salvo');
   const alertasVivos = avisosDeExposicao(acharSensiveis(`${assunto}\n${corpo}`));
   const alertas = [...new Set([...cartao.alertas.filter((a) => !a.startsWith('Contém ')), ...alertasVivos])];
-  const enderecos = cartao.destinatarios.map((d) => d.endereco).filter((e): e is string => !!e);
   const salvar = async () => {
     if (!conversaId || (assunto === (cartao.assunto ?? '') && corpo === cartao.corpo)) return;
     const ok = await editarRascunhoDaResposta(conversaId, mensagemId, indice, { assunto, corpo }).catch(() => false);
     setSalvo(ok ? 'salvo' : 'falhou');
   };
   const texto = `${assunto ? `Assunto: ${assunto}\n\n` : ''}${corpo}`;
-  const mailto =
-    cartao.canal === 'email' && enderecos.length
-      ? `mailto:${enderecos.map(encodeURIComponent).join(',')}?${new URLSearchParams({
-          ...(assunto ? { subject: assunto } : {}),
-          body: corpo,
-        })
-          .toString()
-          .replace(/\+/g, '%20')}`
-      : null;
   return (
     <Cartao
       titulo={`Rascunho de ${cartao.canal === 'email' ? 'e-mail' : 'mensagem'}`}
@@ -717,15 +707,10 @@ function CartaoDeRascunho({
       )}
       <div className="tq-c-acoes">
         <BotaoCopiar texto={texto} rotulo="Copiar" />
-        {mailto && (
-          <a className="tq-c-botao-link" href={mailto}>
-            Abrir no e-mail
-          </a>
-        )}
       </div>
       <p className="tq-c-mudo" role="status">
-        Nada foi enviado. O TaqCiti não tem integração de e-mail ou chat: copie o texto
-        {mailto ? ' ou abra no seu programa de e-mail' : ''}.
+        Nada foi enviado. Quem envia é o Taq, aqui no chat: com a conta do CITi conectada,
+        diga “envie”; senão, copie o texto.
         {salvo === 'pendente' ? ' Edição ainda não salva.' : salvo === 'falhou' ? ' A edição não pôde ser salva.' : ''}
       </p>
     </Cartao>
