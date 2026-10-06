@@ -32,6 +32,7 @@ import {
   type SpeakerRename,
 } from '@/features/transcription/speakerIdentity';
 import { cleanMeetingTitle } from '@/features/meeting/naming';
+import { salaDoCaminho } from '@/features/meeting/sala';
 import { resolveAgainstBaseline } from '@/features/transcription/recut';
 import { logger } from '@/shared/services/log';
 import { parseCaptionRegion } from './captionParser';
@@ -41,7 +42,6 @@ import {
   CAPTION_REGION_SELECTORS,
   CAPTIONS_TOGGLE_SELECTORS,
   LEAVE_CALL_SELECTORS,
-  MEETING_CODE_PATTERN,
   PARTICIPANT_NAME_SELECTORS,
   PARTICIPANT_TILE_SELECTOR,
   SELF_NAME_SELECTORS,
@@ -172,15 +172,34 @@ export class GoogleMeetProvider implements MeetingProvider {
     return safely(
       'detecção de reunião',
       () => {
-        const match = MEETING_CODE_PATTERN.exec(window.location.pathname);
-        if (!match || !match[1]) return null;
+        const codigo = salaDoCaminho(window.location.pathname);
+        if (!codigo) return null;
         if (naTelaPosChamada()) return null;
-        if (!botaoDeSairVisivel()) return null;
+        // Dentro da chamada: o botão de sair está na tela. Ou a pessoa disse
+        // "gravar agora" (ver `forceMeeting`) e vale a palavra dela, na MESMA sala.
+        if (!botaoDeSairVisivel()) {
+          return this.forcada?.meetingCode === codigo ? this.forcada : null;
+        }
         // Título vazio (código cru do Meet) é sinal para o background auto-nomear.
-        return { meetingCode: match[1], title: cleanMeetingTitle(document.title, match[1]) };
+        return { meetingCode: codigo, title: cleanMeetingTitle(document.title, codigo) };
       },
       null,
     );
+  }
+
+  /** A sala que a pessoa mandou gravar à mão, com o detector automático em silêncio. */
+  private forcada: MeetingSession | null = null;
+
+  /** A sala desta página, para o "gravar agora": existe mesmo sem o botão de sair. */
+  salaDaPagina(): MeetingSession | null {
+    const codigo = salaDoCaminho(window.location.pathname);
+    if (!codigo || naTelaPosChamada()) return null;
+    return { meetingCode: codigo, title: cleanMeetingTitle(document.title, codigo) };
+  }
+
+  forceMeeting(session: MeetingSession): void {
+    this.forcada = session;
+    this.poll();
   }
 
   onMeetingStart(cb: (session: MeetingSession) => void): Unsubscribe {
@@ -432,6 +451,7 @@ export class GoogleMeetProvider implements MeetingProvider {
   private encerrarSala(ended: MeetingSession | null): void {
     this.inMeeting = false;
     this.currentSession = null;
+    this.forcada = null;
     this.detachCaptionObserver();
     this.capturePaused = false;
     this.captionsOn = false;

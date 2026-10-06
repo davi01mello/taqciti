@@ -72,6 +72,14 @@ export interface MeetingProvider {
    */
   setCapturePaused(paused: boolean): void;
 
+  /**
+   * A sala da página AGORA, mesmo que o detector automático não a reconheça
+   * como chamada (o botão de sair não foi achado). Alimenta o "gravar agora".
+   */
+  salaDaPagina?(): MeetingSession | null;
+  /** A pessoa mandou gravar esta sala: vale a palavra dela até a sala acabar. */
+  forceMeeting?(session: MeetingSession): void;
+
   /** Liga/desliga a observação do DOM. */
   start(): void;
   stop(): void;

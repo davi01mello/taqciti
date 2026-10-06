@@ -128,7 +128,38 @@ export class ContentController {
       const id = this.participacaoId;
       if (id) void guardarDecisao(id, decisao);
     },
+    onGravarAgora: () => void this.gravarAgora(),
+    salaDisponivel: () => this.provider.salaDaPagina?.() ?? null,
   };
+
+  /**
+   * "Gravar esta reunião" — o caminho à mão, quando o automático não pergunta.
+   *
+   * O automático depende de reconhecer a chamada no DOM do Meet (o botão de
+   * sair) e a sala na URL; qualquer mudança do Meet pode silenciá-lo. Aqui a
+   * pessoa, que está DENTRO da reunião, diz "grave": o provider passa a tratar
+   * a sala como chamada, a decisão vira "aceito" e a captura começa. Não
+   * depende de a pergunta ter aparecido nem de storage.onChanged disparar.
+   */
+  private async gravarAgora(): Promise<void> {
+    const sala = this.provider.salaDaPagina?.();
+    if (!sala) return;
+    try {
+      this.salaAnunciada = sala.meetingCode;
+      this.salaAtual = sala;
+      const participacao = await abrirParticipacao(sala.meetingCode, Date.now());
+      this.participacaoId = participacao.id;
+      await guardarDecisao(participacao.id, 'aceito');
+      this.decisao = 'aceito';
+      this.reuniaoPendente = null;
+      void esquecerReuniao();
+      this.provider.forceMeeting?.(sala);
+      this.iniciarCaptura(sala);
+    } catch (error) {
+      this.salaAnunciada = null;
+      logger.error('gravar agora falhou', error);
+    }
+  }
 
   /**
    * Pedir uma mudança de preferência é GRAVAR, e só isso.

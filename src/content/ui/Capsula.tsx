@@ -48,6 +48,10 @@ export interface CapsulaCallbacks {
   onPrefsChange(patch: Partial<PanelPrefs>): void;
   /** A resposta à pergunta, dada na página. Mesma decisão da sidebar. */
   onResponder(decisao: DecisaoDeRegistro): void;
+  /** "Gravar esta reunião", à mão: o caminho para quando o automático não perguntou. */
+  onGravarAgora(): void;
+  /** A sala desta página, se houver uma — é o que decide mostrar o botão. */
+  salaDisponivel(): { meetingCode: string } | null;
 }
 
 interface Props {
@@ -95,6 +99,14 @@ export function Capsula({
   const dicaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const perguntando = perguntandoSobre !== null;
+
+  // Há uma sala nesta página? O Meet é uma SPA: a URL muda sem recarregar, então
+  // a resposta é relida de tempos em tempos, e não só quando o estado muda.
+  const [temSala, setTemSala] = useState(() => callbacks.salaDisponivel() !== null);
+  useEffect(() => {
+    const t = setInterval(() => setTemSala(callbacks.salaDisponivel() !== null), 2000);
+    return () => clearInterval(t);
+  }, [callbacks]);
 
   // Relógio: só corre enquanto a captura está viva.
   const [agora, setAgora] = useState(() => Date.now());
@@ -317,6 +329,25 @@ export function Capsula({
             Ignorar mantém a captura desligada.
           </p>
         </div>
+      )}
+
+      {/* O caminho à mão: numa sala em que NÃO há captura (o automático não
+          perguntou, ou foi recusado), a pessoa manda gravar daqui. */}
+      {!perguntando && temSala && (estado === 'desligada' || estado === 'salva') && (
+        <button
+          type="button"
+          onClick={() => callbacks.onGravarAgora()}
+          style={{
+            left: Math.max(
+              MARGEM_DA_PERGUNTA,
+              Math.min(floating.geometry.capsule.left, window.innerWidth - 200),
+            ),
+            top: floating.geometry.capsule.top + 46,
+          }}
+          className="glass fixed z-[2147483000] rounded-full border border-primary/45 bg-primary/[0.16] px-3.5 py-2 text-caption font-medium text-glow transition-colors duration-200 hover:bg-primary/25 animate-dock-in"
+        >
+          Gravar esta reunião
+        </button>
       )}
 
       {/* A explicação de falha. Só aparece se a abertura for recusada — o que,

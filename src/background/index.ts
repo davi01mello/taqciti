@@ -9,6 +9,7 @@
  */
 import { PROVIDER_GOOGLE_MEET } from '@/shared/config/constants';
 import { onMessage } from '@/shared/services/messaging';
+import { salaDaUrl } from '@/features/meeting/sala';
 import { logger } from '@/shared/services/log';
 import {
   dispatch,
@@ -184,8 +185,7 @@ async function esquecerPerguntaSemAba(): Promise<void> {
 
 /** O código da sala num endereço do Meet, ou `null` se não é uma sala. */
 function salaDoMeet(url: string): string | null {
-  const m = /^https:\/\/meet\.google\.com\/([a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{3})(?:[/?#]|$)/i.exec(url);
-  return m?.[1]?.toLowerCase() ?? null;
+  return salaDaUrl(url);
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {

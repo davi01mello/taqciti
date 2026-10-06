@@ -10,6 +10,14 @@ export const LEAVE_CALL_SELECTORS = [
   'button[aria-label*="sair da chamada" i]',
   'button[aria-label*="end call" i]',
   'button[aria-label*="encerrar chamada" i]',
+  'button[aria-label*="salir de la llamada" i]',
+  'button[aria-label*="leave meeting" i]',
+  'button[aria-label*="sair da reunião" i]',
+  'button[aria-label*="sair da reuniao" i]',
+  '[role="button"][aria-label*="sair da chamada" i]',
+  '[role="button"][aria-label*="leave call" i]',
+  'button[data-tooltip*="sair da chamada" i]',
+  'button[data-tooltip*="leave call" i]',
   '[jsname="CQylAd"]',
 ];
 
@@ -60,8 +68,7 @@ export const PARTICIPANT_NAME_SELECTORS = [
  */
 export const SELF_NAME_SELECTORS = ['[data-self-name]', '[data-self-name] *'];
 
-/** URL de reunião: meet.google.com/abc-defg-hij */
-export const MEETING_CODE_PATTERN = /^\/([a-z0-9]{3}-[a-z0-9]{4}-[a-z0-9]{3})$/i;
+/** URL de reunião: meet.google.com/abc-defg-hij — ver `features/meeting/sala.ts`. */
 
 export function queryFirst(
   root: ParentNode,
