@@ -157,6 +157,12 @@ export class ContentController {
     this.captionAttempts = 0;
     this.stopCaptionRetries();
     this.provider.reattachCaptions?.();
+    // Religar à mão com a leitura falhando: o Meet volta a desenhar as legendas
+    // (escondidas elas podem não atualizar), e a pessoa pediu isso.
+    if (!this.captureHealthy) {
+      this.legendasLiberadasPorFalha = true;
+      this.rerender();
+    }
     try {
       this.salaAnunciada = sala.meetingCode;
       this.salaAtual = sala;
@@ -629,12 +635,10 @@ export class ContentController {
       state.phase === 'recording' ||
       state.phase === 'paused';
     /*
-     * Escondê-las não pode custar a captura. Se a leitura já falhou nesta sala,
-     * as legendas do Meet voltam à tela e FICAM — a transcrição vale mais que a
-     * tela limpa, e religar com elas escondidas era justamente o que não
-     * funcionava. Zera quando a sala acaba.
+     * As legendas do Meet só voltam à tela por PEDIDO da pessoa ("Religar
+     * agora" / "Tentar de novo"): fazê-las aparecer sozinhas, no meio da fala,
+     * assustava — e a pessoa pediu que não. Zera quando a sala acaba.
      */
-    if (!this.captureHealthy && sessionActive && minha) this.legendasLiberadasPorFalha = true;
     if (!sessionActive || !minha) this.legendasLiberadasPorFalha = false;
     setNativeCaptionsHidden(
       minha && sessionActive && this.prefs.hideMeetCaptions && !this.legendasLiberadasPorFalha,
