@@ -17,6 +17,7 @@
  * antes quando não existe (ou pelo ícone de lista, no topo). Um terceiro
  * seletor faria a sidebar ter três botões para dois assuntos.
  */
+import { useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { Icon } from '@/shared/ui/Icon';
 import {
@@ -38,14 +39,49 @@ interface Props {
   /** A reunião aberta. Levantada para o `App`: "Finalizar" abre a recém-salva. */
   abertaId: string | null;
   onAbrir: (id: string | null) => void;
+  /**
+   * "Gravar esta reunião", à mão e a qualquer momento: o caminho para quando o
+   * automático não perguntou ou a pessoa disse "agora não". Resolve com o
+   * resultado REAL — `ok: false` traz o motivo, e falha não vira confirmação.
+   */
+  onGravarAgora?: () => Promise<{ ok: boolean; motivo?: string }>;
 }
 
-export function Reunioes({ registros, carregado, recusada, abertaId, onAbrir }: Props) {
+const MOTIVO_DA_FALHA: Record<string, string> = {
+  sem_meet: 'Não achei uma reunião aberta no Meet. Entre na sala e tente de novo.',
+  sem_painel:
+    'A aba do Meet ainda não tem o TaqCiti. Recarregue a aba da reunião e tente de novo.',
+};
+
+export function Reunioes({
+  registros,
+  carregado,
+  recusada,
+  abertaId,
+  onAbrir,
+  onGravarAgora,
+}: Props) {
   const aberta = abertaId ? (registros.find((r) => r.id === abertaId) ?? null) : null;
+  const [gravando, setGravando] = useState(false);
+  const [falha, setFalha] = useState<string | null>(null);
 
   if (aberta) {
     return <DetalheDaReuniao registro={aberta} onVoltar={() => onAbrir(null)} />;
   }
+
+  const gravar = async () => {
+    if (!onGravarAgora || gravando) return;
+    setGravando(true);
+    setFalha(null);
+    try {
+      const r = await onGravarAgora();
+      if (!r.ok) setFalha(MOTIVO_DA_FALHA[r.motivo ?? ''] ?? 'Não consegui começar a gravar.');
+    } catch {
+      setFalha('Não consegui começar a gravar.');
+    } finally {
+      setGravando(false);
+    }
+  };
 
   return (
     <div className="tq-rolavel tq-historico">
@@ -56,6 +92,23 @@ export function Reunioes({ registros, carregado, recusada, abertaId, onAbrir }: 
             ? 'Captura desligada nesta reunião. As anteriores continuam aqui.'
             : 'As reuniões guardadas neste computador, da mais recente para a mais antiga.'}
         </p>
+        {onGravarAgora && (
+          <>
+            <button
+              type="button"
+              className="tq-acao tq-pilula"
+              disabled={gravando}
+              onClick={() => void gravar()}
+            >
+              {gravando ? 'Começando…' : 'Gravar esta reunião'}
+            </button>
+            {falha && (
+              <p className="tq-aviso-falha" role="status">
+                {falha}
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       {!carregado ? (

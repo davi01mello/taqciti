@@ -593,6 +593,11 @@ export function App() {
                 recusada={recusada}
                 abertaId={reuniaoAberta}
                 onAbrir={setReuniaoAberta}
+                onGravarAgora={async () =>
+                  (await platform.send<{ ok: boolean; motivo?: string }>({
+                    type: 'ui/gravarAgora',
+                  })) ?? { ok: false, motivo: 'sem_meet' }
+                }
               />
             </Camada>
           )}

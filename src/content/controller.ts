@@ -129,6 +129,7 @@ export class ContentController {
       if (id) void guardarDecisao(id, decisao);
     },
     onGravarAgora: () => void this.gravarAgora(),
+    // (a sidebar chega aqui pela mensagem `meet/gravarAgora`, no `onMessage`)
     salaDisponivel: () => this.provider.salaDaPagina?.() ?? null,
   };
 
@@ -141,9 +142,9 @@ export class ContentController {
    * a sala como chamada, a decisão vira "aceito" e a captura começa. Não
    * depende de a pergunta ter aparecido nem de storage.onChanged disparar.
    */
-  private async gravarAgora(): Promise<void> {
+  private async gravarAgora(): Promise<boolean> {
     const sala = this.provider.salaDaPagina?.();
-    if (!sala) return;
+    if (!sala) return false;
     try {
       this.salaAnunciada = sala.meetingCode;
       this.salaAtual = sala;
@@ -155,9 +156,11 @@ export class ContentController {
       void esquecerReuniao();
       this.provider.forceMeeting?.(sala);
       this.iniciarCaptura(sala);
+      return true;
     } catch (error) {
       this.salaAnunciada = null;
       logger.error('gravar agora falhou', error);
+      return false;
     }
   }
 
@@ -257,6 +260,9 @@ export class ContentController {
          */
         if (message.type === 'meet/sendChatNotice') {
           return enviarNoChat(message.text).then((ok) => ({ ok }));
+        }
+        if (message.type === 'meet/gravarAgora') {
+          return this.gravarAgora().then((ok) => ({ ok }));
         }
         return undefined;
       }),

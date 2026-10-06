@@ -21,7 +21,7 @@ import { listHistory, patchRecord, upsertRecord } from './history';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { bumpMetrics } from './metrics';
 import { migrateLocalStorage } from './storageMigrations';
-import { backfillOpenTabs } from './injectPanel';
+import { backfillOpenTabs, ensurePanelInTab } from './injectPanel';
 import { openHome } from './homeTab';
 import { abrirPainel, abrirPainelNaJanela, ligarAberturaPeloIcone } from './sidePanel';
 import { capturarAbaDaReuniao } from './captura';
@@ -186,6 +186,42 @@ async function esquecerPerguntaSemAba(): Promise<void> {
 /** O código da sala num endereço do Meet, ou `null` se não é uma sala. */
 function salaDoMeet(url: string): string | null {
   return salaDaUrl(url);
+}
+
+/**
+ * "Gravar esta reunião", vindo da sidebar. Escolhe a aba do Meet (a ativa, se
+ * for uma sala; senão a sala usada há menos tempo), garante que ela tem o
+ * content script e manda gravar. A resposta diz o motivo quando não deu —
+ * falha não vira confirmação.
+ */
+async function gravarAgoraNoMeet(): Promise<{ ok: boolean; motivo?: 'sem_meet' | 'sem_painel' }> {
+  const abas = (await chrome.tabs.query({ url: 'https://meet.google.com/*' })).filter(
+    (a) => a.id !== undefined && a.url !== undefined && salaDoMeet(a.url) !== null,
+  );
+  if (abas.length === 0) return { ok: false, motivo: 'sem_meet' };
+  const recente = (a: chrome.tabs.Tab) => (a as { lastAccessed?: number }).lastAccessed ?? 0;
+  const aba =
+    abas.find((a) => a.active) ?? [...abas].sort((x, y) => recente(y) - recente(x))[0]!;
+
+  const mandar = async (): Promise<boolean> => {
+    const r = (await chrome.tabs.sendMessage(aba.id!, { type: 'meet/gravarAgora' })) as
+      | { ok?: boolean }
+      | undefined;
+    return r?.ok === true;
+  };
+  try {
+    return (await mandar()) ? { ok: true } : { ok: false, motivo: 'sem_meet' };
+  } catch {
+    // A aba abriu antes da extensão ser (re)carregada: sem content script.
+    // Injeta e tenta de novo, uma vez.
+    try {
+      await ensurePanelInTab(aba);
+      await new Promise((r) => setTimeout(r, 400));
+      return (await mandar()) ? { ok: true } : { ok: false, motivo: 'sem_painel' };
+    } catch {
+      return { ok: false, motivo: 'sem_painel' };
+    }
+  }
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
@@ -354,6 +390,9 @@ onMessage((message, sender) => {
           return { ok: false as const };
         }
       }
+
+      case 'ui/gravarAgora':
+        return gravarAgoraNoMeet();
 
       case 'ui/openHome':
         // A página principal em aba própria — e SEMPRE a mesma aba, se ela já

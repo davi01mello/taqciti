@@ -157,6 +157,11 @@ const paraAbaDaReuniao = z.discriminatedUnion('type', [
    * parecer sucesso.
    */
   z.object({ type: z.literal('meet/sendChatNotice'), text: z.string().min(1).max(300) }),
+  /**
+   * "Gravar esta reunião", pedido pela sidebar: a aba aceita a captura desta sala
+   * e começa. A resposta é `{ ok }`; `false` quando a página não é uma sala.
+   */
+  z.object({ type: z.literal('meet/gravarAgora') }),
 ]);
 
 /**
@@ -232,6 +237,12 @@ export const uiMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ui/print') }),
   /** Manda o aviso para o chat do Meet da reunião em andamento. */
   z.object({ type: z.literal('ui/chatNotice'), text: z.string().min(1).max(300) }),
+  /**
+   * Começa a gravar a reunião que está aberta no Meet, a qualquer momento — o
+   * caminho à mão para quando o automático não perguntou. O background acha a
+   * aba do Meet (a sidebar não alcança content script) e a manda gravar.
+   */
+  z.object({ type: z.literal('ui/gravarAgora') }),
   z.object({ type: z.literal('ui/getState') }),
   z.object({ type: z.literal('ui/pause') }),
   z.object({ type: z.literal('ui/resume') }),
