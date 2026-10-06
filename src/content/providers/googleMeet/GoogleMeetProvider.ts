@@ -555,6 +555,13 @@ export class GoogleMeetProvider implements MeetingProvider {
     // que não estamos conseguindo ler.
     const region = queryFirst(document, CAPTION_REGION_SELECTORS);
     const hasVisibleCaption = (region?.textContent ?? '').trim().length > 0;
+    // Legendas LIGADAS há tempo e nem a região achada: os seletores não casam
+    // mais com o Meet. Isso é falha — calar aqui era o "não consegue religar".
+    if (!region) {
+      logger.warn('meet: legendas ligadas, mas a região de legenda não foi encontrada');
+      this.setCaptureStalled(true);
+      return;
+    }
     if (!hasVisibleCaption) return;
 
     logger.debug('meet: captura parada, reatando o observer');

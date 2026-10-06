@@ -78,6 +78,8 @@ export class ContentController {
   private captionRetryTimer: ReturnType<typeof setInterval> | null = null;
   /** false = há legenda na tela que a captura não está conseguindo ler. */
   private captureHealthy = true;
+  /** A leitura falhou nesta sala: as legendas do Meet ficam visíveis até ela acabar. */
+  private legendasLiberadasPorFalha = false;
 
   /*
    * O PORTÃO DA CAPTURA.
@@ -602,7 +604,17 @@ export class ContentController {
       state.phase === 'captionsRequired' ||
       state.phase === 'recording' ||
       state.phase === 'paused';
-    setNativeCaptionsHidden(minha && sessionActive && this.prefs.hideMeetCaptions);
+    /*
+     * Escondê-las não pode custar a captura. Se a leitura já falhou nesta sala,
+     * as legendas do Meet voltam à tela e FICAM — a transcrição vale mais que a
+     * tela limpa, e religar com elas escondidas era justamente o que não
+     * funcionava. Zera quando a sala acaba.
+     */
+    if (!this.captureHealthy && sessionActive && minha) this.legendasLiberadasPorFalha = true;
+    if (!sessionActive || !minha) this.legendasLiberadasPorFalha = false;
+    setNativeCaptionsHidden(
+      minha && sessionActive && this.prefs.hideMeetCaptions && !this.legendasLiberadasPorFalha,
+    );
 
     // Nada na tela antes de saber COMO ele deve estar. O estado fica guardado e
     // a assinatura das preferências pinta o primeiro quadro já correto.
