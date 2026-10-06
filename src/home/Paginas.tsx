@@ -24,6 +24,7 @@ import {
   formatDate,
   formatDurationHuman,
   formatOffset,
+  formatSpeechDuration,
   formatTime,
   hostName,
   speakerLabel,
@@ -296,6 +297,11 @@ function FalasDaReuniao({ registro }: { registro: MeetingRecord }) {
             <div className="tq-fala-quem">
               <b>{rotulo}</b>
               <span>{formatOffset(s.startOffsetMs)}</span>
+              {formatSpeechDuration(s.startOffsetMs, s.endOffsetMs) && (
+                <span title="Duração da fala">
+                  {formatSpeechDuration(s.startOffsetMs, s.endOffsetMs)}
+                </span>
+              )}
             </div>
             <p className="tq-fala-texto">{s.text}</p>
           </li>

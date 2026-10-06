@@ -1356,11 +1356,18 @@
   white-space: nowrap;
 }
 
-.tq-fala-hora {
+.tq-fala-hora,
+.tq-fala-duracao {
   font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
   opacity: 0.75;
   flex: 0 0 auto;
+}
+
+/* A duração fica colada à hora, separada por um ponto: "01:12 · 8 s". */
+.tq-fala-duracao::before {
+  content: '·';
+  margin-right: 8px;
 }
 
 /*

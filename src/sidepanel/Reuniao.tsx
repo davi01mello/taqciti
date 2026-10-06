@@ -61,7 +61,13 @@ import { derivarEstadoDaCaptura } from '@/shared/ui/estadoDaCaptura';
 import type { EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
 import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { Markdown } from '@/shared/ui/Markdown';
-import { formatElapsedClock, formatOffset, hostName, speakerLabel } from '@/shared/ui/format';
+import {
+  formatElapsedClock,
+  formatOffset,
+  formatSpeechDuration,
+  hostName,
+  speakerLabel,
+} from '@/shared/ui/format';
 import { papelDoFalante } from '@/features/integracoes/colegas';
 import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
@@ -968,6 +974,11 @@ function ListaDeFalas({
               <span className="tq-fala-quem">
                 <span className="tq-fala-nome">{rotulo}</span>
                 <span className="tq-fala-hora">{formatOffset(s.startOffsetMs)}</span>
+                {formatSpeechDuration(s.startOffsetMs, s.endOffsetMs) && (
+                  <span className="tq-fala-duracao" title="Duração da fala">
+                    {formatSpeechDuration(s.startOffsetMs, s.endOffsetMs)}
+                  </span>
+                )}
                 {marca && (
                   <span
                     className="tq-fala-marca"

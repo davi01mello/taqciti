@@ -2815,6 +2815,12 @@ body .tq-home [role='dialog'] button {
   opacity: 0.75;
 }
 
+/* A duração, depois da hora: "01:12 · 8 s". */
+.tq-fala-quem span + span::before {
+  content: '·';
+  margin-right: 10px;
+}
+
 .tq-fala.seguida .tq-fala-quem {
   display: none;
 }

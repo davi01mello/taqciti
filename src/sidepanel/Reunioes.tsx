@@ -24,6 +24,7 @@ import {
   formatDate,
   formatDurationHuman,
   formatOffset,
+  formatSpeechDuration,
   formatTime,
   hostName,
   speakerLabel,
@@ -192,6 +193,11 @@ function DetalheDaReuniao({
                 <span className="tq-fala-quem">
                   <span className="tq-fala-nome">{rotulo}</span>
                   <span className="tq-fala-hora">{formatOffset(s.startOffsetMs)}</span>
+                  {formatSpeechDuration(s.startOffsetMs, s.endOffsetMs) && (
+                    <span className="tq-fala-duracao" title="Duração da fala">
+                      {formatSpeechDuration(s.startOffsetMs, s.endOffsetMs)}
+                    </span>
+                  )}
                 </span>
                 <span className="tq-fala-texto">{s.text}</span>
               </article>

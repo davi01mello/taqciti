@@ -57,6 +57,21 @@ export function formatOffset(offsetMs: number): string {
   return formatElapsedClock(offsetMs);
 }
 
+/**
+ * Quanto durou a fala, ao lado do horário: "12 s", "1 min 05 s". Fala sem
+ * duração conhecida (fim antes do início, ou ainda sem fim) não mostra nada —
+ * melhor que "0 s", que seria um número inventado.
+ */
+export function formatSpeechDuration(startOffsetMs: number, endOffsetMs: number): string {
+  const ms = endOffsetMs - startOffsetMs;
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const total = Math.max(1, Math.round(ms / 1000));
+  if (total < 60) return `${total} s`;
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m} min ${String(s).padStart(2, '0')} s`;
+}
+
 export function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first = parts[0]?.[0] ?? '?';

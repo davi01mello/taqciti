@@ -336,15 +336,21 @@ export function Capsula({
       {!perguntando && temSala && (estado === 'desligada' || estado === 'salva') && (
         <button
           type="button"
-          onClick={() => callbacks.onGravarAgora()}
+          // Primeiro abre a sidebar (é o gesto do clique que autoriza, e ele não
+          // sobrevive a um `await`), depois manda gravar.
+          onClick={() => {
+            abrir();
+            callbacks.onGravarAgora();
+          }}
+          title="Começar a gravar esta reunião e abrir a sidebar"
           style={{
             left: Math.max(
               MARGEM_DA_PERGUNTA,
-              Math.min(floating.geometry.capsule.left, window.innerWidth - 200),
+              Math.min(floating.geometry.capsule.left, window.innerWidth - 170),
             ),
-            top: floating.geometry.capsule.top + 46,
+            top: floating.geometry.capsule.top + 44,
           }}
-          className="glass fixed z-[2147483000] rounded-full border border-primary/45 bg-primary/[0.16] px-3.5 py-2 text-caption font-medium text-glow transition-colors duration-200 hover:bg-primary/25 animate-dock-in"
+          className="glass fixed z-[2147483000] rounded-full border border-white/10 px-3 py-1 text-micro text-muted opacity-70 transition-[opacity,color] duration-200 hover:text-foreground hover:opacity-100 focus-visible:opacity-100 animate-dock-in"
         >
           Gravar esta reunião
         </button>
