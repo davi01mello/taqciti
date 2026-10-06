@@ -2803,10 +2803,10 @@ body .tq-home [role='dialog'] button {
   color: var(--e-cinza);
 }
 
-/* Quem fala: você em verde, os outros em roxo. O "(Eu)" continua escrito. */
+/* Quem fala: as pessoas de fora em branco; você e o CITi em verde. O "(Eu)" continua escrito. */
 .tq-fala-quem b {
   font-weight: 600;
-  color: rgb(180 166 242);
+  color: var(--e-texto);
 }
 
 .tq-fala-quem span {
@@ -2823,21 +2823,18 @@ body .tq-home [role='dialog'] button {
   margin: 3px 0 0;
   font-size: 16px;
   line-height: 1.6;
-  color: rgb(212 205 248);
+  color: var(--e-texto);
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
-/* Você: branco. O pessoal do CITi (e-mail @citi.org.br): verde. De fora: roxo. */
+/* Você e o pessoal do CITi (e-mail @citi.org.br): verde. De fora: branco. */
 .tq-fala.voce .tq-fala-texto,
-.tq-fala.voce .tq-fala-quem b {
-  color: var(--e-texto);
-}
-
 .tq-fala.citi .tq-fala-texto {
   color: rgb(178 230 197);
 }
 
+.tq-fala.voce .tq-fala-quem b,
 .tq-fala.citi .tq-fala-quem b {
   color: var(--voz-clara);
 }

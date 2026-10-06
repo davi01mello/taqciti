@@ -1349,7 +1349,7 @@
 
 .tq-fala-nome {
   font-weight: 600;
-  color: var(--s-nome-outros);
+  color: var(--s-texto);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1396,9 +1396,8 @@
 /*
  * ── De quem é a fala ─────────────────────────────────────────────────────
  *
- * Pedido explícito (02/10/2026): VOCÊ em verde, os OUTROS em roxo — o mesmo
- * espectro do resto do painel, em tons claros para a leitura não cansar. Isto
- * substitui o fio verde que marcava só a sua fala.
+ * Pedido explícito (06/10/2026, trocou o de 02/10): VOCÊ e o pessoal do CITi
+ * (e-mail @citi.org.br) em verde; as DEMAIS pessoas em branco.
  *
  * E a cor nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome. Quem
  * não distingue a cor lê a mesma coisa.
@@ -1407,21 +1406,18 @@
   display: block;
   font-size: var(--fs-leitura);
   line-height: 1.55;
-  color: var(--s-fala-outros);
+  color: var(--s-texto);
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
-/* Você: branco. O pessoal do CITi (e-mail @citi.org.br): verde. De fora: roxo. */
+/* Você e o pessoal do CITi: verde. As demais pessoas: branco (o padrão acima). */
 .tq-fala.minha .tq-fala-texto,
-.tq-fala.minha .tq-fala-nome {
-  color: var(--s-texto);
-}
-
 .tq-fala.citi .tq-fala-texto {
   color: var(--s-fala-voce);
 }
 
+.tq-fala.minha .tq-fala-nome,
 .tq-fala.citi .tq-fala-nome {
   color: rgb(var(--c-glow));
 }
@@ -2269,13 +2265,10 @@
   font-size: var(--fs-ui);
   font-weight: 600;
   letter-spacing: 0.2px;
-  color: var(--s-nome-outros);
-}
-
-.tq-legenda.minha .tq-legenda-quem {
   color: var(--s-texto);
 }
 
+.tq-legenda.minha .tq-legenda-quem,
 .tq-legenda.citi .tq-legenda-quem {
   color: rgb(var(--c-glow));
 }
