@@ -644,6 +644,12 @@ export class ContentController {
       minha && sessionActive && this.prefs.hideMeetCaptions && !this.legendasLiberadasPorFalha,
     );
 
+    // A aba do Meet fica "visível" para a página enquanto ESTA aba captura:
+    // sem isso, atrás de outra aba, o Meet para de atualizar as legendas.
+    document.dispatchEvent(
+      new CustomEvent('taqciti:visibilidade', { detail: { ativa: minha && sessionActive } }),
+    );
+
     // Nada na tela antes de saber COMO ele deve estar. O estado fica guardado e
     // a assinatura das preferências pinta o primeiro quadro já correto.
     if (!this.prefsLoaded) return;

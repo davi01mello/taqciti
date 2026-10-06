@@ -220,6 +220,18 @@ export default defineManifest({
       // anúncio não deve ganhar a sua própria cópia.
       all_frames: false,
     },
+    /*
+     * No MUNDO DA PÁGINA, só no Meet, antes de o Meet rodar: mantém a página
+     * "visível" enquanto a captura roda, para a transcrição não parar com a aba
+     * atrás. Ligado e desligado pelo content script; ver `visibilidade.main.ts`.
+     */
+    {
+      matches: ['https://meet.google.com/*'],
+      js: ['src/content/visibilidade.main.ts'],
+      run_at: 'document_start',
+      all_frames: false,
+      world: 'MAIN',
+    },
   ],
 
   // `scripting` só para a primeira execução: alcançar as abas que já estavam
