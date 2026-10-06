@@ -46,6 +46,8 @@ import {
   type GravacaoAnterior,
 } from '@/features/meeting/consent';
 import { enviarNoChat } from './providers/googleMeet/chat';
+import { BotaoNaBarra, type TomDoBotao } from './providers/googleMeet/botaoNaBarra';
+import { derivarEstadoDaCaptura, LEITURA_DO_ESTADO } from '@/shared/ui/estadoDaCaptura';
 import type { MeetingSession } from '@/features/meeting/provider';
 
 /** Novas tentativas do portão da captura quando o storage de sessão falha. */
@@ -85,6 +87,15 @@ export class ContentController {
   private legendasLiberadasPorFalha = false;
   /** Até quando o "sim" da sala que acabou de acabar vale para a próxima. */
   private herancaAteEm = 0;
+
+  /**
+   * O botão na barra de baixo do Meet. Quando ele está montado, a cápsula
+   * flutuante sai da frente (ver `render`); quando a barra não é achada, a
+   * cápsula continua como sempre foi.
+   */
+  private readonly botaoNaBarra = new BotaoNaBarra(() => this.cliqueNaBarra());
+  private barraAtiva = false;
+  private barraTimer: ReturnType<typeof setInterval> | null = null;
 
   /*
    * O PORTÃO DA CAPTURA.
@@ -139,6 +150,73 @@ export class ContentController {
     // (a sidebar chega aqui pela mensagem `meet/gravarAgora`, no `onMessage`)
     salaDisponivel: () => this.provider.salaDaPagina?.() ?? null,
   };
+
+  /**
+   * O clique no botão da barra do Meet: abre a sidebar — sempre, e primeiro,
+   * porque é o gesto do clique que a autoriza — e, se não há captura nem
+   * pergunta pendente, começa a gravar. Com a pergunta de pé, só abre: quem
+   * decide registrar é a pessoa, na pergunta.
+   */
+  private cliqueNaBarra(): void {
+    void this.callbacks.onAbrirSidebar();
+    const capturando = this.estadoDaCapturaAgora() !== 'desligada' && this.estadoDaCapturaAgora() !== 'salva';
+    if (!capturando && this.reuniaoPendente === null) void this.gravarAgora();
+  }
+
+  private estadoDaCapturaAgora() {
+    const state = this.lastState ?? IDLE_STATE;
+    const minha = state.session !== null && state.session.meetingCode === this.salaDaCaptura;
+    const eff = minha ? state : IDLE_STATE;
+    return derivarEstadoDaCaptura(
+      {
+        phase: eff.phase,
+        captureHealthy: this.captureHealthy,
+        startedAt: eff.session?.startedAt ?? null,
+        lastChunkAt: eff.session?.lastChunkAt ?? null,
+        falas: eff.session?.segments.length ?? 0,
+      },
+      Date.now(),
+    );
+  }
+
+  /** Mantém o botão da barra no lugar e conta à cápsula se ele está lá. */
+  private sincronizarBarra(): void {
+    // A cápsula escondida pela pessoa (o X) esconde também o botão da barra,
+    // salvo se há pergunta: uma pergunta sem ninguém para vê-la não anda.
+    if (this.prefs.presence === 'closed' && this.reuniaoPendente === null) {
+      this.botaoNaBarra.remover();
+      if (this.barraAtiva) {
+        this.barraAtiva = false;
+        this.rerender();
+      }
+      return;
+    }
+    const estado = this.estadoDaCapturaAgora();
+    const perguntando = this.reuniaoPendente !== null;
+    const tom: TomDoBotao = perguntando
+      ? 'ambar'
+      : estado === 'erro'
+        ? 'vermelho'
+        : estado === 'capturando'
+          ? 'verde'
+          : estado === 'desligada' || estado === 'salva'
+            ? 'neutro'
+            : 'ambar';
+    const rotulo = perguntando
+      ? 'TaqCiti: registrar esta reunião? Abrir a sidebar'
+      : estado === 'desligada' || estado === 'salva'
+        ? 'Gravar esta reunião e abrir a sidebar do TaqCiti'
+        : `${LEITURA_DO_ESTADO[estado]}. Abrir a sidebar do TaqCiti`;
+    const montado = this.botaoNaBarra.sincronizar({
+      tom,
+      pulsando: estado === 'capturando' && !perguntando,
+      rotulo,
+    });
+    if (montado !== this.barraAtiva) {
+      this.barraAtiva = montado;
+      this.rerender();
+    }
+  }
 
   /**
    * "Gravar esta reunião" — o caminho à mão, quando o automático não pergunta.
@@ -336,6 +414,7 @@ export class ContentController {
       },
       PARTICIPANTS_POLL_MS,
     );
+    this.barraTimer = setInterval(() => this.sincronizarBarra(), MEET_POLL_INTERVAL_MS);
 
     /*
      * As preferências chegam por assinatura, não por leitura única.
@@ -514,6 +593,8 @@ export class ContentController {
     this.subscriptions.forEach((unsubscribe) => unsubscribe());
     this.subscriptions = [];
     if (this.participantsTimer !== null) clearInterval(this.participantsTimer);
+    if (this.barraTimer !== null) clearInterval(this.barraTimer);
+    this.botaoNaBarra.remover();
     this.stopCaptionRetries();
     this.provider.stop();
     setNativeCaptionsHidden(false);
@@ -689,6 +770,7 @@ export class ContentController {
           ultimoTrechoEm: state.session?.lastChunkAt ?? null,
           falas: state.session?.segments.length ?? 0,
           prefs: this.prefs,
+          barraAtiva: this.barraAtiva,
           callbacks: this.callbacks,
         }),
       }),

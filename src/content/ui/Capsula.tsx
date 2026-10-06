@@ -72,6 +72,11 @@ ull = nenhum ainda. */
   /** Quantas falas já foram capturadas. */
   falas?: number;
   prefs: PanelPrefs;
+  /**
+   * O botão do TaqCiti está na barra de baixo do Meet: é ele que representa a
+   * captura, e a cápsula flutuante sai da frente. A pergunta continua aqui.
+   */
+  barraAtiva?: boolean;
   callbacks: CapsulaCallbacks;
 }
 
@@ -93,6 +98,7 @@ export function Capsula({
   ultimoTrechoEm = null,
   falas = 0,
   prefs,
+  barraAtiva = false,
   callbacks,
 }: Props) {
   const [dica, setDica] = useState(false);
@@ -154,6 +160,9 @@ export function Capsula({
   // nova — uma pergunta pendente reacende a cápsula, senão ela seria invisível
   // justamente no momento em que tem algo a dizer.
   if (prefs.presence === 'closed' && !perguntando) return null;
+  // O botão da barra do Meet já mostra o estado e abre a sidebar: a cápsula
+  // flutuante só aparece quando há uma pergunta a fazer.
+  if (barraAtiva && !perguntando) return null;
 
   const estado = derivarEstadoDaCaptura(
     { phase, captureHealthy: saudavel, startedAt, lastChunkAt: ultimoTrechoEm, falas },
