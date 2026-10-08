@@ -85,7 +85,13 @@ beforeEach(() => {
 describe('avaliarReuniao', () => {
   it('sem sugestão do modelo, o resultado é o silêncio', async () => {
     const { adaptador } = modelo({});
-    expect(await avaliarReuniao(await entrada(adaptador))).toEqual({ tipo: 'ok', nova: null, retiradas: [], recusados: [] });
+    expect(await avaliarReuniao(await entrada(adaptador))).toEqual({
+      tipo: 'ok',
+      nova: null,
+      retiradas: [],
+      recusados: [],
+      uso: { latenciaMs: 1, entrada: 1, saida: 1 },
+    });
     const semChamada = modelo(null);
     expect(await avaliarReuniao(await entrada(semChamada.adaptador))).toMatchObject({ tipo: 'ok', nova: null });
   });

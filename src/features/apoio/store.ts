@@ -103,7 +103,7 @@ export interface Sugestao {
   mostradaEm?: number;
   encerradaEm?: number;
   /** Quem a encerrou: a pessoa, o tempo, ou o modelo com fala posterior. */
-  encerradaPor?: 'pessoa' | 'tempo' | 'conversa' | 'substituicao';
+  encerradaPor?: 'pessoa' | 'tempo' | 'conversa' | 'substituicao' | 'politica';
 }
 
 export const TIPOS_DE_FEEDBACK = [
@@ -131,10 +131,30 @@ export interface Feedback {
   comentario?: string;
 }
 
+/**
+ * O que custou acompanhar uma reunião: contagens, tempo e tokens. É o que a
+ * calibração usa para ajustar frequência e modelo com MEDIÇÃO, e não com
+ * palpite. Nenhum texto da reunião fica aqui.
+ */
+export interface Medicao {
+  avaliacoes: number;
+  silencios: number;
+  sugestoesGeradas: number;
+  retiradas: number;
+  recusadas: number;
+  erros: number;
+  latenciaTotalMs: number;
+  tokensEntrada: number;
+  tokensSaida: number;
+}
+
 export interface Apoio {
   versao: number;
   sugestoes: Sugestao[];
   feedback: Feedback[];
+  /** Reuniões em que a pessoa pausou as sugestões. Captura e perguntas manuais seguem. */
+  pausadas: Record<string, true>;
+  medicoes: Record<string, Medicao>;
 }
 
 export type NovaSugestao = Omit<
@@ -173,7 +193,7 @@ export const estaAberta = (s: Pick<Sugestao, 'estado'>): boolean =>
   s.estado === 'pendente' || s.estado === 'mostrada';
 
 export function normalizarApoio(bruto: unknown): Apoio {
-  const vazio: Apoio = { versao: VERSAO_DO_APOIO, sugestoes: [], feedback: [] };
+  const vazio: Apoio = { versao: VERSAO_DO_APOIO, sugestoes: [], feedback: [], pausadas: {}, medicoes: {} };
   if (!bruto || typeof bruto !== 'object') return vazio;
   const b = bruto as Partial<Record<keyof Apoio, unknown>>;
   const sugestoes = Array.isArray(b.sugestoes)
@@ -190,7 +210,28 @@ export function normalizarApoio(bruto: unknown): Apoio {
   const feedback = Array.isArray(b.feedback)
     ? (b.feedback as Feedback[]).filter((f) => !!f && typeof f === 'object' && typeof f.id === 'string')
     : [];
-  return { versao: VERSAO_DO_APOIO, sugestoes, feedback };
+  const mapa = (v: unknown): Record<string, unknown> =>
+    v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const pausadas: Record<string, true> = {};
+  for (const [id, v] of Object.entries(mapa(b.pausadas))) if (v === true) pausadas[id] = true;
+  const medicoes: Record<string, Medicao> = {};
+  for (const [id, m] of Object.entries(mapa(b.medicoes))) {
+    if (!m || typeof m !== 'object') continue;
+    const x = m as Partial<Medicao>;
+    const n = (k: keyof Medicao) => (typeof x[k] === 'number' && Number.isFinite(x[k]) ? (x[k] as number) : 0);
+    medicoes[id] = {
+      avaliacoes: n('avaliacoes'),
+      silencios: n('silencios'),
+      sugestoesGeradas: n('sugestoesGeradas'),
+      retiradas: n('retiradas'),
+      recusadas: n('recusadas'),
+      erros: n('erros'),
+      latenciaTotalMs: n('latenciaTotalMs'),
+      tokensEntrada: n('tokensEntrada'),
+      tokensSaida: n('tokensSaida'),
+    };
+  }
+  return { versao: VERSAO_DO_APOIO, sugestoes, feedback, pausadas, medicoes };
 }
 
 export async function lerApoio(): Promise<Apoio> {
@@ -350,11 +391,48 @@ export async function registrarFeedback(p: {
   });
 }
 
-/** Sugestões e feedback de uma reunião: derivados dela. */
+// --------------------------------------------------------- pausa e medição
+
+/** A pessoa pausa (ou retoma) as sugestões desta reunião. A captura e as perguntas manuais continuam. */
+export async function definirPausa(reuniaoId: string, pausada: boolean): Promise<void> {
+  await transacao((a) => {
+    const jaEstava = a.pausadas[reuniaoId] === true;
+    if (jaEstava === pausada) return { resultado: undefined, mudou: false };
+    if (pausada) a.pausadas[reuniaoId] = true;
+    else delete a.pausadas[reuniaoId];
+    return { resultado: undefined, mudou: true };
+  });
+}
+
+/** Soma uma medição à da reunião. */
+export async function somarMedicao(reuniaoId: string, parcial: Partial<Medicao>): Promise<void> {
+  await transacao((a) => {
+    const atual: Medicao = a.medicoes[reuniaoId] ?? {
+      avaliacoes: 0,
+      silencios: 0,
+      sugestoesGeradas: 0,
+      retiradas: 0,
+      recusadas: 0,
+      erros: 0,
+      latenciaTotalMs: 0,
+      tokensEntrada: 0,
+      tokensSaida: 0,
+    };
+    for (const k of Object.keys(parcial) as Array<keyof Medicao>) atual[k] += parcial[k] ?? 0;
+    a.medicoes[reuniaoId] = atual;
+    return { resultado: undefined, mudou: true };
+  });
+}
+
+/** Sugestões, feedback, pausa e medição de uma reunião: derivados dela. */
 export function semApoioDaReuniao(a: Apoio, reuniaoId: string): { apoio: Apoio; removidas: number } {
   const sugestoes = a.sugestoes.filter((s) => s.reuniaoId !== reuniaoId);
+  const pausadas = { ...a.pausadas };
+  delete pausadas[reuniaoId];
+  const medicoes = { ...a.medicoes };
+  delete medicoes[reuniaoId];
   return {
-    apoio: { ...a, sugestoes, feedback: a.feedback.filter((f) => f.reuniaoId !== reuniaoId) },
+    apoio: { ...a, sugestoes, feedback: a.feedback.filter((f) => f.reuniaoId !== reuniaoId), pausadas, medicoes },
     removidas: a.sugestoes.length - sugestoes.length,
   };
 }

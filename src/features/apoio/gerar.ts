@@ -94,6 +94,8 @@ export type ResultadoDaAvaliacao =
       retiradas: Retirada[];
       /** O que o modelo trouxe e o código recusou, com o motivo — para auditoria, não para a tela. */
       recusados: string[];
+      /** O que a chamada custou. Ausente quando o modelo não foi chamado. */
+      uso?: { latenciaMs: number; entrada: number; saida: number };
     }
   | { tipo: 'erro'; codigo: string; mensagem: string };
 
@@ -176,10 +178,12 @@ export async function avaliarReuniao(p: {
     return { tipo: 'erro', codigo: 'falha_interna', mensagem: (e as Error)?.message ?? 'erro' };
   }
 
+  const uso = { latenciaMs: r.latenciaMs, entrada: r.uso.entrada, saida: r.uso.saida };
   const chamada = r.chamadas.find((c) => c.nome === FERRAMENTA.nome);
-  if (!chamada) return { tipo: 'ok', nova: null, retiradas: [], recusados: [] };
+  if (!chamada) return { tipo: 'ok', nova: null, retiradas: [], recusados: [], uso };
   const lido = avaliarSchema.safeParse(chamada.argumentos);
-  if (!lido.success) return { tipo: 'ok', nova: null, retiradas: [], recusados: ['avaliação fora do formato'] };
+  if (!lido.success)
+    return { tipo: 'ok', nova: null, retiradas: [], recusados: ['avaliação fora do formato'], uso };
 
   const recusados: string[] = [];
   const naJanela = (n: number) => n >= janela.inicio && n < janela.fim;
@@ -223,7 +227,7 @@ export async function avaliarReuniao(p: {
       retiradas.push({ id: x.id, fala: x.fala, motivo: x.motivo.trim().slice(0, 160) });
     }
   }
-  return { tipo: 'ok', nova, retiradas, recusados };
+  return { tipo: 'ok', nova, retiradas, recusados, uso };
 }
 
 /**

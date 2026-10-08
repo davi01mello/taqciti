@@ -157,17 +157,31 @@ export async function limparVinculosDaReuniao(
     }
     // As sugestões de condução são derivadas da transcrição que deixou de existir.
     let sugestoes = 0;
-    const apoio = bruto[STORAGE_KEYS.apoio] as { sugestoes?: unknown; feedback?: unknown } | null | undefined;
-    if (apoio && typeof apoio === 'object' && Array.isArray(apoio.sugestoes)) {
+    const apoio = bruto[STORAGE_KEYS.apoio] as
+      | { sugestoes?: unknown; feedback?: unknown; pausadas?: unknown; medicoes?: unknown }
+      | null
+      | undefined;
+    if (apoio && typeof apoio === 'object') {
       const deOutras = (x: unknown) =>
         !x || typeof x !== 'object' || (x as { reuniaoId?: unknown }).reuniaoId !== meetingId;
-      const ficam = apoio.sugestoes.filter(deOutras);
-      sugestoes = apoio.sugestoes.length - ficam.length;
-      if (sugestoes)
+      const semEsta = (m: unknown) => {
+        if (!m || typeof m !== 'object' || Array.isArray(m)) return { mapa: {}, tinha: false };
+        const copia = { ...(m as Record<string, unknown>) };
+        const tinha = meetingId in copia;
+        delete copia[meetingId];
+        return { mapa: copia, tinha };
+      };
+      const ficam = Array.isArray(apoio.sugestoes) ? apoio.sugestoes.filter(deOutras) : [];
+      sugestoes = Array.isArray(apoio.sugestoes) ? apoio.sugestoes.length - ficam.length : 0;
+      const pausadas = semEsta(apoio.pausadas);
+      const medicoes = semEsta(apoio.medicoes);
+      if (sugestoes || pausadas.tinha || medicoes.tinha)
         alteracoes[STORAGE_KEYS.apoio] = {
           ...apoio,
           sugestoes: ficam,
           feedback: Array.isArray(apoio.feedback) ? apoio.feedback.filter(deOutras) : [],
+          pausadas: pausadas.mapa,
+          medicoes: medicoes.mapa,
         };
     }
     if (Object.keys(alteracoes).length) await writeLocalBatch(alteracoes);

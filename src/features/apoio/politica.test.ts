@@ -12,6 +12,7 @@ import {
   FALAS_APOS_DESCARTE,
   FALAS_PARA_REPETIR_UM_PONTO,
   JANELA_DE_VALIDADE_EM_FALAS,
+  VALIDADE_NA_TELA_EM_FALAS,
   chaveDoPonto,
   decidir,
   planejar,
@@ -147,7 +148,7 @@ describe('decidir', () => {
 
 describe('planejar', () => {
   it('sem candidato que passe, nada aparece', () => {
-    expect(planejar(estado())).toEqual({ mostrar: null, descartar: [], substituir: [] });
+    expect(planejar(estado())).toEqual({ mostrar: null, descartar: [], substituir: [], expirarNaTela: [] });
   });
 
   it('das que passam, aparece uma: a do objetivo vence a mais nova', () => {
@@ -186,7 +187,20 @@ describe('planejar', () => {
     const naTela = sug({ estado: 'mostrada', mostradaEm: T0 - 5, ponto: 'X' });
     const pendente = sug({ ponto: 'Y' });
     const p = planejar(estado({ sugestoes: [naTela, pendente] }));
-    expect(p).toEqual({ mostrar: null, descartar: [], substituir: [] });
+    expect(p).toEqual({ mostrar: null, descartar: [], substituir: [], expirarNaTela: [] });
+  });
+
+  it('a sugestão na tela sai quando a conversa foi longe demais, e libera o lugar', () => {
+    const naTela = sug({ estado: 'mostrada', mostradaEm: T0 - 600_000, ponto: 'X', revisao: 10 });
+    const dentro = estado({ falasConsolidadas: 10 + VALIDADE_NA_TELA_EM_FALAS, sugestoes: [naTela] });
+    const fora = estado({ falasConsolidadas: 10 + VALIDADE_NA_TELA_EM_FALAS + 1, sugestoes: [naTela] });
+    expect(planejar(dentro).expirarNaTela).toEqual([]);
+    expect(planejar(fora).expirarNaTela.map((s) => s.id)).toEqual([naTela.id]);
+    // Libera o lugar: uma pendente em dia passa a poder aparecer na mesma passada.
+    const pendente = sug({ ponto: 'Y', revisao: 10 + VALIDADE_NA_TELA_EM_FALAS });
+    const p = planejar(estado({ agora: T0, falasConsolidadas: pendente.revisao + 1, sugestoes: [naTela, pendente] }));
+    expect(p.expirarNaTela.map((s) => s.id)).toEqual([naTela.id]);
+    expect(p.mostrar?.id).toBe(pendente.id);
   });
 });
 

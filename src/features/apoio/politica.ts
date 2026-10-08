@@ -53,6 +53,12 @@ export const CONFIGURACAO_DOS_MODOS: Readonly<Record<ModoDeIntervencao, Configur
 
 /** Quantas falas a conversa pode andar depois que a sugestão nasceu, antes de ela caducar. */
 export const JANELA_DE_VALIDADE_EM_FALAS = 10;
+/**
+ * Quanto a conversa pode andar com a sugestão JÁ NA TELA antes de ela sair.
+ * Maior que a janela de antes de aparecer: quem lê precisa de tempo, mas um
+ * cartão parado enquanto a reunião seguiu adiante deixa de ajudar.
+ */
+export const VALIDADE_NA_TELA_EM_FALAS = 30;
 /** Enquanto a anterior sobre o mesmo ponto está viva ou recente, não repete. */
 export const FALAS_PARA_REPETIR_UM_PONTO = 20;
 /** Um ponto descartado só volta com tanta conversa nova. */
@@ -143,6 +149,8 @@ export interface Plano {
   descartar: Array<{ sugestao: Sugestao; motivo: MotivoDaDecisao }>;
   /** Passaram na política mas perderam para a escolhida: só uma por vez. */
   substituir: Sugestao[];
+  /** Estavam na tela e a conversa andou além da validade: saem sem esperar a pessoa. */
+  expirarNaTela: Sugestao[];
 }
 
 /**
@@ -152,11 +160,18 @@ export interface Plano {
  * a conversa andando, a mais nova a vence.
  */
 export function planejar(e: EstadoDoLaco): Plano {
-  const plano: Plano = { mostrar: null, descartar: [], substituir: [] };
-  const pendentes = e.sugestoes.filter((s) => s.estado === 'pendente');
+  const plano: Plano = { mostrar: null, descartar: [], substituir: [], expirarNaTela: [] };
+  // O que está na tela vence quando a conversa já foi longe demais.
+  plano.expirarNaTela = e.sugestoes.filter(
+    (s) => s.estado === 'mostrada' && e.falasConsolidadas - s.revisao > VALIDADE_NA_TELA_EM_FALAS,
+  );
+  const naTelaQueFica = e.sugestoes.map((s) => (plano.expirarNaTela.includes(s) ? { ...s, estado: 'expirada' as const } : s));
+  const pendentes = naTelaQueFica.filter((s) => s.estado === 'pendente');
   const aptas: Sugestao[] = [];
+  // A que sai da tela já não ocupa o lugar: as pendentes são decididas sem ela.
+  const sem = { ...e, sugestoes: naTelaQueFica };
   for (const s of pendentes) {
-    const d = decidir(s, e);
+    const d = decidir(s, sem);
     if (d.acao === 'descartar') plano.descartar.push({ sugestao: s, motivo: d.motivo });
     else if (d.acao === 'mostrar') aptas.push(s);
   }
