@@ -17,14 +17,15 @@
  * ── A carta e o Taq ───────────────────────────────────────────────────────
  *
  * O ÚNICO caminho de envio é o agente, pelo mesmo caminho do chat
- * (`send_email`), com diretório, idempotência e a decisão de mostrar uma prévia
- * ou não tomada em código. A carta não envia por conta própria; só entrega o pedido:
+ * (`send_email`), com diretório e idempotência em código. O Taq só PREPARA a
+ * prévia; quem envia é o botão "Enviar" do cartão que aparece na conversa. A
+ * carta não envia por conta própria; só entrega o pedido:
  *
  *   - "Redigir com o Taq" pede o texto do e-mail, com a reunião como contexto;
  *     a resposta vem na conversa, para a pessoa ler e colar aqui;
  *   - "Enviar" (com o Gmail e o diretório conectados) entrega o e-mail como
  *     está escrito — para, assunto e mensagem, palavra por palavra — e o Taq
- *     envia ou mostra a prévia, e diz o que aconteceu.
+ *     mostra a prévia na conversa; o envio acontece no botão do cartão.
  */
 import { useEffect, useRef, useState } from 'react';
 import { capacidadesDisponiveis } from '@/features/integracoes/estado';
@@ -46,7 +47,7 @@ interface Props {
 /** O pedido de envio: o conteúdo vai entre marcas, para o Taq não reescrevê-lo. */
 export function pedidoDeEnvio(p: { para: string; assunto: string; texto: string; anexo: string | null }): string {
   return [
-    'Envie este e-mail, exatamente como está escrito, sem mudar nenhuma palavra do assunto nem da mensagem.',
+    'Prepare este e-mail para eu enviar, exatamente como está escrito, sem mudar nenhuma palavra do assunto nem da mensagem.',
     `Para: ${p.para.trim()}`,
     `Assunto: ${p.assunto.trim()}`,
     ...(p.anexo ? [`Anexo: ${p.anexo} (a transcrição ou o documento desta reunião)`] : []),
@@ -179,7 +180,7 @@ export function Carta({
         <div className="tq-carta-pe">
           {canal === 'email' && emailPronto ? (
             <p className="tq-carta-aviso" role="status">
-              O Taq envia pela sua conta do CITi e conta aqui o que aconteceu.
+              O Taq prepara a prévia na conversa; você envia pelo botão do cartão, com a sua conta do CITi.
             </p>
           ) : (
             <p className="tq-carta-aviso" role="status">
@@ -219,7 +220,7 @@ export function Carta({
             disabled={!podeEnviarPeloTaq}
             title={
               podeEnviarPeloTaq
-                ? 'O Taq envia este e-mail pela sua conta do CITi.'
+                ? 'O Taq prepara a prévia; você confirma o envio no botão do cartão.'
                 : canal === 'email' && emailPronto
                   ? 'Preencha para quem, o assunto e a mensagem.'
                   : `Conecte ${nomeDoCanal} em Conexões para enviar daqui.`

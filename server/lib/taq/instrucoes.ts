@@ -54,6 +54,9 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   /** v2: com a conta do CITi conectada, envia e-mail e mexe na agenda (prévia, confirmação, desfecho incerto). */
   'communication-v2': 'communication-v2.md',
   'scheduling-v2': 'scheduling-v2.md',
+  /** v3: o modelo só PREPARA a prévia; quem confirma é o botão do cartão (sem `chave_do_rascunho`, sem "envie"). */
+  'communication-v3': 'communication-v3.md',
+  'scheduling-v3': 'scheduling-v3.md',
   'memory-v1': 'memory-v1.md',
   'context-v1': 'context-v1.md',
   'copilot-v1': 'copilot-v1.md',

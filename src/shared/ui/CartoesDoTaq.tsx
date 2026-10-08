@@ -9,16 +9,21 @@
  *   sugestões      "Registrar selecionados" → `registrarCompromissos`
  *   achados        "Marcar resolvido" / "Descartar com motivo" / "Reabrir"
  *   análise        "Corrigir" um item → `corrigirItemDaAnalise`
- *   rascunho       editar e "Copiar"; o envio é só pelo Taq, no chat ("envie")
+ *   rascunho       "Copiar"; com a conta do CITi, "Enviar" / "Descartar" (botão = confirmação)
+ *   ação externa   "Marcar" / "Remarcar" / "Cancelar o evento" / "Descartar", e
+ *                  "Tentar de novo" / "Reenviar mesmo assim" quando falhou ou ficou desconhecido
  *   horários       "Abrir no Google Agenda" (formulário preenchido, sem convidados)
  *
  * Os de registro (compromissos, decisões, achados, análise) são desenhados a
  * partir do storage, no estado de agora: o que foi concluído depois aparece
- * concluído; o que foi apagado aparece como indisponível. Nenhum botão de
- * "Enviar" ou "Agendar" existe, porque nenhuma integração existe.
+ * concluído; o que foi apagado aparece como indisponível. Os botões de ação
+ * externa só existem com a chave de um rascunho guardado, e é o clique neles —
+ * não texto de ninguém — que o código aceita como confirmação.
  */
 import { useState, type ReactNode } from 'react';
+import { cancelarRascunho } from '@/features/integracoes/registroDeAcoes';
 import type { CartaoDaResposta } from '@/features/taq/contratos';
+import type { ResultadoDaConfirmacao } from '@/features/taq/orquestrador';
 import type { FonteDaResposta } from '@/home/conversations';
 import { editarRascunhoDaResposta } from '@/home/conversations';
 import {
@@ -635,17 +640,118 @@ const ROTULO_DO_DESTINATARIO = {
   ambiguo: 'mais de uma pessoa com esse nome',
 } as const;
 
+/** Quem confirma uma ação externa: um botão, com o desfecho real à vista. */
+type ConfirmarAcao = (chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>;
+
+const ROTULO_DO_BOTAO = {
+  email: 'Enviar',
+  evento_criar: 'Marcar',
+  evento_remarcar: 'Remarcar',
+  evento_cancelar: 'Cancelar o evento',
+} as const;
+
+/**
+ * Os botões que confirmam (ou descartam) um rascunho guardado. O clique é o que
+ * o código aceita como confirmação; nada aqui diz "enviado" antes de a ação
+ * externa responder — o texto vem do desfecho real, e erro fica visível.
+ */
+function BotoesDaAcao({
+  chave,
+  conversaId,
+  operacao,
+  repetirDeSaida = false,
+  falhouAntes = false,
+  descartavel,
+  onConfirmarAcao,
+}: {
+  chave: string;
+  conversaId: string;
+  operacao: keyof typeof ROTULO_DO_BOTAO;
+  /** O resultado deste cartão é desconhecido: o próximo clique reenvia mesmo assim. */
+  repetirDeSaida?: boolean;
+  falhouAntes?: boolean;
+  descartavel: boolean;
+  onConfirmarAcao: ConfirmarAcao;
+}) {
+  const [rodando, setRodando] = useState(false);
+  const [repetir, setRepetir] = useState(repetirDeSaida);
+  const [tentouDeNovo, setTentouDeNovo] = useState(falhouAntes);
+  const [feito, setFeito] = useState(false);
+  const [descartado, setDescartado] = useState(false);
+  const [aviso, setAviso] = useState<{ erro: boolean; texto: string } | null>(null);
+
+  const confirmar = async () => {
+    setRodando(true);
+    setAviso(null);
+    try {
+      const r = await onConfirmarAcao(chave, repetir || undefined);
+      const estado = r.cartoes.find((c) => c.tipo === 'acao_externa')?.estado;
+      if (estado === 'aceito' || r.erro?.codigo === 'ja_feito') setFeito(true);
+      setRepetir(estado === 'desconhecido');
+      setTentouDeNovo(estado === 'falhou' || estado === 'desconhecido');
+      setAviso({ erro: !r.ok || estado === 'falhou' || estado === 'desconhecido', texto: r.texto });
+    } catch (e) {
+      setAviso({ erro: true, texto: `Não foi feito: ${(e as Error)?.message ?? 'erro'}` });
+    } finally {
+      setRodando(false);
+    }
+  };
+  const descartar = async () => {
+    setRodando(true);
+    const ok = await cancelarRascunho(chave, conversaId).catch(() => false);
+    setRodando(false);
+    if (ok) setDescartado(true);
+    else setAviso({ erro: true, texto: 'Não deu para descartar: o rascunho já não está mais aguardando.' });
+  };
+
+  if (descartado) return <p className="tq-c-mudo" role="status">Rascunho descartado. Nada foi enviado nem criado.</p>;
+  const rotulo = repetir
+    ? 'Reenviar mesmo assim'
+    : tentouDeNovo
+      ? 'Tentar de novo'
+      : ROTULO_DO_BOTAO[operacao];
+  return (
+    <>
+      {repetir && (
+        <p className="tq-c-mudo" role="alert">
+          Antes de reenviar, confira a pasta Enviados (ou a agenda): se já saiu, isto vai duplicar.
+        </p>
+      )}
+      {aviso && (
+        <p className={aviso.erro ? 'tq-c-erro' : 'tq-c-mudo'} role={aviso.erro ? 'alert' : 'status'}>
+          {aviso.texto}
+        </p>
+      )}
+      {!feito && (
+        <div className="tq-c-acoes">
+          <button type="button" disabled={rodando} onClick={() => void confirmar()}>
+            {rodando ? 'Aguarde…' : rotulo}
+          </button>
+          {descartavel && !tentouDeNovo && (
+            <button type="button" disabled={rodando} onClick={() => void descartar()}>
+              Descartar
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 function CartaoDeRascunho({
   cartao,
   conversaId,
   mensagemId,
   indice,
+  onConfirmarAcao,
 }: {
   cartao: Extract<CartaoDaResposta, { tipo: 'rascunho_de_mensagem' }>;
   conversaId?: string;
   mensagemId: string;
   indice: number;
+  onConfirmarAcao?: ConfirmarAcao;
 }) {
+  const chave = conversaId && onConfirmarAcao ? cartao.chaveDoRascunho : undefined;
   const [assunto, setAssunto] = useState(cartao.assunto ?? '');
   const [corpo, setCorpo] = useState(cartao.corpo);
   const [salvo, setSalvo] = useState<'salvo' | 'pendente' | 'falhou'>('salvo');
@@ -678,6 +784,7 @@ function CartaoDeRascunho({
           Assunto
           <input
             value={assunto}
+            readOnly={!!chave}
             onChange={(e) => {
               setAssunto(e.target.value);
               setSalvo('pendente');
@@ -691,6 +798,7 @@ function CartaoDeRascunho({
         <textarea
           rows={Math.min(14, Math.max(5, corpo.split('\n').length + 1))}
           value={corpo}
+          readOnly={!!chave}
           onChange={(e) => {
             setCorpo(e.target.value);
             setSalvo('pendente');
@@ -705,12 +813,16 @@ function CartaoDeRascunho({
           ))}
         </ul>
       )}
+      {chave && conversaId && onConfirmarAcao && (
+        <BotoesDaAcao chave={chave} conversaId={conversaId} operacao="email" descartavel onConfirmarAcao={onConfirmarAcao} />
+      )}
       <div className="tq-c-acoes">
         <BotaoCopiar texto={texto} rotulo="Copiar" />
       </div>
       <p className="tq-c-mudo" role="status">
-        Nada foi enviado. Quem envia é o Taq, aqui no chat: com a conta do CITi conectada,
-        diga “envie”; senão, copie o texto.
+        {chave
+          ? 'Nada foi enviado. “Enviar” manda exatamente este rascunho, pela conta do CITi; para mudar o texto, peça ao Taq um rascunho novo.'
+          : 'Nada foi enviado. Sem a conta do CITi conectada, copie o texto.'}
         {salvo === 'pendente' ? ' Edição ainda não salva.' : salvo === 'falhou' ? ' A edição não pôde ser salva.' : ''}
       </p>
     </Cartao>
@@ -816,7 +928,23 @@ const NOME_DA_ACAO_EXTERNA = {
   evento_cancelar: 'Cancelar evento',
 } as const;
 
-function CartaoDeAcaoExterna({ cartao }: { cartao: Extract<CartaoDaResposta, { tipo: 'acao_externa' }> }) {
+function CartaoDeAcaoExterna({
+  cartao,
+  conversaId,
+  onConfirmarAcao,
+}: {
+  cartao: Extract<CartaoDaResposta, { tipo: 'acao_externa' }>;
+  conversaId?: string;
+  onConfirmarAcao?: ConfirmarAcao;
+}) {
+  // E-mail em prévia: o botão está no cartão do rascunho, e não se duplica aqui.
+  const botoes =
+    !!cartao.chaveDoRascunho &&
+    !!conversaId &&
+    !!onConfirmarAcao &&
+    (cartao.estado === 'falhou' ||
+      cartao.estado === 'desconhecido' ||
+      (cartao.estado === 'aguardando_confirmacao' && cartao.operacao !== 'email'));
   return (
     <Cartao
       titulo={`${NOME_DA_ACAO_EXTERNA[cartao.operacao]} — ${cartao.titulo}`}
@@ -843,9 +971,22 @@ function CartaoDeAcaoExterna({ cartao }: { cartao: Extract<CartaoDaResposta, { t
           </a>
         </div>
       )}
+      {botoes && (
+        <BotoesDaAcao
+          chave={cartao.chaveDoRascunho!}
+          conversaId={conversaId!}
+          operacao={cartao.operacao}
+          repetirDeSaida={cartao.estado === 'desconhecido'}
+          falhouAntes={cartao.estado === 'falhou'}
+          descartavel={cartao.estado === 'aguardando_confirmacao'}
+          onConfirmarAcao={onConfirmarAcao!}
+        />
+      )}
       <p className="tq-c-mudo">
         {cartao.estado === 'aguardando_confirmacao'
-          ? 'Nada foi enviado. Diga “envie” (ou “pode enviar”) para confirmar.'
+          ? cartao.operacao === 'email'
+            ? 'Nada foi enviado. O botão está no rascunho acima.'
+            : 'Nada foi feito. Só o botão confirma: o que sai é exatamente esta prévia.'
           : cartao.estado === 'desconhecido'
             ? 'O Taq não sabe se saiu. Confira antes de pedir de novo: ele não reenvia sozinho.'
             : cartao.estado === 'aceito'
@@ -916,12 +1057,15 @@ export function CartoesDoTaq({
   mensagemId,
   onAbrirFonte,
   onAbrirDocumento,
+  onConfirmarAcao,
 }: {
   cartoes: readonly CartaoDaResposta[];
   conversaId?: string;
   mensagemId: string;
   onAbrirFonte: (f: FonteDaResposta) => void;
   onAbrirDocumento: (id: string) => void;
+  /** Ausente = os cartões de ação externa aparecem sem botão (nada confirma). */
+  onConfirmarAcao?: ConfirmarAcao;
 }) {
   return (
     <div className="tq-cartoes">
@@ -939,7 +1083,14 @@ export function CartoesDoTaq({
             return <CartaoDeAnalise key={i} id={c.id} onAbrirFonte={onAbrirFonte} />;
           case 'rascunho_de_mensagem':
             return (
-              <CartaoDeRascunho key={i} cartao={c} indice={i} mensagemId={mensagemId} {...(conversaId ? { conversaId } : {})} />
+              <CartaoDeRascunho
+                key={i}
+                cartao={c}
+                indice={i}
+                mensagemId={mensagemId}
+                {...(conversaId ? { conversaId } : {})}
+                {...(onConfirmarAcao ? { onConfirmarAcao } : {})}
+              />
             );
           case 'sugestao_de_evento':
             return <CartaoDeEvento key={i} cartao={c} />;
@@ -956,7 +1107,14 @@ export function CartoesDoTaq({
               />
             );
           case 'acao_externa':
-            return <CartaoDeAcaoExterna key={i} cartao={c} />;
+            return (
+              <CartaoDeAcaoExterna
+                key={i}
+                cartao={c}
+                {...(conversaId ? { conversaId } : {})}
+                {...(onConfirmarAcao ? { onConfirmarAcao } : {})}
+              />
+            );
           case 'revisao_de_documento':
             return <CartaoDeRevisao key={i} cartao={c} onAbrirDocumento={onAbrirDocumento} />;
           default:

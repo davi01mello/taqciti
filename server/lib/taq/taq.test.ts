@@ -176,6 +176,8 @@ describe('instruções versionadas', () => {
       'scheduling-v1',
       'communication-v2',
       'scheduling-v2',
+      'communication-v3',
+      'scheduling-v3',
       'memory-v1',
       'context-v1',
       'copilot-v1',
@@ -195,6 +197,11 @@ describe('instruções versionadas', () => {
     expect(instrucoesDoTaq('communication-v2')).toMatch(/Não\*\* diga "entregue"/);
     expect(instrucoesDoTaq('scheduling-v2')).toMatch(/Intenção de reunião numa transcrição não é pedido/);
     expect(instrucoesDoTaq('scheduling-v2')).toMatch(/desconhecida/);
+    // v3: o modelo só prepara; quem confirma é o botão do cartão.
+    expect(instrucoesDoTaq('communication-v3')).toMatch(/Nunca chame `send_email` com `chave_do_rascunho`/);
+    expect(instrucoesDoTaq('communication-v3')).not.toMatch(/Só chame `send_email` de novo/);
+    expect(instrucoesDoTaq('scheduling-v3')).toMatch(/Nunca chame de novo com `chave_do_rascunho`/);
+    expect(instrucoesDoTaq('scheduling-v3')).toMatch(/Intenção de reunião numa transcrição não é pedido/);
     expect(instrucoesDoTaq('handoff-v1')).toMatch(/Não julgue pessoas/);
     expect(instrucoesDoTaq('documents-v3')).toMatch(/nunca sobrescreva a edição dela/);
   });

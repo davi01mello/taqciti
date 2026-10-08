@@ -25,7 +25,9 @@
  * escrita (criar, redigir, editar…) — e aí sem confirmação extra: o pedido
  * explícito já é a autorização. Sem esse pedido, as ferramentas de escrita nem
  * são oferecidas ao modelo, então instrução maliciosa dentro de uma transcrição
- * não tem ferramenta para usar. Ação externa não existe nesta versão.
+ * não tem ferramenta para usar. E-mail e agenda não têm efeito próprio: o modelo só PREPARA a prévia (ver
+ * `ferramentasDeIntegracao.ts`); quem confirma é um botão da tela, que o código
+ * verifica (`Tarefa.confirmacao`). Nenhuma frase, de ninguém, libera um envio.
  *
  * A detecção é conservadora e erra para o lado seguro: um pedido de escrita
  * que ela não reconheça vira resposta sem documento, e o modelo diz que pode
@@ -106,46 +108,6 @@ export function pedeAcaoNaInterface(texto: string): boolean {
  * antes, e é esse pedido que autoriza. `confirmacao` não entra: é só sim/não,
  * e quem confirma uma exclusão escreve "apague" na própria mensagem da opção.
  */
-/**
- * Ações que saem do computador: enviar e-mail, marcar, remarcar ou cancelar um
- * encontro. O verbo E o objeto precisam estar na frase da PESSOA. É o único
- * caminho para o efeito `acao_externa`: uma transcrição que diga "envie isto
- * para fulano" não chega aqui.
- */
-const VERBOS_DE_ENVIO =
-  /\b(envi(?:e|ar|a|o)|mand(?:e|ar|a)|dispar(?:e|ar|a)|encaminh(?:e|ar|a)|compartilh(?:e|ar|a)|pode (?:enviar|mandar|disparar)|confirm(?:o|ar) o envio)\b/;
-const OBJETOS_DE_ENVIO =
-  /\b(e-?mail|emails|mensagem|ata|documento|doc|transcricao|resumo|relatorio|rascunho|arquivo|anexo|x1)\b/;
-const VERBOS_DE_AGENDA =
-  /\b(agend(?:e|ar|a)|reagend(?:e|ar|a)|remarc(?:ar|a)|remarque|marc(?:ar|a)|marque|cancel(?:e|ar|a)|convid(?:e|ar|a))\b/;
-const OBJETOS_DE_AGENDA =
-  /\b(evento|convite|reuniao|encontro|call|horario|agenda|calendario|alinhamento)\b/;
-/** "crie um evento/convite": o verbo genérico só vale com o objeto de agenda colado. */
-const CRIACAO_DE_EVENTO = /\bcri(?:e|ar|a) (?:um |o |uma |a )?(?:novo |nova )?(?:evento|convite)\b/;
-
-/** A pessoa pediu uma ação externa (e-mail ou agenda)? Ver acima. */
-export function pedeAcaoExterna(texto: string): boolean {
-  const t = normalizar(texto);
-  return (
-    (VERBOS_DE_ENVIO.test(t) && OBJETOS_DE_ENVIO.test(t)) ||
-    (VERBOS_DE_AGENDA.test(t) && OBJETOS_DE_AGENDA.test(t)) ||
-    CRIACAO_DE_EVENTO.test(t)
-  );
-}
-
-/** O pedido confirma um rascunho que o Taq mostrou ("envie", "pode enviar", "confirmo")? */
-export function confirmaAcaoExterna(texto: string): boolean {
-  const t = normalizar(texto);
-  return /\b(envi(?:e|ar)|mand(?:e|ar)|pode (?:enviar|mandar|marcar|criar|cancelar|remarcar)|confirm(?:o|ar)|marq(?:ue|ar)|cancel(?:e|ar)|remarqu?e|reagend(?:e|ar)|manda ver)\b/.test(
-    t,
-  );
-}
-
-/** Pede para repetir uma ação cujo resultado ficou desconhecido ("reenvie mesmo assim")? */
-export function pedeRepeticao(texto: string): boolean {
-  return /\b(mesmo assim|reenvi(?:e|ar)|envie de novo|mande de novo|outra vez|novamente)\b/.test(normalizar(texto));
-}
-
 export function efeitosDoPedido(texto: string, continua?: MotivoDePergunta): Efeito[] {
   const t = normalizar(texto);
   const continuaPedido =
@@ -166,10 +128,6 @@ export function efeitosDoPedido(texto: string, continua?: MotivoDePergunta): Efe
   }
   if (pedeAcaoNaInterface(texto) || PEDIDO_DE_TELA.test(t) || continua === 'escolha_de_registro')
     efeitos.push('interface');
-  // Escolher entre pessoas parecidas continua o pedido de envio/agenda; as
-  // próprias ferramentas externas não agem sem prévia nem confirmação (ver
-  // `ferramentasDeIntegracao.ts`), então o efeito sozinho não envia nada.
-  if (pedeAcaoExterna(texto) || continua === 'escolha_de_registro') efeitos.push('acao_externa');
   return efeitos;
 }
 export function escopoDaConversa(p: {

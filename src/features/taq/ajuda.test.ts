@@ -192,7 +192,7 @@ describe('get_usage_guide', () => {
     // E o que continua inexistente segue dito como inexistente — sem prometer envio sem conta.
     const whats = guiaDeUso('Integra com WhatsApp ou Slack?', REGISTRADAS);
     expect(whats.fora_do_app[0]).toMatchObject({ situacao: 'indisponivel' });
-    expect(whats.fora_do_app[0]!.resposta).toMatch(/Sem a conta conectada ele não envia/);
+    expect(whats.fora_do_app[0]!.resposta).toMatch(/Sem a conta conectada não há envio/);
     expect(whats.fora_do_app[0]!.resposta).toMatch(/Conexões/);
     const rascunho = guiaDeUso('Prepare um rascunho de e-mail para a Ana', REGISTRADAS);
     expect(idsDe(rascunho)).toContain('rascunho_de_mensagem');

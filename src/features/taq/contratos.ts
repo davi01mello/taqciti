@@ -21,7 +21,7 @@ import { z } from 'zod/v4';
  * Não muda registro nenhum, mas também não pode acontecer porque uma
  * transcrição mandou: só quando a pessoa pediu.
  */
-export const EFEITOS = ['leitura', 'escrita_local', 'interface', 'acao_externa'] as const;
+export const EFEITOS = ['leitura', 'escrita_local', 'interface'] as const;
 export const efeitoSchema = z.enum(EFEITOS);
 export type Efeito = z.infer<typeof efeitoSchema>;
 
@@ -256,6 +256,8 @@ export const cartaoSchema = z.discriminatedUnion('tipo', [
     assunto: z.string().optional(),
     corpo: z.string().min(1),
     alertas: z.array(z.string()),
+    /** O rascunho guardado que o botão `Enviar` confirma. Só a ferramenta preenche. */
+    chaveDoRascunho: z.string().max(80).optional(),
   }),
   z.object({
     tipo: z.literal('sugestao_de_evento'),
@@ -306,6 +308,8 @@ export const cartaoSchema = z.discriminatedUnion('tipo', [
     alertas: z.array(z.string()),
     /** Só um link do Google (evento criado). */
     link: z.string().optional(),
+    /** Em `aguardando_confirmacao`, `falhou` e `desconhecido`: o rascunho que o botão confirma. */
+    chaveDoRascunho: z.string().max(80).optional(),
   }),
   z.object({
     tipo: z.literal('revisao_de_documento'),
@@ -419,6 +423,13 @@ export const tarefaSchema = z.object({
    * que permite a resposta "x1" continuar um pedido de escrita feito antes.
    */
   continua: z.enum(MOTIVOS_DE_PERGUNTA).optional(),
+  /**
+   * A CONFIRMAÇÃO de uma ação externa: um clique da pessoa num botão da tela.
+   * Só o orquestrador (`confirmarAcao`) preenche, e só a partir desse clique —
+   * nunca de texto de modelo, de transcrição ou de mensagem. É a única coisa
+   * que deixa `send_email` e os eventos de agenda executarem.
+   */
+  confirmacao: z.object({ chave: z.string().min(1), repetir: z.boolean().optional() }).optional(),
   sinal: z.instanceof(AbortSignal),
 });
 export type Tarefa = z.infer<typeof tarefaSchema>;
