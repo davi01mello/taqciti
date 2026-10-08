@@ -113,6 +113,28 @@ describe('briefing', () => {
     expect(r).toMatchObject({ tipo: 'ok', item: { perfilRevisao: 2 } });
   });
 
+  it('o modo só desta reunião é escolha explícita: não altera o perfil nem as outras reuniões', async () => {
+    await salvarPerfil(PERFIL, 0);
+    await salvarBriefing('m-1', { objetivo: 'A' }, 0);
+    const r = await salvarBriefing('m-1', { modo: 'participativo' }, 1);
+    expect(r).toMatchObject({ tipo: 'ok', item: { modo: 'participativo', revisao: 2 } });
+    const c = await lerConducao();
+    expect(c.perfil!.intervencao.modo).toBe('discreto'); // o perfil continua igual
+    expect(briefingDaReuniao(c, 'm-1')!.modo).toBe('participativo');
+    await salvarBriefing('m-2', { objetivo: 'B' }, 0);
+    expect(briefingDaReuniao(await lerConducao(), 'm-2')!.modo).toBeUndefined();
+    // Repetir não cria revisão; `null` volta ao do perfil.
+    expect(await salvarBriefing('m-1', { modo: 'participativo' }, 2)).toMatchObject({ item: { revisao: 2 } });
+    const volta = await salvarBriefing('m-1', { modo: null }, 2);
+    expect(volta).toMatchObject({ tipo: 'ok', item: { revisao: 3 } });
+    expect(briefingDaReuniao(await lerConducao(), 'm-1')!.modo).toBeUndefined();
+  });
+
+  it('modo desconhecido não é guardado', async () => {
+    await salvarBriefing('m-1', { objetivo: 'A', modo: 'agressivo' as never }, 0);
+    expect(briefingDaReuniao(await lerConducao(), 'm-1')!.modo).toBeUndefined();
+  });
+
   it('reunião preparada sem perfil guarda null, não um perfil inventado', async () => {
     await salvarBriefing('m-1', { objetivo: 'A' }, 0);
     expect(briefingDaReuniao(await lerConducao(), 'm-1')!.perfilRevisao).toBeNull();

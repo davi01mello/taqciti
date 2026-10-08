@@ -147,6 +147,35 @@ it('o briefing guarda o objetivo que a pessoa escreveu, e sem objetivo não há 
   });
 });
 
+it('o modo só desta reunião aparece com perfil salvo, é escolha explícita e não muda o perfil', async () => {
+  await montar();
+  await digitar(campo('Em que vou ajudar'), 'Apoiar reuniões de planejamento.');
+  await act(async () => botao('Usar este assistente')!.click());
+  await esperar(() => !!conducao()?.perfil);
+
+  await act(async () => {
+    const sel = q<HTMLSelectElement>('.tq-prep select');
+    sel.value = 'm-1';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await esperar(() => host.textContent!.includes('Como o Taq ajuda nesta reunião'));
+  const seletor = [...host.querySelectorAll<HTMLSelectElement>('.tq-prep select')].find((s) =>
+    s.parentElement?.textContent?.includes('Como o Taq ajuda nesta reunião'),
+  )!;
+  // Por padrão é o mesmo do assistente: o Taq não escolhe por ele.
+  expect(seletor.value).toBe('');
+  expect(seletor.options[0]!.textContent).toContain('O mesmo do meu assistente');
+
+  await act(async () => {
+    seletor.value = 'participativo';
+    seletor.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await act(async () => botao('Salvar a preparação')!.click());
+  await esperar(() => (conducao()?.briefings.length ?? 0) === 1);
+  expect(conducao()!.briefings[0]!.modo).toBe('participativo');
+  expect(conducao()!.perfil!.intervencao.modo).toBe('discreto');
+});
+
 it('retomar: lista só encontros anteriores, a pessoa marca, e o vínculo é guardado por id', async () => {
   const anterior = {
     ...REUNIAO,

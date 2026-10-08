@@ -245,6 +245,8 @@ function BriefingDaReuniao({
   const [contexto, setContexto] = useState(salvo?.contexto ?? '');
   const [prioridades, setPrioridades] = useState(comoTexto(salvo?.prioridades ?? []));
   const [retomar, setRetomar] = useState<string[]>(salvo?.retomar ?? []);
+  /** '' = o mesmo do meu assistente. */
+  const [modo, setModo] = useState<ModoDeIntervencao | ''>(salvo?.modo ?? '');
   const [aviso, setAviso] = useState('');
   const [ocupado, setOcupado] = useState(false);
 
@@ -254,6 +256,7 @@ function BriefingDaReuniao({
     setContexto(salvo?.contexto ?? '');
     setPrioridades(comoTexto(salvo?.prioridades ?? []));
     setRetomar(salvo?.retomar ?? []);
+    setModo(salvo?.modo ?? '');
     setAviso('');
   }, [reuniao.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -266,7 +269,7 @@ function BriefingDaReuniao({
     setOcupado(true);
     const r = await salvarBriefing(
       reuniao.id,
-      { objetivo, contexto, prioridades: linhas(prioridades), retomar },
+      { objetivo, contexto, prioridades: linhas(prioridades), retomar, modo: modo || null },
       salvo?.revisao ?? 0,
     );
     setOcupado(false);
@@ -302,6 +305,19 @@ function BriefingDaReuniao({
         O que não pode ficar sem encaminhamento (um por linha)
         <textarea rows={3} value={prioridades} onChange={(e) => setPrioridades(e.target.value)} />
       </label>
+      {conducao.perfil && (
+        <label className="tq-c-campo">
+          Como o Taq ajuda nesta reunião
+          <select value={modo} onChange={(e) => setModo(e.target.value as ModoDeIntervencao | '')}>
+            <option value="">O mesmo do meu assistente ({ROTULO_DO_MODO[conducao.perfil.intervencao.modo]})</option>
+            {MODOS_DE_INTERVENCAO.map((m) => (
+              <option key={m} value={m}>
+                Só nesta reunião: {ROTULO_DO_MODO[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {outras.length > 0 && (
         <fieldset className="tq-prep-modos">
           <legend>Retomar de encontros anteriores</legend>

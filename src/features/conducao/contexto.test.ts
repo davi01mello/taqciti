@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
-import { linhasDaConducao } from './contexto';
+import { linhasDaConducao, perfilQueValeParaAReuniao } from './contexto';
 import { atualizarPerfilDoBriefing, lerConducao, salvarBriefing, salvarPerfil } from './store';
 
 const PERFIL = {
@@ -109,6 +109,19 @@ describe('linhasDaConducao', () => {
     );
     expect(solta).toContain('Apoiar o entendimento de necessidades.');
     expect(solta).not.toContain('Decidir o piloto.');
+  });
+
+  it('o modo escolhido só para a reunião vale nela, e só com perfil salvo', async () => {
+    await salvarPerfil(PERFIL, 0);
+    await salvarBriefing('m-1', { objetivo: 'A', modo: 'participativo' }, 0);
+    expect(perfilQueValeParaAReuniao(await lerConducao(), 'm-1')!.intervencao.modo).toBe('participativo');
+    // Outra reunião, sem briefing, segue o perfil.
+    expect(perfilQueValeParaAReuniao(await lerConducao(), 'm-2')!.intervencao.modo).toBe('discreto');
+    expect(linhasDaConducao(await lerConducao(), REUNIAO).join('\n')).toContain('Participativo');
+    // Sem perfil, escolher um modo não liga o apoio.
+    installChromeStorageMock();
+    await salvarBriefing('m-3', { objetivo: 'C', modo: 'participativo' }, 0);
+    expect(perfilQueValeParaAReuniao(await lerConducao(), 'm-3')).toBeNull();
   });
 
   it('reunião preparada sem perfil não ganha perfil sozinha', async () => {

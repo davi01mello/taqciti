@@ -22,7 +22,11 @@ const lista = (itens: readonly string[]) => itens.join('; ');
 
 export function perfilQueValeParaAReuniao(c: Conducao, reuniaoId: string | null): ConteudoDoPerfil | null {
   const briefing = reuniaoId ? briefingDaReuniao(c, reuniaoId) : null;
-  if (briefing) return briefing.perfilUsado;
+  if (briefing) {
+    // O modo escolhido para ESTA reunião vale só para ela, e só com um perfil salvo.
+    const usado = briefing.perfilUsado;
+    return usado && briefing.modo ? { ...usado, intervencao: { ...usado.intervencao, modo: briefing.modo } } : usado;
+  }
   return c.perfil
     ? {
         missao: c.perfil.missao,

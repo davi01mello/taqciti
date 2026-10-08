@@ -9,7 +9,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
-import { salvarPerfil } from '@/features/conducao/store';
+import { salvarBriefing, salvarPerfil } from '@/features/conducao/store';
 import type { AdaptadorDeModelo } from '@/features/taq/modelo';
 import type { ResultadoDaAvaliacao, FalaDaReuniao } from './gerar';
 import { falasConsolidadas, criarLaco, type EntradaDoLaco } from './laco';
@@ -155,6 +155,22 @@ describe('com perfil discreto', () => {
     // Tempo E falas novas.
     await laco.aoMudar(entrada(30));
     expect(g.chamadas).toHaveLength(2);
+  });
+
+  it('o modo escolhido só para esta reunião manda: "só quando eu chamar" nela mesmo com perfil participativo', async () => {
+    await salvarPerfil(PERFIL('participativo'), 0);
+    await salvarBriefing('m-1', { objetivo: 'A', modo: 'sob_demanda' }, 0);
+    const g = gerador([nova(18)]);
+    const laco = criarLaco({ adaptador: ADAPTADOR, agora, avaliar: g.avaliar });
+    await laco.aoMudar(entrada(20));
+    expect(g.chamadas).toEqual([]);
+    // E o contrário: perfil discreto, esta reunião participativa → o modelo é chamado.
+    installChromeStorageMock();
+    await salvarPerfil(PERFIL('sob_demanda'), 0);
+    await salvarBriefing('m-1', { objetivo: 'A', modo: 'participativo' }, 0);
+    const g2 = gerador([nova(18)]);
+    await criarLaco({ adaptador: ADAPTADOR, agora, avaliar: g2.avaliar }).aoMudar(entrada(20));
+    expect(g2.chamadas).toEqual([18]);
   });
 
   it('o começo da reunião (pouca fala, pouco texto) não chama o modelo', async () => {

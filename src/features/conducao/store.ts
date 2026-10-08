@@ -92,6 +92,12 @@ export interface BriefingDaReuniao {
    * vínculo é confirmado por ela e por id: nome nenhum liga um encontro a outro.
    */
   retomar: string[];
+  /**
+   * O modo de intervenção SÓ para esta reunião. Ausente = o do perfil que ela
+   * usa. É escolha explícita da pessoa: nada vira regra geral em silêncio. Só
+   * vale com um perfil salvo (sem perfil o apoio não age sozinho).
+   */
+  modo?: ModoDeIntervencao;
   /** A revisão do perfil de quando o briefing foi preparado; `null` = sem perfil. */
   perfilRevisao: number | null;
   /**
@@ -202,6 +208,7 @@ export function normalizarConducao(bruto: unknown): Conducao {
             contexto: limpar(x.contexto, MAX_TEXTO * 2),
             prioridades: limparLista(x.prioridades),
             retomar: limparIds(x.retomar),
+            ...(MODOS_DE_INTERVENCAO.find((m) => m === x.modo) ? { modo: x.modo as ModoDeIntervencao } : {}),
             aprovado: x.aprovado === true,
             perfilRevisao: typeof x.perfilRevisao === 'number' ? x.perfilRevisao : null,
             perfilUsado: normalizarConteudoDoPerfil(x.perfilUsado),
@@ -296,6 +303,8 @@ export interface MudancaDoBriefing {
   prioridades?: string[];
   /** Ids dos encontros anteriores a retomar. */
   retomar?: string[];
+  /** O modo só para esta reunião; `null` volta ao do perfil. */
+  modo?: ModoDeIntervencao | null;
 }
 
 export function briefingDaReuniao(c: Conducao, reuniaoId: string): BriefingDaReuniao | null {
@@ -325,12 +334,20 @@ export async function salvarBriefing(
     const prioridades =
       mudanca.prioridades !== undefined ? limparLista(mudanca.prioridades) : (atual?.prioridades ?? []);
     const retomar = mudanca.retomar !== undefined ? limparIds(mudanca.retomar, reuniaoId) : (atual?.retomar ?? []);
+    // `undefined` mantém o que estava; `null` volta ao modo do perfil.
+    const modo: ModoDeIntervencao | undefined =
+      mudanca.modo === undefined
+        ? atual?.modo
+        : mudanca.modo === null
+          ? undefined
+          : MODOS_DE_INTERVENCAO.find((m) => m === mudanca.modo);
     if (
       atual &&
       atual.objetivo === objetivo &&
       atual.contexto === contexto &&
       JSON.stringify(atual.prioridades) === JSON.stringify(prioridades) &&
-      JSON.stringify(atual.retomar) === JSON.stringify(retomar)
+      JSON.stringify(atual.retomar) === JSON.stringify(retomar) &&
+      atual.modo === modo
     )
       return { resultado: { tipo: 'ok' as const, item: atual }, mudou: false };
     const briefing: BriefingDaReuniao = {
@@ -343,6 +360,7 @@ export async function salvarBriefing(
       contexto,
       prioridades,
       retomar,
+      ...(modo ? { modo } : {}),
       // Primeira preparação: fixa o perfil de agora. Depois, só quando a pessoa pede.
       perfilRevisao: atual ? atual.perfilRevisao : (c.perfil?.revisao ?? null),
       perfilUsado: atual ? atual.perfilUsado : c.perfil ? conteudoDe(c.perfil) : null,
