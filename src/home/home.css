@@ -1000,10 +1000,8 @@ html {
   border: 1px solid rgb(255 255 255 / 0.05);
   border-radius: 12px;
   /*
-   * Translúcido, mas SEM `backdrop-filter`: isto é item de lista — o mesmo
-   * papel de `.glass-subtle` em glass.css, que por design não desfoca (ver o
-   * comentário de lá: "numa lista de reuniões que rola, um blur por item
-   * derruba o scroll"). Com N itens na tela, eram N regiões desfocando o
+   * Translúcido, mas SEM `backdrop-filter`: isto é item de lista — numa lista
+   * que rola, um blur por item derruba o scroll. Com N itens na tela, eram N regiões desfocando o
    * fundo animado a cada quadro; a transparência sozinha já deixa o fundo
    * atravessar, só que nítido em vez de fosco.
    */
@@ -1108,18 +1106,6 @@ html {
   padding: 14px 17px;
   margin-bottom: 22px;
   max-width: 68ch;
-}
-
-/* A ação embutida num aviso (ex.: limpar credencial acumulada) não pode
-   colar no texto acima dela. */
-.tq-aviso-acao {
-  margin-top: 10px;
-  align-items: center;
-}
-
-.tq-confirma-inline {
-  font-size: 12.5px;
-  color: rgb(236 238 240);
 }
 
 .tq-aviso strong {
@@ -2229,61 +2215,6 @@ body .tq-home [role='dialog'] button {
 .tq-voce-acoes {
   align-self: flex-end;
   margin-top: -4px;
-}
-
-/* ------------------------------------------------ o que o Taq faz (Conexões) */
-
-.tq-capacidades {
-  margin-top: 20px;
-}
-
-.tq-cap-lista {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0;
-}
-
-/* Lista, e não quinze caixas: um filete entre os itens já os separa. */
-.tq-cap {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1px 12px;
-  padding: 8px 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: var(--fs-ui);
-}
-
-.tq-cap strong {
-  font-weight: 500;
-  color: rgb(232 235 238);
-}
-
-.tq-cap-estado {
-  font-size: 11px;
-  color: rgb(165 170 175);
-}
-
-.tq-cap-ok .tq-cap-estado {
-  color: rgb(170 226 190);
-}
-
-.tq-cap-pendente .tq-cap-estado {
-  color: rgb(240 205 160);
-}
-
-.tq-cap-desc {
-  grid-column: 1 / -1;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: rgb(150 155 160);
-}
-
-@media (max-width: 520px) {
-  .tq-cap {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ===================================================================

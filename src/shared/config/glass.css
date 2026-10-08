@@ -25,22 +25,15 @@
  *
  * ── A escala ───────────────────────────────────────────────────────────────
  *
- * Três níveis, e o nível diz o PAPEL, não a aparência:
- *
- *   .glass          moldura do app — cabeçalho, barra de controles, modal
- *   .glass-raised   cartão que flutua sobre o fundo
- *   .glass-subtle   item de lista, controle secundário
- *
- * Só os dois primeiros desfocam o fundo. `backdrop-filter` obriga o
+ * Um nível só: .glass, a moldura do app — cabeçalho, barra de controles, modal.
+ * Ele desfoca o fundo. `backdrop-filter` obriga o
  * compositor a rasterizar de novo tudo o que está atrás do elemento a cada
  * quadro: numa lista de reuniões que rola, um blur por item derruba o
  * scroll. Vidro em tudo não é o objetivo — é hierarquia, e hierarquia exige
  * que a maior parte da tela NÃO seja o nível mais alto.
  */
 
-.glass,
-.glass-raised,
-.glass-subtle {
+.glass {
   position: relative;
   /* Sem isto o `z-index: -1` dos pseudo-elementos escapa para trás do
      ancestral mais próximo com contexto de empilhamento, e o fio de luz
@@ -55,26 +48,13 @@
   box-shadow: var(--shadow-md);
 }
 
-.glass-raised {
-  background: var(--glass-raised);
-  backdrop-filter: blur(var(--blur-sm)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(var(--glass-saturate));
-  box-shadow: var(--shadow-sm);
-}
-
-.glass-subtle {
-  background: var(--glass-subtle);
-}
-
 /*
  * O fio de luz. `padding: 1px` + máscara XOR desenha SÓ a moldura de um
  * pixel, acompanhando o `border-radius` herdado — é o único jeito de ter
  * borda em gradiente com canto arredondado sem uma segunda caixa no DOM e sem
  * que a curva externa e a interna briguem.
  */
-.glass::before,
-.glass-raised::before,
-.glass-subtle::before {
+.glass::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -102,31 +82,11 @@
   );
 }
 
-.glass-raised::before {
-  background: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.18),
-    rgba(255, 255, 255, 0.05) 38%,
-    rgba(255, 255, 255, 0.02) 64%,
-    rgba(255, 255, 255, 0.07)
-  );
-}
-
-.glass-subtle::before {
-  background: linear-gradient(
-    158deg,
-    var(--color-border-soft),
-    var(--color-border-faint) 60%,
-    var(--color-border-soft)
-  );
-}
-
 /*
  * O grão. Só nas superfícies grandes: numa lista longa ele multiplica o custo
  * de paint por item sem nenhum ganho perceptível a 22px de altura.
  */
-.glass::after,
-.glass-raised::after {
+.glass::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -217,48 +177,4 @@
 .group\/sheen:active .sheen {
   opacity: 1;
   filter: blur(calc(var(--sheen-r, 96px) * 0.14)) brightness(1.5);
-}
-
-/*
- * Vidro TINGIDO de verde — a peça central da suavização do acento.
- *
- * O botão primário antes era um bloco de verde chapado, e era ele que
- * carregava quase toda a sensação de saturação da interface: um retângulo
- * sólido de hsl(138 79% 52%) ocupando a base da tela o tempo inteiro. Aqui o
- * mesmo verde vira uma PLACA DE VIDRO VERDE: alpha abaixo de 1, blur por
- * trás, brilho interno na quina de cima. O fundo atravessa um pouco, a cor
- * respira, e a hierarquia não se perde — continua sendo o único elemento
- * colorido da tela.
- */
-.glass-tint {
-  position: relative;
-  isolation: isolate;
-  background: linear-gradient(
-    to bottom,
-    rgba(92, 203, 133, 0.78),
-    rgba(64, 173, 108, 0.68)
-  );
-  backdrop-filter: blur(var(--blur-sm)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(var(--glass-saturate));
-  box-shadow:
-    var(--shadow-sm),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-}
-
-/* Um respiro de luz atrás do vidro tingido: dá a impressão de que a cor vem
-   de baixo da superfície, não de cima dela. Fica desligado no hover porque o
-   próprio hover já clareia — somados, viravam brilho exagerado. */
-.glass-tint::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(
-    120% 100% at 50% -30%,
-    rgba(255, 255, 255, 0.22),
-    transparent 62%
-  );
 }

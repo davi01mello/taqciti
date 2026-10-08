@@ -70,27 +70,18 @@
 
   /* ── Profundidade ───────────────────────────────────────────────────────
    *
-   * Três níveis, do mais fundo ao mais próximo do usuário. Cada um é uma
-   * placa de vidro: quanto mais alto o nível, menos ele deixa passar e mais
-   * luz recolhe na borda. É a escala inteira de translucidez do produto —
-   * nenhum componente inventa o seu `rgba()`.
+   * Um nível só: a placa de vidro da moldura. Quanto mais alto o nível, menos ele
+   * deixa passar e mais luz recolhe na borda. Nenhum componente inventa o seu
+   * gba().
    *
    *   chrome  moldura do app (cabeçalho, barra de controles) — a mais densa,
    *           porque é ela que precisa segurar texto sobre conteúdo rolando
-   *   raised  cartão/painel que flutua sobre o fundo
-   *   subtle  item de lista, controle secundário
    */
   --glass-chrome: linear-gradient(
     158deg,
     rgba(30, 37, 47, 0.72),
     rgba(11, 15, 20, 0.82)
   );
-  --glass-raised: linear-gradient(
-    158deg,
-    rgba(255, 255, 255, 0.075),
-    rgba(255, 255, 255, 0.025)
-  );
-  --glass-subtle: rgba(255, 255, 255, 0.045);
 
   /** Verde atravessando vidro — como o acento aparece em quase todo lugar. */
   --tint-primary: rgba(92, 203, 133, 0.14);

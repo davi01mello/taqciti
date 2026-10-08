@@ -138,8 +138,7 @@
  * não por "·". O horário é tabular, para o relógio ao vivo não tremer a linha
  * a cada segundo.
  */
-.tq-reuniao-meta,
-.tq-meta-linha {
+.tq-reuniao-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -1507,59 +1506,6 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.tq-notas-topo {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.tq-notas-topo h2,
-.tq-notas-topo h3 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tq-notas-topo-direita {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
-}
-
-.tq-side .tq-icone-pequeno {
-  min-height: 32px;
-  padding: 0 10px;
-  border-radius: 9px;
-  font-size: var(--fs-ui);
-  color: var(--s-cinza);
-}
-
-.tq-side .tq-icone-pequeno:hover {
-  background: var(--s-placa-forte);
-  color: var(--s-texto);
-}
-
-/*
- * O editor de nota dentro da reunião não empurra a transcrição para fora: ele
- * tem altura própria e modesta. Como aba ele ocupava a coluna inteira; aqui a
- * transcrição continua visível abaixo, que é o ponto de ele ter virado painel.
- */
-.tq-notas-inline {
-  flex: 0 0 auto;
-  border: 1px solid rgb(255 255 255 / 0.07);
-  border-radius: 12px;
-  padding: 10px 11px;
-  background: rgb(255 255 255 / 0.02);
-}
-
-.tq-notas-campo-inline {
-  min-height: 92px;
-  max-height: 180px;
 }
 
 .tq-notas-estado {
