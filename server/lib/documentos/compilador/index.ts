@@ -6,8 +6,10 @@
  * aplicada (fonte/ativo ausente sem substituição autorizada), LANÇA: a
  * resposta certa a um insumo ruim é parar, não gerar um PDF quase certo.
  *
- * Só o PDF é produzido nesta etapa. O DOCX é um formato à parte, com o seu
- * próprio compilador — e `formatos` do manifesto só lista o que existe.
+ * `compilarPdf` gera o PDF; `compilarDocx` (em `./docx`) gera o Word editável a
+ * partir da MESMA árvore; `compilarDocumento` entrega os dois (ou um) com um
+ * manifesto só, da mesma revisão — nunca um PDF antigo com um DOCX novo. O
+ * `formatos` do manifesto só lista o que foi de fato gerado.
  */
 import { createHash } from 'node:crypto';
 import PDFDocument from 'pdfkit';
@@ -23,6 +25,7 @@ import {
 } from '../perfil';
 import { desenharAta, MARGENS_ATA } from './ata';
 import { desenharEditorial, finalizarEditorial, MARGENS_EDITORIAL } from './editorial';
+import { compilarDocx } from './docx';
 import { registrarFontesEditorial } from './recursos';
 
 export const RENDERER_VERSAO = 'compilador-pdf-1';
@@ -52,10 +55,8 @@ export interface Compilado {
   substituicoes: string[];
 }
 
-export async function compilarPdf(
-  arvore: ContentTree,
-  opcoes: OpcoesDeCompilacao = {},
-): Promise<Compilado> {
+/** Valida o insumo e resolve o perfil e a variante. Lança se não dá para compilar. */
+function preparar(arvore: ContentTree, opcoes: OpcoesDeCompilacao) {
   const perfil = opcoes.perfil ?? PERFIL_CITI_PROVISORIO;
   const variante = resolverVariante(perfil, opcoes.variante);
 
@@ -76,6 +77,14 @@ export async function compilarPdf(
       `A variante "${variante.id}" não pode ser aplicada: ${faltas.map((f) => f.item).join('; ')}.`,
     );
   }
+  return { perfil, variante };
+}
+
+export async function compilarPdf(
+  arvore: ContentTree,
+  opcoes: OpcoesDeCompilacao = {},
+): Promise<Compilado> {
+  const { perfil, variante } = preparar(arvore, opcoes);
 
   const margens = variante.id === 'editorial' ? MARGENS_EDITORIAL : MARGENS_ATA;
   const doc = new PDFDocument({
@@ -147,4 +156,56 @@ export async function compilarPdf(
       paginas,
     },
   }));
+}
+
+export type FormatoDeSaida = 'pdf' | 'docx';
+
+export interface DocumentoCompilado {
+  pdf?: Buffer;
+  docx?: Buffer;
+  /** Um manifesto só: os dois arquivos são da mesma revisão. */
+  manifesto: RenderManifest;
+  avisos: string[];
+  substituicoes: string[];
+}
+
+/**
+ * Os formatos pedidos, todos da MESMA árvore. O número de páginas só é medido
+ * quando o PDF é gerado — o Word pagina sozinho, e dizer um número para ele
+ * seria inventá-lo.
+ */
+export async function compilarDocumento(
+  arvore: ContentTree,
+  opcoes: OpcoesDeCompilacao & { formatos: readonly FormatoDeSaida[] },
+): Promise<DocumentoCompilado> {
+  const formatos = [...new Set(opcoes.formatos)];
+  if (formatos.length === 0) throw new ErroDeCompilacao('Nenhum formato de saída foi pedido.');
+
+  const { perfil, variante } = preparar(arvore, opcoes);
+  const { formatos: _formatos, ...doCompilador } = opcoes;
+
+  const pdf = formatos.includes('pdf') ? await compilarPdf(arvore, doCompilador) : undefined;
+  const word = formatos.includes('docx') ? await compilarDocx(arvore, variante) : undefined;
+
+  const hashes: RenderManifest['formatos'] = [
+    ...(pdf ? [{ formato: 'pdf' as const, hash: createHash('sha256').update(pdf.pdf).digest('hex') }] : []),
+    ...(word ? [{ formato: 'docx' as const, hash: createHash('sha256').update(word.docx).digest('hex') }] : []),
+  ];
+  const base: RenderManifest = pdf?.manifesto ?? {
+    revisaoDoConteudo: arvore.revisao,
+    perfilId: perfil.id,
+    perfilVersao: perfil.versao,
+    perfilEstado: perfil.estado,
+    rendererVersao: RENDERER_VERSAO,
+    ativosEFontes: [],
+    formatos: [],
+  };
+
+  return {
+    ...(pdf ? { pdf: pdf.pdf } : {}),
+    ...(word ? { docx: word.docx } : {}),
+    manifesto: { ...base, formatos: hashes },
+    avisos: [...(pdf?.avisos ?? []), ...(word?.avisos ?? [])],
+    substituicoes: pdf?.substituicoes ?? diagnosticarVariante(variante).map((d) => `${d.item} → ${d.substituicao}`),
+  };
 }

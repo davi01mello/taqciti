@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
-import { compilarPdf } from '@/lib/documentos/compilador';
+import { compilarDocumento } from '@/lib/documentos/compilador';
 import { contentTreeSchema } from '@/lib/documentos/contentTree';
 import { erroConhecido, mensagemDeValidacao } from '@/lib/documentos/requisicao';
 
@@ -15,6 +15,8 @@ import { erroConhecido, mensagemDeValidacao } from '@/lib/documentos/requisicao'
 const corpoSchema = z.object({
   arvore: contentTreeSchema,
   variante: z.string().min(1).optional(),
+  /** Padrão: só o PDF. O DOCX é o Word editável, da mesma árvore. */
+  formatos: z.array(z.enum(['pdf', 'docx'])).min(1).optional(),
 });
 
 export function OPTIONS(request: NextRequest): NextResponse {
@@ -38,11 +40,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const { arvore, variante } = validado.data;
-    const compilado = await compilarPdf(arvore, variante ? { variante } : {});
+    const { arvore, variante, formatos } = validado.data;
+    const compilado = await compilarDocumento(arvore, {
+      ...(variante ? { variante } : {}),
+      formatos: formatos ?? ['pdf'],
+    });
     return NextResponse.json(
       {
-        pdf: compilado.pdf.toString('base64'),
+        ...(compilado.pdf ? { pdf: compilado.pdf.toString('base64') } : {}),
+        ...(compilado.docx ? { docx: compilado.docx.toString('base64') } : {}),
         manifesto: compilado.manifesto,
         avisos: compilado.avisos,
         substituicoes: compilado.substituicoes,

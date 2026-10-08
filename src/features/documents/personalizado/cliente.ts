@@ -92,8 +92,17 @@ export const editarPersonalizado = (pedido: PedidoDeEdicao) =>
   chamar<ResultadoDoServidor>('editar', pedido);
 
 /** Árvore → arquivo, sem modelo: abre uma versão antiga ou baixa de novo. */
-export const renderizarArvore = (arvore: ArvoreDoDocumento, variante?: string) =>
-  chamar<{ pdf: string; manifesto: ManifestoDeRender; avisos: string[]; substituicoes: string[] }>(
-    'renderizar',
-    { arvore, ...(variante ? { variante } : {}) },
-  );
+export const renderizarArvore = (
+  arvore: ArvoreDoDocumento,
+  variante?: string,
+  formatos: ReadonlyArray<'pdf' | 'docx'> = ['pdf'],
+) =>
+  chamar<{
+    /** Presente quando `pdf` foi pedido. */
+    pdf?: string;
+    /** Presente quando `docx` foi pedido. */
+    docx?: string;
+    manifesto: ManifestoDeRender;
+    avisos: string[];
+    substituicoes: string[];
+  }>('renderizar', { arvore, ...(variante ? { variante } : {}), formatos });

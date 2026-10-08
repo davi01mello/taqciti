@@ -1,5 +1,5 @@
 {
-  "quando": "2026-10-08T18:25:53.760Z",
+  "quando": "2026-10-08T18:41:20.195Z",
   "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\709f8ab8-271a-41f5-9c47-4a5b41d99191\\scratchpad\\dist-verify",
   "browser": "154.0.4258.62",
   "dados": "[TESTE] sintéticos; geração simulada, sem IA",
@@ -24,6 +24,7 @@
     "Baixar .md",
     "Baixar .txt",
     "Baixar PDF",
+    "Baixar Word",
     "Baixar o documento como arquivo de texto",
     "Baixar rascunho",
     "Cancelar",
@@ -63,6 +64,7 @@
     "Notas da reunião",
     "Nova",
     "Nova conversa",
+    "O que falta fechar",
     "Para conectar",
     "Pausada",
     "Pausar",
@@ -142,6 +144,7 @@
     "Baixar rascunho": "HOME · editor com falha",
     "Baixar PDF": "HOME · resultado do documento personalizado",
     "Ver": "HOME · painel do documento personalizado",
+    "Baixar Word": "HOME · painel do documento personalizado",
     "Pedir alteração": "HOME · painel do documento personalizado",
     "Versões": "HOME · painel do documento personalizado",
     "Restaurar": "HOME · alteração aplicada",
@@ -156,6 +159,7 @@
     "Print": "sidebar · reunião simulada",
     "Prints": "sidebar · reunião simulada",
     "Pergunta rápida": "sidebar · reunião simulada",
+    "O que falta fechar": "sidebar · reunião simulada",
     "Continuar na conversa": "sidebar · pergunta rápida",
     "Destaque": "sidebar · trecho selecionado",
     "Dúvida": "sidebar · trecho selecionado",
@@ -424,6 +428,7 @@
       "vistos": [
         "Reuniões",
         "Criar documento",
+        "Baixar Word",
         "Gerar com o padrão CITi",
         "Documentos",
         "Pedir alteração",
@@ -592,13 +597,28 @@
     {
       "id": "perguntas_prontas_da_reuniao",
       "vistos": [
-        "Pergunta rápida"
+        "Pergunta rápida",
+        "O que falta fechar"
       ],
       "nao_vistos": [
-        "O que falta esclarecer?",
-        "O que foi decidido?",
         "Me ajude a fechar",
         "Sugerir acompanhamentos"
+      ]
+    },
+    {
+      "id": "o_que_falta_fechar",
+      "vistos": [
+        "O que falta fechar",
+        "Pergunta rápida",
+        "Acompanhamento"
+      ],
+      "nao_vistos": [
+        "Ler a reunião",
+        "Atualizar",
+        "Ver fonte",
+        "Fechar a reunião",
+        "Me ajude a fechar",
+        "Registrar como acompanhamento"
       ]
     },
     {

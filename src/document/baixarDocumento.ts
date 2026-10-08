@@ -94,6 +94,18 @@ export function baixarComoPdf(pdfBase64: string, nomeSemExtensao: string): void 
   dispararDownload(blob, `${sanitizarNomeDeArquivo(nomeSemExtensao)}.pdf`);
 }
 
+/** Baixa o DOCX (Word) que o servidor devolveu em base64. */
+export function baixarComoDocx(docxBase64: string, nomeSemExtensao: string): void {
+  const binario = atob(docxBase64);
+  const bytes = new Uint8Array(binario.length);
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+
+  const blob = new Blob([bytes], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+  dispararDownload(blob, `${sanitizarNomeDeArquivo(nomeSemExtensao)}.docx`);
+}
+
 /**
  * Tira o que o sistema de arquivos recusa.
  *

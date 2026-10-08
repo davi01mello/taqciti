@@ -22,6 +22,13 @@ vi.mock('@/features/documents/personalizado/cliente', async (original) => ({
   renderizarArvore,
   editarPersonalizado,
 }));
+import type * as Baixar from '@/document/baixarDocumento';
+
+const baixarComoDocx = vi.hoisted(() => vi.fn());
+vi.mock('@/document/baixarDocumento', async (original) => ({
+  ...(await original<typeof Baixar>()),
+  baixarComoDocx,
+}));
 const { DocumentoPersonalizado } = await import('./DocumentoPersonalizado');
 
 const REUNIAO: MeetingRecord = {
@@ -97,6 +104,7 @@ afterEach(() => {
   host.remove();
   renderizarArvore.mockReset();
   editarPersonalizado.mockReset();
+  baixarComoDocx.mockReset();
   onVoltar.mockReset();
   vi.unstubAllGlobals();
 });
@@ -247,4 +255,35 @@ it('falha ao montar a prévia mostra a causa e permite tentar de novo', async ()
   await act(async () => botao('Tentar de novo').click());
   await esperar('3 página(s)');
   expect(renderizarArvore).toHaveBeenCalledTimes(2);
+});
+
+it('Baixar Word pede o DOCX da versão na tela e avisa que o que for editado lá não volta', async () => {
+  await abrir();
+  await esperar('3 página(s)');
+  renderizarArvore.mockResolvedValueOnce({
+    status: 'ok',
+    dados: {
+      docx: 'UEsDBA==',
+      manifesto: { ...resultado(1).manifesto, formatos: [{ formato: 'docx', hash: 'b'.repeat(64) }] },
+      avisos: ['O DOCX usa a fonte Barlow: se ela não estiver instalada, o Word a substitui.'],
+      substituicoes: [],
+    },
+  });
+  await act(async () => botao('Baixar Word').click());
+  await esperar('não voltam para o TaqCiti');
+
+  const ultima = renderizarArvore.mock.calls.at(-1)!;
+  expect(ultima[0]).toMatchObject({ revisao: 1 });
+  expect(ultima[2]).toEqual(['docx']);
+  expect(baixarComoDocx).toHaveBeenCalledWith('UEsDBA==', expect.stringContaining('Documento'));
+  expect(host.textContent).toContain('fonte Barlow');
+});
+
+it('falha ao gerar o Word aparece dita, e nada é baixado', async () => {
+  await abrir();
+  await esperar('3 página(s)');
+  renderizarArvore.mockResolvedValueOnce({ status: 'erro', codigo: 'indisponivel', message: 'O servidor respondeu com erro (502).' });
+  await act(async () => botao('Baixar Word').click());
+  await esperar('erro (502)');
+  expect(baixarComoDocx).not.toHaveBeenCalled();
 });

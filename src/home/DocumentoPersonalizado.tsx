@@ -22,7 +22,7 @@
  * teto), então desfazer uma restauração é restaurar de novo.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { baixarComoPdf } from '@/document/baixarDocumento';
+import { baixarComoDocx, baixarComoPdf } from '@/document/baixarDocumento';
 import { nomeDoArquivo } from '@/document/googleDocs';
 import { editarPersonalizado, renderizarArvore } from '@/features/documents/personalizado/cliente';
 import { guardarEdicao } from '@/features/documents/personalizado/documento';
@@ -79,6 +79,7 @@ export function DocumentoPersonalizado({ documento, registros, onVoltar, onIrPar
   const [escopoId, setEscopoId] = useState('todo');
   const [pedido, setPedido] = useState('');
   const [ocupado, setOcupado] = useState(false);
+  const [baixandoWord, setBaixandoWord] = useState(false);
   const [retorno, setRetorno] = useState<{ tipo: 'ok' | 'aviso' | 'erro'; linhas: string[] } | null>(null);
 
   const recarregar = useCallback(async () => {
@@ -110,8 +111,8 @@ export function DocumentoPersonalizado({ documento, registros, onVoltar, onIrPar
     setPrevia({ estado: 'carregando' });
     void renderizarArvore(versaoVista.arvore, historico.variante).then((r) => {
       if (!vivo) return;
-      if (r.status !== 'ok') {
-        setPrevia({ estado: 'erro', mensagem: r.message });
+      if (r.status !== 'ok' || !r.dados.pdf) {
+        setPrevia({ estado: 'erro', mensagem: r.status === 'ok' ? 'O servidor não devolveu o PDF.' : r.message });
         return;
       }
       url = urlDoPdf(r.dados.pdf);
@@ -222,6 +223,30 @@ export function DocumentoPersonalizado({ documento, registros, onVoltar, onIrPar
   const baixar = () => {
     if (previa.estado !== 'pronta') return;
     baixarComoPdf(previa.pdf, nomeDoArquivo('Documento', versaoVista?.arvore.titulo ?? documento.title, reuniao?.title ?? '', new Date()));
+  };
+
+  /** O Word editável da versão que está na tela, gerado agora a partir da árvore. */
+  const baixarWord = async () => {
+    if (!historico || !versaoVista || baixandoWord) return;
+    setBaixandoWord(true);
+    const r = await renderizarArvore(versaoVista.arvore, historico.variante, ['docx']);
+    setBaixandoWord(false);
+    if (r.status !== 'ok' || !r.dados.docx) {
+      setRetorno({ tipo: 'erro', linhas: [r.status === 'ok' ? 'O servidor não devolveu o Word.' : r.message] });
+      return;
+    }
+    baixarComoDocx(
+      r.dados.docx,
+      nomeDoArquivo('Documento', versaoVista.arvore.titulo, reuniao?.title ?? '', new Date()),
+    );
+    // O que o Word não leva, dito: quem abre no Word precisa saber.
+    setRetorno({
+      tipo: 'aviso',
+      linhas: [
+        ...r.dados.avisos,
+        'Alterações feitas no Word não voltam para o TaqCiti: para mudar o documento aqui, use “Pedir alteração”.',
+      ],
+    });
   };
 
   const apagar = async () => {
@@ -361,6 +386,10 @@ export function DocumentoPersonalizado({ documento, registros, onVoltar, onIrPar
             <button type="button" className="tq-acao" disabled={previa.estado !== 'pronta'} onClick={baixar}>
               <Icon name="arrowDown" size={14} />
               Baixar PDF
+            </button>
+            <button type="button" className="tq-acao" disabled={baixandoWord} onClick={() => void baixarWord()}>
+              <Icon name="arrowDown" size={14} />
+              {baixandoWord ? 'Gerando o Word…' : 'Baixar Word'}
             </button>
             <button type="button" className="tq-acao" onClick={() => void apagar()}>
               Apagar documento

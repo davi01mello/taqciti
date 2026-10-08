@@ -204,6 +204,20 @@ describe('POST /api/documentos/renderizar', () => {
     expect(complete).not.toHaveBeenCalled();
   });
 
+  it('formatos: só DOCX, os dois, e formato desconhecido', async () => {
+    const soDocx = await (await post(renderizar, { arvore, variante: 'ata', formatos: ['docx'] })).json();
+    expect(soDocx.pdf).toBeUndefined();
+    expect(Buffer.from(soDocx.docx, 'base64').subarray(0, 2).toString()).toBe('PK');
+    expect(soDocx.manifesto.formatos.map((f: { formato: string }) => f.formato)).toEqual(['docx']);
+    expect(soDocx.manifesto.paginas).toBeUndefined();
+
+    const ambos = await (await post(renderizar, { arvore, variante: 'ata', formatos: ['pdf', 'docx'] })).json();
+    expect(ambos.manifesto.formatos.map((f: { formato: string }) => f.formato)).toEqual(['pdf', 'docx']);
+    expect(ambos.manifesto.revisaoDoConteudo).toBe(4);
+
+    expect((await post(renderizar, { arvore, formatos: ['xlsx'] })).status).toBe(400);
+  });
+
   it('sem chave: 401; árvore com bloco não suportado: 422; variante inexistente: não vira 200', async () => {
     expect((await post(renderizar, { arvore }, null)).status).toBe(401);
     const imagem = { ...arvore, blocos: [{ tipo: 'imagem', blockId: 't', ativoId: 'a', textoAlternativo: 'x' }] };
