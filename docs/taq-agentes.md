@@ -183,7 +183,8 @@ O Taq faz e diz o que assumiu:
 | Tela "Gerar documento" | salva direto, com "[A preencher]"; as perguntas da geração vão para uma conversa nova com o Taq (`abrirConversaDoTaq`), sem formulário |
 | Nome casa com vários registros | age no mais recente e devolve `tambem_casavam` |
 | Apagar reunião pelo Taq | sem confirmação: vai para a lixeira do Taq (`taq:lixeira`, 30 dias) e a resposta traz **Desfazer** |
-| Pedido fora do catálogo | já entrega o texto para copiar e levar ao Claude |
+| Pedido fora do catálogo (relatório, proposta…) | `create_custom_document` monta um documento personalizado no padrão CITi (PDF), só com o que a reunião sustenta; `create_document` continua recusando outro tipo no lugar (`tipo_fora_do_catalogo`) |
+| Formato que o TaqCiti não gera (apresentação, planilha, e-mail, Word) | entrega o texto para copiar e levar ao Claude (`prepare_external_brief`) |
 
 Os especialistas não têm `ask_user`: quem pergunta, quando precisa, é o Taq, na
 conversa. As instruções são `taq-v6`, `documents-v2` e `app-assistant-v4`.

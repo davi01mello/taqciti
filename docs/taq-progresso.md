@@ -26,7 +26,7 @@ o provedor de verdade (dados sintéticos).
 | --- | --- | --- | --- | --- | --- |
 | orchestrator (`taq-v7`) | sim | sim | sim | sim (delegações abaixo) | — |
 | app_assistant | sim | sim | sim | sim (23/09, Groq) | — |
-| documents (`documents-v3`) | sim | sim | sim | sim na v2; v3 só local | rodar `taq.live.test.ts` na v3 |
+| documents (`documents-v4`) | sim | sim | sim (inclui `create_custom_document`) | sim na v2; v3 e v4 só local | publicar o servidor (prompt `documents-v4`) ANTES da extensão; rodar `taq.live.test.ts` na v4 |
 | organizational_memory | sim | sim | via roteiro de orquestração | não | caso ao vivo |
 | context | sim | sim | via roteiro | não | caso ao vivo |
 | meeting_analyst | sim | sim | sim | ver "Validação ao vivo" | — |

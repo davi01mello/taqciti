@@ -409,8 +409,8 @@ describe('documents', () => {
     const r = await executar('Crie uma ata da sprint 12, projeto Orbital', modelo);
     expect(pedidos.map((p) => p.instrucoes)).toEqual([
       'taq-v7',
-      'documents-v3',
-      'documents-v3',
+      'documents-v4',
+      'documents-v4',
     ]);
     expect(r.documentos).toHaveLength(1);
     expect(

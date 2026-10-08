@@ -121,6 +121,7 @@ const PAGINAS = 'src/home/Paginas.tsx';
 const NOTAS_HOME = 'src/home/NotasDaReuniao.tsx';
 const GERAR = 'src/home/GerarDocumento.tsx';
 const DOCUMENTOS = 'src/home/Documentos.tsx';
+const DOCUMENTO_PERSONALIZADO = 'src/home/DocumentoPersonalizado.tsx';
 const CONVERSAS_MENU = 'src/home/ConversasMenu.tsx';
 const ASSISTENTE = 'src/home/AssistantView.tsx';
 const CONEXOES = 'src/home/Conexoes.tsx';
@@ -711,21 +712,25 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
   {
     id: 'gerar_documento',
     assunto: 'documentos',
-    titulo: 'Gerar uma ata ou um Doc Conversa (X1)',
+    titulo: 'Gerar uma ata, um Doc Conversa (X1) ou um Resumo completo',
     oQueFaz: 'Gera um documento a partir da transcrição e o salva em “Documentos”.',
     onde: 'HOME → “Reuniões” → a reunião → “Criar documento”',
     passos: [
-      'HOME → “Reuniões” → abra a reunião → “Criar documento” → escolha “Ata de Reunião” ou “Doc Conversa (X1)”.',
+      'HOME → “Reuniões” → abra a reunião → “Criar documento” → escolha “Ata de Reunião”, “Doc Conversa (X1)” ou “Resumo completo”.',
       'O documento é salvo sozinho em “Documentos”. O que a reunião não deixou claro fica marcado para preencher.',
       'Se ficarem perguntas, elas vão para uma conversa nova com o Taq, em “Assistente”: responda lá e ele atualiza o documento.',
       'No quadro do resultado: “Abrir documento”, “Baixar” e, quando disponível, “Enviar ao Google Docs”.',
     ],
     preRequisitos: ['O servidor do TaqCiti tem de estar no ar.', 'A reunião precisa ter transcrição.'],
-    limitacoes: ['Só estes dois tipos existem: “Ata de Reunião” e “Doc Conversa (X1)”.'],
+    limitacoes: [
+      'Estes são os três modelos prontos: “Ata de Reunião”, “Doc Conversa (X1)” e “Resumo completo” (a reunião contada por trechos de tempo).',
+      'Para qualquer outro documento (relatório, proposta…), use “Gerar com o padrão CITi”.',
+    ],
     rotulos: [
       'Criar documento',
       'Ata de Reunião',
       'Doc Conversa (X1)',
+      'Resumo completo',
       'Abrir documento',
       'Baixar',
       'Enviar ao Google Docs',
@@ -740,6 +745,42 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     palavras: ['gerar', 'gero', 'gere', 'ata', 'x1', 'documento', 'criar', 'crio', 'resumo'],
   },
   {
+    id: 'documento_personalizado',
+    assunto: 'documentos',
+    titulo: 'Criar um documento personalizado no padrão CITi',
+    oQueFaz:
+      'Monta um documento novo (relatório, proposta, plano de ação…) a partir de um pedido em texto livre, com a estrutura que o pedido pede, só com o que a reunião sustenta, em PDF no padrão visual do CITi.',
+    onde: 'HOME → “Reuniões” → a reunião → “Criar documento”',
+    passos: [
+      'HOME → “Reuniões” → abra a reunião → “Criar documento” → descreva o que precisa no campo de texto → “Gerar com o padrão CITi”.',
+      'O documento é salvo em “Documentos”. Afirmação que a reunião não sustenta é removida, e o que faltou fica como pendência.',
+      'Em “Documentos”, abra o documento: veja a prévia do PDF, escolha onde alterar (capa, uma seção ou o documento todo), escreva o pedido e use “Pedir alteração”.',
+      'Cada alteração cria uma versão; em “Versões” dá para ver ou restaurar uma anterior (restaurar cria uma versão nova).',
+    ],
+    preRequisitos: ['O servidor do TaqCiti tem de estar no ar.', 'A reunião precisa ter transcrição.'],
+    limitacoes: [
+      'O padrão visual do CITi ainda é provisório: não foi validado por um responsável.',
+      'Só PDF por enquanto; Word (.docx) ainda não existe.',
+      'Tabelas, imagens e sumário ainda não são geradas.',
+      'A fonte do documento é a reunião aberta; para usar outras reuniões, peça ao Taq.',
+    ],
+    rotulos: [
+      'Reuniões',
+      'Criar documento',
+      'Gerar com o padrão CITi',
+      'Documentos',
+      'Pedir alteração',
+      'Baixar PDF',
+      'Versões',
+      'Restaurar',
+    ],
+    implementacao: [GERAR, DOCUMENTO_PERSONALIZADO, DOCUMENTOS],
+    verificacao: 'interface',
+    ferramenta: 'create_custom_document',
+    comoPedir:
+      'Peça na conversa: “monte um relatório para o cliente com a reunião X” ou “faça uma proposta de até quatro páginas”.',
+    palavras: ['relatorio', 'proposta', 'personalizado', 'parecer', 'plano', 'padrao', 'citi', 'documento', 'pdf', 'versao', 'versoes'],
+  },  {
     id: 'ver_documentos',
     assunto: 'documentos',
     titulo: 'Ver e abrir os documentos',

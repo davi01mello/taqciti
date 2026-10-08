@@ -28,6 +28,9 @@ import {
 } from '@/features/documents/catalogo';
 import { buscarConversas, buscarRegistros, normalizar, termosDe } from './busca';
 import { citacoesParaDocumento } from './evidencias';
+import { transcriptToText } from '@/features/history/export';
+import { gerarPersonalizado } from '@/features/documents/personalizado/cliente';
+import { guardarGeracao } from '@/features/documents/personalizado/documento';
 import { MOTIVOS_DE_PERGUNTA, type FichaDeAgente, type Pergunta, type Tarefa } from './contratos';
 import {
   exigirDocumento,
@@ -660,7 +663,9 @@ export const createDocument: DefinicaoDeFerramenta<z.infer<typeof criacaoSchema>
       throw new ErroDeFerramenta(
         'tipo_fora_do_catalogo',
         `A pessoa pediu "${foraDoCatalogo}", que não existe no catálogo. Não crie outro tipo no ` +
-          'lugar: explique o que os documentos do TaqCiti fazem e ofereça preparar um texto para o Claude.',
+          'lugar: monte o documento pedido com create_custom_document (relatório, proposta, parecer…) ' +
+          'ou, se for um formato que o TaqCiti não gera (apresentação, planilha, e-mail), explique e ' +
+          'ofereça preparar um texto para o Claude com prepare_external_brief.',
       );
     }
     const tipo = tipoDoPedido(ctx.tarefa, args.tipo);
@@ -812,6 +817,142 @@ export const createDocument: DefinicaoDeFerramenta<z.infer<typeof criacaoSchema>
       : s.ja_existia
         ? 'documento já existia (repetição)'
         : `documento criado (${s.tipo as string})`,
+};
+
+// ------------------------------------------------------- create_custom_document
+
+const personalizadoSchema = z.object({
+  pedido: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2000)
+    .describe(
+      'O documento que a pessoa quer, com as palavras dela: finalidade, para quem, o que precisa ' +
+        'conter. Não resuma o conteúdo das reuniões aqui — o servidor lê as fontes.',
+    ),
+  reuniao_ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(5)
+    .optional()
+    .describe('As reuniões usadas como ÚNICAS fontes. Ausente: a da conversa, ou a mais recente.'),
+  paginas: z.number().int().min(1).max(100).optional().describe('Extensão pedida, em páginas.'),
+  limite_firme: z
+    .boolean()
+    .optional()
+    .describe('true se a pessoa disse "no máximo/até N páginas"; false se foi uma preferência.'),
+  variante: z
+    .enum(['editorial', 'ata'])
+    .optional()
+    .describe('Aparência. `editorial` (padrão): capa gráfica, sumário e destaques. `ata`: a sóbria das atas.'),
+});
+
+const ERRO_DO_SERVIDOR: Record<string, string> = {
+  chave: 'servidor_recusou',
+  invalido: 'pedido_invalido',
+  longo: 'fontes_longas',
+  conflito: 'conflito',
+  sem_conteudo: 'sem_conteudo',
+  indisponivel: 'servidor_indisponivel',
+  rede: 'servidor_indisponivel',
+};
+
+export const createCustomDocument: DefinicaoDeFerramenta<z.infer<typeof personalizadoSchema>> = {
+  nome: 'create_custom_document',
+  descricao:
+    'Cria um documento PERSONALIZADO a partir de um pedido em linguagem natural (relatório, proposta, ' +
+    'plano de ação, parecer…), com estrutura montada para o pedido e o padrão visual do CITi, em PDF. ' +
+    'Só entra o que as reuniões escolhidas sustentam: afirmação sem trecho literal na fonte é removida, ' +
+    'e o que falta vira pendência. Salva em Documentos, com histórico de versões e prévia do PDF. ' +
+    'Use para pedidos que NÃO são um tipo do catálogo (create_document). Repetir a mesma chamada não duplica.',
+  schemaDeEntrada: personalizadoSchema,
+  efeito: 'escrita_local',
+  requisitos: ['documentos', 'reunioes'],
+  politica: { repeticao: 'idempotente', maxPorExecucao: 2 },
+  etapa: 'Montando o documento',
+  async executar(args, ctx) {
+    const ids = args.reuniao_ids ? [...new Set(args.reuniao_ids)] : undefined;
+    const reunioes: MeetingRecord[] = ids
+      ? await Promise.all(ids.map((id) => reuniaoNoEscopo(ctx, id)))
+      : [await reuniaoDoPedido(ctx, undefined)];
+
+    const fontes = reunioes
+      .map((r) => ({ id: r.id, titulo: r.title, texto: transcriptToText(r.segments) }))
+      .filter((f) => f.texto.trim());
+    if (fontes.length === 0) {
+      throw new ErroDeFerramenta('sem_fontes', 'As reuniões escolhidas não têm transcrição para servir de fonte.');
+    }
+
+    const variante = args.variante ?? 'editorial';
+    const chave = `${ctx.tarefa.execucaoId}:${hash(
+      [args.pedido, fontes.map((f) => f.id).sort().join(','), args.paginas ?? '', variante].join('\u0000'),
+    )}`;
+
+    // Repetição da mesma chamada: devolve o que já existe, sem gastar o servidor.
+    const jaCriado = (await ctx.armazenamento.listarDocumentos()).find((d) => d.criadoPor?.chave === chave);
+    if (jaCriado) {
+      ctx.registrarDocumento({ id: jaCriado.id, titulo: jaCriado.title, acao: 'criado', versao: String(jaCriado.updatedAt) });
+      return { documento_id: jaCriado.id, titulo: jaCriado.title, ja_existia: true, pendencias: [] };
+    }
+
+    // O pedido DA PESSOA vai junto com o detalhamento do modelo: o que ela escreveu
+    // não pode ser trocado pelo que o modelo entendeu.
+    const original = ctx.tarefa.pedidoOriginal.trim();
+    const pedido =
+      original && normalizar(original) !== normalizar(args.pedido)
+        ? `Pedido da pessoa: ${original}\n\nDetalhamento: ${args.pedido}`
+        : args.pedido;
+
+    const pedidoDeGeracao = {
+      pedido,
+      fontes,
+      capa: { data: new Date().toLocaleDateString('pt-BR') },
+      ...(args.paginas
+        ? { extensao: { paginas: args.paginas, tipo: args.limite_firme ? ('firme' as const) : ('aproximada' as const) } }
+        : {}),
+      variante,
+    };
+    const resposta = await gerarPersonalizado(pedidoDeGeracao);
+    if (resposta.status !== 'ok') {
+      throw new ErroDeFerramenta(ERRO_DO_SERVIDOR[resposta.codigo] ?? 'servidor_indisponivel', resposta.message);
+    }
+
+    const r = resposta.dados;
+    const { documento } = await guardarGeracao(
+      r,
+      pedidoDeGeracao,
+      { meetingId: fontes[0]!.id, conversationId: ctx.tarefa.conversaId },
+      { execucaoId: ctx.tarefa.execucaoId, chave },
+    );
+    ctx.registrarDocumento({ id: documento.id, titulo: documento.title, acao: 'criado', versao: String(documento.updatedAt) });
+    const pendencias = r.lacunas.map((l) => l.pergunta);
+    if (pendencias.length) ctx.registrarAusentes(pendencias);
+
+    const removidas = r.relatorio.problemas.filter((p) => p.tipo === 'sustentacao').length;
+    return {
+      documento_id: documento.id,
+      titulo: documento.title,
+      ja_existia: false,
+      paginas: r.manifesto.paginas ?? null,
+      variante,
+      fontes: fontes.map((f) => ({ id: f.id, titulo: f.titulo })),
+      afirmacoes_removidas_sem_sustentacao: removidas,
+      pendencias,
+      avisos: [
+        ...r.avisos,
+        ...r.relatorio.problemas.filter((p) => p.tipo === 'visual').map((p) => p.descricao),
+        ...(r.manifesto.perfilEstado === 'provisorio'
+          ? ['O padrão visual do CITi ainda é provisório (não validado por um responsável).']
+          : []),
+      ],
+      aviso:
+        'Apresente como rascunho para revisão: diga o que o documento é, quais reuniões serviram de ' +
+        'fonte, as pendências, e que o PDF e as versões estão em Documentos. Se houve afirmações ' +
+        'removidas, diga que foram retiradas por não estarem sustentadas nas reuniões. Compartilhar é outra ação.',
+    };
+  },
+  resumir: (s) => (s.ja_existia ? 'documento personalizado já existia (repetição)' : 'documento personalizado criado'),
 };
 
 // ------------------------------------------------------------------ ask_user
@@ -1109,6 +1250,7 @@ export const FERRAMENTAS_BASE: readonly DefinicaoDeFerramenta[] = [
   readConversation,
   listDocumentTypes,
   createDocument,
+  createCustomDocument,
   updateDocument,
   askUser,
   prepareExternalBrief,

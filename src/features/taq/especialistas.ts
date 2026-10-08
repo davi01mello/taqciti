@@ -28,7 +28,7 @@ import {
   type ExecutorDeAgente,
 } from './tipos';
 
-export const INSTRUCOES_DOCUMENTOS = 'documents-v3';
+export const INSTRUCOES_DOCUMENTOS = 'documents-v4';
 export const INSTRUCOES_APP = 'app-assistant-v5';
 export const INSTRUCOES_ANALISTA = 'analyst-v1';
 export const INSTRUCOES_COMPROMISSOS = 'commitments-v1';

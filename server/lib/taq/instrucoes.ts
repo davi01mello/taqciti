@@ -45,6 +45,8 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   'taq-v7': 'v7.md',
   /** v3: revisar com check_document; refazer cria documento novo, sem sobrescrever a edição humana. */
   'documents-v3': 'documents-v3.md',
+  /** v4: pedido fora do catálogo vira documento personalizado (create_document não é forçado); formato que o TaqCiti não gera segue para o Claude. */
+  'documents-v4': 'documents-v4.md',
   'analyst-v1': 'analyst-v1.md',
   'commitments-v1': 'commitments-v1.md',
   'continuity-v1': 'continuity-v1.md',

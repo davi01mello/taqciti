@@ -1,7 +1,7 @@
 {
-  "quando": "2026-10-05T16:59:08.609Z",
-  "build": "..\\AppData\\Local\\Temp\\taqciti-verify-dev",
-  "browser": "154.0.4258.53",
+  "quando": "2026-10-08T18:25:53.760Z",
+  "build": "..\\AppData\\Local\\Temp\\claude\\C--Users-edisi-taqciti\\709f8ab8-271a-41f5-9c47-4a5b41d99191\\scratchpad\\dist-verify",
+  "browser": "154.0.4258.62",
   "dados": "[TESTE] sintéticos; geração simulada, sem IA",
   "vistos": [
     "Abrir",
@@ -23,6 +23,7 @@
     "Baixar",
     "Baixar .md",
     "Baixar .txt",
+    "Baixar PDF",
     "Baixar o documento como arquivo de texto",
     "Baixar rascunho",
     "Cancelar",
@@ -47,11 +48,13 @@
     "Documentos",
     "Dúvida",
     "Em breve",
+    "Enviar",
     "Enviar ao Google Docs",
     "Escolher conversa",
     "Fechar",
     "Finalizar",
     "Fontes",
+    "Gerar com o padrão CITi",
     "Imagem",
     "Mais ações",
     "Nome da reunião",
@@ -64,18 +67,24 @@
     "Pausada",
     "Pausar",
     "Pausar movimento",
+    "Pedir alteração",
     "Pergunta rápida",
     "Perguntar sobre o trecho",
+    "Preparar",
     "Print",
     "Prints",
     "Registrar",
+    "Restaurar",
+    "Resumo completo",
     "Retomar",
     "Reunião",
     "Reuniões",
     "Salvar",
     "Sem conectar: o caminho manual",
     "Tirar o contexto desta pergunta",
-    "Transcrição"
+    "Transcrição",
+    "Ver",
+    "Versões"
   ],
   "ondeVisto": {
     "Pausar": "HOME · Assistente",
@@ -98,6 +107,8 @@
     "Desligar brasas do fundo": "HOME · Assistente",
     "Pausar movimento": "HOME · Assistente",
     "Acompanhamento": "HOME · Assistente",
+    "Preparar": "HOME · Assistente",
+    "Enviar": "HOME · Assistente",
     "Apagar": "HOME · menu Conversas",
     "Nova conversa": "HOME · menu Conversas",
     "Nova": "HOME · menu Conversas",
@@ -119,6 +130,8 @@
     "Fechar": "HOME · menu Criar documento",
     "Ata de Reunião": "HOME · menu Criar documento",
     "Doc Conversa (X1)": "HOME · menu Criar documento",
+    "Resumo completo": "HOME · menu Criar documento",
+    "Gerar com o padrão CITi": "HOME · menu Criar documento",
     "Abrir documento": "HOME · resultado da geração",
     "Enviar ao Google Docs": "HOME · resultado da geração",
     "Nome do documento": "HOME · editor",
@@ -127,6 +140,11 @@
     "Baixar .md": "HOME · editor",
     "Apagar documento": "HOME · Mais ações do documento",
     "Baixar rascunho": "HOME · editor com falha",
+    "Baixar PDF": "HOME · resultado do documento personalizado",
+    "Ver": "HOME · painel do documento personalizado",
+    "Pedir alteração": "HOME · painel do documento personalizado",
+    "Versões": "HOME · painel do documento personalizado",
+    "Restaurar": "HOME · alteração aplicada",
     "Sem conectar: o caminho manual": "HOME · Conexões",
     "Para conectar": "HOME · Conexões",
     "Conectar": "HOME · Conexões",
@@ -203,6 +221,7 @@
       "id": "prints",
       "vistos": [
         "Print",
+        "Ver",
         "Desfazer",
         "Prints",
         "Apagar",
@@ -210,8 +229,7 @@
         "Reunião"
       ],
       "nao_vistos": [
-        "Print guardado com a reunião.",
-        "Ver"
+        "Print guardado com a reunião."
       ]
     },
     {
@@ -391,12 +409,27 @@
         "Criar documento",
         "Ata de Reunião",
         "Doc Conversa (X1)",
+        "Resumo completo",
         "Abrir documento",
         "Baixar",
         "Enviar ao Google Docs",
         "Reuniões",
         "Documentos",
         "Assistente"
+      ],
+      "nao_vistos": []
+    },
+    {
+      "id": "documento_personalizado",
+      "vistos": [
+        "Reuniões",
+        "Criar documento",
+        "Gerar com o padrão CITi",
+        "Documentos",
+        "Pedir alteração",
+        "Baixar PDF",
+        "Versões",
+        "Restaurar"
       ],
       "nao_vistos": []
     },
@@ -545,6 +578,48 @@
       ]
     },
     {
+      "id": "preparar_assistente",
+      "vistos": [
+        "Preparar"
+      ],
+      "nao_vistos": [
+        "Organizar o que entendi",
+        "Usar este assistente",
+        "Salvar a preparação",
+        "Usar a versão atual"
+      ]
+    },
+    {
+      "id": "perguntas_prontas_da_reuniao",
+      "vistos": [
+        "Pergunta rápida"
+      ],
+      "nao_vistos": [
+        "O que falta esclarecer?",
+        "O que foi decidido?",
+        "Me ajude a fechar",
+        "Sugerir acompanhamentos"
+      ]
+    },
+    {
+      "id": "apoio_a_conducao",
+      "vistos": [
+        "Preparar"
+      ],
+      "nao_vistos": [
+        "Usar este assistente",
+        "Discreto: uma lembrança relevante por vez",
+        "Participativo: perguntas e encaminhamentos com mais frequência",
+        "Usei esta pergunta",
+        "Isso já foi resolvido",
+        "Guardar para depois",
+        "Descartar",
+        "Ver fonte",
+        "Pausar sugestões",
+        "Retomar sugestões"
+      ]
+    },
+    {
       "id": "comparar_fontes",
       "vistos": [
         "Acompanhamento"
@@ -566,11 +641,10 @@
     {
       "id": "rascunho_de_mensagem",
       "vistos": [
-        "Copiar"
+        "Copiar",
+        "Enviar"
       ],
-      "nao_vistos": [
-        "Abrir no e-mail"
-      ]
+      "nao_vistos": []
     },
     {
       "id": "sugerir_horario",
@@ -619,8 +693,12 @@
     },
     {
       "id": "enviar_email",
-      "vistos": [],
+      "vistos": [
+        "Enviar"
+      ],
       "nao_vistos": [
+        "Descartar",
+        "Reenviar mesmo assim",
         "Aguardando você",
         "Aceito pelo Google",
         "Resultado desconhecido",
@@ -641,6 +719,8 @@
       "id": "criar_evento",
       "vistos": [],
       "nao_vistos": [
+        "Marcar",
+        "Descartar",
         "Aguardando você",
         "Abrir no Google Agenda"
       ]
@@ -648,12 +728,16 @@
     {
       "id": "remarcar_evento",
       "vistos": [],
-      "nao_vistos": []
+      "nao_vistos": [
+        "Remarcar"
+      ]
     },
     {
       "id": "cancelar_evento",
       "vistos": [],
-      "nao_vistos": []
+      "nao_vistos": [
+        "Cancelar o evento"
+      ]
     }
   ],
   "completas": [
@@ -676,6 +760,7 @@
     "fontes_do_contexto",
     "tirar_fonte_do_contexto",
     "gerar_documento",
+    "documento_personalizado",
     "ver_documentos",
     "editar_documento",
     "apagar_documento",
@@ -685,21 +770,22 @@
     "enviar_google_docs",
     "aparencia",
     "capacidades_do_taq",
+    "rascunho_de_mensagem",
     "revisar_documento",
     "revisar_exposicao",
     "procurar_colega",
-    "consultar_agenda",
-    "remarcar_evento",
-    "cancelar_evento"
+    "consultar_agenda"
   ],
   "verificacoes": {
+    "personalizado_alterar_travado_na_versao_antiga": true,
+    "personalizado_versoes_depois": 3,
     "turnos_na_tela": 0,
     "depois_de_recarregar": {
       "conversas": [],
       "reunioes": [
         "teste-ajuda"
       ],
-      "documentos": 1
+      "documentos": 2
     },
     "texto_da_conversa_na_tela": 0
   },

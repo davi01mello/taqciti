@@ -73,9 +73,10 @@ export async function montarContextoInicial(
         // próximos passos" para o especialista de documentos.
         pedidoOriginalNomeiaDocumento(tarefa.pedidoOriginal)
         ? 'Esta mensagem pede escrita: create_document e update_document estão disponíveis. ' +
-          'Tipos de documento do catálogo (os únicos que existem): ' +
+          'Tipos de documento do catálogo (os modelos prontos): ' +
           CATALOGO_DE_DOCUMENTOS.map((t) => `${t.id} = ${t.nome} (${t.finalidade})`).join('; ') +
-          '.'
+          '. Pedido de outro documento (relatório, proposta, plano de ação, parecer…): ' +
+          'create_custom_document monta um documento personalizado com o padrão visual do CITi.'
         : 'Esta mensagem pede escrita (registrar, atualizar, resolver ou analisar): use o especialista do ' +
           'assunto. Não é pedido de documento.',
   ];

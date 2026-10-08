@@ -5,7 +5,7 @@
  * depois (validação, política, ferramentas, gravação, citações) é o código de
  * produção.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod/v4';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
@@ -30,6 +30,13 @@ import {
   type PedidoAoTaq,
 } from './orquestrador';
 
+import type * as ClienteDoPersonalizado from '@/features/documents/personalizado/cliente';
+
+const gerarPersonalizado = vi.hoisted(() => vi.fn());
+vi.mock('@/features/documents/personalizado/cliente', async (original) => ({
+  ...(await original<typeof ClienteDoPersonalizado>()),
+  gerarPersonalizado,
+}));
 /**
  * Estes casos exercitam o Taq SOZINHO — o registro só com o catálogo, sem os
  * especialistas ligados —, que é o que prova o núcleo. A delegação aos
@@ -934,5 +941,103 @@ describe('histórico', () => {
     );
     expect(h.map((m) => m.papel)).toEqual(['pessoa', 'modelo']);
     expect(h[1]).toMatchObject({ texto: 'Gerei a ata. Qual é o projeto?' });
+  });
+});
+
+describe('documento personalizado', () => {
+  afterEach(() => gerarPersonalizado.mockReset());
+
+  const resposta = (extra: Record<string, unknown> = {}) => ({
+    status: 'ok' as const,
+    dados: {
+      arvore: {
+        revisao: 1,
+        titulo: 'Relatório executivo da Sprint 12',
+        lacunas: [],
+        blocos: [
+          { tipo: 'capa', blockId: 'capa', variante: 'padrao', titulo: 'Relatório executivo da Sprint 12', fontes: [], origem: 'agente' },
+          { tipo: 'paragrafo', blockId: 's1-b1', texto: 'O deploy ficou na sexta.', fontes: [], origem: 'agente' },
+        ],
+      },
+      pdf: 'JVBERg==',
+      manifesto: {
+        revisaoDoConteudo: 1,
+        perfilId: 'citi',
+        perfilVersao: 2,
+        perfilEstado: 'provisorio',
+        rendererVersao: 'x',
+        ativosEFontes: [],
+        formatos: [{ formato: 'pdf', hash: 'a'.repeat(64) }],
+        paginas: 3,
+      },
+      relatorio: { problemas: [], verificacoesRealizadas: ['x'], limitacoes: [] },
+      avisos: [],
+      lacunas: [{ campo: 'Responsável', pergunta: 'Quem é o responsável pela revisão do contrato?' }],
+      ...extra,
+    },
+  });
+
+  it('um pedido fora do catálogo vira documento personalizado, salvo com a reunião como única fonte', async () => {
+    gerarPersonalizado.mockResolvedValue(resposta());
+    const { modelo } = modeloRoteirizado([
+      pede(['create_custom_document', { pedido: 'Relatório executivo da sprint', reuniao_ids: ['m-sprint'] }]),
+      final('Criei o relatório para revisão.'),
+    ]);
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Crie um relatório executivo da sprint'),
+    );
+
+    expect(r.documentos).toHaveLength(1);
+    const guardado = (await lerDocumentos()).find((d) => d.id === r.documentos[0]!.id)!;
+    expect(guardado).toMatchObject({
+      tipo: 'personalizado',
+      origem: 'gerado',
+      meetingId: 'm-sprint',
+      conversationId: 'c-1',
+      title: 'Relatório executivo da Sprint 12',
+    });
+
+    const [enviado] = gerarPersonalizado.mock.calls[0]!;
+    // Só a reunião escolhida entra — a outra (com a injeção) nem chega ao servidor.
+    expect(enviado.fontes.map((f: { id: string }) => f.id)).toEqual(['m-sprint']);
+    expect(enviado.fontes[0].texto).toContain('o deploy fica na sexta');
+    expect(enviado.pedido).toContain('relatório executivo da sprint');
+    expect(enviado.variante).toBe('editorial');
+    expect(enviado.capa.cliente).toBeUndefined();
+    expect(r.informacoesAusentes).toContain('Quem é o responsável pela revisão do contrato?');
+  });
+
+  it('repetir a mesma chamada na execução não duplica nem chama o servidor de novo', async () => {
+    gerarPersonalizado.mockResolvedValue(resposta());
+    const chamada: [string, Record<string, unknown>] = [
+      'create_custom_document',
+      { pedido: 'Relatório executivo da sprint', reuniao_ids: ['m-sprint'] },
+    ];
+    const { modelo } = modeloRoteirizado([pede(chamada), pede(chamada), final('Pronto.')]);
+    await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Crie um relatório executivo da sprint'),
+    );
+    expect(gerarPersonalizado).toHaveBeenCalledTimes(1);
+    expect((await lerDocumentos()).filter((d) => d.tipo === 'personalizado')).toHaveLength(1);
+  });
+
+  it('o servidor não achar sustentação vira erro para o modelo, e nada é salvo', async () => {
+    gerarPersonalizado.mockResolvedValue({
+      status: 'erro',
+      codigo: 'sem_conteudo',
+      message: 'Nenhum trecho do documento ficou sustentado pelas fontes selecionadas.',
+    });
+    const { modelo } = modeloRoteirizado([
+      pede(['create_custom_document', { pedido: 'Proposta comercial', reuniao_ids: ['m-sprint'] }]),
+      (p) => {
+        expect(resultadoDe(p, 'create_custom_document')).toMatchObject({ erro: { codigo: 'sem_conteudo' } });
+        return final('As reuniões escolhidas não sustentam essa proposta.');
+      },
+    ]);
+    const r = await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Crie uma proposta comercial'),
+    );
+    expect(r.documentos).toEqual([]);
+    expect(await lerDocumentos()).toEqual([DOC_ANTIGO]);
   });
 });

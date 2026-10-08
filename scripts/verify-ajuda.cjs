@@ -232,6 +232,84 @@ const CONVERSA = {
       await page.getByText('[TESTE] Ata simulada').first().waitFor();
       await colher(page, 'HOME · Documentos');
     });
+    // O documento PERSONALIZADO: gerar pelo pedido livre, abrir o painel, pedir
+    // uma alteração, ver e restaurar uma versão. As três rotas são simuladas
+    // (sem IA); o PDF é um arquivo mínimo, mas válido, para a prévia abrir.
+    await tentar('HOME: documento personalizado', async () => {
+      const PDF_MINIMO = Buffer.from(
+        '%PDF-1.1\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+          '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF',
+      ).toString('base64');
+      const manifesto = (rev) => ({
+        revisaoDoConteudo: rev,
+        perfilId: 'citi',
+        perfilVersao: 2,
+        perfilEstado: 'provisorio',
+        rendererVersao: 'teste',
+        ativosEFontes: [],
+        formatos: [{ formato: 'pdf', hash: 'a'.repeat(64) }],
+        paginas: 3,
+      });
+      const arvore = (rev, titulo) => ({
+        revisao: rev,
+        titulo,
+        lacunas: [],
+        blocos: [
+          { tipo: 'capa', blockId: 'capa', variante: 'padrao', titulo, fontes: [], origem: 'agente' },
+          { tipo: 'titulo', blockId: 's1-titulo', nivel: 1, texto: '[TESTE] Diagnóstico', fontes: [], origem: 'agente' },
+          { tipo: 'paragrafo', blockId: 's1-b1', texto: '[TESTE] Texto sintético.', fontes: [], origem: 'agente' },
+        ],
+      });
+      const resposta = (rev, titulo, extra = {}) => ({
+        arvore: arvore(rev, titulo),
+        pdf: PDF_MINIMO,
+        manifesto: manifesto(rev),
+        relatorio: { problemas: [], verificacoesRealizadas: ['teste'], limitacoes: [] },
+        avisos: [],
+        lacunas: [],
+        ...extra,
+      });
+      const json = (corpo) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(corpo) });
+      await page.route('**/api/documentos/gerar', (route) => route.fulfill(json(resposta(1, '[TESTE] Proposta simulada'))));
+      await page.route('**/api/documentos/editar', (route) =>
+        route.fulfill(json(resposta(2, '[TESTE] Proposta simulada, v2', { aplicadas: 1, recusadas: [] }))),
+      );
+      await page.route('**/api/documentos/renderizar', (route) =>
+        route.fulfill(json({ pdf: PDF_MINIMO, manifesto: manifesto(1), avisos: [], substituicoes: [] })),
+      );
+
+      await page.goto(`${base}/src/home/index.html?secao=reunioes`);
+      await page.getByText(REUNIAO.title).first().click();
+      await page.getByLabel('Nome da reunião').waitFor();
+      await clicar(page, 'Criar documento');
+      await page.getByLabel('Descreva o documento').fill('[TESTE] Monte uma proposta para o cliente.');
+      await clicar(page, 'Gerar com o padrão CITi');
+      await page.getByText('Salvo em Documentos').last().waitFor({ timeout: 10000 });
+      await colher(page, 'HOME · resultado do documento personalizado');
+      await page.screenshot({ path: path.join(saida, 'home-personalizado-gerado.png') });
+      await clicar(page, 'Abrir documento');
+      await page.getByLabel('Prévia do PDF').waitFor({ timeout: 10000 });
+      await page.locator('.tq-personalizado-previa iframe').waitFor({ timeout: 10000 });
+      await colher(page, 'HOME · painel do documento personalizado');
+      await page.screenshot({ path: path.join(saida, 'home-personalizado-painel.png'), fullPage: true });
+
+      await page.getByLabel('Pedido de alteração').fill('[TESTE] Troque o título da capa.');
+      await clicar(page, 'Pedir alteração');
+      await page.getByText('Alteração aplicada').waitFor({ timeout: 10000 });
+      await colher(page, 'HOME · alteração aplicada');
+      await page.screenshot({ path: path.join(saida, 'home-personalizado-alterado.png'), fullPage: true });
+
+      // Ver a revisão 1 (antiga): a alteração trava e "Restaurar esta" aparece.
+      await page.locator('.tq-personalizado-historico li').filter({ hasText: 'Revisão 1' }).getByRole('button', { name: 'Ver' }).click();
+      await page.getByText('não é a atual').waitFor({ timeout: 5000 });
+      verificacoes.personalizado_alterar_travado_na_versao_antiga = await page.getByRole('button', { name: 'Pedir alteração' }).isDisabled();
+      await clicar(page, 'Restaurar esta');
+      await page.getByText('restaurada como revisão 3').waitFor({ timeout: 10000 });
+      await colher(page, 'HOME · versão restaurada');
+      verificacoes.personalizado_versoes_depois = await page.locator('.tq-personalizado-historico li').count();
+      await page.screenshot({ path: path.join(saida, 'home-personalizado-restaurado.png'), fullPage: true });
+      console.log('· documento personalizado:', JSON.stringify(verificacoes));
+    });
     await tentar('HOME: Conexões', async () => {
       await page.goto(`${base}/src/home/index.html?secao=conexoes`);
       await page.waitForTimeout(2500);

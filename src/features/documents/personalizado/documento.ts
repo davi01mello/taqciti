@@ -8,12 +8,14 @@ import {
   apagarDocumento,
   atualizarDocumento,
   guardarDocumento,
+  guardarDocumentoUnico,
   type DocumentoGuardado,
 } from '../store';
 import { arvoreParaMarkdown } from './markdown';
 import type { PedidoDeGeracao, ResultadoDoServidor } from './tipos';
 import {
   iniciarHistorico,
+  lerHistorico,
   registrarVersao,
   type HistoricoDoDocumento,
   type VersaoDoDocumento,
@@ -44,20 +46,38 @@ export interface DadosDeOrigem {
  * Guarda o resultado de uma geração: o documento e a primeira versão.
  * Se o histórico não puder ser aberto, o documento é desfeito e o erro sobe —
  * a tela não pode dizer "Salvo" sobre um documento que não dá para editar.
+ *
+ * Com `criadoPor`, a criação é IDEMPOTENTE (o Taq pode repetir a chamada):
+ * a mesma chave devolve o documento que já existe, com `jaExistia: true`.
  */
 export async function guardarGeracao(
   resultado: ResultadoDoServidor,
   pedido: PedidoDeGeracao,
   origem: DadosDeOrigem = {},
-): Promise<{ documento: DocumentoGuardado; historico: HistoricoDoDocumento }> {
-  const documento = await guardarDocumento({
+  criadoPor?: { execucaoId: string; chave: string },
+): Promise<{ documento: DocumentoGuardado; historico: HistoricoDoDocumento; jaExistia: boolean }> {
+  const novo = {
     title: resultado.arvore.titulo,
     content: arvoreParaMarkdown(resultado.arvore),
-    formato: 'markdown',
+    formato: 'markdown' as const,
     tipo: TIPO_PERSONALIZADO,
-    origem: 'gerado',
+    origem: 'gerado' as const,
     ...origem,
-  });
+  };
+
+  let documento: DocumentoGuardado;
+  if (criadoPor) {
+    const unico = await guardarDocumentoUnico(novo, criadoPor);
+    documento = unico.documento;
+    if (unico.jaExistia) {
+      const existente = await lerHistorico(documento.id);
+      // Existe e tem histórico: é a mesma criação, repetida.
+      if (existente) return { documento, historico: existente, jaExistia: true };
+    }
+  } else {
+    documento = await guardarDocumento(novo);
+  }
+
   try {
     const historico = await iniciarHistorico({
       documentoId: documento.id,
@@ -65,13 +85,12 @@ export async function guardarGeracao(
       fontesIds: pedido.fontes.map((f) => f.id),
       versao: daResposta(resultado, 'geracao', pedido.pedido),
     });
-    return { documento, historico };
+    return { documento, historico, jaExistia: false };
   } catch (erro) {
     await apagarDocumento(documento.id);
     throw erro;
   }
 }
-
 export type ResultadoDaEdicaoLocal =
   | { tipo: 'ok'; documento: DocumentoGuardado; historico: HistoricoDoDocumento }
   | { tipo: 'conflito'; atual: HistoricoDoDocumento }

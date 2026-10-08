@@ -216,7 +216,8 @@ export const ESPECIALISTAS: readonly DefinicaoDeAgente[] = [
     saidas: ['documento salvo e editável', 'pendências'],
     capacidades: ['seguir a estrutura de cada tipo do catálogo', 'revisar a estrutura e as fontes de um documento'],
     limites: [
-      'só tipos do catálogo; fora dele, orienta a usar o Claude',
+      'tipos do catálogo pelo create_document; o que não é do catálogo vira documento personalizado (create_custom_document), só com o que as reuniões sustentam',
+      'formato que o TaqCiti não gera (apresentação, planilha, e-mail, Word): orienta a usar o Claude',
       'só grava quando a pessoa pediu',
       'sem tipo dito pela pessoa, pergunta o tipo e não cria nada',
       'o resto não pergunta: gera com o que tem, marca "A confirmar", e o Taq pergunta na conversa depois',
@@ -233,6 +234,7 @@ export const ESPECIALISTAS: readonly DefinicaoDeAgente[] = [
       'read_document',
       'list_document_types',
       'create_document',
+      'create_custom_document',
       'update_document',
       'prepare_external_brief',
       'check_document',
