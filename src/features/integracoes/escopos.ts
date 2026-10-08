@@ -51,13 +51,3 @@ export const ESCOPOS_DA_CONEXAO: readonly string[] = [
 
 /** Domínios de conta pessoal: não há "organização" nem diretório do domínio. */
 export const DOMINIOS_PESSOAIS: readonly string[] = ['gmail.com', 'googlemail.com'];
-
-/**
- * A API de cada escopo precisa estar ATIVADA no projeto do Google Cloud. Nome
- * mostrado no console e o serviço, para o passo a passo e as mensagens de erro.
- */
-export const APIS_DO_GOOGLE_CLOUD = [
-  { nome: 'Gmail API', servico: 'gmail.googleapis.com', capacidade: 'email' },
-  { nome: 'People API', servico: 'people.googleapis.com', capacidade: 'diretorio' },
-  { nome: 'Google Calendar API', servico: 'calendar-json.googleapis.com', capacidade: 'agenda_eventos' },
-] as const;

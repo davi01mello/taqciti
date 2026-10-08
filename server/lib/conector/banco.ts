@@ -17,8 +17,6 @@
  * de outro, e por isso `acervoPostgres.ts` recebe o `pessoaId` no construtor
  * e nenhuma consulta de lá o omite.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Pool } from 'pg';
 
 /**
@@ -73,25 +71,4 @@ export function banco(): Pool {
     max: 5,
   });
   return pool;
-}
-
-/** Fecha o pool. Só os testes precisam disto — o servidor vive enquanto vive. */
-export async function fecharBanco(): Promise<void> {
-  if (!pool) return;
-  const atual = pool;
-  pool = null;
-  await atual.end();
-}
-
-/**
- * Aplica `esquema.sql`. Idempotente: todo comando é `if not exists`.
- *
- * Chamado pelos testes de integração e disponível para um passo de deploy.
- * NÃO roda sozinho no boot do servidor: um processo que altera schema ao
- * subir é um processo que altera schema em toda réplica, ao mesmo tempo, na
- * hora do pico.
- */
-export async function aplicarEsquema(): Promise<void> {
-  const sql = readFileSync(join(process.cwd(), 'lib', 'conector', 'esquema.sql'), 'utf8');
-  await banco().query(sql);
 }

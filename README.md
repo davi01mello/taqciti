@@ -135,7 +135,7 @@ substituída pelo Drive; o Drive é só um destino adicional.
   seção Documentos lista, abre, edita e apaga.
 - `src/features/transcription/` — agregação e limpeza da transcrição (puro, sem I/O).
 - `src/features/meeting/` — máquina de estados da reunião, consentimento de
-  captura, nomeação, detecção de próxima reunião.
+  captura, nomeação.
 - `src/features/history/` — histórico local (chrome.storage.local).
 - `src/features/sync/` — a sincronização com o servidor, opcional e explícita.
 - `src/background/` — service worker: roteia mensagens, persiste o histórico,

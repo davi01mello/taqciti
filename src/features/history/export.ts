@@ -7,8 +7,8 @@ import { formatDate, formatElapsedClock, formatTime } from '@/shared/ui/format';
 
 /**
  * Falas seguidas da mesma pessoa não repetem `[hora] Nome:` — mesma regra de
- * agrupamento do TranscriptView (ver `grouped` em TranscriptView.tsx), pra a
- * transcrição copiada/baixada ler igual à que aparece na tela.
+ * agrupamento da transcrição na tela, pra a transcrição copiada/baixada ler
+ * igual à que aparece lá.
  */
 export function transcriptToText(segments: readonly LiveSegment[]): string {
   return segments

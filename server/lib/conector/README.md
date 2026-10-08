@@ -369,9 +369,9 @@ IPv6, e a função serverless da Vercel não tem saída IPv6: a direta falha com
 tem IPv6. O usuário do pooler também muda — é `postgres.<ref-do-projeto>`, não
 `postgres`, que é como o Supavisor sabe para qual projeto rotear.
 
-`aplicarEsquema()` existe para um passo de deploy — de propósito **não** roda
-no boot: um processo que altera schema ao subir é um processo que altera
-schema em toda réplica, ao mesmo tempo, na hora do pico.
+O esquema (`esquema.sql`) é aplicado na mão, num passo de deploy — de propósito
+**não** roda no boot: um processo que altera schema ao subir é um processo que
+altera schema em toda réplica, ao mesmo tempo, na hora do pico.
 
 Para desenvolver não é preciso banco local; se quiser um:
 

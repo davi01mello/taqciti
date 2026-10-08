@@ -84,12 +84,6 @@ export async function obterAcao(chave: string): Promise<RegistroDeAcao | null> {
   return mapa[chave] ?? null;
 }
 
-export async function listarAcoes(): Promise<RegistroDeAcao[]> {
-  const mapa = await ler();
-  vencerEnviando(mapa, dependencias().agora());
-  return Object.values(mapa).sort((a, b) => b.atualizadoEm - a.atualizadoEm);
-}
-
 /**
  * Guarda (ou atualiza) um rascunho. Não mexe numa ação que já passou de
  * rascunho: um envio feito não volta a ser prévia.
@@ -181,15 +175,5 @@ export async function concluirAcao(
       atual.erro = desfecho.erro;
     }
     return atual;
-  });
-}
-
-export async function cancelarRascunho(chave: string): Promise<boolean> {
-  return transacao((mapa, agora) => {
-    const atual = mapa[chave];
-    if (!atual || atual.estado !== 'rascunho') return false;
-    atual.estado = 'cancelado';
-    atual.atualizadoEm = agora;
-    return true;
   });
 }

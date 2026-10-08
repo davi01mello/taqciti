@@ -171,25 +171,6 @@ export function avisoDeDocumentoPronto(d: DocumentoPronto): NovoAviso {
   };
 }
 
-/** Uma captura de tela guardada com a reunião. */
-export function avisoDeCapturaPronta(p: {
-  id: string;
-  reuniaoId: string;
-  titulo?: string;
-}): NovoAviso {
-  return {
-    chave: `captura-de-tela:${p.id}`,
-    origem: 'captura',
-    publico: 'todos',
-    status: 'concluido',
-    reuniaoId: p.reuniaoId,
-    operacao: 'capture_screen',
-    titulo: 'A captura está pronta',
-    ...(p.titulo ? { detalhe: p.titulo } : {}),
-    acao: { tipo: 'abrir_reuniao', alvoId: p.reuniaoId, rotulo: 'Ver' },
-  };
-}
-
 // ------------------------------------------------------- execução do Taq
 
 /** O que interessa do resultado de uma execução (compatível com `ExecucaoDoTaq`). */
