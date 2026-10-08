@@ -78,7 +78,31 @@ describe('limparVinculosDaReuniao', () => {
       documentosDesvinculados: 0,
       analises: 0,
       avisos: 0,
+      briefings: 0,
     });
+  });
+
+  /* O briefing é escrito sobre a reunião e vai com ela; o perfil é da pessoa e fica. */
+  it('leva o briefing da reunião e preserva o perfil de condução', async () => {
+    await storage.local.set({
+      [STORAGE_KEYS.conducao]: {
+        versao: 1,
+        perfil: { missao: 'Apoiar a descoberta.', revisao: 1 },
+        briefings: [
+          { reuniaoId: 'm-1', objetivo: 'A' },
+          { reuniaoId: 'm-2', objetivo: 'B' },
+        ],
+      },
+    });
+
+    const resultado = await limparVinculosDaReuniao('m-1');
+
+    expect(resultado.briefings).toBe(1);
+    const guardado = ler<{ perfil: { missao: string }; briefings: Array<{ reuniaoId: string }> }>(
+      STORAGE_KEYS.conducao,
+    );
+    expect(guardado.briefings.map((b) => b.reuniaoId)).toEqual(['m-2']);
+    expect(guardado.perfil.missao).toBe('Apoiar a descoberta.');
   });
 
   /* Aviso é derivado da reunião: um "Ver" para reunião apagada seria órfão. */

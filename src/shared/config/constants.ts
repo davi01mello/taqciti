@@ -163,6 +163,13 @@ export const STORAGE_KEYS = {
    * `features/integracoes/colegas.ts`.
    */
   colegasDoCiti: 'taq:colegas-citi',
+
+  /**
+   * chrome.storage.local — o perfil de condução (como a pessoa quer ser
+   * ajudada) e o briefing de cada reunião (o objetivo que ela quer alcançar).
+   * Apagar a reunião leva só o briefing dela. Ver `features/conducao/store.ts`.
+   */
+  conducao: 'taq:conducao',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

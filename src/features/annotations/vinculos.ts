@@ -39,6 +39,8 @@ export interface ResultadoDaLimpeza {
   analises: number;
   /** Avisos da reunião: derivados dela, com ação "abrir a reunião". */
   avisos: number;
+  /** O briefing da reunião (o objetivo que a pessoa escreveu para ela). */
+  briefings: number;
 }
 
 /** A exclusão e seus vínculos são confirmados juntos pelo storage. */
@@ -53,6 +55,7 @@ export async function limparVinculosDaReuniao(
     STORAGE_KEYS.documents,
     STORAGE_KEYS.trabalho,
     STORAGE_KEYS.avisos,
+    STORAGE_KEYS.conducao,
   ].sort();
   const executar = async (): Promise<ResultadoDaLimpeza> => {
     const bruto = Object.fromEntries(
@@ -138,8 +141,19 @@ export async function limparVinculosDaReuniao(
       avisos = guardados.itens.length - ficam.length;
       if (avisos) alteracoes[STORAGE_KEYS.avisos] = { ...guardados, itens: ficam };
     }
+    // O briefing é escrito SOBRE a reunião, como a nota: sem ela, nenhuma tela o
+    // mostra. O perfil de condução, que é da pessoa, fica.
+    let briefings = 0;
+    const conducao = bruto[STORAGE_KEYS.conducao] as { briefings?: unknown } | null | undefined;
+    if (conducao && typeof conducao === 'object' && Array.isArray(conducao.briefings)) {
+      const ficam = conducao.briefings.filter(
+        (b: unknown) => !b || typeof b !== 'object' || (b as { reuniaoId?: unknown }).reuniaoId !== meetingId,
+      );
+      briefings = conducao.briefings.length - ficam.length;
+      if (briefings) alteracoes[STORAGE_KEYS.conducao] = { ...conducao, briefings: ficam };
+    }
     if (Object.keys(alteracoes).length) await writeLocalBatch(alteracoes);
-    return { nota, marcas, prints, documentosDesvinculados, analises, avisos };
+    return { nota, marcas, prints, documentosDesvinculados, analises, avisos, briefings };
   };
   const travar = (i: number): Promise<ResultadoDaLimpeza> =>
     i === chaves.length ? executar() : comTravaLocal(chaves[i]!, () => travar(i + 1));
