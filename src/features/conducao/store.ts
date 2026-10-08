@@ -89,6 +89,12 @@ export interface BriefingDaReuniao {
   prioridades: string[];
   /** A revisão do perfil de quando o briefing foi preparado; `null` = sem perfil. */
   perfilRevisao: number | null;
+  /**
+   * O CONTEÚDO do perfil que esta reunião usa: uma cópia do que valia quando
+   * foi preparada. É isto que mantém a reunião estável — o número da revisão
+   * sozinho não reproduz o texto antigo.
+   */
+  perfilUsado: ConteudoDoPerfil | null;
   historico: EventoDaConducao[];
 }
 
@@ -174,6 +180,7 @@ export function normalizarConducao(bruto: unknown): Conducao {
             prioridades: limparLista(x.prioridades),
             aprovado: x.aprovado === true,
             perfilRevisao: typeof x.perfilRevisao === 'number' ? x.perfilRevisao : null,
+            perfilUsado: normalizarConteudoDoPerfil(x.perfilUsado),
             historico: Array.isArray(x.historico) ? x.historico : [],
           }))
       : [],
@@ -309,6 +316,7 @@ export async function salvarBriefing(
       prioridades,
       // Primeira preparação: fixa o perfil de agora. Depois, só quando a pessoa pede.
       perfilRevisao: atual ? atual.perfilRevisao : (c.perfil?.revisao ?? null),
+      perfilUsado: atual ? atual.perfilUsado : c.perfil ? conteudoDe(c.perfil) : null,
       historico: [
         ...(atual?.historico ?? []),
         eventoDe(atual ? 'briefing atualizado' : 'briefing criado', autor),
@@ -331,6 +339,7 @@ export async function atualizarPerfilDoBriefing(
     const alvo = c.perfil?.revisao ?? null;
     if (atual.perfilRevisao === alvo) return { resultado: { tipo: 'ok' as const, item: atual }, mudou: false };
     atual.perfilRevisao = alvo;
+    atual.perfilUsado = c.perfil ? structuredClone(conteudoDe(c.perfil)) : null;
     atual.revisao += 1;
     atual.atualizadoEm = Math.max(Date.now(), atual.atualizadoEm + 1);
     atual.historico = [...atual.historico, eventoDe('passou a usar o perfil atual', 'pessoa')].slice(-MAX_HISTORICO);

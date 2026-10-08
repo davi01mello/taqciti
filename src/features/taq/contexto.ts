@@ -15,6 +15,8 @@
  *     rascunhos em sequência, sem resposta no meio.
  */
 import type { ConversationMessage } from '@/home/conversations';
+import { linhasDaConducao } from '@/features/conducao/contexto';
+import { lerConducao } from '@/features/conducao/store';
 import { CATALOGO_DE_DOCUMENTOS } from '@/features/documents/catalogo';
 import type { Tarefa } from './contratos';
 import type { ArmazenamentoDoTaq } from './armazenamento';
@@ -93,6 +95,21 @@ export async function montarContextoInicial(
       if (s.trecho) linhas.push(`  trecho selecionado: "${s.trecho.slice(0, 600)}"`);
     }
   }
+
+  // Como a pessoa quer ser ajudada e o que quer alcançar nesta reunião. Falha
+  // ao ler isto nunca derruba a resposta: o Taq segue sem o bloco.
+  const emFoco =
+    escopo.reunioes !== 'todas' && escopo.reunioes.length === 1
+      ? escopo.reunioes[0]
+      : tarefa.selecionados.filter((s) => s.tipo === 'reuniao').length === 1
+        ? tarefa.selecionados.find((s) => s.tipo === 'reuniao')?.id
+        : undefined;
+  const reuniaoEmFoco = emFoco ? reunioes.find((r) => r.id === emFoco) : undefined;
+  linhas.push(
+    ...(await lerConducao()
+      .then((c) => linhasDaConducao(c, reuniaoEmFoco ? { id: reuniaoEmFoco.id, titulo: reuniaoEmFoco.title } : null))
+      .catch(() => [])),
+  );
 
   const conversas = await armazenamento.listarConversas();
   const conversa = conversas.find((c) => c.id === tarefa.conversaId);
