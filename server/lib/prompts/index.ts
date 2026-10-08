@@ -23,7 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-export type PromptAgent = 'leitor' | 'auditor' | 'taq';
+export type PromptAgent = 'leitor' | 'auditor' | 'taq' | 'redator';
 export type PromptVersion = `v${number}`;
 
 /** Cache por arquivo. Prompt não muda em runtime; ler a cada chamada seria
