@@ -57,6 +57,8 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   'memory-v1': 'memory-v1.md',
   'context-v1': 'context-v1.md',
   'copilot-v1': 'copilot-v1.md',
+  /** Organiza o texto livre da pessoa num perfil de condução editável (`propor_perfil`); nunca salva. */
+  'conducao-v1': 'conducao-v1.md',
 };
 
 const cache = new Map<string, string>();
