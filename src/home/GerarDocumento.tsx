@@ -50,7 +50,11 @@ import {
   baixarComoPdf,
   baixarComoTexto,
 } from '@/document/baixarDocumento';
-import { oauthConfigurado } from '@/document/googleDocs';
+import { nomeDoArquivo, oauthConfigurado } from '@/document/googleDocs';
+import { transcriptToText } from '@/features/history/export';
+import { gerarPersonalizado } from '@/features/documents/personalizado/cliente';
+import { guardarGeracao } from '@/features/documents/personalizado/documento';
+import type { ResultadoDoServidor } from '@/features/documents/personalizado/tipos';
 import { abrirConversaDoTaq } from '@/home/conversations';
 import { CATALOGO_DE_DOCUMENTOS } from '@/features/documents/catalogo';
 
@@ -77,8 +81,22 @@ interface Pendente {
   pdf?: string;
 }
 
+/** O documento personalizado já gerado pelo servidor. O PDF vem em base64. */
+interface Personalizado {
+  documento?: DocumentoGuardado;
+  titulo: string;
+  pdf: string;
+  /** Afirmações removidas por falta de sustentação, e o que ainda falta saber. */
+  removidas: number;
+  lacunas: string[];
+  avisos: string[];
+}
+
 type Estado =
   | { fase: 'parado' }
+  | { fase: 'gerandoPersonalizado' }
+  | { fase: 'salvoPersonalizado'; resultado: Personalizado & { documento: DocumentoGuardado } }
+  | { fase: 'erroAoSalvarPersonalizado'; resultado: Personalizado; mensagem: string }
   | { fase: 'gerando'; tipo: DocumentType }
   | { fase: 'salvando'; tipo: DocumentType }
   | { fase: 'salvo'; documento: DocumentoGuardado; pendente: Pendente }
@@ -103,15 +121,20 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
   const [perguntasNoTaq, setPerguntasNoTaq] = useState(0);
   const caixaRef = useRef<HTMLDivElement>(null);
 
-  const ocupado = estado.fase === 'gerando' || estado.fase === 'salvando';
+  const ocupado =
+    estado.fase === 'gerando' || estado.fase === 'salvando' || estado.fase === 'gerandoPersonalizado';
 
   useEffect(
-    () => protegerEdicao(async () => !ocupado && estado.fase !== 'erroAoSalvar'),
+    () =>
+      protegerEdicao(
+        async () =>
+          !ocupado && estado.fase !== 'erroAoSalvar' && estado.fase !== 'erroAoSalvarPersonalizado',
+      ),
     [ocupado, estado.fase],
   );
   useEffect(() => {
     const antesDeFechar = (e: BeforeUnloadEvent) => {
-      if (ocupado || estado.fase === 'erroAoSalvar') {
+      if (ocupado || estado.fase === 'erroAoSalvar' || estado.fase === 'erroAoSalvarPersonalizado') {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -206,6 +229,54 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
       }
     });
   };
+  /*
+   * O pedido em linguagem natural vira um documento PERSONALIZADO: o servidor
+   * escolhe a estrutura, escreve só o que a reunião sustenta e monta o PDF no
+   * padrão visual. A reunião aberta é a única fonte — nenhuma outra entra.
+   * Cliente e autor da capa não são inventados: só a data, que é o dia de hoje.
+   */
+  const gerarPersonalizadoDoPedido = async (pedido: string) => {
+    if (ocupado) return;
+    setPerguntasNoTaq(0);
+    setEstado({ fase: 'gerandoPersonalizado' });
+
+    const pedidoDeGeracao = {
+      pedido,
+      fontes: [{ id: registro.id, titulo: registro.title, texto: transcriptToText(registro.segments) }],
+      capa: { data: new Date().toLocaleDateString('pt-BR') },
+      variante: 'editorial',
+    };
+    const resposta = await gerarPersonalizado(pedidoDeGeracao);
+    if (resposta.status !== 'ok') {
+      setEstado({ fase: 'erroNaGeracao', mensagem: resposta.message });
+      return;
+    }
+    const r: ResultadoDoServidor = resposta.dados;
+    const resultado: Personalizado = {
+      titulo: r.arvore.titulo,
+      pdf: r.pdf,
+      removidas: r.relatorio.problemas.filter((p) => p.tipo === 'sustentacao').length,
+      lacunas: r.lacunas.map((l) => l.pergunta),
+      avisos: r.avisos,
+    };
+    try {
+      const { documento } = await guardarGeracao(r, pedidoDeGeracao, { meetingId: registro.id });
+      setAberto(false);
+      setEstado({ fase: 'salvoPersonalizado', resultado: { ...resultado, documento } });
+    } catch {
+      // O PDF gerado NÃO se perde por causa de uma falha de gravação.
+      setEstado({
+        fase: 'erroAoSalvarPersonalizado',
+        resultado,
+        mensagem:
+          'O documento foi gerado, mas não foi possível salvá-lo neste computador. ' +
+          'Baixe o PDF antes de sair.',
+      });
+    }
+  };
+  const baixarPersonalizado = (r: Personalizado) =>
+    baixarComoPdf(r.pdf, nomeDoArquivo('Documento', r.titulo, registro.title, new Date()));
+
   const baixar = (pendente: Pendente) => {
     const nome = nomeDoDocumento(registro, pendente.tipo, undefined);
     if (pendente.pdf) baixarComoPdf(pendente.pdf, nome);
@@ -232,9 +303,11 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
   };
 
   const emCurso =
-    estado.fase === 'gerando' || estado.fase === 'salvando'
-      ? (TIPOS.find((t) => t.tipo === estado.tipo)?.rotulo ?? 'o documento')
-      : null;
+    estado.fase === 'gerandoPersonalizado'
+      ? 'o documento personalizado'
+      : estado.fase === 'gerando' || estado.fase === 'salvando'
+        ? (TIPOS.find((t) => t.tipo === estado.tipo)?.rotulo ?? 'o documento')
+        : null;
 
   return (
     <div className="tq-gerar" ref={caixaRef}>
@@ -303,6 +376,20 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
                       aria-label="Descreva o documento"
                       onChange={(e) => setLivre(e.target.value)}
                     />
+                    <button
+                      type="button"
+                      className="tq-acao"
+                      disabled={!livre.trim()}
+                      title="Monta um documento novo com a estrutura que o pedido pede, só com o que esta reunião sustenta, no padrão visual do CITi"
+                      onClick={() => {
+                        const pedido = livre.trim();
+                        if (!pedido) return;
+                        setLivre('');
+                        void gerarPersonalizadoDoPedido(pedido);
+                      }}
+                    >
+                      Gerar com o padrão CITi
+                    </button>
                   </form>
                 )}
                 {estado.fase === 'erroNaGeracao' && (
@@ -377,6 +464,67 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
               onClick={() => setEstado({ fase: 'parado' })}
             >
               Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {estado.fase === 'salvoPersonalizado' && (
+        <div className="tq-gerar-resultado" role="status">
+          <p>
+            <Icon name="check" size={13} />
+            <strong>Salvo em Documentos</strong> · {estado.resultado.documento.title}
+          </p>
+          {estado.resultado.removidas > 0 && (
+            <p>
+              {estado.resultado.removidas === 1
+                ? 'Uma afirmação foi removida'
+                : `${estado.resultado.removidas} afirmações foram removidas`}{' '}
+              por não estarem sustentadas na reunião.
+            </p>
+          )}
+          {estado.resultado.lacunas.length > 0 && (
+            <p>Falta saber: {estado.resultado.lacunas.join(' ')}</p>
+          )}
+          {estado.resultado.avisos.map((aviso) => (
+            <p key={aviso}>{aviso}</p>
+          ))}
+          <div className="tq-acoes">
+            <button
+              type="button"
+              className="tq-acao"
+              onClick={() => onAbrirDocumento(estado.resultado.documento.id)}
+            >
+              Abrir documento
+            </button>
+            <button type="button" className="tq-acao" onClick={() => baixarPersonalizado(estado.resultado)}>
+              <Icon name="arrowDown" size={13} />
+              Baixar PDF
+            </button>
+            <button type="button" className="tq-acao" onClick={() => setEstado({ fase: 'parado' })}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {estado.fase === 'erroAoSalvarPersonalizado' && (
+        <div className="tq-gerar-resultado falhou" role="alert">
+          <p>{estado.mensagem}</p>
+          <div className="tq-acoes">
+            <button type="button" className="tq-acao" onClick={() => baixarPersonalizado(estado.resultado)}>
+              <Icon name="arrowDown" size={13} />
+              Baixar PDF
+            </button>
+            <button
+              type="button"
+              className="tq-acao"
+              onClick={() => {
+                if (window.confirm('Descartar este resultado que ainda não foi salvo? Baixe o PDF antes de sair.'))
+                  setEstado({ fase: 'parado' });
+              }}
+            >
+              Descartar resultado
             </button>
           </div>
         </div>

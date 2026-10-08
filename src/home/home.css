@@ -3519,3 +3519,65 @@ body .tq-home [role='dialog'] button {
   margin-top: 10px;
   align-items: center;
 }
+
+/* ------------------------------------------- documento personalizado */
+
+.tq-personalizado-previa {
+  margin: 14px 0;
+}
+
+.tq-personalizado-previa iframe {
+  display: block;
+  width: 100%;
+  height: min(78vh, 920px);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.tq-personalizado-alterar {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.tq-personalizado-alterar textarea {
+  min-height: 72px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(255 255 255 / 0.04);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+.tq-personalizado-subtitulo {
+  margin: 22px 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.tq-personalizado-historico {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tq-personalizado-historico li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.tq-personalizado-historico li[aria-current='true'] {
+  border-color: rgb(var(--c-primary) / 0.45);
+}

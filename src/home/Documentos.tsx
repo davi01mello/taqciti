@@ -45,6 +45,7 @@ import { Icon } from '@/shared/ui/Icon';
 import { formatDate, formatTime } from '@/shared/ui/format';
 import { SinalTaqciti } from '@/shared/ui/SinalTaqciti';
 import { Carta, IconeEnviar } from './Carta';
+import { DocumentoPersonalizado } from './DocumentoPersonalizado';
 
 interface Props {
   documentos: DocumentoGuardado[];
@@ -96,6 +97,18 @@ export function PaginaDocumentos({
     if (confirmandoId && !documentos.some((d) => d.id === confirmandoId))
       setConfirmandoId(null);
   }, [documentos, confirmandoId]);
+
+  if (aberto?.tipo === 'personalizado') {
+    // Documento personalizado: prévia do PDF, versões e alteração pelo pedido.
+    return (
+      <DocumentoPersonalizado
+        documento={aberto}
+        registros={registros}
+        onVoltar={() => onAbrir(null)}
+        onIrParaReuniao={onIrParaReuniao}
+      />
+    );
+  }
 
   if (aberto) {
     return (

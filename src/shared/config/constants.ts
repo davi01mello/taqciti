@@ -82,6 +82,17 @@ export const STORAGE_KEYS = {
   documents: 'taq:documents',
 
   /**
+   * chrome.storage.local — as VERSÕES dos documentos personalizados.
+   *
+   * Uma coleção ao lado de `documents`, e não dentro dele: o registro do
+   * documento é o que a seção "Documentos" lista e edita como texto, e a
+   * árvore de blocos com o histórico de revisões tem outro ritmo e outro
+   * tamanho. O vínculo é o id do documento. Só a árvore é guardada — o PDF é
+   * derivado dela pelo servidor, sob demanda.
+   */
+  documentVersions: 'taq:documentVersions',
+
+  /**
    * chrome.storage.local — o estado da sincronização com o servidor.
    *
    * `local` e não `session`: é uma decisão que vale até ser desfeita, não uma

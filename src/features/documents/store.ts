@@ -31,6 +31,7 @@ import { criarFilaDeGravacao } from '@/shared/services/saveQueue';
 import { comTravaLocal } from '@/shared/services/storageLock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage';
+import { apagarHistorico } from './personalizado/versoes';
 
 /**
  * O formato do conteúdo guardado.
@@ -278,11 +279,13 @@ export async function atualizarDocumentoNaVersao(
 }
 
 export async function apagarDocumento(id: string): Promise<void> {
-  return comTravaLocal(STORAGE_KEYS.documents, async () => {
+  await comTravaLocal(STORAGE_KEYS.documents, async () => {
     const todos = await lerDocumentos();
     if (!todos.some((d) => d.id === id)) return;
     await gravar(todos.filter((d) => d.id !== id));
   });
+  // O histórico de versões de um personalizado morre com o documento.
+  await apagarHistorico(id);
 }
 
 /** Respiro entre a última tecla e a gravação. O mesmo das notas. */
