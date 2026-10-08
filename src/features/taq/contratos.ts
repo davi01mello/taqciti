@@ -426,7 +426,6 @@ export type Tarefa = z.infer<typeof tarefaSchema>;
 // ---------------------------------------------------------------- agente
 
 export const ESTADOS_DE_AGENTE = ['planned', 'available', 'disabled'] as const;
-export type EstadoDoAgenteRegistrado = (typeof ESTADOS_DE_AGENTE)[number];
 
 /**
  * A FICHA de um agente — tudo menos o executor, que é função e não se valida
