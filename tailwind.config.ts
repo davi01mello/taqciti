@@ -79,10 +79,6 @@ export default {
         glow: '0 0 20px rgba(92, 203, 133, 0.18)',
       },
       keyframes: {
-        'fade-slide-in': {
-          from: { opacity: '0', transform: 'translateY(7px)' },
-          to: { opacity: '1', transform: 'translateY(0)' },
-        },
         'pulse-dot': {
           '0%, 100%': { opacity: '1', transform: 'scale(1)' },
           '50%': { opacity: '0.4', transform: 'scale(0.75)' },
@@ -90,19 +86,6 @@ export default {
         'fade-in': {
           from: { opacity: '0' },
           to: { opacity: '1' },
-        },
-        'pop-in': {
-          '0%': { opacity: '0', transform: 'scale(0.5)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
-        },
-        // Passos do wizard: entra da direita ao avançar, da esquerda ao voltar.
-        'slide-in-right': {
-          from: { opacity: '0', transform: 'translateX(16px)' },
-          to: { opacity: '1', transform: 'translateX(0)' },
-        },
-        'slide-in-left': {
-          from: { opacity: '0', transform: 'translateX(-16px)' },
-          to: { opacity: '1', transform: 'translateX(0)' },
         },
         eq: {
           '0%, 100%': { transform: 'scaleY(0.55)' },
@@ -125,30 +108,12 @@ export default {
           from: { transform: 'translateY(10px) scale(0.9)' },
           to: { transform: 'translateY(0) scale(1)' },
         },
-        ripple: {
-          '0%': { opacity: '0.5', transform: 'scale(0.6)' },
-          '100%': { opacity: '0', transform: 'scale(1.9)' },
-        },
-        typing: {
-          '0%, 100%': { opacity: '0.25' },
-          '50%': { opacity: '1' },
-        },
-        spin: {
-          to: { transform: 'rotate(360deg)' },
-        },
       },
       animation: {
-        entry: 'fade-slide-in 260ms cubic-bezier(0.32, 0.72, 0, 1)',
         'pulse-dot': 'pulse-dot 1.7s cubic-bezier(0.32, 0.72, 0, 1) infinite',
         'fade-in': 'fade-in 200ms cubic-bezier(0.32, 0.72, 0, 1)',
-        'pop-in': 'pop-in 460ms cubic-bezier(0.34, 1.45, 0.64, 1)',
-        'slide-in-right': 'slide-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1)',
-        'slide-in-left': 'slide-in-left 220ms cubic-bezier(0.32, 0.72, 0, 1)',
         eq: 'eq 1.15s ease-in-out infinite',
         'dock-in': 'dock-in 420ms cubic-bezier(0.34, 1.45, 0.64, 1)',
-        ripple: 'ripple 2.6s cubic-bezier(0.32, 0.72, 0, 1) infinite',
-        typing: 'typing 1.3s ease-in-out infinite',
-        'spin-slow': 'spin 900ms linear infinite',
       },
     },
   },

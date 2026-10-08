@@ -1,4 +1,4 @@
-// Os cartões do Taq, a página "Acompanhamento" e o painel "O que o Taq faz"
+// Os cartões do Taq e a página "Acompanhamento"
 // contra a extensão RODANDO — HOME larga, HOME estreita e sidebar.
 //
 // Dados [TESTE] semeados direto no storage (reunião, registros de trabalho e
@@ -202,15 +202,6 @@ const falhas = [];
       await page.locator('.tq-c-motivo').getByRole('button', { name: 'Confirmar' }).click();
       await page.waitForTimeout(400);
       verificacoes.achado_resolvido_some_dos_abertos = (await page.getByText('Nenhum achado aberto.').count()) === 1;
-    });
-
-    await tentar('HOME: O que o Taq faz', async () => {
-      await page.goto(`${raiz}/src/home/index.html?secao=conexoes`);
-      await page.getByRole('heading', { name: 'O que o Taq faz' }).waitFor({ timeout: 10000 });
-      await page.getByRole('heading', { name: 'O que o Taq faz' }).scrollIntoViewIfNeeded();
-      verificacoes.capacidades = await page.locator('.tq-cap strong').allInnerTexts();
-      verificacoes.sem_botao_conectar_email = (await page.getByRole('button', { name: /conectar e-mail|conectar calendário/i }).count()) === 0;
-      await page.locator('.tq-capacidades').screenshot({ path: path.join(saida, 'home-capacidades.png') });
     });
 
     await tentar('HOME estreita (390px)', async () => {
