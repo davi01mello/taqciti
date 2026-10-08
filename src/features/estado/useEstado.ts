@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { lerConducao } from '@/features/conducao/store';
+import { carregarRetomada } from '@/features/conducao/retomada';
 import { criarAdaptadorHttp } from '@/features/taq/modelo';
 import type { MeetingState } from '@/shared/types/domain';
 import { falasConsolidadas } from '@/features/apoio/laco';
@@ -45,12 +46,14 @@ export function useEstadoDosPontos(state: MeetingState): EstadoDaReuniao {
     setAtualizando(true);
     setErro(null);
     try {
+      const conducao = await lerConducao();
       const r = await atualizarEstadoDaReuniao({
         adaptador: adaptador.current,
         reuniao: { id: s.meetingId, titulo: s.title },
         falas: s.segments,
         falasConsolidadas: falasConsolidadas(s.segments.length, ultima.current.phase === 'ended'),
-        conducao: await lerConducao(),
+        conducao,
+        retomada: await carregarRetomada(conducao, s.meetingId),
       });
       if (r.tipo === 'erro') setErro(r.mensagem);
     } catch (e) {

@@ -22,6 +22,7 @@
  * o que a Etapa 6 usa para ajustar frequência e custo com dados.
  */
 import { perfilQueValeParaAReuniao } from '@/features/conducao/contexto';
+import { carregarRetomada } from '@/features/conducao/retomada';
 import { lerConducao, type Conducao, type ModoDeIntervencao } from '@/features/conducao/store';
 import type { AdaptadorDeModelo } from '@/features/taq/modelo';
 import { aplicarAvaliacao, avaliarReuniao, janelaDeLeitura, type FalaDaReuniao } from './gerar';
@@ -51,6 +52,8 @@ export interface DependenciasDoLaco {
   avaliar?: typeof avaliarReuniao;
   lerConducao?: () => Promise<Conducao>;
   lerApoio?: () => Promise<Apoio>;
+  /** As linhas dos encontros que a pessoa escolheu retomar. Padrão: lê os registros. */
+  carregarRetomada?: (c: Conducao, reuniaoId: string) => Promise<string[]>;
 }
 
 export interface Laco {
@@ -67,6 +70,7 @@ export function criarLaco(deps: DependenciasDoLaco): Laco {
   const avaliar = deps.avaliar ?? avaliarReuniao;
   const conducao = deps.lerConducao ?? lerConducao;
   const apoio = deps.lerApoio ?? lerApoio;
+  const retomadaDe = deps.carregarRetomada ?? carregarRetomada;
 
   let ultima: EntradaDoLaco | null = null;
   let reuniaoAtual = '';
@@ -160,6 +164,7 @@ export function criarLaco(deps: DependenciasDoLaco): Laco {
         falas: e.falas,
         falasConsolidadas: corte,
         conducao: c,
+        retomada: await retomadaDe(c, e.reuniao.id),
         sugestoes,
         modo,
         sinal: controle.signal,

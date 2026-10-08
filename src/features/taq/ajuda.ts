@@ -1106,11 +1106,13 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Na HOME, abra “Preparar”.',
       'Conte com suas palavras como conduz reuniões e clique em “Organizar o que entendi”. Corrija qualquer frase do resumo; nada vale até você clicar em “Usar este assistente”.',
       'Mais abaixo, escolha uma reunião, escreva o resultado que querem alcançar e clique em “Salvar a preparação”.',
+      'Em “Retomar de encontros anteriores”, marque os encontros de que quer lembrar: o Taq leva os combinados em aberto e as decisões deles, com data e fonte, para esta reunião.',
     ],
     limitacoes: [
       'O resumo também pode ser escrito à mão, sem o assistente conectado; só “Organizar o que entendi” depende dele.',
       'O Taq não supõe um objetivo: sem um objetivo escrito por você, a reunião fica sem objetivo.',
       'Uma reunião já preparada continua com a versão do assistente que usava, até você pedir “Usar a versão atual”.',
+      'Só os encontros que você marcar em “Retomar de encontros anteriores” entram: o Taq não liga encontros por nome nem por semelhança. “Sem atualização registrada” num combinado não significa que alguém deixou de cumprir.',
     ],
     rotulos: [
       'Preparar',
@@ -1118,6 +1120,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Usar este assistente',
       'Salvar a preparação',
       'Usar a versão atual',
+      'Retomar de encontros anteriores',
     ],
     implementacao: ['src/home/Preparar.tsx', NAV],
     verificacao: 'codigo',

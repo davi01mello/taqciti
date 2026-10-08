@@ -87,6 +87,11 @@ export interface BriefingDaReuniao {
   contexto: string;
   /** O que não pode ficar sem encaminhamento. */
   prioridades: string[];
+  /**
+   * Encontros anteriores que a PESSOA escolheu retomar (ids de reuniões). O
+   * vínculo é confirmado por ela e por id: nome nenhum liga um encontro a outro.
+   */
+  retomar: string[];
   /** A revisão do perfil de quando o briefing foi preparado; `null` = sem perfil. */
   perfilRevisao: number | null;
   /**
@@ -128,6 +133,24 @@ function limparLista(itens: unknown, max = MAX_ITENS): string[] {
     if (saida.length >= max) break;
   }
   return saida;
+}
+
+const MAX_RETOMAR = 5;
+
+/**
+ * Ids de reuniões escolhidas para retomar: textos não vazios, sem repetição, sem
+ * a própria reunião e COM teto — o teto vale depois de tirar a própria reunião.
+ */
+function limparIds(itens: unknown, excluir?: string): string[] {
+  if (!Array.isArray(itens)) return [];
+  return [
+    ...new Set(
+      itens
+        .filter((i): i is string => typeof i === 'string' && i.trim() !== '')
+        .map((i) => i.trim())
+        .filter((i) => i !== excluir),
+    ),
+  ].slice(0, MAX_RETOMAR);
 }
 
 /** Normaliza o conteúdo que a pessoa (ou uma proposta) trouxe. `null` = inválido. */
@@ -178,6 +201,7 @@ export function normalizarConducao(bruto: unknown): Conducao {
             objetivo: limpar(x.objetivo, MAX_TEXTO),
             contexto: limpar(x.contexto, MAX_TEXTO * 2),
             prioridades: limparLista(x.prioridades),
+            retomar: limparIds(x.retomar),
             aprovado: x.aprovado === true,
             perfilRevisao: typeof x.perfilRevisao === 'number' ? x.perfilRevisao : null,
             perfilUsado: normalizarConteudoDoPerfil(x.perfilUsado),
@@ -270,6 +294,8 @@ export interface MudancaDoBriefing {
   objetivo?: string;
   contexto?: string;
   prioridades?: string[];
+  /** Ids dos encontros anteriores a retomar. */
+  retomar?: string[];
 }
 
 export function briefingDaReuniao(c: Conducao, reuniaoId: string): BriefingDaReuniao | null {
@@ -298,11 +324,13 @@ export async function salvarBriefing(
       mudanca.contexto !== undefined ? limpar(mudanca.contexto, MAX_TEXTO * 2) : (atual?.contexto ?? '');
     const prioridades =
       mudanca.prioridades !== undefined ? limparLista(mudanca.prioridades) : (atual?.prioridades ?? []);
+    const retomar = mudanca.retomar !== undefined ? limparIds(mudanca.retomar, reuniaoId) : (atual?.retomar ?? []);
     if (
       atual &&
       atual.objetivo === objetivo &&
       atual.contexto === contexto &&
-      JSON.stringify(atual.prioridades) === JSON.stringify(prioridades)
+      JSON.stringify(atual.prioridades) === JSON.stringify(prioridades) &&
+      JSON.stringify(atual.retomar) === JSON.stringify(retomar)
     )
       return { resultado: { tipo: 'ok' as const, item: atual }, mudou: false };
     const briefing: BriefingDaReuniao = {
@@ -314,6 +342,7 @@ export async function salvarBriefing(
       aprovado: objetivo !== '',
       contexto,
       prioridades,
+      retomar,
       // Primeira preparação: fixa o perfil de agora. Depois, só quando a pessoa pede.
       perfilRevisao: atual ? atual.perfilRevisao : (c.perfil?.revisao ?? null),
       perfilUsado: atual ? atual.perfilUsado : c.perfil ? conteudoDe(c.perfil) : null,

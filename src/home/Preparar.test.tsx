@@ -147,6 +147,43 @@ it('o briefing guarda o objetivo que a pessoa escreveu, e sem objetivo não há 
   });
 });
 
+it('retomar: lista só encontros anteriores, a pessoa marca, e o vínculo é guardado por id', async () => {
+  const anterior = {
+    ...REUNIAO,
+    id: 'm-0',
+    title: 'Descoberta — 1º encontro',
+    startedAt: new Date('2026-10-01T12:00:00Z').getTime(),
+  } as unknown as MeetingRecord;
+  const posterior = {
+    ...REUNIAO,
+    id: 'm-2',
+    title: 'Descoberta — 3º encontro',
+    startedAt: new Date('2026-10-20T12:00:00Z').getTime(),
+  } as unknown as MeetingRecord;
+  await act(async () => root.render(<PaginaPreparar registros={[anterior, REUNIAO, posterior]} />));
+  await esperar(() => host.querySelector('#tq-prep-reuniao') !== null);
+  await act(async () => {
+    const sel = q<HTMLSelectElement>('select');
+    sel.value = 'm-1';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await esperar(() => host.textContent!.includes('Retomar de encontros anteriores'));
+
+  const caixas = [...host.querySelectorAll<HTMLInputElement>('.tq-prep-modos input[type="checkbox"]')];
+  const rotulos = caixas.map((c) => c.parentElement!.textContent);
+  // Só o encontro ANTERIOR à reunião escolhida aparece: o posterior e a própria reunião não.
+  expect(rotulos).toHaveLength(1);
+  expect(rotulos[0]).toContain('Descoberta — 1º encontro');
+  expect(host.textContent).toContain('o Taq não liga encontros por nome nem por semelhança');
+  // Nada marcado por padrão: o Taq não escolhe por ele.
+  expect(caixas[0]!.checked).toBe(false);
+
+  await act(async () => caixas[0]!.click());
+  await act(async () => botao('Salvar a preparação')!.click());
+  await esperar(() => (conducao()?.briefings.length ?? 0) === 1);
+  expect(conducao()!.briefings[0]!.retomar).toEqual(['m-0']);
+});
+
 it('sem reuniões, a página diz isso em vez de oferecer um formulário vazio', async () => {
   await act(async () => root.render(<PaginaPreparar registros={[]} />));
   await esperar(() => host.querySelector('#tq-prep-reuniao') !== null);

@@ -152,6 +152,8 @@ export async function avaliarReuniao(p: {
   reuniao: { id: string; titulo: string };
   /** Quem provavelmente conduz (a pessoa que o Taq ajuda). Só um indício; pode faltar. */
   quemConduz?: string;
+  /** O que ficou combinado nos encontros que a pessoa escolheu retomar (`carregarRetomada`). */
+  retomada?: readonly string[];
   falas: readonly FalaDaReuniao[];
   /** O corte: só as falas antes dele existem para esta avaliação. */
   falasConsolidadas: number;
@@ -176,6 +178,7 @@ export async function avaliarReuniao(p: {
         ]
       : []),
     ...linhasDaConducao(p.conducao, p.reuniao),
+    ...(p.retomada ?? []),
     '',
     'Sugestões que já existem nesta reunião:',
     listaDeSugestoes(p.sugestoes),

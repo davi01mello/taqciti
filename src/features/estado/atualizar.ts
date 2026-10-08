@@ -109,6 +109,8 @@ export async function atualizarEstadoDaReuniao(p: {
   /** O corte: só as falas antes dele existem para esta leitura. */
   falasConsolidadas: number;
   conducao: Conducao;
+  /** O que ficou combinado nos encontros que a pessoa escolheu retomar (`carregarRetomada`). */
+  retomada?: readonly string[];
   agora?: number;
   sinal?: AbortSignal;
 }): Promise<ResultadoDaAtualizacao> {
@@ -138,6 +140,7 @@ export async function atualizarEstadoDaReuniao(p: {
     `Reunião: "${p.reuniao.titulo.slice(0, 80)}".`,
     `Falas consolidadas até agora: ${corte}. A transcrição abaixo vai da fala ${inicio} à ${corte - 1}.`,
     ...linhasDaConducao(p.conducao, p.reuniao),
+    ...(p.retomada ?? []),
     '',
     'Pontos que já existem nesta reunião:',
     descreverPontos(anterior),

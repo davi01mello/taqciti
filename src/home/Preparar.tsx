@@ -31,6 +31,7 @@ import {
   type ModoDeIntervencao,
 } from '@/features/conducao/store';
 import { proporPerfil } from '@/features/conducao/proposta';
+import { useTrabalho } from '@/features/trabalho/useTrabalho';
 import { criarAdaptadorHttp } from '@/features/taq/modelo';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { formatDate } from '@/shared/ui/format';
@@ -231,14 +232,19 @@ function camposDe(c: ConteudoDoPerfil) {
 function BriefingDaReuniao({
   reuniao,
   conducao,
+  outras,
 }: {
   reuniao: MeetingRecord;
   conducao: Conducao;
+  /** Os outros encontros, para a pessoa escolher de quais retomar. */
+  outras: readonly MeetingRecord[];
 }) {
   const salvo = briefingDaReuniao(conducao, reuniao.id);
+  const { trabalho } = useTrabalho();
   const [objetivo, setObjetivo] = useState(salvo?.objetivo ?? '');
   const [contexto, setContexto] = useState(salvo?.contexto ?? '');
   const [prioridades, setPrioridades] = useState(comoTexto(salvo?.prioridades ?? []));
+  const [retomar, setRetomar] = useState<string[]>(salvo?.retomar ?? []);
   const [aviso, setAviso] = useState('');
   const [ocupado, setOcupado] = useState(false);
 
@@ -247,14 +253,20 @@ function BriefingDaReuniao({
     setObjetivo(salvo?.objetivo ?? '');
     setContexto(salvo?.contexto ?? '');
     setPrioridades(comoTexto(salvo?.prioridades ?? []));
+    setRetomar(salvo?.retomar ?? []);
     setAviso('');
   }, [reuniao.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const abertosDe = (id: string) =>
+    trabalho.compromissos.filter((c) => c.reuniaoId === id && c.estado === 'aberto' && c.situacao !== 'candidato').length;
+  const alternarRetomar = (id: string) =>
+    setRetomar((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
 
   const salvar = async () => {
     setOcupado(true);
     const r = await salvarBriefing(
       reuniao.id,
-      { objetivo, contexto, prioridades: linhas(prioridades) },
+      { objetivo, contexto, prioridades: linhas(prioridades), retomar },
       salvo?.revisao ?? 0,
     );
     setOcupado(false);
@@ -290,6 +302,22 @@ function BriefingDaReuniao({
         O que não pode ficar sem encaminhamento (um por linha)
         <textarea rows={3} value={prioridades} onChange={(e) => setPrioridades(e.target.value)} />
       </label>
+      {outras.length > 0 && (
+        <fieldset className="tq-prep-modos">
+          <legend>Retomar de encontros anteriores</legend>
+          <p className="tq-prep-dica">
+            Só entram os que você marcar: o Taq não liga encontros por nome nem por semelhança. Ele leva os combinados
+            em aberto e as decisões desses encontros, com data e fonte.
+          </p>
+          {outras.slice(0, 12).map((o) => (
+            <label key={o.id}>
+              <input type="checkbox" checked={retomar.includes(o.id)} onChange={() => alternarRetomar(o.id)} />
+              {o.title} — {formatDate(o.startedAt)}
+              {abertosDe(o.id) > 0 ? ` (${abertosDe(o.id)} em aberto)` : ''}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="tq-c-acoes">
         <button type="button" className="tq-acao tq-acao-principal" disabled={ocupado} onClick={() => void salvar()}>
           <Icon name="check" size={15} />
@@ -345,7 +373,13 @@ function PreparoDeReuniao({ registros, conducao }: { registros: readonly Meeting
               ))}
             </select>
           </label>
-          {escolhida && <BriefingDaReuniao reuniao={escolhida} conducao={conducao} />}
+          {escolhida && (
+            <BriefingDaReuniao
+              reuniao={escolhida}
+              conducao={conducao}
+              outras={ordenadas.filter((r) => r.id !== escolhida.id && r.startedAt <= escolhida.startedAt)}
+            />
+          )}
         </>
       )}
     </section>

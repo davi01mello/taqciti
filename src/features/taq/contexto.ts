@@ -16,6 +16,7 @@
  */
 import type { ConversationMessage } from '@/home/conversations';
 import { linhasDaConducao } from '@/features/conducao/contexto';
+import { carregarRetomada } from '@/features/conducao/retomada';
 import { lerConducao } from '@/features/conducao/store';
 import { CATALOGO_DE_DOCUMENTOS } from '@/features/documents/catalogo';
 import type { Tarefa } from './contratos';
@@ -108,7 +109,11 @@ export async function montarContextoInicial(
   const reuniaoEmFoco = emFoco ? reunioes.find((r) => r.id === emFoco) : undefined;
   linhas.push(
     ...(await lerConducao()
-      .then((c) => linhasDaConducao(c, reuniaoEmFoco ? { id: reuniaoEmFoco.id, titulo: reuniaoEmFoco.title } : null))
+      .then(async (c) => [
+        ...linhasDaConducao(c, reuniaoEmFoco ? { id: reuniaoEmFoco.id, titulo: reuniaoEmFoco.title } : null),
+        // Encontros anteriores que a pessoa escolheu retomar: combinados em aberto e decisões, com data.
+        ...(reuniaoEmFoco ? await carregarRetomada(c, reuniaoEmFoco.id) : []),
+      ])
       .catch(() => [])),
   );
 
