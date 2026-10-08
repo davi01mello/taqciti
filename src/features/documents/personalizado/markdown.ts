@@ -24,10 +24,14 @@ function blocoEmMarkdown(bloco: Bloco): string | null {
         ...(bloco.legenda ? [`_${bloco.legenda}_`] : []),
       ].join('\n');
     }
+    case 'imagem':
+      return `_[Imagem: ${bloco.textoAlternativo}]_${bloco.legenda ? `\n${bloco.legenda}` : ''}`;
+    case 'referencia':
+      return `> ${bloco.texto}`;
     case 'quebra_de_secao':
       return '---';
-    default:
-      // Imagem, referência e sumário não são geradas ainda: não inventa representação.
+    case 'sumario':
+      // Os números de página só existem no arquivo; a vista em texto não os inventa.
       return null;
   }
 }

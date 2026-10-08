@@ -22,10 +22,12 @@ import {
   resolverVariante,
   varianteAplicavel,
   type PerfilDocumental,
+  type VarianteVisual,
 } from '../perfil';
 import { desenharAta, MARGENS_ATA } from './ata';
 import { desenharEditorial, finalizarEditorial, MARGENS_EDITORIAL } from './editorial';
 import { compilarDocx } from './docx';
+import { bufferDoAtivo } from './imagens';
 import { inspecionarLayout, novoRegistro } from './inspecao';
 import { registrarFontesEditorial } from './recursos';
 
@@ -56,6 +58,8 @@ export interface Compilado {
   substituicoes: string[];
   /** Achados MEDIDOS do layout (página quase vazia, título isolado…). Vazio = nada a apontar. */
   inspecao: ProblemaDeQualidade[];
+  /** Página física (1 = capa) de cada título, como paginou. É o que o sumário imprime. */
+  titulos: { blockId: string; pagina: number }[];
 }
 
 /** Valida o insumo e resolve o perfil e a variante. Lança se não dá para compilar. */
@@ -80,15 +84,30 @@ function preparar(arvore: ContentTree, opcoes: OpcoesDeCompilacao) {
       `A variante "${variante.id}" não pode ser aplicada: ${faltas.map((f) => f.item).join('; ')}.`,
     );
   }
+  const semArquivo = arvore.blocos.flatMap((b) =>
+    b.tipo === 'imagem' && bufferDoAtivo(variante, b.ativoId) === null ? [b] : [],
+  );
+  if (semArquivo.length > 0) {
+    throw new ErroDeCompilacao(
+      `Imagem com ativo que o perfil não tem utilizável: ${semArquivo.map((b) => b.tipo === 'imagem' ? b.ativoId : '').join(', ')}.`,
+      semArquivo.map((b) => ({ blockId: b.blockId, problema: 'Ativo de imagem indisponível.' })),
+    );
+  }
   return { perfil, variante };
 }
 
-export async function compilarPdf(
-  arvore: ContentTree,
-  opcoes: OpcoesDeCompilacao = {},
-): Promise<Compilado> {
-  const { perfil, variante } = preparar(arvore, opcoes);
+interface Renderizado extends Compilado {
+  /** Página física de cada título — alimenta a segunda passada do sumário. */
+  paginaDoTitulo: ReadonlyMap<string, number>;
+}
 
+/** Uma passada de renderização. `paginasDosTitulos` preenche o sumário, se houver. */
+async function renderizar(
+  arvore: ContentTree,
+  perfil: PerfilDocumental,
+  variante: VarianteVisual,
+  paginasDosTitulos?: ReadonlyMap<string, number>,
+): Promise<Renderizado> {
   const margens = variante.id === 'editorial' ? MARGENS_EDITORIAL : MARGENS_ATA;
   const doc = new PDFDocument({
     size: 'A4',
@@ -127,11 +146,12 @@ export async function compilarPdf(
         secaoPorPagina: [] as string[],
         recursosUsados,
         layout,
+        ...(paginasDosTitulos ? { paginasDosTitulos } : {}),
       };
       desenharEditorial(ctx);
       finalizarEditorial(ctx);
     } else {
-      desenharAta({ doc, arvore, avisos, recursosUsados, layout });
+      desenharAta({ doc, arvore, avisos, recursosUsados, layout, variante, ...(paginasDosTitulos ? { paginasDosTitulos } : {}) });
     }
     // Sem nenhuma página, o pdfkit produz um arquivo inválido.
     if (doc.bufferedPageRange().count === 0) {
@@ -150,6 +170,8 @@ export async function compilarPdf(
   doc.end();
 
   return pronto.then((pdf) => ({
+    paginaDoTitulo: layout.paginaDoTitulo,
+    titulos: [...layout.paginaDoTitulo].map(([blockId, pagina]) => ({ blockId, pagina })),
     pdf,
     avisos,
     inspecao,
@@ -170,6 +192,30 @@ export async function compilarPdf(
   }));
 }
 
+/**
+ * O PDF da árvore. Com sumário, são DUAS passadas (ver `./sumario`): a
+ * primeira mede em que página cada título caiu, a segunda desenha o sumário
+ * com esses números. Sem sumário, uma só.
+ */
+export async function compilarPdf(
+  arvore: ContentTree,
+  opcoes: OpcoesDeCompilacao = {},
+): Promise<Compilado> {
+  const { perfil, variante } = preparar(arvore, opcoes);
+  const primeira = await renderizar(arvore, perfil, variante);
+  if (!arvore.blocos.some((b) => b.tipo === 'sumario')) return primeira;
+
+  const segunda = await renderizar(arvore, perfil, variante, primeira.paginaDoTitulo);
+  // O sumário ocupa o mesmo espaço nas duas passadas; se mesmo assim a
+  // paginação andou, os números impressos estariam errados — e isso se diz.
+  const moveu = [...primeira.paginaDoTitulo].some(([id, pagina]) => segunda.paginaDoTitulo.get(id) !== pagina);
+  return moveu
+    ? {
+        ...segunda,
+        avisos: [...segunda.avisos, 'A paginação mudou ao preencher o sumário: confira os números de página.'],
+      }
+    : segunda;
+}
 export type FormatoDeSaida = 'pdf' | 'docx';
 
 export interface DocumentoCompilado {

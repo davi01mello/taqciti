@@ -23,6 +23,7 @@ import {
   Header,
   HeadingLevel,
   LevelFormat,
+  ImageRun,
   Packer,
   PageNumber,
   Paragraph,
@@ -30,6 +31,7 @@ import {
   Table,
   TableCell,
   TableLayoutType,
+  TableOfContents,
   TableRow,
   TabStopType,
   TextRun,
@@ -38,6 +40,7 @@ import {
 } from 'docx';
 import type { Bloco, ContentTree } from '../contentTree';
 import type { EstiloDoPerfil, PapelDeEstilo, VarianteVisual } from '../perfil';
+import { ajustarImagem, bufferDoAtivo, dimensoesDaImagem, tipoDaImagem } from './imagens';
 import { larguraDasColunas } from './tabela';
 import { segmentos, textoPlano } from './texto';
 
@@ -115,6 +118,7 @@ export async function compilarDocx(arvore: ContentTree, variante: VarianteVisual
   const doc = new Document({
     creator: 'TaqCiti',
     title: arvore.titulo,
+    features: { updateFields: arvore.blocos.some((b) => b.tipo === 'sumario') },
     styles: {
       default: {
         document: {
@@ -219,7 +223,7 @@ export async function compilarDocx(arvore: ContentTree, variante: VarianteVisual
     }
 
     let instanciaOrdenada = 0;
-    const filhos: (Paragraph | Table)[] = [];
+    const filhos: (Paragraph | Table | TableOfContents)[] = [];
     for (const bloco of resto) {
       switch (bloco.tipo) {
         case 'titulo':
@@ -270,11 +274,60 @@ export async function compilarDocx(arvore: ContentTree, variante: VarianteVisual
           }
           break;
         }
+        case 'sumario':
+          // Campo nativo do Word: os números de página são do PRÓPRIO Word, que
+          // pagina diferente do PDF. `updateFields` pede a atualização ao abrir.
+          filhos.push(
+            new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'Sumário' })] }),
+            new TableOfContents('Sumário', { hyperlink: true, headingStyleRange: '1-2' }),
+          );
+          break;
+        case 'imagem': {
+          const buffer = bufferDoAtivo(variante, bloco.ativoId);
+          if (!buffer) throw new Error(`Ativo "${bloco.ativoId}" indisponível na variante ${variante.id}.`);
+          const medida = ajustarImagem(dimensoesDaImagem(buffer), { larguraMax: larguraUtilPt / 0.75, alturaMax: 300 / 0.75 });
+          filhos.push(
+            new Paragraph({
+              spacing: { after: tw(6) },
+              children: [
+                new ImageRun({
+                  type: tipoDaImagem(buffer),
+                  data: buffer,
+                  transformation: { width: Math.round(medida.largura), height: Math.round(medida.altura) },
+                  altText: { name: bloco.ativoId, title: bloco.textoAlternativo, description: bloco.textoAlternativo },
+                }),
+              ],
+            }),
+          );
+          if (bloco.legenda) {
+            const leg = estilo(variante, 'legenda');
+            filhos.push(
+              new Paragraph({
+                spacing: { after: tw(10) },
+                children: [new TextRun({ text: bloco.legenda, italics: true, size: meiosPontos(leg.tamanhoPt), color: secundario })],
+              }),
+            );
+          }
+          break;
+        }
+        case 'referencia': {
+          const leg = estilo(variante, 'legenda');
+          filhos.push(
+            new Paragraph({
+              spacing: { after: tw(leg.espacoDepoisPt) },
+              children: runs(bloco.texto, { font: familiaCorpo, size: meiosPontos(leg.tamanhoPt), color: secundario }),
+            }),
+          );
+          break;
+        }
         case 'quebra_de_secao':
           filhos.push(new Paragraph({ pageBreakBefore: true, children: [] }));
           break;
-        default:
-          throw new Error(`Bloco "${bloco.tipo}" ainda não é suportado pelo compilador.`);
+        default: {
+          // `resto` já não tem a capa; um tipo novo no schema sem caso aqui falha no TypeScript.
+          const naoTratado: never = bloco;
+          throw new Error(`Bloco não tratado pelo compilador: ${JSON.stringify(naoTratado)}`);
+        }
       }
     }
 

@@ -35,8 +35,10 @@ export type Bloco =
   | (BlocoBase & { tipo: 'lista'; ordenada: boolean; itens: string[] })
   | (BlocoBase & { tipo: 'quebra_de_secao' })
   | (BlocoBase & { tipo: 'tabela'; cabecalho: string[]; linhas: string[][]; legenda?: string })
-  // Os demais tipos existem no servidor e ainda não são montados por ele.
-  | (BlocoBase & { tipo: 'imagem' | 'referencia' | 'sumario' });
+  | (BlocoBase & { tipo: 'imagem'; ativoId: string; legenda?: string; textoAlternativo: string })
+  | (BlocoBase & { tipo: 'referencia'; texto: string })
+  /** Montado pelo servidor, com os números de página reais. */
+  | (BlocoBase & { tipo: 'sumario' });
 
 export interface LacunaDoDocumento {
   blockId?: string;

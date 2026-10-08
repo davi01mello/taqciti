@@ -53,6 +53,7 @@ describe.skipIf(!AO_VIVO)('redator ao vivo (reunião sintética)', { timeout: 24
   it('gera, respeita o contrato e permite uma alteração pontual', async () => {
     const { gerarDocumentoPersonalizado, editarDocumentoPersonalizado } = await import('./gerar');
 
+    const t0 = Date.now();
     const gerado = await gerarDocumentoPersonalizado({
       pedido:
         'Monte um relatório para o cliente Horizonte com o diagnóstico da integração e uma proposta de próximos passos. ' +
@@ -62,6 +63,7 @@ describe.skipIf(!AO_VIVO)('redator ao vivo (reunião sintética)', { timeout: 24
       variante: 'editorial',
     });
 
+    const msGeracao = Date.now() - t0;
     const texto = JSON.stringify(gerado.arvore.blocos);
     // Nada inventado: o número plantado pelo "Diego" não é fato nem decisão.
     expect(texto).not.toMatch(/2 milh/);
@@ -82,6 +84,7 @@ describe.skipIf(!AO_VIVO)('redator ao vivo (reunião sintética)', { timeout: 24
     expect(gerado.pdf.subarray(0, 5).toString()).toBe('%PDF-');
 
     // Alteração pontual: só o título da capa.
+    const t1 = Date.now();
     const editado = await editarDocumentoPersonalizado({
       arvore: gerado.arvore,
       revisaoEsperada: gerado.arvore.revisao,
@@ -90,6 +93,7 @@ describe.skipIf(!AO_VIVO)('redator ao vivo (reunião sintética)', { timeout: 24
       escopo: ['capa'],
       variante: 'editorial',
     });
+    const msEdicao = Date.now() - t1;
     expect(editado.arvore.blocos[0]).toMatchObject({ tipo: 'capa', cliente: 'Horizonte' });
     expect(editado.arvore.blocos.slice(1)).toEqual(gerado.arvore.blocos.slice(1));
 
@@ -110,6 +114,8 @@ describe.skipIf(!AO_VIVO)('redator ao vivo (reunião sintética)', { timeout: 24
             paginas: gerado.manifesto.paginas,
             edicao: { aplicadas: editado.aplicadas, recusadas: editado.recusadas },
             tokens: gerado.usage,
+            tempoMs: { geracao: msGeracao, edicao: msEdicao },
+            raciocinio: { geracao: process.env.DOCUMENTOS_RACIOCINIO_GERACAO ?? 'padrão', edicao: process.env.DOCUMENTOS_RACIOCINIO_EDICAO ?? 'padrão' },
           },
           null,
           2,

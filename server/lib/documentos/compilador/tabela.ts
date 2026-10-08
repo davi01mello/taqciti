@@ -185,6 +185,8 @@ export function desenharTabela(
     doc.y = topo + altura;
   });
 
+  // Mesma razão do sumário: o cursor fica na última coluna.
+  doc.x = tema.x;
   doc.y += tema.espacoDepois;
   return { paginasAdicionadas };
 }

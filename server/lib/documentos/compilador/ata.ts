@@ -33,7 +33,10 @@ import {
   TINTA,
 } from '../../render/typography';
 import type { Bloco, ContentTree } from '../contentTree';
+import type { VarianteVisual } from '../perfil';
 import { registrarBloco, type RegistroDeLayout } from './inspecao';
+import { bufferDoAtivo, desenharImagem } from './imagens';
+import { desenharSumario, entradasDoSumario, type TemaDeSumario } from './sumario';
 import { desenharTabela, type TemaDeTabela } from './tabela';
 import { escreverRico, textoPlano } from './texto';
 
@@ -45,6 +48,8 @@ export interface ContextoAta {
   avisos: string[];
   recursosUsados: Set<string>;
   layout: RegistroDeLayout;
+  variante: VarianteVisual;
+  paginasDosTitulos?: ReadonlyMap<string, number>;
 }
 
 /** Margens do documento nesta variante: as da Ata. */
@@ -127,17 +132,62 @@ function desenharCorpo(ctx: ContextoAta, bloco: Bloco): void {
       doc.y += GAP_PARAGRAFO_PT;
       return;
     }
+    case 'sumario': {
+      desenharTituloSecao(doc, 'Sumário');
+      const tema: TemaDeSumario = {
+        x: MARGEM_PT,
+        largura: A4_LARGURA_PT - MARGEM_PT * 2,
+        fonteNivel1: FONTE_NEGRITO,
+        tamanhoNivel1: TAMANHO_CORPO_PT,
+        corNivel1: TINTA,
+        fonteNivel2: FONTE_REGULAR,
+        tamanhoNivel2: TAMANHO_ITEM_PT,
+        corNivel2: '#555555',
+        fontePagina: FONTE_REGULAR,
+        corPagina: TINTA,
+        corDoFilete: CINZA_LINHA,
+        recuoNivel2: 16,
+        paddingY: 4,
+        larguraDoNumero: 30,
+      };
+      desenharSumario(doc, entradasDoSumario(ctx.arvore), ctx.paginasDosTitulos, tema, () => A4_ALTURA_PT - MARGEM_INFERIOR_PT);
+      return;
+    }
+    case 'imagem': {
+      const buffer = bufferDoAtivo(ctx.variante, bloco.ativoId);
+      if (!buffer) throw new Error(`Ativo "${bloco.ativoId}" indisponível na variante ${ctx.variante.id}.`);
+      desenharImagem(doc, buffer, { x: MARGEM_PT, larguraMax: A4_LARGURA_PT - MARGEM_PT * 2, alturaMax: 280 }, () => A4_ALTURA_PT - MARGEM_INFERIOR_PT);
+      ctx.recursosUsados.add(bloco.ativoId);
+      if (bloco.legenda) {
+        doc.font(FONTE_REGULAR).fontSize(TAMANHO_ITEM_PT).fillColor('#555555');
+        doc.text(bloco.legenda, MARGEM_PT, doc.y, fluxoDeParagrafo(doc, TAMANHO_ITEM_PT));
+      }
+      doc.y += GAP_PARAGRAFO_PT;
+      return;
+    }
+    case 'referencia':
+      doc.font(FONTE_REGULAR).fontSize(TAMANHO_ITEM_PT).fillColor('#555555');
+      escreverRico(doc, bloco.texto, FONTE_REGULAR, FONTE_NEGRITO, fluxoDeParagrafo(doc, TAMANHO_ITEM_PT));
+      doc.y += 6;
+      return;
     case 'quebra_de_secao':
       doc.addPage();
       return;
-    default:
-      throw new Error(`Bloco "${bloco.tipo}" ainda não é suportado pelo compilador.`);
+    case 'capa':
+      // A capa é desenhada por quem chama, no começo; aqui só chegaria se ela
+      // viesse depois — e `validarArvore` já recusa isso.
+      throw new Error('A capa só pode ser o primeiro bloco.');
+    default: {
+      // Tipo novo no schema sem desenhista aqui falha na compilação do TypeScript.
+      const naoTratado: never = bloco;
+      throw new Error(`Bloco não tratado pelo compilador: ${JSON.stringify(naoTratado)}`);
+    }
   }
 }
 
 function desenharEregistrar(ctx: ContextoAta, bloco: Bloco): void {
   desenharCorpo(ctx, bloco);
-  if (bloco.tipo !== 'quebra_de_secao') registrarBloco(ctx.layout, ctx.doc, bloco.tipo);
+  if (bloco.tipo !== 'quebra_de_secao') registrarBloco(ctx.layout, ctx.doc, bloco.tipo, bloco.blockId);
 }
 
 export function desenharAta(ctx: ContextoAta): void {

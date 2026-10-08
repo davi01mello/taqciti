@@ -65,10 +65,18 @@ describe('markdown da árvore', () => {
     );
   });
 
-  it('bloco que o servidor ainda não monta não ganha representação inventada', () => {
+  it('sumário não ganha números inventados na vista em texto; imagem e referência têm representação', () => {
     const a = arvore(1);
-    a.blocos.push({ tipo: 'imagem', blockId: 'x', fontes: [], origem: 'agente' });
-    expect(arvoreParaMarkdown(a)).not.toContain('imagem');
+    const base = { fontes: [], origem: 'agente' as const };
+    a.blocos.push(
+      { ...base, tipo: 'sumario', blockId: 's' },
+      { ...base, tipo: 'imagem', blockId: 'i', ativoId: 'forma-3d-1', textoAlternativo: 'Forma 3D', legenda: 'Arte.' },
+      { ...base, tipo: 'referencia', blockId: 'r', texto: 'Fonte: reunião.' },
+    );
+    const md = arvoreParaMarkdown(a);
+    expect(md).not.toContain('Sumário');
+    expect(md).toContain('_[Imagem: Forma 3D]_\nArte.');
+    expect(md).toContain('> Fonte: reunião.');
   });
 
   it('a tabela vira tabela em markdown, com a legenda abaixo', () => {

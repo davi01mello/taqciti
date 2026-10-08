@@ -25,12 +25,14 @@ interface Pagina {
 
 export interface RegistroDeLayout {
   paginas: Map<number, Pagina>;
+  /** Página física (1 = capa) em que cada título terminou — insumo do sumário. */
+  paginaDoTitulo: Map<string, number>;
 }
 
-export const novoRegistro = (): RegistroDeLayout => ({ paginas: new Map() });
+export const novoRegistro = (): RegistroDeLayout => ({ paginas: new Map(), paginaDoTitulo: new Map() });
 
 /** Chame DEPOIS de desenhar um bloco: registra onde ele terminou. */
-export function registrarBloco(registro: RegistroDeLayout, doc: Doc, tipo: string): void {
+export function registrarBloco(registro: RegistroDeLayout, doc: Doc, tipo: string, blockId?: string): void {
   // Com `bufferPages`, a página atual é sempre a última do buffer.
   const indice = doc.bufferedPageRange().count - 1;
   const atual = registro.paginas.get(indice) ?? { fimY: 0, ultimo: tipo, blocos: 0 };
@@ -38,6 +40,7 @@ export function registrarBloco(registro: RegistroDeLayout, doc: Doc, tipo: strin
   atual.ultimo = tipo;
   atual.blocos += 1;
   registro.paginas.set(indice, atual);
+  if (tipo === 'titulo' && blockId) registro.paginaDoTitulo.set(blockId, indice + 1);
 }
 
 export interface LimitesDaPagina {

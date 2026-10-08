@@ -150,7 +150,7 @@ describe('ContentTree', () => {
     expect(validarArvore(arvore())).toEqual([]);
   });
 
-  it('acusa id duplicado, capa fora do começo, fato sem fonte e bloco não suportado', () => {
+  it('acusa id duplicado, capa fora do começo, fato sem fonte, sumário repetido e sumário antes da capa', () => {
     const problemas = validarArvore(
       arvore({
         blocos: [
@@ -158,6 +158,7 @@ describe('ContentTree', () => {
           { tipo: 'capa', blockId: 'a', variante: 'padrao', titulo: 'C', fontes: [], origem: 'agente' },
           { tipo: 'paragrafo', blockId: 'b', texto: 'x', classificacao: 'fato', fontes: [], origem: 'agente' },
           { tipo: 'sumario', blockId: 's', fontes: [], origem: 'agente' },
+          { tipo: 'sumario', blockId: 's2', fontes: [], origem: 'agente' },
         ],
       }),
     ).map((p) => p.problema);
@@ -166,7 +167,7 @@ describe('ContentTree', () => {
         'blockId duplicado.',
         'A capa só pode ser o primeiro bloco.',
         'Fato sem fonte registrada.',
-        'O bloco "sumario" ainda não é suportado pelo compilador.',
+        'O documento só pode ter um sumário.',
       ]),
     );
   });

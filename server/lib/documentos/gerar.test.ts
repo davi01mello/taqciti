@@ -387,3 +387,45 @@ describe('tabelas na geração', () => {
     expect(r).toMatchObject({ problema: { tipo: 'estrutural' } });
   });
 });
+
+describe('referência e sumário na geração', () => {
+  const secao = (n: number) => ({
+    titulo: `Seção ${n}`,
+    blocos: [fato(`Fato ${n}.`, 'm-aurora', 'O maior gargalo está na integração com o sistema legado.')],
+  });
+
+  it('referência entra sem exigir citação; sumário só com duas ou mais seções', async () => {
+    complete.mockResolvedValue(
+      reply({
+        ...geracaoValida,
+        sumario: true,
+        secoes: [
+          { ...secao(1), blocos: [...secao(1).blocos, { tipo: 'referencia', texto: 'Fonte: reunião Aurora.', classificacao: 'fato', fontes: [] }] },
+          secao(2),
+        ],
+      }),
+    );
+    const r = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    expect(r.arvore.blocos[1]).toMatchObject({ tipo: 'sumario' });
+    expect(r.arvore.blocos.some((b) => b.tipo === 'referencia' && b.texto === 'Fonte: reunião Aurora.')).toBe(true);
+    expect(r.relatorio.problemas).toEqual([]);
+    expect(r.pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('com uma seção só, o sumário pedido é ignorado', async () => {
+    complete.mockResolvedValue(reply({ ...geracaoValida, sumario: true, secoes: [secao(1)] }));
+    const r = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    expect(r.arvore.blocos.some((b) => b.tipo === 'sumario')).toBe(false);
+  });
+
+  it('sem sumario no retorno do modelo, não há sumário', async () => {
+    complete.mockResolvedValue(reply({ ...geracaoValida, secoes: [secao(1), secao(2)] }));
+    const r = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    expect(r.arvore.blocos.some((b) => b.tipo === 'sumario')).toBe(false);
+  });
+
+  it('referência vazia é descartada como inválida, sem exceção', () => {
+    const r = blocoDoModelo({ tipo: 'referencia', texto: '' }, 'b1', { locators: localizadoresDe([FONTE_A]), origem: 'agente' });
+    expect(r).toMatchObject({ problema: { tipo: 'estrutural' } });
+  });
+});

@@ -115,13 +115,13 @@ describe('compilarPdf', { timeout: 30_000 }, () => {
     await expect(compilarPdf(arvore)).rejects.toBeInstanceOf(ErroDeCompilacao);
   });
 
-  it('recusa bloco que o compilador ainda não monta, e documento vazio', async () => {
+  it('recusa imagem de ativo que o perfil não tem, e documento vazio', async () => {
     const imagem = contentTreeSchema.parse({
       revisao: 0,
       titulo: 'x',
       blocos: [{ tipo: 'imagem', blockId: 't', ativoId: 'a', textoAlternativo: 'x' }],
     });
-    await expect(compilarPdf(imagem)).rejects.toThrow(/ainda não é suportado/);
+    await expect(compilarPdf(imagem)).rejects.toThrow(/ativo que o perfil não tem/);
     await expect(compilarPdf(contentTreeSchema.parse({ revisao: 0, titulo: 'x', blocos: [] }))).rejects.toThrow();
   });
 

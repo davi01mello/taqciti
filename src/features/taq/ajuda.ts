@@ -761,7 +761,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     limitacoes: [
       'O padrão visual do CITi ainda é provisório: não foi validado por um responsável.',
       'O Word (.docx) é gerado da mesma versão, mas alterações feitas nele não voltam para o TaqCiti, a fonte Barlow precisa estar instalada para ele ficar igual ao PDF e a capa não leva a arte de fundo.',
-      'Tabelas saem do pedido; imagens e sumário ainda não são geradas.',
+      'Tabelas, sumário (com número de página), referências e imagens aprovadas do perfil saem do pedido; imagem enviada pela pessoa ainda não é aceita.',
       'A fonte do documento é a reunião aberta; para usar outras reuniões, peça ao Taq.',
     ],
     rotulos: [

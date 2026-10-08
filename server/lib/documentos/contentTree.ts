@@ -111,6 +111,9 @@ export const TIPOS_COMPILAVEIS: readonly TipoDeBloco[] = [
   'paragrafo',
   'lista',
   'tabela',
+  'imagem',
+  'referencia',
+  'sumario',
   'quebra_de_secao',
 ];
 
@@ -126,12 +129,22 @@ export interface ProblemaDaArvore {
 export function validarArvore(arvore: ContentTree): ProblemaDaArvore[] {
   const problemas: ProblemaDaArvore[] = [];
   const vistos = new Set<string>();
+  let sumarios = 0;
   arvore.blocos.forEach((bloco, indice) => {
     if (vistos.has(bloco.blockId)) {
       problemas.push({ blockId: bloco.blockId, problema: 'blockId duplicado.' });
     }
     vistos.add(bloco.blockId);
 
+    if (bloco.tipo === 'sumario') {
+      sumarios += 1;
+      if (sumarios > 1) {
+        problemas.push({ blockId: bloco.blockId, problema: 'O documento só pode ter um sumário.' });
+      }
+      if (indice === 0) {
+        problemas.push({ blockId: bloco.blockId, problema: 'O sumário vem depois da capa.' });
+      }
+    }
     if (bloco.tipo === 'capa' && indice !== 0) {
       problemas.push({ blockId: bloco.blockId, problema: 'A capa só pode ser o primeiro bloco.' });
     }

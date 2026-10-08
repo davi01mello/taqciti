@@ -14,6 +14,8 @@ import type { Bloco, ContentTree } from '../contentTree';
 import type { EstiloDoPerfil, PapelDeEstilo, VarianteVisual } from '../perfil';
 import { FONTE_MONO, FONTE_MONO_NEGRITO, imagemEditorial } from './recursos';
 import { registrarBloco, type RegistroDeLayout } from './inspecao';
+import { bufferDoAtivo, desenharImagem } from './imagens';
+import { desenharSumario, entradasDoSumario, type TemaDeSumario } from './sumario';
 import { desenharTabela, type TemaDeTabela } from './tabela';
 import { escreverRico, textoPlano } from './texto';
 
@@ -57,6 +59,8 @@ export interface ContextoEditorial {
   recursosUsados: Set<string>;
   /** Onde cada bloco terminou, para a inspeção de layout. */
   layout: RegistroDeLayout;
+  /** Página de cada título, da passada anterior — preenche o sumário. */
+  paginasDosTitulos?: ReadonlyMap<string, number>;
 }
 
 // --- perfil → PDF ---------------------------------------------------------
@@ -263,6 +267,54 @@ function desenharTabelaEditorial(ctx: ContextoEditorial, bloco: Extract<Bloco, {
   doc.y += 6;
 }
 
+function desenharSumarioEditorial(ctx: ContextoEditorial): void {
+  const { doc } = ctx;
+  desenharTitulo(ctx, { tipo: 'titulo', blockId: '__sumario', nivel: 1, texto: 'Sumário', fontes: [], origem: 'agente' }, doc.y <= MARGEM_SUPERIOR + 1);
+  const n1 = estilo(ctx, 'subtitulo_secao');
+  const n2 = estilo(ctx, 'corpo');
+  const tema: TemaDeSumario = {
+    x: 54,
+    largura: LARGURA - 108,
+    fonteNivel1: n1.fontePdf,
+    tamanhoNivel1: 11.5,
+    corNivel1: n1.cor,
+    fonteNivel2: n2.fontePdf,
+    tamanhoNivel2: n2.tamanhoPt,
+    corNivel2: cor(ctx, 'textoSecundario'),
+    fontePagina: FONTE_MONO,
+    corPagina: cor(ctx, 'verde'),
+    corDoFilete: cor(ctx, 'filete'),
+    recuoNivel2: 16,
+    paddingY: 5,
+    larguraDoNumero: 36,
+  };
+  desenharSumario(doc, entradasDoSumario(ctx.arvore), ctx.paginasDosTitulos, tema, () => ALTURA - doc.page.margins.bottom);
+}
+
+function desenharImagemEditorial(ctx: ContextoEditorial, bloco: Extract<Bloco, { tipo: 'imagem' }>): void {
+  const { doc } = ctx;
+  const buffer = bufferDoAtivo(ctx.variante, bloco.ativoId);
+  if (!buffer) throw new Error(`Ativo "${bloco.ativoId}" indisponível na variante ${ctx.variante.id}.`);
+  desenharImagem(doc, buffer, { x: 54, larguraMax: LARGURA - 108, alturaMax: 300 }, () => ALTURA - doc.page.margins.bottom);
+  ctx.recursosUsados.add(bloco.ativoId);
+  if (bloco.legenda) {
+    const leg = estilo(ctx, 'legenda');
+    aplicar(doc, leg);
+    doc.text(bloco.legenda, 54, doc.y, { width: LARGURA - 108, lineGap: folga(doc, leg) });
+    doc.y += leg.espacoDepoisPt;
+  }
+  doc.y += 6;
+}
+
+function desenharReferenciaEditorial(ctx: ContextoEditorial, bloco: Extract<Bloco, { tipo: 'referencia' }>): void {
+  const { doc } = ctx;
+  const leg = estilo(ctx, 'legenda');
+  aplicar(doc, leg);
+  doc.fillColor(cor(ctx, 'textoSecundario'));
+  escreverRico(doc, bloco.texto, leg.fontePdf, FONTE_NEGRITO, { width: LARGURA - 108, lineGap: folga(doc, leg) });
+  doc.y += leg.espacoDepoisPt;
+}
+
 // --- cabeçalho e rodapé (no fim) --------------------------------------------
 
 const aparar = (texto: string, max: number): string =>
@@ -343,7 +395,7 @@ export function desenharEditorial(ctx: ContextoEditorial): void {
   for (const bloco of arvore.blocos) {
     desenharBloco(bloco);
     // A capa e a quebra não ocupam o corpo: ficam fora do registro.
-    if (bloco.tipo !== 'capa' && bloco.tipo !== 'quebra_de_secao') registrarBloco(ctx.layout, doc, bloco.tipo);
+    if (bloco.tipo !== 'capa' && bloco.tipo !== 'quebra_de_secao') registrarBloco(ctx.layout, doc, bloco.tipo, bloco.blockId);
   }
 
   function desenharBloco(bloco: Bloco): void {
@@ -381,11 +433,30 @@ export function desenharEditorial(ctx: ContextoEditorial): void {
         desenharTabelaEditorial(ctx, bloco);
         primeiroDaPagina = false;
         break;
+      case 'sumario':
+        if (!doc.page) doc.addPage();
+        desenharSumarioEditorial(ctx);
+        primeiroDaPagina = false;
+        break;
+      case 'imagem':
+        if (!doc.page) doc.addPage();
+        desenharImagemEditorial(ctx, bloco);
+        primeiroDaPagina = false;
+        break;
+      case 'referencia':
+        if (!doc.page) doc.addPage();
+        desenharReferenciaEditorial(ctx, bloco);
+        primeiroDaPagina = false;
+        break;
       case 'quebra_de_secao':
         doc.addPage();
         break;
-      default:
-        throw new Error(`Bloco "${bloco.tipo}" ainda não é suportado pelo compilador.`);
+      default: {
+        // Todos os tipos do schema têm um caso acima: um tipo novo no schema
+        // sem desenhista aqui falha na compilação do TypeScript, não no PDF.
+        const naoTratado: never = bloco;
+        throw new Error(`Bloco não tratado pelo compilador: ${JSON.stringify(naoTratado)}`);
+      }
     }
   }
 }

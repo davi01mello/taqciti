@@ -96,8 +96,8 @@ const FONTES_SCHEMA: JsonSchema = {
 const BLOCO_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela'] },
-    texto: { type: 'string', description: 'Corpo do parágrafo. Omita em listas e tabelas.' },
+    tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela', 'referencia'] },
+    texto: { type: 'string', description: 'Corpo do parágrafo ou da referência. Omita em listas e tabelas.' },
     itens: { type: 'array', items: { type: 'string' }, description: 'Itens da lista.' },
     cabecalho: { type: 'array', items: { type: 'string' }, description: 'Nomes das colunas da tabela.' },
     linhas: {
@@ -128,6 +128,10 @@ const SCHEMA_DE_GERACAO: JsonSchema = {
   type: 'object',
   properties: {
     estrutura: { type: 'string', description: 'Em uma frase, o tipo de documento escolhido.' },
+    sumario: {
+      type: 'boolean',
+      description: 'true para incluir sumário com número de página (documentos com quatro ou mais seções).',
+    },
     titulo: { type: 'string' },
     subtitulo: { type: 'string' },
     secoes: {
@@ -158,6 +162,7 @@ interface BlocoBruto {
 
 interface SaidaDeGeracao {
   estrutura?: string;
+  sumario?: boolean;
   titulo?: string;
   subtitulo?: string;
   secoes?: { titulo?: string; blocos?: BlocoBruto[] }[];
@@ -205,6 +210,20 @@ export function blocoDoModelo(
   blockId: string,
   ctx: ContextoDeBloco,
 ): { bloco: Bloco } | { problema: ProblemaDeQualidade } {
+  // Sumário e referência não afirmam fato novo: um aponta para os títulos do
+  // próprio documento, a outra é nota de fonte. Não passam pela checagem de
+  // citação (que existe para afirmação), só pela validação de formato.
+  if (bruto.tipo === 'sumario' || bruto.tipo === 'referencia') {
+    const candidato =
+      bruto.tipo === 'sumario'
+        ? { blockId, tipo: 'sumario', origem: ctx.origem }
+        : { blockId, tipo: 'referencia', texto: bruto.texto, origem: ctx.origem };
+    const r = blocoSchema.safeParse(candidato);
+    return r.success
+      ? { bloco: r.data }
+      : { problema: { tipo: 'estrutural', blockId, descricao: 'Bloco inválido descartado.' } };
+  }
+
   const classificacao = bruto.classificacao === 'recomendacao' ? 'recomendacao' : 'fato';
   const fontes = classificacao === 'fato' ? citacoesLocalizadas(bruto, ctx.locators) : [];
   const conteudo =
@@ -301,6 +320,12 @@ export function construirArvore(
     blocos.push(blocoSchema.parse({ tipo: 'titulo', blockId: `${id}-titulo`, nivel: 1, texto: secao.titulo.trim() }), ...doCorpo);
   });
 
+  // Sumário só quando o modelo pediu E há seções suficientes para valer a página.
+  const secoesFinais = blocos.filter((b) => b.tipo === 'titulo').length;
+  if (saida.sumario === true && secoesFinais >= 2) {
+    blocos.splice(1, 0, blocoSchema.parse({ tipo: 'sumario', blockId: 'sumario' }));
+  }
+
   const lacunas = (saida.lacunas ?? [])
     .filter((l) => l?.campo?.trim() && l.pergunta?.trim())
     .map((l) => ({ campo: l.campo!.trim(), pergunta: l.pergunta!.trim() }));
@@ -356,6 +381,23 @@ function relatorioDe(
 // Geração
 // ---------------------------------------------------------------------------
 
+type Raciocinio = 'low' | 'medium' | 'high';
+const NIVEIS: readonly Raciocinio[] = ['low', 'medium', 'high'];
+
+/**
+ * O esforço de raciocínio de cada chamada. Gerar o documento é o que decide
+ * estrutura e o que entra, então tem o padrão mais alto; alterar um bloco é
+ * trabalho pontual. `DOCUMENTOS_RACIOCINIO_GERACAO` e `..._EDICAO` trocam o
+ * nível sem recompilar — existem para medir tempo × qualidade, e valor
+ * inválido cai no padrão em vez de falhar.
+ */
+function nivel(variavel: string, padrao: Raciocinio): Raciocinio {
+  const valor = process.env[variavel]?.trim().toLowerCase();
+  return NIVEIS.find((n) => n === valor) ?? padrao;
+}
+export const raciocinioDoRedator = (): Raciocinio => nivel('DOCUMENTOS_RACIOCINIO_GERACAO', 'medium');
+export const raciocinioDaEdicao = (): Raciocinio => nivel('DOCUMENTOS_RACIOCINIO_EDICAO', 'low');
+
 const serializarFontes = (fontes: readonly FonteDoDocumento[]): string =>
   fontes.map((f) => `### FONTE ${f.id} — ${f.titulo}\n${f.texto}`).join('\n\n');
 
@@ -402,7 +444,7 @@ export async function gerarDocumentoPersonalizado(
     // As fontes vão no prefixo: é o que o provedor pode reaproveitar entre
     // geração e edições seguintes.
     cacheablePrefix: serializarFontes(entrada.fontes),
-    reasoning: 'medium',
+    reasoning: raciocinioDoRedator(),
   });
 
   const saida = (resposta.parsed ?? {}) as SaidaDeGeracao;
@@ -466,7 +508,7 @@ const SCHEMA_DE_EDICAO: JsonSchema = {
           bloco: {
             type: 'object',
             properties: {
-              tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela', 'titulo', 'capa'] },
+              tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela', 'referencia', 'sumario', 'titulo', 'capa'] },
               texto: { type: 'string' },
               subtitulo: { type: 'string' },
               nivel: { type: 'number' },
@@ -545,7 +587,7 @@ export async function editarDocumentoPersonalizado(entrada: PedidoDeEdicao): Pro
     maxTokens: 8000,
     jsonSchema: SCHEMA_DE_EDICAO,
     ...(entrada.fontes.length > 0 ? { cacheablePrefix: serializarFontes(entrada.fontes) } : {}),
-    reasoning: 'medium',
+    reasoning: raciocinioDaEdicao(),
   });
 
   const saida = (resposta.parsed ?? {}) as SaidaDeEdicao;
