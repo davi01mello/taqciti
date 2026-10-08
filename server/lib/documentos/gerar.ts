@@ -322,7 +322,8 @@ function relatorioDe(
   problemas: ProblemaDeQualidade[],
   extensao: DocumentBrief['extensao'],
 ): QualityReport {
-  const todos = [...problemas];
+  // Os achados medidos do layout entram ao lado dos de sustentação.
+  const todos = [...problemas, ...compilado.inspecao];
   const paginas = compilado.manifesto.paginas;
   if (extensao && paginas && paginas > extensao.paginas) {
     todos.push({
@@ -339,9 +340,10 @@ function relatorioDe(
       'Estrutura da árvore (ids únicos, capa no início, blocos suportados)',
       'Citações dos fatos localizadas nas fontes selecionadas',
       `Páginas contadas na renderização: ${paginas ?? '?'}`,
+      'Layout medido por código: página quase vazia, título no pé da página e sobra na última página',
     ],
     limitacoes: [
-      'As páginas renderizadas não foram inspecionadas visualmente.',
+      'As páginas renderizadas não foram inspecionadas visualmente por um revisor; só o layout foi medido por código (sobreposição, contraste e glifos não são checados).',
       ...(arvore.blocos.some((b) => b.classificacao === 'recomendacao')
         ? ['Há recomendações do agente no texto; elas não são decisões.']
         : []),

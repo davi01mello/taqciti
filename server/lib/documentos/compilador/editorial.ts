@@ -13,6 +13,7 @@ import { FONTE_NEGRITO, FONTE_REGULAR } from '../../render/fonts';
 import type { Bloco, ContentTree } from '../contentTree';
 import type { EstiloDoPerfil, PapelDeEstilo, VarianteVisual } from '../perfil';
 import { FONTE_MONO, FONTE_MONO_NEGRITO, imagemEditorial } from './recursos';
+import { registrarBloco, type RegistroDeLayout } from './inspecao';
 import { desenharTabela, type TemaDeTabela } from './tabela';
 import { escreverRico, textoPlano } from './texto';
 
@@ -54,6 +55,8 @@ export interface ContextoEditorial {
   /** Seção (título de nível 1) que vale em cada página, pelo índice. */
   secaoPorPagina: string[];
   recursosUsados: Set<string>;
+  /** Onde cada bloco terminou, para a inspeção de layout. */
+  layout: RegistroDeLayout;
 }
 
 // --- perfil → PDF ---------------------------------------------------------
@@ -338,6 +341,12 @@ export function desenharEditorial(ctx: ContextoEditorial): void {
   });
 
   for (const bloco of arvore.blocos) {
+    desenharBloco(bloco);
+    // A capa e a quebra não ocupam o corpo: ficam fora do registro.
+    if (bloco.tipo !== 'capa' && bloco.tipo !== 'quebra_de_secao') registrarBloco(ctx.layout, doc, bloco.tipo);
+  }
+
+  function desenharBloco(bloco: Bloco): void {
     switch (bloco.tipo) {
       case 'capa':
         desenharCapa(ctx, bloco);

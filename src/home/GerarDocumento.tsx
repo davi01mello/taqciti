@@ -257,7 +257,10 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
       pdf: r.pdf,
       removidas: r.relatorio.problemas.filter((p) => p.tipo === 'sustentacao').length,
       lacunas: r.lacunas.map((l) => l.pergunta),
-      avisos: r.avisos,
+      // Os achados MEDIDOS do layout (página quase vazia, título no pé…) vão junto
+      // dos avisos de montagem: a pessoa vê o que o arquivo tem de estranho antes
+      // de abri-lo.
+      avisos: [...r.avisos, ...r.relatorio.problemas.filter((p) => p.tipo === 'visual').map((p) => p.descricao)],
     };
     try {
       const { documento } = await guardarGeracao(r, pedidoDeGeracao, { meetingId: registro.id });

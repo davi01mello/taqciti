@@ -79,6 +79,8 @@ export const problemaDeQualidadeSchema = z.object({
   descricao: z.string().min(1),
 });
 
+export type ProblemaDeQualidade = z.infer<typeof problemaDeQualidadeSchema>;
+
 export const qualityReportSchema = z.object({
   problemas: z.array(problemaDeQualidadeSchema),
   /** O que foi de fato conferido. "Conferido" só vale para o que está aqui. */

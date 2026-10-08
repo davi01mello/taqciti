@@ -15,7 +15,7 @@ import { createHash } from 'node:crypto';
 import PDFDocument from 'pdfkit';
 import { registrarFontes } from '../../render/fonts';
 import { validarArvore, type ContentTree, type ProblemaDaArvore } from '../contentTree';
-import type { RenderManifest } from '../contratos';
+import type { ProblemaDeQualidade, RenderManifest } from '../contratos';
 import {
   PERFIL_CITI_PROVISORIO,
   diagnosticarVariante,
@@ -26,6 +26,7 @@ import {
 import { desenharAta, MARGENS_ATA } from './ata';
 import { desenharEditorial, finalizarEditorial, MARGENS_EDITORIAL } from './editorial';
 import { compilarDocx } from './docx';
+import { inspecionarLayout, novoRegistro } from './inspecao';
 import { registrarFontesEditorial } from './recursos';
 
 export const RENDERER_VERSAO = 'compilador-pdf-1';
@@ -53,6 +54,8 @@ export interface Compilado {
   avisos: string[];
   /** Substituições de fonte aplicadas, para mostrar no relatório. */
   substituicoes: string[];
+  /** Achados MEDIDOS do layout (página quase vazia, título isolado…). Vazio = nada a apontar. */
+  inspecao: ProblemaDeQualidade[];
 }
 
 /** Valida o insumo e resolve o perfil e a variante. Lança se não dá para compilar. */
@@ -107,6 +110,12 @@ export async function compilarPdf(
 
   const avisos: string[] = [];
   const recursosUsados = new Set<string>();
+  const layout = novoRegistro();
+  // Onde o corpo começa e termina, por variante — a geometria de quem desenha.
+  const limites =
+    variante.id === 'editorial'
+      ? { topo: MARGENS_EDITORIAL.top, base: 841.89 - MARGENS_EDITORIAL.bottom }
+      : { topo: MARGENS_ATA.top, base: 841.89 - MARGENS_ATA.bottom };
   try {
     if (variante.id === 'editorial') {
       registrarFontesEditorial(doc);
@@ -117,11 +126,12 @@ export async function compilarPdf(
         avisos,
         secaoPorPagina: [] as string[],
         recursosUsados,
+        layout,
       };
       desenharEditorial(ctx);
       finalizarEditorial(ctx);
     } else {
-      desenharAta({ doc, arvore, avisos, recursosUsados });
+      desenharAta({ doc, arvore, avisos, recursosUsados, layout });
     }
     // Sem nenhuma página, o pdfkit produz um arquivo inválido.
     if (doc.bufferedPageRange().count === 0) {
@@ -136,11 +146,13 @@ export async function compilarPdf(
   }
 
   const paginas = doc.bufferedPageRange().count;
+  const inspecao = inspecionarLayout(layout, paginas, limites);
   doc.end();
 
   return pronto.then((pdf) => ({
     pdf,
     avisos,
+    inspecao,
     substituicoes: diagnosticarVariante(variante).map(
       (d) => `${d.item} → ${d.substituicao}`,
     ),
@@ -167,6 +179,7 @@ export interface DocumentoCompilado {
   manifesto: RenderManifest;
   avisos: string[];
   substituicoes: string[];
+  inspecao: ProblemaDeQualidade[];
 }
 
 /**
@@ -206,6 +219,8 @@ export async function compilarDocumento(
     ...(word ? { docx: word.docx } : {}),
     manifesto: { ...base, formatos: hashes },
     avisos: [...(pdf?.avisos ?? []), ...(word?.avisos ?? [])],
+    // O Word pagina sozinho: sem PDF, não há layout a medir.
+    inspecao: pdf?.inspecao ?? [],
     substituicoes: pdf?.substituicoes ?? diagnosticarVariante(variante).map((d) => `${d.item} → ${d.substituicao}`),
   };
 }

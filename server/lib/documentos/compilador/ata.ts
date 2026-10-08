@@ -33,6 +33,7 @@ import {
   TINTA,
 } from '../../render/typography';
 import type { Bloco, ContentTree } from '../contentTree';
+import { registrarBloco, type RegistroDeLayout } from './inspecao';
 import { desenharTabela, type TemaDeTabela } from './tabela';
 import { escreverRico, textoPlano } from './texto';
 
@@ -43,6 +44,7 @@ export interface ContextoAta {
   arvore: ContentTree;
   avisos: string[];
   recursosUsados: Set<string>;
+  layout: RegistroDeLayout;
 }
 
 /** Margens do documento nesta variante: as da Ata. */
@@ -133,6 +135,11 @@ function desenharCorpo(ctx: ContextoAta, bloco: Bloco): void {
   }
 }
 
+function desenharEregistrar(ctx: ContextoAta, bloco: Bloco): void {
+  desenharCorpo(ctx, bloco);
+  if (bloco.tipo !== 'quebra_de_secao') registrarBloco(ctx.layout, ctx.doc, bloco.tipo);
+}
+
 export function desenharAta(ctx: ContextoAta): void {
   const { doc, arvore } = ctx;
   // A moldura vale só depois da capa: `pageAdded` dispara também para ela.
@@ -146,11 +153,11 @@ export function desenharAta(ctx: ContextoAta): void {
     desenharCapaDaAta(ctx, primeiro);
     molduraAtiva = true;
     doc.addPage();
-    resto.forEach((bloco) => desenharCorpo(ctx, bloco));
+    resto.forEach((bloco) => desenharEregistrar(ctx, bloco));
   } else {
     molduraAtiva = true;
     doc.addPage();
-    arvore.blocos.forEach((bloco) => desenharCorpo(ctx, bloco));
+    arvore.blocos.forEach((bloco) => desenharEregistrar(ctx, bloco));
   }
   ctx.recursosUsados.add('marca-preta');
 }

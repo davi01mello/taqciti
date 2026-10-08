@@ -184,3 +184,20 @@ it('se a gravação falha, o PDF não se perde: dá para baixar, e não diz "Sal
   expect(baixarComoPdf).toHaveBeenCalled();
   espiao.mockRestore();
 });
+
+it('os achados de layout do servidor aparecem junto dos avisos', async () => {
+  gerarPersonalizado.mockResolvedValue({
+    status: 'ok',
+    dados: resultado({
+      relatorio: {
+        problemas: [{ tipo: 'visual', pagina: 3, descricao: 'A página 3 está quase vazia (4% ocupada) e não é a última.' }],
+        verificacoesRealizadas: ['x'],
+        limitacoes: [],
+      },
+    }),
+  });
+  await abrirEPedir('Monte um relatório.');
+  await act(async () => botaoPersonalizado().click());
+  await esperar('Salvo em Documentos');
+  expect(host.textContent).toContain('A página 3 está quase vazia');
+});
