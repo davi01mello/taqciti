@@ -3445,3 +3445,77 @@ body .tq-home [role='dialog'] button {
     animation: none;
   }
 }
+
+/* -------------------------------------------------------------- preparar */
+
+.tq-prep {
+  max-width: 720px;
+}
+
+.tq-prep-bloco {
+  margin-bottom: 32px;
+}
+
+.tq-prep-bloco h2 {
+  font-family: var(--font-titulo);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.tq-prep-bloco h3 {
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  margin: 20px 0 0;
+}
+
+.tq-prep-dica {
+  font-size: var(--fs-meta);
+  color: rgb(166 169 173);
+  margin: 4px 0 0;
+}
+
+.tq-prep-comentario {
+  font-size: var(--fs-ui);
+  color: rgb(214 218 222);
+  margin: 8px 0 0;
+}
+
+.tq-prep .tq-c-campo select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(0 0 0 / 0.18);
+  color: rgb(232 235 238);
+  font: inherit;
+  font-size: var(--fs-corpo);
+}
+
+.tq-prep-modos {
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-ui);
+  color: rgb(214 218 222);
+}
+
+.tq-prep-modos legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: var(--fs-meta);
+  color: rgb(165 170 175);
+}
+
+.tq-prep-modos label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tq-prep .tq-c-acoes {
+  margin-top: 10px;
+  align-items: center;
+}

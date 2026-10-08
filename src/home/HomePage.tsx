@@ -63,6 +63,7 @@ import { ConversasMenu } from './ConversasMenu';
 import { PaginaDocumentos } from './Documentos';
 import { PaginaReunioes } from './Paginas';
 import { PaginaConexoes } from './Conexoes';
+import { PaginaPreparar } from './Preparar';
 import { PaginaAcompanhamento } from './Acompanhamento';
 import { PointerLayer } from './PointerLayer';
 import { lerPedidoDaHome, type Secao } from './rota';
@@ -587,6 +588,8 @@ export function HomePage() {
             onDesfazer={desfazer}
           />
         )}
+
+        {secao === 'preparar' && <PaginaPreparar registros={records} />}
 
         {secao === 'reunioes' && (
           <PaginaReunioes
