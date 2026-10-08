@@ -24,8 +24,8 @@
 import { perfilQueValeParaAReuniao } from '@/features/conducao/contexto';
 import { lerConducao, type Conducao, type ModoDeIntervencao } from '@/features/conducao/store';
 import type { AdaptadorDeModelo } from '@/features/taq/modelo';
-import { aplicarAvaliacao, avaliarReuniao, type FalaDaReuniao } from './gerar';
-import { planejar, podeAvaliar } from './politica';
+import { aplicarAvaliacao, avaliarReuniao, janelaDeLeitura, type FalaDaReuniao } from './gerar';
+import { contarPalavras, planejar, podeAvaliar } from './politica';
 import { lerApoio, mudarEstado, somarMedicao, type Apoio, type Sugestao } from './store';
 
 /** As últimas falas do ao vivo ainda podem ser revistas: esperam. */
@@ -36,6 +36,8 @@ export const falasConsolidadas = (total: number, encerrada: boolean): number =>
 
 export interface EntradaDoLaco {
   reuniao: { id: string; titulo: string };
+  /** Quem provavelmente conduz (a pessoa que o Taq ajuda), quando se sabe. */
+  quemConduz?: string | null;
   falas: readonly FalaDaReuniao[];
   /** A reunião acabou: tudo está consolidado e nada mais é sugerido. */
   encerrada: boolean;
@@ -90,17 +92,17 @@ export function criarLaco(deps: DependenciasDoLaco): Laco {
       falasConsolidadas: falasConsolidadas(e.falas.length, e.encerrada),
       sugestoes: doMeeting,
     });
-    for (const s of plano.expirarNaTela) await mudarEstado(s.id, 'expirada', 'tempo');
+    for (const s of plano.expirarNaTela) await mudarEstado(s.id, 'expirada', 'tempo', agora());
     for (const d of plano.descartar)
-      await mudarEstado(d.sugestao.id, 'expirada', d.motivo === 'obsoleta' ? 'tempo' : 'politica');
-    for (const s of plano.substituir) await mudarEstado(s.id, 'substituida', 'substituicao');
-    if (plano.mostrar) await mudarEstado(plano.mostrar.id, 'mostrada');
+      await mudarEstado(d.sugestao.id, 'expirada', d.motivo === 'obsoleta' ? 'tempo' : 'politica', agora());
+    for (const s of plano.substituir) await mudarEstado(s.id, 'substituida', 'substituicao', agora());
+    if (plano.mostrar) await mudarEstado(plano.mostrar.id, 'mostrada', undefined, agora());
   }
 
   /** Sob demanda ou pausado: o que ainda não apareceu não vai aparecer depois. */
   async function limparPendentes(reuniaoId: string, sugestoes: readonly Sugestao[]): Promise<void> {
     for (const s of sugestoes)
-      if (s.reuniaoId === reuniaoId && s.estado === 'pendente') await mudarEstado(s.id, 'expirada', 'politica');
+      if (s.reuniaoId === reuniaoId && s.estado === 'pendente') await mudarEstado(s.id, 'expirada', 'politica', agora());
   }
 
   async function passada(e: EntradaDoLaco): Promise<void> {
@@ -116,7 +118,7 @@ export function criarLaco(deps: DependenciasDoLaco): Laco {
       emVoo = null;
       await limparPendentes(e.reuniao.id, ap0.sugestoes);
       for (const s of ap0.sugestoes)
-        if (s.reuniaoId === e.reuniao.id && s.estado === 'mostrada') await mudarEstado(s.id, 'expirada', 'tempo');
+        if (s.reuniaoId === e.reuniao.id && s.estado === 'mostrada') await mudarEstado(s.id, 'expirada', 'tempo', agora());
       return;
     }
     const c = await conducao();
@@ -130,10 +132,18 @@ export function criarLaco(deps: DependenciasDoLaco): Laco {
     }
     await aplicarPolitica(e, modo, pausado, ap0.sugestoes);
 
+    const palavrasNaJanela = janelaDeLeitura(e.falas, corte).falas.reduce((n, f) => n + contarPalavras(f.text), 0);
     if (
       emVoo ||
       !e.gravando ||
-      !podeAvaliar({ modo, pausado, agora: agora(), falasConsolidadas: corte, ultimaAvaliacao })
+      !podeAvaliar({
+        modo,
+        pausado,
+        agora: agora(),
+        falasConsolidadas: corte,
+        palavrasNaJanela,
+        ultimaAvaliacao,
+      })
     )
       return;
 
@@ -146,6 +156,7 @@ export function criarLaco(deps: DependenciasDoLaco): Laco {
       r = await avaliar({
         adaptador: deps.adaptador,
         reuniao: e.reuniao,
+        ...(e.quemConduz ? { quemConduz: e.quemConduz } : {}),
         falas: e.falas,
         falasConsolidadas: corte,
         conducao: c,

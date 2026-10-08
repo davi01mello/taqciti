@@ -326,6 +326,8 @@ export async function mudarEstado(
   id: string,
   para: EstadoDaSugestao,
   por?: Sugestao['encerradaPor'],
+  /** A hora da mudança. O laço passa o SEU relógio: a política e o carimbo têm de concordar. */
+  em: number = Date.now(),
 ): Promise<ResultadoDaMudanca> {
   return transacao<ResultadoDaMudanca>((a) => {
     const s = a.sugestoes.find((x) => x.id === id);
@@ -333,11 +335,10 @@ export async function mudarEstado(
     if (s.estado === para) return { resultado: { tipo: 'ok' as const, sugestao: s }, mudou: false };
     if (!podeTransitar(s.estado, para))
       return { resultado: { tipo: 'transicao_invalida' as const, de: s.estado, para }, mudou: false };
-    const agora = Date.now();
     s.estado = para;
-    if (para === 'mostrada') s.mostradaEm = agora;
+    if (para === 'mostrada') s.mostradaEm = em;
     if (!estaAberta(s) && para !== 'guardada') {
-      s.encerradaEm = agora;
+      s.encerradaEm = em;
       if (por) s.encerradaPor = por;
     }
     return { resultado: { tipo: 'ok' as const, sugestao: s }, mudou: true };

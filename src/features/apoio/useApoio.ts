@@ -11,6 +11,7 @@ import { observarConducao, type Conducao } from '@/features/conducao/store';
 import { perfilQueValeParaAReuniao } from '@/features/conducao/contexto';
 import { criarAdaptadorHttp } from '@/features/taq/modelo';
 import type { MeetingState } from '@/shared/types/domain';
+import { hostName } from '@/shared/ui/format';
 import { criarLaco, type Laco } from './laco';
 import { observarApoio, type Apoio, type Sugestao } from './store';
 
@@ -62,6 +63,7 @@ export function useApoioAoVivo(state: MeetingState, taqPronto: boolean): ApoioAo
     if (!taqPronto && !encerrada) return;
     void laco.current.aoMudar({
       reuniao: { id: sessao.meetingId, titulo: sessao.title },
+      quemConduz: hostName(sessao.participants),
       falas: sessao.segments,
       encerrada,
       gravando: fase === 'recording',

@@ -188,17 +188,33 @@ export function planejar(e: EstadoDoLaco): Plano {
   return plano;
 }
 
+/**
+ * Conteúdo mínimo para valer a pena avaliar: o começo de uma reunião
+ * (cumprimentos, apresentação) não tem o que sugerir, e chamar o modelo ali só
+ * gera sugestão sem sustentação — visto ao vivo: sete avaliações em sete
+ * terminaram em sugestão, inclusive só com "bom dia". É contagem, não leitura de
+ * significado.
+ */
+export const MIN_FALAS_PARA_AVALIAR = 6;
+export const MIN_PALAVRAS_PARA_AVALIAR = 80;
+
+export function contarPalavras(texto: string): number {
+  return texto.split(/\s+/).filter(Boolean).length;
+}
+
 /** Vale chamar o modelo agora? É o orçamento de custo e de latência. */
 export function podeAvaliar(p: {
   modo: ModoDeIntervencao;
   pausado: boolean;
   agora: number;
   falasConsolidadas: number;
+  /** Palavras nas falas que o modelo leria agora. */
+  palavrasNaJanela: number;
   ultimaAvaliacao: { em: number; falas: number } | null;
 }): boolean {
   const cfg = CONFIGURACAO_DOS_MODOS[p.modo];
   if (!cfg || p.pausado) return false;
-  if (p.falasConsolidadas <= 0) return false;
+  if (p.falasConsolidadas < MIN_FALAS_PARA_AVALIAR || p.palavrasNaJanela < MIN_PALAVRAS_PARA_AVALIAR) return false;
   if (!p.ultimaAvaliacao) return true;
   return (
     p.agora - p.ultimaAvaliacao.em >= cfg.intervaloEntreAvaliacoesMs &&

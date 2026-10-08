@@ -12,8 +12,11 @@ import {
   FALAS_APOS_DESCARTE,
   FALAS_PARA_REPETIR_UM_PONTO,
   JANELA_DE_VALIDADE_EM_FALAS,
+  MIN_FALAS_PARA_AVALIAR,
+  MIN_PALAVRAS_PARA_AVALIAR,
   VALIDADE_NA_TELA_EM_FALAS,
   chaveDoPonto,
+  contarPalavras,
   decidir,
   planejar,
   podeAvaliar,
@@ -205,8 +208,27 @@ describe('planejar', () => {
 });
 
 describe('podeAvaliar (orçamento de custo)', () => {
-  const base = { modo: 'discreto' as const, pausado: false, agora: T0, falasConsolidadas: 10 };
+  const base = { modo: 'discreto' as const, pausado: false, agora: T0, falasConsolidadas: 10, palavrasNaJanela: 200 };
   const cfg = CONFIGURACAO_DOS_MODOS.discreto!;
+
+  it('o começo da reunião não é avaliado: poucas falas ou pouco conteúdo não chamam o modelo', () => {
+    // Visto ao vivo: sem este corte o modelo sugeriu em sete avaliações de sete, até sobre "bom dia".
+    expect(podeAvaliar({ ...base, falasConsolidadas: MIN_FALAS_PARA_AVALIAR - 1, ultimaAvaliacao: null })).toBe(false);
+    expect(podeAvaliar({ ...base, palavrasNaJanela: MIN_PALAVRAS_PARA_AVALIAR - 1, ultimaAvaliacao: null })).toBe(false);
+    expect(
+      podeAvaliar({
+        ...base,
+        falasConsolidadas: MIN_FALAS_PARA_AVALIAR,
+        palavrasNaJanela: MIN_PALAVRAS_PARA_AVALIAR,
+        ultimaAvaliacao: null,
+      }),
+    ).toBe(true);
+  });
+
+  it('contarPalavras conta palavras, não caracteres', () => {
+    expect(contarPalavras('  Bom   dia, pessoal. ')).toBe(3);
+    expect(contarPalavras('')).toBe(0);
+  });
 
   it('sob demanda, pausado ou sem fala consolidada: nunca chama o modelo', () => {
     expect(podeAvaliar({ ...base, modo: 'sob_demanda', ultimaAvaliacao: null })).toBe(false);

@@ -26,8 +26,13 @@ const PERFIL = (modo: 'sob_demanda' | 'discreto' | 'participativo') => ({
   preferencias: [],
 });
 
+/** Falas com conteúdo (8 palavras): o começo da reunião, com pouco texto, nem é avaliado. */
 const falas = (n: number): FalaDaReuniao[] =>
-  Array.from({ length: n }, (_, i) => ({ speaker: 'Ana', text: `Fala ${i}.`, startOffsetMs: i * 1000 }));
+  Array.from({ length: n }, (_, i) => ({
+    speaker: 'Ana',
+    text: `Fala número ${i} sobre o atendimento da prefeitura.`,
+    startOffsetMs: i * 1000,
+  }));
 
 const entrada = (n: number, extra: Partial<EntradaDoLaco> = {}): EntradaDoLaco => ({
   reuniao: REUNIAO,
@@ -152,6 +157,18 @@ describe('com perfil discreto', () => {
     expect(g.chamadas).toHaveLength(2);
   });
 
+  it('o começo da reunião (pouca fala, pouco texto) não chama o modelo', async () => {
+    await salvarPerfil(PERFIL('discreto'), 0);
+    const g = gerador([nova(5)]);
+    const laco = criarLaco({ adaptador: ADAPTADOR, agora, avaliar: g.avaliar });
+    // 7 falas no ao vivo = 5 consolidadas, abaixo do mínimo.
+    await laco.aoMudar(entrada(7));
+    // Muitas falas, mas só cumprimentos: pouco conteúdo.
+    const curtas = Array.from({ length: 30 }, (_, i) => ({ speaker: 'Ana', text: 'Bom dia.', startOffsetMs: i }));
+    await laco.aoMudar({ ...entrada(30), falas: curtas });
+    expect(g.chamadas).toEqual([]);
+  });
+
   it('com a captura pausada o laço aplica a política mas não chama o modelo', async () => {
     await salvarPerfil(PERFIL('discreto'), 0);
     const g = gerador([nova(18)]);
@@ -205,6 +222,27 @@ describe('com perfil discreto', () => {
     const mostradas = sugestoes.filter((s) => s.estado === 'mostrada');
     expect(mostradas).toHaveLength(1);
     expect(sugestoes.find((s) => s.estado === 'expirada')).toMatchObject({ encerradaPor: 'politica' });
+  });
+
+  it('o carimbo de "mostrada" é a hora do relógio do laço, e a próxima aparece depois do intervalo', async () => {
+    // Regressão: o carimbo usava Date.now() e a política o relógio injetado; com os
+    // dois fora de acordo a segunda sugestão ficava pendente para sempre (visto na
+    // simulação ao vivo).
+    await salvarPerfil(PERFIL('discreto'), 0);
+    const cfg = CONFIGURACAO_DOS_MODOS.discreto!;
+    const g = gerador([nova(18, 'Primeiro ponto'), nova(26, 'Segundo ponto')]);
+    const laco = criarLaco({ adaptador: ADAPTADOR, agora, avaliar: g.avaliar });
+    await laco.aoMudar(entrada(20));
+    const horaDaPrimeira = relogio;
+    expect((await lerApoio()).sugestoes[0]).toMatchObject({ estado: 'mostrada', mostradaEm: horaDaPrimeira });
+
+    // A primeira é resolvida pela pessoa; passa o tempo e a conversa anda.
+    await mudarEstado((await lerApoio()).sugestoes[0]!.id, 'usada', 'pessoa');
+    relogio += Math.max(cfg.intervaloEntreAvaliacoesMs, cfg.intervaloEntreSugestoesMs);
+    await laco.aoMudar(entrada(28));
+    const { sugestoes } = await lerApoio();
+    const segunda = sugestoes.find((s) => s.ponto === 'Segundo ponto')!;
+    expect(segunda).toMatchObject({ estado: 'mostrada', mostradaEm: relogio });
   });
 
   it('a sugestão na tela sai sozinha quando a conversa foi longe demais', async () => {
