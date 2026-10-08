@@ -44,7 +44,7 @@
 import { termosDe } from './busca';
 
 /** Sobe quando o conteúdo muda — vai no resultado da consulta. */
-export const VERSAO_DA_REFERENCIA = '2026-10-01';
+export const VERSAO_DA_REFERENCIA = '2026-10-08';
 
 export const ASSUNTOS = [
   'captura',
@@ -1052,6 +1052,61 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     ferramenta: 'record_decision',
     comoPedir: 'Peça: ‘registre a decisão: …’.',
     palavras: ['decisao', 'decisoes', 'decidimos', 'mudou a decisao', 'substituir decisao', 'registrar decisao'],
+  },
+  {
+    id: 'preparar_assistente',
+    assunto: 'navegacao',
+    titulo: 'Dizer como quer ser ajudado e o que quer alcançar em uma reunião',
+    oQueFaz:
+      'Guarda, neste computador, o seu perfil de condução (em que o Taq ajuda, o que observa, como intervém) e, por reunião, o resultado que você quer alcançar e o que não pode ficar sem encaminhamento. O Taq passa a considerar isso nas respostas.',
+    onde: 'HOME → Preparar',
+    passos: [
+      'Na HOME, abra “Preparar”.',
+      'Conte com suas palavras como conduz reuniões e clique em “Organizar o que entendi”. Corrija qualquer frase do resumo; nada vale até você clicar em “Usar este assistente”.',
+      'Mais abaixo, escolha uma reunião, escreva o resultado que querem alcançar e clique em “Salvar a preparação”.',
+    ],
+    limitacoes: [
+      'O resumo também pode ser escrito à mão, sem o assistente conectado; só “Organizar o que entendi” depende dele.',
+      'O Taq não supõe um objetivo: sem um objetivo escrito por você, a reunião fica sem objetivo.',
+      'Uma reunião já preparada continua com a versão do assistente que usava, até você pedir “Usar a versão atual”.',
+    ],
+    rotulos: [
+      'Preparar',
+      'Organizar o que entendi',
+      'Usar este assistente',
+      'Salvar a preparação',
+      'Usar a versão atual',
+    ],
+    implementacao: ['src/home/Preparar.tsx', NAV],
+    verificacao: 'codigo',
+    palavras: ['preparar', 'perfil', 'objetivo', 'conduzir', 'assistente', 'briefing', 'preparacao', 'como quero ser ajudado'],
+  },
+  {
+    id: 'perguntas_prontas_da_reuniao',
+    assunto: 'reunioes',
+    titulo: 'Perguntas prontas para conduzir a reunião',
+    oQueFaz:
+      'Na sidebar, atalhos que fazem ao Taq uma pergunta comum sobre a reunião: o que falta esclarecer, o que foi decidido, ajuda para fechar e sugestão de acompanhamentos. A resposta cita as falas; nada vira decisão ou compromisso sozinho.',
+    onde: 'Sidebar → Reunião → Pergunta rápida',
+    passos: [
+      'Na sidebar, na reunião, clique em “Pergunta rápida”.',
+      'Escolha “O que falta esclarecer?”, “O que foi decidido?”, “Me ajude a fechar” ou “Sugerir acompanhamentos”.',
+    ],
+    preRequisitos: ['O assistente conectado: sem ele os atalhos não aparecem.'],
+    limitacoes: [
+      '“Sugerir acompanhamentos” mostra os compromissos para você revisar; registrar é uma escolha sua em cada um.',
+      'Se a captura estiver incompleta, a resposta diz até onde ela foi.',
+    ],
+    rotulos: [
+      'Pergunta rápida',
+      'O que falta esclarecer?',
+      'O que foi decidido?',
+      'Me ajude a fechar',
+      'Sugerir acompanhamentos',
+    ],
+    implementacao: [REUNIAO_AO_VIVO, ACOES_AO_VIVO],
+    verificacao: 'codigo',
+    palavras: ['falta esclarecer', 'o que foi decidido', 'fechar a reuniao', 'encerrar reuniao', 'acompanhamentos', 'pergunta rapida', 'conduzir'],
   },
   {
     id: 'comparar_fontes',

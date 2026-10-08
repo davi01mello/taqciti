@@ -565,6 +565,23 @@ function PrintsDaReuniao({
 type FaseDaRapida = 'escrevendo' | 'procurando' | 'respondida';
 
 /**
+ * Perguntas prontas de condução. Só preenchem e enviam o pedido: quem decide o
+ * que está esclarecido, decidido ou em aberto é o copiloto, com as fontes — não
+ * há regra de texto aqui. Cada uma é uma pergunta comum da pessoa, que ela
+ * também poderia ter digitado.
+ */
+const ATALHOS_DA_CONDUCAO: ReadonlyArray<{ rotulo: string; pedido: string }> = [
+  { rotulo: 'O que falta esclarecer?', pedido: 'O que ainda falta esclarecer nesta reunião?' },
+  { rotulo: 'O que foi decidido?', pedido: 'O que já foi decidido até agora nesta reunião?' },
+  {
+    rotulo: 'Me ajude a fechar',
+    pedido:
+      'Me ajude a fechar a reunião: o que foi decidido, o que segue em aberto e o que ainda falta definir (responsável e data).',
+  },
+  { rotulo: 'Sugerir acompanhamentos', pedido: 'Sugira os compromissos desta reunião para eu revisar.' },
+];
+
+/**
  * Pergunte sem sair da reunião. A resposta nasce ali mesmo, embaixo das ações.
  *
  * Quem responde aparece só como a marca viva — sem nome fora do chat: o nome
@@ -600,9 +617,10 @@ function PerguntaRapida({
     return () => cancelAnimationFrame(q);
   }, []);
 
-  const perguntar = async () => {
-    const limpo = texto.trim();
+  const perguntar = async (dado?: string) => {
+    const limpo = (dado ?? texto).trim();
     if (!limpo || fase === 'procurando' || !onPerguntar) return;
+    setTexto(limpo);
     setFase('procurando');
     setResultado(null);
     const r = await onPerguntar(limpo, { meetingId, meetingTitle: titulo });
@@ -657,6 +675,16 @@ function PerguntaRapida({
           Perguntar
         </button>
       </form>
+
+      {taqPronto && fase === 'escrevendo' && (
+        <div className="tq-rapida-pe tq-rapida-atalhos" role="group" aria-label="Perguntas prontas">
+          {ATALHOS_DA_CONDUCAO.map((a) => (
+            <button key={a.rotulo} type="button" onClick={() => void perguntar(a.pedido)}>
+              {a.rotulo}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!taqPronto && fase === 'escrevendo' && (
         <p className="tq-rapida-nota">

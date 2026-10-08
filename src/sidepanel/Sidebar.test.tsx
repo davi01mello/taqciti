@@ -420,6 +420,73 @@ describe('as ações da reunião', () => {
     expect(q('.tq-msg-voce').textContent).toBe('Quem ficou com o protótipo?');
   });
 
+  /*
+   * As perguntas prontas de condução só aparecem com o assistente conectado, e
+   * cada uma é uma pergunta comum: o clique manda exatamente aquele texto. Quem
+   * decide o que está decidido ou em aberto é o copiloto, não esta tela.
+   */
+  it('as perguntas prontas enviam a pergunta e só existem com o assistente conectado', async () => {
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+    await clicar(acao('Pergunta rápida'));
+    expect(todos('.tq-rapida-atalhos button')).toHaveLength(0);
+
+    const { _definirTaq } = await import('@/features/taq/interface');
+    const executar = vi.fn(async () => ({
+      execucaoId: 'x1',
+      estado: 'concluido',
+      resposta: 'Falta fechar o responsável pela regra de permissão.',
+      evidencias: [],
+      documentos: [],
+      informacoesAusentes: [],
+      limitacoes: [],
+      erros: [],
+      metricas: { duracaoMs: 1, passos: 1, chamadasDeFerramenta: 0, uso: { entrada: 1, saida: 1 } },
+    }));
+    _definirTaq({
+      adaptador: {
+        turno: async () => {
+          throw new Error('não deveria chamar o modelo direto');
+        },
+        estado: async () => ({
+          pronto: true,
+          provedor: 'teste',
+          modelo: 'teste',
+          instrucoesVersao: 'taq-v7',
+          politicaDeDados: 'private',
+          pendencias: [],
+        }),
+      },
+      orquestrador: { agentes: {}, executar } as never,
+    });
+    try {
+      // Remonta para o assistente ser verificado como conectado.
+      await act(async () => root.unmount());
+      root = createRoot(host);
+      await montar();
+      await act(async () => new Promise((r) => setTimeout(r, 20)));
+      await clicar(acao('Pergunta rápida'));
+
+      const atalhos = todos<HTMLButtonElement>('.tq-rapida-atalhos button');
+      expect(atalhos.map((b) => b.textContent)).toEqual([
+        'O que falta esclarecer?',
+        'O que foi decidido?',
+        'Me ajude a fechar',
+        'Sugerir acompanhamentos',
+      ]);
+
+      await clicar(atalhos[0]!);
+      await act(async () => new Promise((r) => setTimeout(r, 20)));
+      expect(executar).toHaveBeenCalledTimes(1);
+      expect((executar.mock.calls[0] as unknown as [{ texto: string }])[0].texto).toBe(
+        'O que ainda falta esclarecer nesta reunião?',
+      );
+      expect(q('.tq-rapida-texto').textContent).toContain('Falta fechar o responsável');
+    } finally {
+      _definirTaq({ adaptador: null, orquestrador: null });
+    }
+  });
+
   it('"Perguntar sobre o trecho" leva o trecho como contexto e abre a conversa', async () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();
