@@ -8,9 +8,10 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
-import { lerEstados, snapshotInicial, transacaoDoEstado, mesclar, type Snapshot } from '@/features/estado/store';
+import type { ResultadoDoRegistro } from '@/features/estado/registrar';
+import { lerEstados, snapshotInicial, transacaoDoEstado, mesclar, type Ponto, type Snapshot } from '@/features/estado/store';
 import type { EstadoDaReuniao } from '@/features/estado/useEstado';
 import { EstadoDosPontos } from './EstadoDosPontos';
 
@@ -164,6 +165,106 @@ it('falha ao atualizar é dita sem apagar o que estava guardado; atualizando mos
   expect(host.querySelectorAll('.tq-estado-ponto')).toHaveLength(3);
   await render(estado(snapshot(), { atualizando: true }));
   expect(botao('Lendo a reunião')!.disabled).toBe(true);
+});
+
+describe('Fechar a reunião', () => {
+  const comFechamento = (): Snapshot => ({
+    ...snapshot(),
+    fechamento: { texto: 'Quem levanta os dados e até quando?', revisao: 3 },
+  });
+  const renderF = async (s: Snapshot, onRegistrar: (p: Ponto) => Promise<ResultadoDoRegistro>, falasAgora = 3) =>
+    act(async () =>
+      root.render(
+        <EstadoDosPontos
+          meetingId="m-1"
+          estado={estado(s)}
+          aberto
+          onAlternar={() => undefined}
+          taqPronto
+          falasAgora={falasAgora}
+          onRegistrar={onRegistrar}
+          fechamentoAberto
+          onAlternarFechamento={() => undefined}
+        />,
+      ),
+    );
+  const ok = async (): Promise<ResultadoDoRegistro> => ({ tipo: 'recusado', motivo: 'x' });
+
+  it('a síntese agrupa por estado, mostra dono e prazo quando a fala trouxe; a frase vem rotulada como sugestão', async () => {
+    await renderF(comFechamento(), ok);
+    const f = host.querySelector('.tq-fechamento')!;
+    expect(f.textContent).toContain('A confirmar (proposto, ninguém fechou)');
+    expect(f.textContent).toContain('Quem levanta os dados e quando (Marta, sexta-feira)');
+    expect(f.textContent).toContain('Em aberto');
+    // Todo combinado aqui tem responsável e prazo: nada a listar como "sem definir".
+    expect(f.textContent).not.toContain('Ainda sem definir');
+    expect(f.textContent).toContain('Sugestão de fechamento — não é uma fala registrada');
+    expect(f.textContent).toContain('“Quem levanta os dados e até quando?”');
+  });
+
+  it('um combinado sem responsável nem prazo aparece em "Ainda sem definir", e nada é preenchido', async () => {
+    const s = comFechamento();
+    // "Com que frequência" vira um combinado (a confirmar) cuja fala não traz dono nem prazo.
+    const freq = s.pontos.find((p) => p.texto === 'Com que frequência')!;
+    freq.estado = 'a_confirmar';
+    freq.evidencias = [{ segmento: 1, trecho: 'Na triagem. A fila da triagem passa de uma hora quase todo dia.' }];
+    await renderF(s, ok);
+    const f = host.querySelector('.tq-fechamento')!;
+    expect(f.textContent).toContain('Ainda sem definir');
+    expect(f.textContent).toContain('Com que frequência: responsável e prazo não definidos');
+    expect(f.textContent).not.toContain('Com que frequência (');
+  });
+
+  it('diz que a leitura ficou para trás quando a transcrição já tem mais falas', async () => {
+    await renderF(comFechamento(), ok, 40);
+    expect(host.querySelector('.tq-fechamento')!.textContent).toContain('A leitura vai até a fala 3 de 40');
+  });
+
+  it('o registro é por clique, mostra o recibo, e diz quando já estava registrado', async () => {
+    const chamadas: string[] = [];
+    let jaExistia = false;
+    const onRegistrar = async (p: Ponto): Promise<ResultadoDoRegistro> => {
+      chamadas.push(p.texto);
+      return { tipo: 'ok', jaExistia, compromisso: {} as never };
+    };
+    await renderF(comFechamento(), onRegistrar);
+    // Só o que foi combinado ou decidido tem o botão: "Quem levanta os dados" (a confirmar).
+    const botoes = [...host.querySelectorAll<HTMLButtonElement>('.tq-fechamento-registrar button')];
+    expect(botoes).toHaveLength(1);
+    expect(chamadas).toEqual([]);
+    await act(async () => botoes[0]!.click());
+    expect(chamadas).toEqual(['Quem levanta os dados e quando']);
+    expect(host.querySelector('.tq-fechamento-registrar [role="status"]')!.textContent).toBe('Registrado em Acompanhamento.');
+    jaExistia = true;
+    await act(async () => botoes[0]!.click());
+    expect(host.querySelector('.tq-fechamento-registrar [role="status"]')!.textContent).toBe('Já estava em Acompanhamento.');
+  });
+
+  it('um registro recusado mostra o motivo, e o texto avisa que dono e prazo só entram se ditos', async () => {
+    await renderF(comFechamento(), async () => ({ tipo: 'recusado', motivo: 'Sem fala da reunião que o sustente.' }));
+    await act(async () => host.querySelector<HTMLButtonElement>('.tq-fechamento-registrar button')!.click());
+    expect(host.querySelector('.tq-fechamento-registrar [role="status"]')!.textContent).toContain('Sem fala da reunião');
+    expect(host.querySelector('.tq-fechamento')!.textContent).toContain('Responsável e prazo entram só se foram ditos');
+  });
+
+  it('sem leitura, a síntese diz que não há o que sintetizar e não inventa nada', async () => {
+    await act(async () =>
+      root.render(
+        <EstadoDosPontos
+          meetingId="m-1"
+          estado={estado(null)}
+          aberto
+          onAlternar={() => undefined}
+          taqPronto
+          onRegistrar={ok}
+          fechamentoAberto
+          onAlternarFechamento={() => undefined}
+        />,
+      ),
+    );
+    expect(host.querySelector('.tq-fechamento')!.textContent).toContain('ainda não foi lida');
+    expect(host.querySelector('.tq-fechamento-registrar')).toBeNull();
+  });
 });
 
 it('com a preparação sem pontos e nada lido, diz onde escrever o que não pode ficar sem encaminhamento', async () => {

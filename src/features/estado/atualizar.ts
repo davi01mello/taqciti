@@ -50,6 +50,13 @@ const propostaSchema = z.object({
     )
     .max(12)
     .default([]),
+  fechamento: z
+    .string()
+    .optional()
+    .describe(
+      'Uma frase que quem conduz poderia dizer para fechar o que falta, a partir DESTA reunião ("Quem levanta os ' +
+        'dados e até quando?"). Só quando houver algo sem fechar; ausente caso contrário. É sugestão, não fala registrada.',
+    ),
 });
 
 const FERRAMENTA: DeclaracaoDeFerramenta = {
@@ -159,6 +166,7 @@ export async function atualizarEstadoDaReuniao(p: {
   const proposta: AtualizacaoProposta | null = lido?.success
     ? {
         ...(lido.data.assunto ? { assunto: lido.data.assunto } : {}),
+        ...(lido.data.fechamento ? { fechamento: lido.data.fechamento } : {}),
         pontos: lido.data.pontos.map((x) => ({
           ...(x.id ? { id: x.id } : {}),
           ...(x.texto ? { texto: x.texto } : {}),

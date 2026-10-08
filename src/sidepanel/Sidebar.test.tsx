@@ -473,14 +473,17 @@ describe('as ações da reunião', () => {
         'Me ajude a fechar',
         'Sugerir acompanhamentos',
       ]);
+      // Os dois primeiros não perguntam nada ao copiloto: só abrem o cartão do estado.
+      expect(executar).not.toHaveBeenCalled();
 
-      // "O que falta fechar" abre o cartão do estado: não é pergunta ao copiloto.
-      // Os outros são perguntas comuns, enviadas exatamente como estão escritas.
-      await clicar(atalhos[1]!);
+      // "O que falta fechar" e "Me ajude a fechar" abrem o cartão do estado: não são
+      // perguntas ao copiloto. "Sugerir acompanhamentos" é uma pergunta comum,
+      // enviada exatamente como está escrita.
+      await clicar(atalhos[2]!);
       await act(async () => new Promise((r) => setTimeout(r, 20)));
       expect(executar).toHaveBeenCalledTimes(1);
       expect((executar.mock.calls[0] as unknown as [{ texto: string }])[0].texto).toBe(
-        'Me ajude a fechar a reunião: o que foi decidido, o que segue em aberto e o que ainda falta definir (responsável e data).',
+        'Sugira os compromissos desta reunião para eu revisar.',
       );
       expect(q('.tq-rapida-texto').textContent).toContain('Falta fechar o responsável');
     } finally {

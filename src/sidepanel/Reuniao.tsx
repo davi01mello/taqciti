@@ -78,6 +78,7 @@ import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
 import { CartaoDeApoio } from './CartaoDeApoio';
 import { EstadoDosPontos } from './EstadoDosPontos';
 import { useEstadoDosPontos } from '@/features/estado/useEstado';
+import { registrarPontoComoAcompanhamento } from '@/features/estado/registrar';
 import { SugestoesDoOrganizador } from './SugestoesDoOrganizador';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
@@ -158,6 +159,7 @@ export function Reuniao({
   // O que falta fechar, ponto a ponto: lido pelo Taq a pedido, conferido em código.
   const estadoDosPontos = useEstadoDosPontos(state);
   const [estadoAberto, setEstadoAberto] = useState(false);
+  const [fechamentoAberto, setFechamentoAberto] = useState(false);
   const organizador = souOrganizador(sessao?.participants);
   const avisos = useAvisosVisiveis({
     ...(meetingId ? { reuniaoId: meetingId } : {}),
@@ -267,6 +269,16 @@ export function Reuniao({
         aberto={estadoAberto}
         onAlternar={() => setEstadoAberto((v) => !v)}
         taqPronto={taqPronto}
+        falasAgora={sessao.segments.length}
+        fechamentoAberto={fechamentoAberto}
+        onAlternarFechamento={() => setFechamentoAberto((v) => !v)}
+        onRegistrar={(ponto) =>
+          registrarPontoComoAcompanhamento({
+            reuniao: { id: sessao.meetingId, titulo: sessao.title },
+            ponto,
+            versao: `${sessao.endedAt ?? sessao.startedAt}:${sessao.segments.length}`,
+          })
+        }
       />
 
       {avisosAberto && (
@@ -331,6 +343,12 @@ export function Reuniao({
           onVerEstado={() => {
             setRapidaAberta(false);
             setEstadoAberto(true);
+            void estadoDosPontos.atualizar();
+          }}
+          onVerFechamento={() => {
+            setRapidaAberta(false);
+            setEstadoAberto(true);
+            setFechamentoAberto(true);
             void estadoDosPontos.atualizar();
           }}
         />
@@ -593,17 +611,13 @@ type FaseDaRapida = 'escrevendo' | 'procurando' | 'respondida';
  * o copiloto, com as fontes — não há regra de texto aqui. Cada uma é uma
  * pergunta comum da pessoa, que ela também poderia ter digitado.
  *
- * "O que falta fechar" NÃO é pergunta em prosa: abre o cartão com o estado de
- * cada ponto (a esclarecer, discutido, a confirmar, decidido, adiado), que tem
- * a fala citada e é conferido em código. Em prosa livre o modelo listou como
- * aberto o que o cliente já tinha respondido.
+ * "O que falta fechar" e "Me ajude a fechar" NÃO são perguntas em prosa: abrem o
+ * cartão com o estado de cada ponto (a esclarecer, discutido, a confirmar,
+ * decidido, adiado) e a síntese de fechamento, com a fala citada e conferidos em
+ * código. Em prosa livre o modelo listou como aberto o que o cliente já tinha
+ * respondido.
  */
 const ATALHOS_DA_CONDUCAO: ReadonlyArray<{ rotulo: string; pedido: string }> = [
-  {
-    rotulo: 'Me ajude a fechar',
-    pedido:
-      'Me ajude a fechar a reunião: o que foi decidido, o que segue em aberto e o que ainda falta definir (responsável e data).',
-  },
   { rotulo: 'Sugerir acompanhamentos', pedido: 'Sugira os compromissos desta reunião para eu revisar.' },
 ];
 
@@ -624,6 +638,7 @@ function PerguntaRapida({
   onContinuar,
   onFechar,
   onVerEstado,
+  onVerFechamento,
 }: {
   meetingId: string;
   titulo: string;
@@ -635,6 +650,8 @@ function PerguntaRapida({
   onFechar: () => void;
   /** Abre o cartão do estado dos pontos e o atualiza. */
   onVerEstado: () => void;
+  /** Abre o cartão com a síntese de fechamento e o atualiza. */
+  onVerFechamento: () => void;
 }) {
   const [texto, setTexto] = useState('');
   const [fase, setFase] = useState<FaseDaRapida>('escrevendo');
@@ -709,6 +726,9 @@ function PerguntaRapida({
         <div className="tq-rapida-pe tq-rapida-atalhos" role="group" aria-label="Perguntas prontas">
           <button type="button" onClick={onVerEstado}>
             O que falta fechar
+          </button>
+          <button type="button" onClick={onVerFechamento}>
+            Me ajude a fechar
           </button>
           {ATALHOS_DA_CONDUCAO.map((a) => (
             <button key={a.rotulo} type="button" onClick={() => void perguntar(a.pedido)}>

@@ -93,6 +93,12 @@ export interface Snapshot {
   atualizadoEm: number;
   /** O assunto em discussão. É HIPÓTESE do modelo, não um evento confirmado. */
   assunto?: { texto: string; evidencias: FalaCitada[] };
+  /**
+   * Uma frase que quem conduz poderia dizer para fechar o que falta ("quem
+   * levanta os dados e até quando?"), escrita a partir DESTA reunião. É sugestão
+   * do Taq — nunca uma fala registrada — e vale para a revisão em que nasceu.
+   */
+  fechamento?: { texto: string; revisao: number };
   pontos: Ponto[];
 }
 
@@ -103,6 +109,8 @@ export type MapaDeEstados = Record<string, Snapshot>;
 /** Uma atualização que o modelo propôs, ainda NÃO validada. */
 export interface AtualizacaoProposta {
   assunto?: { texto: string; falas: number[] };
+  /** Sugestão de frase de fechamento, a partir do que ficou em aberto. */
+  fechamento?: string;
   pontos: Array<{
     /** Id de um ponto existente; ausente = ponto novo. */
     id?: string;
@@ -304,12 +312,20 @@ export function mesclar(p: {
     else recusados.push('assunto atual sem fonte válida');
   }
 
+  // A frase de fechamento é da leitura atual: some se esta leitura não trouxe uma.
+  // Só faz sentido enquanto algo estiver sem fechar; do contrário, não há o que sugerir.
+  const textoDoFechamento = limpar(proposta.fechamento, 220);
+  const algoPorFechar = pontos.some((x) => x.estado !== 'decidido' || !x.dono || !x.prazo);
+  const fechamento =
+    textoDoFechamento && algoPorFechar ? { texto: textoDoFechamento, revisao: corte } : undefined;
+
   return {
     snapshot: {
       reuniaoId: p.anterior.reuniaoId,
       revisao: corte,
       atualizadoEm: p.agora,
       ...(assunto ? { assunto } : {}),
+      ...(fechamento ? { fechamento } : {}),
       pontos,
     },
     recusados,
@@ -351,6 +367,9 @@ export function normalizarEstados(bruto: unknown): MapaDeEstados {
       revisao: s.revisao,
       atualizadoEm: typeof s.atualizadoEm === 'number' ? s.atualizadoEm : 0,
       ...(s.assunto && typeof s.assunto.texto === 'string' ? { assunto: s.assunto } : {}),
+      ...(s.fechamento && typeof s.fechamento.texto === 'string' && typeof s.fechamento.revisao === 'number'
+        ? { fechamento: s.fechamento }
+        : {}),
       pontos: (s.pontos as Ponto[]).filter(
         (p) => !!p && typeof p.id === 'string' && (ESTADOS_DO_PONTO as readonly string[]).includes(p.estado),
       ),

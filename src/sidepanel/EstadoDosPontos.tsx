@@ -18,6 +18,8 @@ import {
   type EstadoDoPonto,
   type Ponto,
 } from '@/features/estado/store';
+import type { ResultadoDoRegistro } from '@/features/estado/registrar';
+import { podeVirarAcompanhamento, sintetizar } from '@/features/estado/sintese';
 import type { EstadoDaReuniao } from '@/features/estado/useEstado';
 
 /** Do que mais pede atenção para o que já está resolvido. */
@@ -79,18 +81,143 @@ function ItemDoPonto({ ponto, meetingId }: { ponto: Ponto; meetingId: string }) 
   );
 }
 
+const lista = (pontos: readonly Ponto[]) => (
+  <ul>
+    {pontos.map((p) => (
+      <li key={p.id}>
+        {p.texto}
+        {p.dono || p.prazo ? ` (${[p.dono, p.prazo].filter(Boolean).join(', ')})` : ''}
+      </li>
+    ))}
+  </ul>
+);
+
+/**
+ * "Fechar a reunião": a síntese sobre o estado já conferido, a frase de
+ * fechamento (sugestão do Taq, não fala registrada) e o gesto de registrar um
+ * ponto como acompanhamento. Nada vira decisão por aparecer aqui.
+ */
+function Fechamento({
+  estado,
+  falasAgora,
+  onRegistrar,
+}: {
+  estado: EstadoDaReuniao;
+  falasAgora: number;
+  onRegistrar: (ponto: Ponto) => Promise<ResultadoDoRegistro>;
+}) {
+  const [recibo, setRecibo] = useState<Record<string, string>>({});
+  const s = sintetizar(estado.snapshot, falasAgora);
+  const fechamento = estado.snapshot?.fechamento;
+  const registrar = async (p: Ponto) => {
+    const r = await onRegistrar(p);
+    setRecibo((x) => ({
+      ...x,
+      [p.id]:
+        r.tipo === 'recusado'
+          ? r.motivo
+          : r.jaExistia
+            ? 'Já estava em Acompanhamento.'
+            : 'Registrado em Acompanhamento.',
+    }));
+  };
+  const elegiveis = [...s.decidido, ...s.aConfirmar].filter(podeVirarAcompanhamento);
+  return (
+    <div className="tq-fechamento">
+      {s.limites.map((l) => (
+        <p key={l} className="tq-estado-nota">
+          {l}
+        </p>
+      ))}
+      {!s.vazia && (
+        <>
+          {s.decidido.length > 0 && (
+            <div>
+              <h4>Decidido</h4>
+              {lista(s.decidido)}
+            </div>
+          )}
+          {s.aConfirmar.length > 0 && (
+            <div>
+              <h4>A confirmar (proposto, ninguém fechou)</h4>
+              {lista(s.aConfirmar)}
+            </div>
+          )}
+          {s.emAberto.length > 0 && (
+            <div>
+              <h4>Em aberto</h4>
+              {lista(s.emAberto)}
+            </div>
+          )}
+          {s.adiado.length > 0 && (
+            <div>
+              <h4>Adiado</h4>
+              {lista(s.adiado)}
+            </div>
+          )}
+          {s.semResponsavelOuPrazo.length > 0 && (
+            <div>
+              <h4>Ainda sem definir</h4>
+              <ul>
+                {s.semResponsavelOuPrazo.map(({ ponto, falta }) => (
+                  <li key={ponto.id}>
+                    {ponto.texto}: {falta.join(' e ')} não {falta.length > 1 ? 'definidos' : 'definido'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {fechamento && (
+            <blockquote className="tq-apoio-pergunta">
+              <span className="tq-apoio-aviso">Sugestão de fechamento — não é uma fala registrada</span>“{fechamento.texto}”
+            </blockquote>
+          )}
+          {elegiveis.length > 0 && (
+            <div>
+              <h4>Registrar em Acompanhamento</h4>
+              <ul className="tq-fechamento-registrar">
+                {elegiveis.map((p) => (
+                  <li key={p.id}>
+                    <span>{p.texto}</span>
+                    <button type="button" onClick={() => void registrar(p)}>
+                      Registrar como acompanhamento
+                    </button>
+                    {recibo[p.id] && <span role="status">{recibo[p.id]}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="tq-estado-nota">
+                Só vira acompanhamento o que você registrar aqui. Responsável e prazo entram só se foram ditos.
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function EstadoDosPontos({
   meetingId,
   estado,
   aberto,
   onAlternar,
   taqPronto,
+  falasAgora = 0,
+  onRegistrar,
+  fechamentoAberto = false,
+  onAlternarFechamento,
 }: {
   meetingId: string;
   estado: EstadoDaReuniao;
   aberto: boolean;
   onAlternar: () => void;
   taqPronto: boolean;
+  /** Quantas falas a transcrição tem agora: a síntese diz se a leitura ficou para trás. */
+  falasAgora?: number;
+  onRegistrar?: (ponto: Ponto) => Promise<ResultadoDoRegistro>;
+  fechamentoAberto?: boolean;
+  onAlternarFechamento?: () => void;
 }) {
   const { snapshot, atualizando, erro, lidoAte } = estado;
   const pontos = [...(snapshot?.pontos ?? [])].sort((a, b) => ORDEM[a.estado] - ORDEM[b.estado]);
@@ -126,10 +253,18 @@ export function EstadoDosPontos({
               Não consegui atualizar: {erro.replace(/[.\s]+$/, '')}. O que estava guardado continua.
             </p>
           )}
+          {fechamentoAberto && onRegistrar && (
+            <Fechamento estado={estado} falasAgora={falasAgora} onRegistrar={onRegistrar} />
+          )}
           <div className="tq-estado-rodape">
             <button type="button" disabled={!taqPronto || atualizando} onClick={() => void estado.atualizar()}>
               {atualizando ? 'Lendo a reunião…' : snapshot ? 'Atualizar' : 'Ler a reunião'}
             </button>
+            {onAlternarFechamento && (
+              <button type="button" aria-expanded={fechamentoAberto} onClick={onAlternarFechamento}>
+                {fechamentoAberto ? 'Esconder o fechamento' : 'Fechar a reunião'}
+              </button>
+            )}
             {!taqPronto && <span>O assistente não está conectado.</span>}
             {lidoAte !== null && taqPronto && <span>Lido até a fala {lidoAte}. É uma leitura do Taq: corrija se estiver errada.</span>}
           </div>
