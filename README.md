@@ -79,7 +79,12 @@ compilada e um perfil temporário isolado — nunca o perfil pessoal:
 npm run build
 node scripts/verify-apagar.cjs <caminho-do-playwright-core>
 node scripts/verify-meetings-documents.cjs <caminho-do-playwright-core>
+node scripts/verify-preparar.cjs <caminho-do-playwright-core> <pasta-da-build>
 ```
+
+(`verify-preparar` precisa da build de desenvolvimento:
+`npx vite build --mode development --outDir <pasta>`; o resultado fica em
+`docs/verification/preparar/`.)
 
 Os relatórios e as capturas ficam em [`docs/verification/`](docs/verification):
 [apagar](docs/verification/apagar/RELATORIO.md) e
