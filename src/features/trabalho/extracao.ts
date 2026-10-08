@@ -95,15 +95,24 @@ const VERBO_DE_ACAO =
 
 /** "eu vou enviar", "vou revisar", "farei", "fico de mandar". */
 const AUTO_ATRIBUICAO = new RegExp(
-  `\\b(eu\\s+)?(vou|irei|fico\\s+de|ficarei\\s+de|me\\s+comprometo\\s+a|posso)\\s+(?:\\w+\\s+){0,2}?${VERBO_DE_ACAO}\\b|\\b(farei|enviarei|mandarei|revisarei|prepararei|verificarei|atualizarei|criarei|ligarei)\\b`,
+  `\\b(eu\\s+)?(vou|irei|fico\\s+de|ficarei\\s+de|me\\s+comprometo\\s+a)\\s+(?:\\w+\\s+){0,2}?${VERBO_DE_ACAO}\\b|\\b(farei|enviarei|mandarei|revisarei|prepararei|verificarei|atualizarei|criarei|ligarei)\\b`,
 );
 
 /** "Ana vai enviar", "Bruno fica com", "Carla é responsável por". */
 const ATRIBUICAO_A_TERCEIRO =
   /\b([a-z]{2,})\s+(vai|ficou\s+de|fica\s+com|ficara\s+com|e\s+responsavel\s+por|assume|cuida\s+d[aeo]s?|fica\s+responsavel)\b/;
 
+/**
+ * Só marcadores de ACORDO. "Precisamos de", "temos que" e "tem que" dizem uma
+ * necessidade ou um desejo ("acho que precisamos de um aplicativo"), não um
+ * combinado: viram pergunta ou lacuna na condução, nunca tarefa.
+ */
 const COMBINADO_GERAL =
-  /\b(ficou\s+combinado|combinamos|proximos?\s+passos?|acao:|to-do|a\s+fazer|pendencia|temos\s+que|tem\s+que|precisamos\s+(de|que)?|precisa-se|vamos\s+precisar|ficamos\s+de|ficou\s+de)\b/;
+  /\b(ficou\s+combinado|combinamos|proximos?\s+passos?|acao:|ficamos\s+de|ficou\s+de)\b/;
+
+/** Hipótese, desejo ou oferta: o trecho não registra um compromisso. */
+const SEM_COMPROMISSO =
+  /\b(acho\s+que|talvez|quem\s+sabe|seria\s+bom|seria\s+interessante|poderia(?:mos)?|gostaria(?:mos)?|pode\s+ser\s+que|se\s+der|caso\s+\w+\s+(?:queira|precise)|e\s+se)\b/;
 
 const DIAS = '(segunda|terca|quarta|quinta|sexta|sabado|domingo)(-feira)?';
 const PRAZO = new RegExp(
@@ -149,6 +158,7 @@ function candidatoDaFrase(
   if (frase.trim().endsWith('?')) return null;
   if (frase.split(/\s+/).length < MIN_PALAVRAS) return null;
   const p = plano(frase);
+  if (SEM_COMPROMISSO.test(p)) return null;
 
   const auto = AUTO_ATRIBUICAO.test(p);
   const terceiro = ATRIBUICAO_A_TERCEIRO.exec(p);

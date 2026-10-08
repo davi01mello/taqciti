@@ -89,6 +89,18 @@ describe('o que vira candidato', () => {
     ).toHaveLength(0);
   });
 
+  it('necessidade, desejo, hipótese e oferta não são combinado', () => {
+    const falas = [
+      'Acho que precisamos de um aplicativo.',
+      'Precisamos de mais clareza sobre o processo atual.',
+      'Temos que entender onde o atendimento trava.',
+      'Talvez eu vou enviar o material depois.',
+      'Posso enviar a proposta se vocês quiserem.',
+      'Seria bom revisar os números do trimestre.',
+    ];
+    expect(extrairCandidatos(entrada(falas.map((t, i) => fala('Ana Duarte', t, i))))).toHaveLength(0);
+  });
+
   it('falante sem nome não vira responsável', () => {
     const [c] = extrairCandidatos(entrada([fala(null, 'Eu vou enviar a proposta amanhã de manhã.')]));
     expect(c!.novo.responsavel).toBeNull();
