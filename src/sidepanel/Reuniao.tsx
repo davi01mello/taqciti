@@ -72,8 +72,10 @@ import { papelDoFalante } from '@/features/integracoes/colegas';
 import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 import { useAvisosDaReuniao } from '@/features/avisos/useAvisosDaReuniao';
+import { useApoioAoVivo } from '@/features/apoio/useApoio';
 import { souOrganizador, useAvisosVisiveis } from '@/features/avisos/useAvisos';
 import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
+import { CartaoDeApoio } from './CartaoDeApoio';
 import { SugestoesDoOrganizador } from './SugestoesDoOrganizador';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
@@ -149,6 +151,8 @@ export function Reuniao({
 
   // Avisos do acompanhamento e da captura: só gravam.
   useAvisosDaReuniao(state);
+  // Apoio à condução: sugestões privadas, no máximo uma por vez, só com perfil e assistente.
+  const apoio = useApoioAoVivo(state, taqPronto);
   const organizador = souOrganizador(sessao?.participants);
   const avisos = useAvisosVisiveis({
     ...(meetingId ? { reuniaoId: meetingId } : {}),
@@ -249,6 +253,8 @@ export function Reuniao({
           setAvisosAberto((v) => !v);
         }}
       />
+
+      <CartaoDeApoio meetingId={sessao.meetingId} apoio={apoio} />
 
       {avisosAberto && (
         <SugestoesDoOrganizador
