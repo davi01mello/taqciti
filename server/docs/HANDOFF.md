@@ -476,7 +476,6 @@ Do autor, e valendo desde o começo:
 
 - **Não altere o contrato de `/api/generate`** além do header de chave e da
   trava de política de dados (que só age em free tier).
-- **Não mexa em `server/Legado/`.**
 - **Não preencha os templates de `x1`, `daily`, `planning`, `review`** — não há
   modelo para eles. Eles geram seção única e genérica, e isso é esperado. O que
   não pode é quebrar.

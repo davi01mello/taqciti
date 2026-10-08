@@ -504,13 +504,3 @@ perguntas, respostas) usa `generateStep` ou `/api/ai/secao` direto. Ver
 nativo, sem navegador headless). É o formato que a extensão baixa por
 padrão; `html` continua existindo como fallback e para o caminho OAuth
 direto ao Google Docs, que precisa de HTML.
-
-## DocCiti (mockup do hero animado) — descontinuado
-
-O mockup HTML standalone da tela de geração de documento (a animação de onda
-reativa ao cursor/clique) foi descartado como frontend: o fluxo real de
-geração agora vive inteiro dentro da extensão TaqCiti, sem nenhum caminho que
-leve pra fora dela. Os arquivos ficam arquivados, só como referência
-histórica, em [`Legado/`](Legado/) — fora de `public/`, então não são mais
-servidos por este servidor. Detalhes de manutenção da animação (caso algum
-dia vire algo reaproveitável) em [`Legado/HANDOFF.md`](Legado/HANDOFF.md).
