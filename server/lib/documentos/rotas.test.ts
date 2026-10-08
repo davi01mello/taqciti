@@ -206,8 +206,8 @@ describe('POST /api/documentos/renderizar', () => {
 
   it('sem chave: 401; árvore com bloco não suportado: 422; variante inexistente: não vira 200', async () => {
     expect((await post(renderizar, { arvore }, null)).status).toBe(401);
-    const tabela = { ...arvore, blocos: [{ tipo: 'tabela', blockId: 't', cabecalho: ['a'], linhas: [['1']] }] };
-    expect((await post(renderizar, { arvore: tabela })).status).toBe(422);
+    const imagem = { ...arvore, blocos: [{ tipo: 'imagem', blockId: 't', ativoId: 'a', textoAlternativo: 'x' }] };
+    expect((await post(renderizar, { arvore: imagem })).status).toBe(422);
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect((await post(renderizar, { arvore, variante: 'nao-existe' })).status).toBeGreaterThanOrEqual(400);
     spy.mockRestore();

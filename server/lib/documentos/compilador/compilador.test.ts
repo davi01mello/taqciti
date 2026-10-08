@@ -116,12 +116,12 @@ describe('compilarPdf', { timeout: 30_000 }, () => {
   });
 
   it('recusa bloco que o compilador ainda não monta, e documento vazio', async () => {
-    const tabela = contentTreeSchema.parse({
+    const imagem = contentTreeSchema.parse({
       revisao: 0,
       titulo: 'x',
-      blocos: [{ tipo: 'tabela', blockId: 't', cabecalho: ['a'], linhas: [['1']] }],
+      blocos: [{ tipo: 'imagem', blockId: 't', ativoId: 'a', textoAlternativo: 'x' }],
     });
-    await expect(compilarPdf(tabela)).rejects.toThrow(/ainda não é suportado/);
+    await expect(compilarPdf(imagem)).rejects.toThrow(/ainda não é suportado/);
     await expect(compilarPdf(contentTreeSchema.parse({ revisao: 0, titulo: 'x', blocos: [] }))).rejects.toThrow();
   });
 
@@ -139,5 +139,42 @@ describe('compilarPdf', { timeout: 30_000 }, () => {
       /não pode ser aplicada/,
     );
     await expect(compilarPdf(arvoreDeExemplo(), { variante: 'inexistente' })).rejects.toThrow(/não existe/);
+  });
+});
+
+describe('tabelas', { timeout: 30_000 }, () => {
+  const linhas = (n: number) =>
+    Array.from({ length: n }, (_, i) => [
+      `Item ${i + 1}`,
+      i % 7 === 0 ? '**Total** com um texto mais longo que precisa quebrar em duas ou três linhas dentro da célula' : 'Descrição curta',
+      `R$ ${(i + 1) * 1000}`,
+    ]);
+  const arvoreComTabela = (n: number) =>
+    contentTreeSchema.parse({
+      revisao: 1,
+      titulo: 'Orçamento',
+      blocos: [
+        { tipo: 'capa', blockId: 'capa', titulo: 'Orçamento' },
+        { tipo: 'titulo', blockId: 't1', nivel: 1, texto: 'Itens' },
+        { tipo: 'tabela', blockId: 'tab', cabecalho: ['Item', 'Descrição', 'Valor'], linhas: linhas(n), legenda: 'Fonte: reunião de 08/10.' },
+        paragrafo('p', 'Texto depois da tabela.'),
+      ],
+    });
+
+  for (const variante of ['ata', 'editorial']) {
+    it(`${variante}: tabela curta cabe e a longa atravessa páginas, sem estourar`, async () => {
+      const curta = await compilarPdf(arvoreComTabela(4), { variante });
+      const longa = await compilarPdf(arvoreComTabela(90), { variante });
+      expect(curta.pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      expect(longa.manifesto.paginas!).toBeGreaterThan(curta.manifesto.paginas!);
+      expect(longa.manifesto.paginas!).toBeGreaterThanOrEqual(4);
+
+      const pasta = process.env.DOCUMENTOS_AMOSTRAS;
+      if (pasta) writeFileSync(join(pasta, `tabela-${variante}.pdf`), longa.pdf);
+    });
+  }
+
+  it('tabela com cabeçalho e uma só linha também compila', async () => {
+    expect((await compilarPdf(arvoreComTabela(1), { variante: 'editorial' })).manifesto.paginas).toBeGreaterThanOrEqual(2);
   });
 });

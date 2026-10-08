@@ -761,7 +761,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     limitacoes: [
       'O padrão visual do CITi ainda é provisório: não foi validado por um responsável.',
       'Só PDF por enquanto; Word (.docx) ainda não existe.',
-      'Tabelas, imagens e sumário ainda não são geradas.',
+      'Tabelas saem do pedido; imagens e sumário ainda não são geradas.',
       'A fonte do documento é a reunião aberta; para usar outras reuniões, peça ao Taq.',
     ],
     rotulos: [

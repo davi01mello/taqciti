@@ -67,8 +67,22 @@ describe('markdown da árvore', () => {
 
   it('bloco que o servidor ainda não monta não ganha representação inventada', () => {
     const a = arvore(1);
-    a.blocos.push({ tipo: 'tabela', blockId: 'x', fontes: [], origem: 'agente' });
-    expect(arvoreParaMarkdown(a)).not.toContain('tabela');
+    a.blocos.push({ tipo: 'imagem', blockId: 'x', fontes: [], origem: 'agente' });
+    expect(arvoreParaMarkdown(a)).not.toContain('imagem');
+  });
+
+  it('a tabela vira tabela em markdown, com a legenda abaixo', () => {
+    const a = arvore(1);
+    a.blocos.push({
+      tipo: 'tabela',
+      blockId: 'tab',
+      cabecalho: ['Item', 'Valor'],
+      linhas: [['A | B', 'R$ 1']],
+      legenda: 'Fonte: reunião.',
+      fontes: [],
+      origem: 'agente',
+    });
+    expect(arvoreParaMarkdown(a)).toContain('| Item | Valor |\n| --- | --- |\n| A \\| B | R$ 1 |\n_Fonte: reunião._');
   });
 });
 

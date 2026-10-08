@@ -335,3 +335,55 @@ describe('editarDocumentoPersonalizado', () => {
     ).rejects.toBeInstanceOf(ErroDeGeracao);
   });
 });
+
+describe('tabelas na geração', () => {
+  const tabela = (over: Record<string, unknown> = {}) => ({
+    tipo: 'tabela',
+    cabecalho: ['Item', 'Situação'],
+    linhas: [
+      ['Integração', 'Gargalo principal'],
+      ['Piloto', 'Começa no financeiro', 'coluna extra que deve ser descartada'],
+      ['Prazo'],
+    ],
+    legenda: 'Resumo do diagnóstico.',
+    classificacao: 'fato',
+    fontes: [{ fonteId: 'm-aurora', trecho: 'O maior gargalo está na integração com o sistema legado.' }],
+    ...over,
+  });
+
+  it('tabela sustentada entra, com as linhas normalizadas para o número de colunas', async () => {
+    complete.mockResolvedValue(reply({ ...geracaoValida, secoes: [{ titulo: 'Quadro', blocos: [tabela()] }] }));
+    const r = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    const bloco = r.arvore.blocos.find((b) => b.tipo === 'tabela');
+    expect(bloco).toMatchObject({
+      cabecalho: ['Item', 'Situação'],
+      linhas: [
+        ['Integração', 'Gargalo principal'],
+        ['Piloto', 'Começa no financeiro'],
+        ['Prazo', ''],
+      ],
+      legenda: 'Resumo do diagnóstico.',
+    });
+    expect(r.pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('tabela de fatos sem citação localizável é removida como qualquer fato', async () => {
+    complete.mockResolvedValue(
+      reply({
+        ...geracaoValida,
+        secoes: [
+          ...geracaoValida.secoes,
+          { titulo: 'Orçamento', blocos: [tabela({ fontes: [{ fonteId: 'm-aurora', trecho: 'custo de R$ 9 milhões' }] })] },
+        ],
+      }),
+    );
+    const r = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    expect(r.arvore.blocos.some((b) => b.tipo === 'tabela')).toBe(false);
+    expect(r.relatorio.problemas[0]).toMatchObject({ tipo: 'sustentacao' });
+  });
+
+  it('tabela sem colunas é descartada como inválida, sem exceção', () => {
+    const r = blocoDoModelo(tabela({ cabecalho: [] }), 'b1', { locators: localizadoresDe([FONTE_A]), origem: 'agente' });
+    expect(r).toMatchObject({ problema: { tipo: 'estrutural' } });
+  });
+});

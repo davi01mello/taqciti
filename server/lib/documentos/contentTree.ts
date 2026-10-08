@@ -110,6 +110,7 @@ export const TIPOS_COMPILAVEIS: readonly TipoDeBloco[] = [
   'titulo',
   'paragrafo',
   'lista',
+  'tabela',
   'quebra_de_secao',
 ];
 

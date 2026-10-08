@@ -13,6 +13,7 @@ import { FONTE_NEGRITO, FONTE_REGULAR } from '../../render/fonts';
 import type { Bloco, ContentTree } from '../contentTree';
 import type { EstiloDoPerfil, PapelDeEstilo, VarianteVisual } from '../perfil';
 import { FONTE_MONO, FONTE_MONO_NEGRITO, imagemEditorial } from './recursos';
+import { desenharTabela, type TemaDeTabela } from './tabela';
 import { escreverRico, textoPlano } from './texto';
 
 type Doc = PDFKit.PDFDocument;
@@ -224,6 +225,41 @@ function desenharLista(ctx: ContextoEditorial, bloco: Extract<Bloco, { tipo: 'li
   doc.y += 3;
 }
 
+function desenharTabelaEditorial(ctx: ContextoEditorial, bloco: Extract<Bloco, { tipo: 'tabela' }>): void {
+  const { doc } = ctx;
+  const cab = estilo(ctx, 'tabela_cabecalho');
+  const cel = estilo(ctx, 'tabela_celula');
+  const tema: TemaDeTabela = {
+    x: 54,
+    largura: LARGURA - 108,
+    fonteCabecalho: cab.fontePdf,
+    tamanhoCabecalho: cab.tamanhoPt,
+    corCabecalho: cab.cor,
+    fundoCabecalho: cor(ctx, 'fundoDestaqueEscuro'),
+    caixaAltaNoCabecalho: true,
+    espacamentoDeLetras: 1.1,
+    fonteCelula: cel.fontePdf,
+    fonteCelulaNegrito: FONTE_NEGRITO,
+    tamanhoCelula: cel.tamanhoPt,
+    corCelula: cel.cor,
+    entrelinha: cel.entrelinha,
+    corDoFilete: cor(ctx, 'filete'),
+    fundoListra: cor(ctx, 'fundoTabelaSuave'),
+    corDoFileteFinal: cor(ctx, 'tinta'),
+    paddingX: 9,
+    paddingY: 7,
+    espacoDepois: 8,
+  };
+  desenharTabela(doc, bloco.cabecalho, bloco.linhas, tema, () => ALTURA - doc.page.margins.bottom);
+  if (bloco.legenda) {
+    const leg = estilo(ctx, 'legenda');
+    aplicar(doc, leg);
+    doc.text(bloco.legenda, 54, doc.y, { width: LARGURA - 108, lineGap: folga(doc, leg) });
+    doc.y += leg.espacoDepoisPt;
+  }
+  doc.y += 6;
+}
+
 // --- cabeçalho e rodapé (no fim) --------------------------------------------
 
 const aparar = (texto: string, max: number): string =>
@@ -329,6 +365,11 @@ export function desenharEditorial(ctx: ContextoEditorial): void {
       case 'lista':
         if (!doc.page) doc.addPage();
         desenharLista(ctx, bloco);
+        primeiroDaPagina = false;
+        break;
+      case 'tabela':
+        if (!doc.page) doc.addPage();
+        desenharTabelaEditorial(ctx, bloco);
         primeiroDaPagina = false;
         break;
       case 'quebra_de_secao':

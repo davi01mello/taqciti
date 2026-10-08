@@ -8,6 +8,8 @@
  * modelo da Ata vale para os dois.
  */
 import {
+  A4_ALTURA_PT,
+  A4_LARGURA_PT,
   CAPA_SUBTITULO_BASE_PT,
   desenharCapa,
   desenharCentralizado,
@@ -16,9 +18,12 @@ import {
   desenharTituloSecao,
   fluxoDeItem,
   fluxoDeParagrafo,
+  MARGEM_INFERIOR_PT,
+  MARGEM_PT,
 } from '../../render/pdf';
 import { FONTE_NEGRITO, FONTE_REGULAR } from '../../render/fonts';
 import {
+  CINZA_LINHA,
   COR_SUBTITULO_CAPA,
   GAP_PARAGRAFO_PT,
   TAMANHO_CORPO_PT,
@@ -28,6 +33,7 @@ import {
   TINTA,
 } from '../../render/typography';
 import type { Bloco, ContentTree } from '../contentTree';
+import { desenharTabela, type TemaDeTabela } from './tabela';
 import { escreverRico, textoPlano } from './texto';
 
 type Doc = PDFKit.PDFDocument;
@@ -89,6 +95,36 @@ function desenharCorpo(ctx: ContextoAta, bloco: Bloco): void {
       });
       doc.y += GAP_PARAGRAFO_PT;
       return;
+    case 'tabela': {
+      const tema: TemaDeTabela = {
+        x: MARGEM_PT,
+        largura: A4_LARGURA_PT - MARGEM_PT * 2,
+        fonteCabecalho: FONTE_NEGRITO,
+        tamanhoCabecalho: TAMANHO_ITEM_PT,
+        corCabecalho: TINTA,
+        fundoCabecalho: null,
+        caixaAltaNoCabecalho: false,
+        espacamentoDeLetras: 0,
+        fonteCelula: FONTE_REGULAR,
+        fonteCelulaNegrito: FONTE_NEGRITO,
+        tamanhoCelula: TAMANHO_ITEM_PT,
+        corCelula: TINTA,
+        entrelinha: 1.3,
+        corDoFilete: CINZA_LINHA,
+        fundoListra: null,
+        corDoFileteFinal: null,
+        paddingX: 6,
+        paddingY: 5,
+        espacoDepois: 6,
+      };
+      desenharTabela(doc, bloco.cabecalho, bloco.linhas, tema, () => A4_ALTURA_PT - MARGEM_INFERIOR_PT);
+      if (bloco.legenda) {
+        doc.font(FONTE_REGULAR).fontSize(TAMANHO_ITEM_PT).fillColor(TINTA);
+        doc.text(bloco.legenda, MARGEM_PT, doc.y, fluxoDeParagrafo(doc, TAMANHO_ITEM_PT));
+      }
+      doc.y += GAP_PARAGRAFO_PT;
+      return;
+    }
     case 'quebra_de_secao':
       doc.addPage();
       return;

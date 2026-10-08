@@ -34,8 +34,9 @@ export type Bloco =
   | (BlocoBase & { tipo: 'paragrafo'; texto: string })
   | (BlocoBase & { tipo: 'lista'; ordenada: boolean; itens: string[] })
   | (BlocoBase & { tipo: 'quebra_de_secao' })
+  | (BlocoBase & { tipo: 'tabela'; cabecalho: string[]; linhas: string[][]; legenda?: string })
   // Os demais tipos existem no servidor e ainda não são montados por ele.
-  | (BlocoBase & { tipo: 'tabela' | 'imagem' | 'referencia' | 'sumario' });
+  | (BlocoBase & { tipo: 'imagem' | 'referencia' | 'sumario' });
 
 export interface LacunaDoDocumento {
   blockId?: string;

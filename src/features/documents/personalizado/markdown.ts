@@ -15,10 +15,19 @@ function blocoEmMarkdown(bloco: Bloco): string | null {
       return bloco.texto;
     case 'lista':
       return bloco.itens.map((item, i) => (bloco.ordenada ? `${i + 1}. ${item}` : `- ${item}`)).join('\n');
+    case 'tabela': {
+      const linha = (celulas: string[]) => `| ${celulas.map((c) => c.replace(/\|/g, '\\|')).join(' | ')} |`;
+      return [
+        linha(bloco.cabecalho),
+        linha(bloco.cabecalho.map(() => '---')),
+        ...bloco.linhas.map(linha),
+        ...(bloco.legenda ? [`_${bloco.legenda}_`] : []),
+      ].join('\n');
+    }
     case 'quebra_de_secao':
       return '---';
     default:
-      // Tabela, imagem etc. não são geradas ainda: não inventa representação.
+      // Imagem, referência e sumário não são geradas ainda: não inventa representação.
       return null;
   }
 }

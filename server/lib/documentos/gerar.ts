@@ -96,9 +96,16 @@ const FONTES_SCHEMA: JsonSchema = {
 const BLOCO_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
-    tipo: { type: 'string', enum: ['paragrafo', 'lista'] },
-    texto: { type: 'string', description: 'Corpo do parágrafo. Omita em listas.' },
+    tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela'] },
+    texto: { type: 'string', description: 'Corpo do parágrafo. Omita em listas e tabelas.' },
     itens: { type: 'array', items: { type: 'string' }, description: 'Itens da lista.' },
+    cabecalho: { type: 'array', items: { type: 'string' }, description: 'Nomes das colunas da tabela.' },
+    linhas: {
+      type: 'array',
+      items: { type: 'array', items: { type: 'string' } },
+      description: 'Linhas da tabela: uma célula por coluna.',
+    },
+    legenda: { type: 'string', description: 'Legenda curta da tabela (opcional).' },
     classificacao: { type: 'string', enum: ['fato', 'recomendacao'] },
     fontes: FONTES_SCHEMA,
   },
@@ -140,6 +147,9 @@ interface BlocoBruto {
   tipo?: string;
   texto?: string;
   itens?: string[];
+  cabecalho?: string[];
+  linhas?: string[][];
+  legenda?: string;
   nivel?: number;
   subtitulo?: string;
   classificacao?: string;
@@ -197,7 +207,8 @@ export function blocoDoModelo(
 ): { bloco: Bloco } | { problema: ProblemaDeQualidade } {
   const classificacao = bruto.classificacao === 'recomendacao' ? 'recomendacao' : 'fato';
   const fontes = classificacao === 'fato' ? citacoesLocalizadas(bruto, ctx.locators) : [];
-  const conteudo = bruto.texto ?? bruto.itens?.join(' ') ?? '';
+  const conteudo =
+    bruto.texto ?? bruto.itens?.join(' ') ?? bruto.linhas?.map((l) => l.join(' ')).join(' ') ?? '';
 
   if (classificacao === 'fato' && fontes.length === 0) {
     return {
@@ -222,6 +233,18 @@ export function blocoDoModelo(
         itens: (bruto.itens ?? []).filter((i) => i?.trim()),
       };
       break;
+    case 'tabela': {
+      const colunas = (bruto.cabecalho ?? []).map((c) => String(c ?? '').trim()).filter(Boolean);
+      candidato = {
+        ...comum,
+        tipo: 'tabela',
+        cabecalho: colunas,
+        // Uma célula por coluna: o que sobra é descartado, o que falta fica vazio.
+        linhas: (bruto.linhas ?? []).map((l) => colunas.map((_, i) => String(l?.[i] ?? ''))),
+        ...(bruto.legenda?.trim() ? { legenda: bruto.legenda.trim() } : {}),
+      };
+      break;
+    }
     case 'titulo':
       candidato = { ...comum, tipo: 'titulo', nivel: bruto.nivel ?? 1, texto: bruto.texto };
       break;
@@ -441,11 +464,14 @@ const SCHEMA_DE_EDICAO: JsonSchema = {
           bloco: {
             type: 'object',
             properties: {
-              tipo: { type: 'string', enum: ['paragrafo', 'lista', 'titulo', 'capa'] },
+              tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela', 'titulo', 'capa'] },
               texto: { type: 'string' },
               subtitulo: { type: 'string' },
               nivel: { type: 'number' },
               itens: { type: 'array', items: { type: 'string' } },
+              cabecalho: { type: 'array', items: { type: 'string' } },
+              linhas: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+              legenda: { type: 'string' },
               classificacao: { type: 'string', enum: ['fato', 'recomendacao'] },
               fontes: FONTES_SCHEMA,
             },
@@ -468,7 +494,9 @@ export function descreverBlocos(arvore: ContentTree): string {
       const corpo =
         b.tipo === 'lista'
           ? b.itens.map((i) => `  - ${i}`).join('\n')
-          : b.tipo === 'capa'
+          : b.tipo === 'tabela'
+            ? [b.cabecalho.join(' | '), ...b.linhas.map((l) => l.join(' | '))].join('\n')
+            : b.tipo === 'capa'
             ? `${b.titulo}${b.subtitulo ? ` | ${b.subtitulo}` : ''}`
             : 'texto' in b
               ? b.texto
