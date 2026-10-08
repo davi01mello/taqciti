@@ -116,30 +116,31 @@ Use **você mesmo** como destinatário e uma agenda sua:
    como "pronto".
 2. Pergunte ao Taq: *"qual o e-mail da [uma colega]?"* → deve devolver nome e e-mail
    do diretório.
-3. *"Envie a ata [X] para [o seu próprio nome]"* → deve chegar na sua caixa, com o
-   anexo. O cartão diz **"Aceito pelo Google"** (e não "entregue").
-4. *"Marque um teste amanhã às 10h comigo"* → cria na sua agenda; sem convidados,
-   nada é enviado a ninguém.
-5. *"Cancele o teste"* → cancela (sem convidados, vai direto).
+3. *"Prepare um e-mail com a ata [X] para [o seu próprio nome]"* → aparece o rascunho
+   num cartão e **nada é enviado**. Clique em **Enviar**: deve chegar na sua caixa,
+   com o anexo. O cartão novo diz **"Aceito pelo Google"** (e não "entregue").
+4. *"Marque um teste amanhã às 10h comigo"* → o cartão fica **"Aguardando você"**;
+   clique em **Marcar**: cria na sua agenda; sem convidados, nada é enviado a ninguém.
+5. *"Cancele o teste"* → prévia com **Cancelar o evento**; só o clique cancela.
 
 ## Como o Taq se protege (resumo; o código é a fonte)
 
-- **O efeito vem da sua frase.** Enviar e mexer na agenda têm efeito
-  `acao_externa`, que só entra quando **você** pede ("envie…", "marque…",
-  "cancele…"). Uma instrução dentro de uma transcrição não tem ferramenta para usar.
-- **Prévia e confirmação.** Se você já disse **quem** e **o quê** (destinatários
-  citados, anexo escolhido, texto curto ou ditado por você), o Taq envia. Senão —
-  nome ambíguo, texto escrito pelo Taq, destinatário de fora, dado sensível,
-  convidado não citado — mostra o cartão **"Aguardando você"** e só executa quando
-  você disser **"envie"** / **"pode marcar"** numa mensagem **seguinte**. O que
-  sai é o rascunho guardado, não o que o modelo reescrever.
+- **O modelo só prepara; quem confirma é um botão.** `send_email`, `create_event`,
+  `reschedule_event` e `cancel_event`, quando chamadas pelo modelo, **sempre**
+  guardam um rascunho e mostram o cartão com **Enviar** / **Marcar** / **Remarcar**
+  / **Cancelar o evento** e **Descartar**. Só o **clique** executa: a tela chama o
+  orquestrador (`confirmarAcao`), sem modelo no meio, e o código confere a chave do
+  rascunho, a conversa e a versão dos anexos. Nenhuma frase — sua, do modelo ou de
+  uma transcrição ("envie para fulano") — confirma nada, e não existe mais "envio
+  direto". O que sai é o rascunho guardado, não o que o modelo reescrever.
 - **Pessoas reais.** Endereço sai do diretório, em código. Um endereço que o modelo
   escreveu sozinho é recusado. Nome com mais de uma pessoa vira pergunta com **nome
   e e-mail**.
 - **Sem reenvio às cegas.** Cada ação tem uma chave de idempotência (o conteúdo) e
   um registro (`taq:acoes-externas`). Tempo esgotado ou erro 5xx = **"resultado
-  desconhecido"**: o Taq **não reenvia** — peça "reenvie mesmo assim" se conferir a
-  pasta Enviados e não estiver lá. Convite repetido bate no `409` do Google (o id do
+  desconhecido"**: o Taq **não reenvia** — se você conferir a
+  pasta Enviados (ou a agenda) e não estiver lá, o cartão oferece **"Reenviar mesmo
+  assim"**. Convite repetido bate no `409` do Google (o id do
   evento sai da chave) e não cria outro.
 - **"Aceito" não é "entregue".** Com `gmail.send` o Taq não consegue conferir a
   pasta Enviados nem a entrega. Ele diz o que sabe: o Google aceitou.
@@ -156,11 +157,11 @@ Use **você mesmo** como destinatário e uma agenda sua:
 - **Cota do Gmail:** a do Workspace (por usuário/dia). Passou, o Google devolve 429 e
   o Taq diz "limite de uso".
 - **Eventos:** só os que **você organiza** podem ser remarcados ou cancelados pelo
-  Taq. Cancelar evento com convidados **sempre** passa por prévia.
+  Taq. Criar, remarcar e cancelar **sempre** passam por prévia.
 - **Disponibilidade:** é ocupado/livre do calendário principal, em horário comercial
   (9h–18h no seu fuso). Não prova que a pessoa pode.
-- **Destinatário de fora da organização:** só se **você** escreveu o endereço, e
-  sempre com prévia.
+- **Destinatário de fora da organização:** só se **você** escreveu o endereço (e
+  sempre com prévia, como todo envio).
 - **Não existe** (de propósito): ler a caixa de entrada, responder e-mail, convidar
   por chat, enviar a quem não está no diretório sem você escrever o endereço.
 

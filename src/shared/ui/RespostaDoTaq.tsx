@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { Icon } from './Icon';
 import { Markdown } from './Markdown';
 import { BotaoCopiar } from './BotaoCopiar';
+import type { ResultadoDaConfirmacao } from '@/features/taq/orquestrador';
 import { CartoesDoTaq } from './CartoesDoTaq';
 import { semMarcadores } from '@/features/taq/evidencias';
 import './respostaDoTaq.css';
@@ -58,6 +59,8 @@ interface Props {
   onAbrirReuniao?: (id: string) => void;
   /** Desfazer uma exclusão que está na lixeira. Resolve `true` se voltou. */
   onDesfazer?: (id: string) => Promise<boolean>;
+  /** Confirma, pelo botão do cartão, uma ação externa preparada. Resolve com o desfecho real. */
+  onConfirmarAcao?: (conversaId: string, chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>;
   /** A conversa da mensagem — o rascunho de mensagem é editado dentro dela. */
   conversaId?: string;
 }
@@ -69,6 +72,7 @@ export function RespostaDoTaq({
   onEscolherOpcao,
   onAbrirReuniao,
   onDesfazer,
+  onConfirmarAcao,
   conversaId,
 }: Props) {
   const {
@@ -105,6 +109,9 @@ export function RespostaDoTaq({
           {...(conversaId ? { conversaId } : {})}
           onAbrirFonte={onAbrirFonte}
           onAbrirDocumento={onAbrirDocumento}
+          {...(onConfirmarAcao && conversaId
+            ? { onConfirmarAcao: (chave: string, repetir?: boolean) => onConfirmarAcao(conversaId, chave, repetir) }
+            : {})}
         />
       )}
 

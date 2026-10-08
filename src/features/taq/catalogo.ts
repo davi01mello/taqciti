@@ -304,8 +304,8 @@ export const ESPECIALISTAS: readonly DefinicaoDeAgente[] = [
     id: 'communication',
     nome: 'Comunicação',
     descricao:
-      'Prepara rascunhos de mensagem e, com a conta do CITi conectada, envia e-mail a colegas da organização, com documento ou transcrição anexados.',
-    finalidade: 'Rascunhar mensagens adequadas ao destinatário e, quando a pessoa pede, enviá-las, sem reenviar às cegas.',
+      'Prepara rascunhos de mensagem e, com a conta do CITi conectada, prepara o e-mail a colegas da organização, com documento ou transcrição anexados; quem envia é a pessoa, pelo botão do cartão.',
+    finalidade: 'Rascunhar mensagens adequadas ao destinatário e deixá-las prontas para a pessoa enviar pelo botão, sem reenviar às cegas.',
     entradas: ['destinatários', 'objetivo da mensagem', 'público (interno/externo)', 'fontes', 'documento ou transcrição a anexar'],
     saidas: ['rascunho editável e copiável (cartão)', 'prévia do envio', 'desfecho do envio (aceito, recusado ou desconhecido)'],
     capacidades: [
@@ -313,13 +313,13 @@ export const ESPECIALISTAS: readonly DefinicaoDeAgente[] = [
       'conferir nomes contra os participantes',
       'apontar conteúdo sensível',
       'procurar colegas no diretório da organização',
-      'enviar e-mail pela conta do CITi (só com a integração disponível)',
+      'preparar o envio de e-mail pela conta do CITi (só com a integração disponível); o envio é do botão',
     ],
     limites: [
       'sem a conta do CITi conectada, NÃO ENVIA: só rascunho para copiar',
       'endereço vem do diretório ou do que a pessoa escreveu — nunca inventado',
       'nome ambíguo vira pergunta antes de qualquer uso',
-      'sem pedido claro (destinatários e conteúdo), mostra prévia e espera a pessoa dizer "envie"',
+      'o modelo nunca envia: guarda a prévia, e só o clique no botão Enviar executa (nenhuma frase confirma)',
       '"aceito pelo Google" não é "entregue"; tempo esgotado é "desconhecido" e não se reenvia sozinho',
     ],
     fronteiras: [
@@ -344,23 +344,23 @@ export const ESPECIALISTAS: readonly DefinicaoDeAgente[] = [
     nome: 'Agendamento',
     descricao:
       'Sugere horários com fuso explícito e, com a conta do CITi conectada, consulta agendas, cria, remarca e cancela eventos.',
-    finalidade: 'Converter "amanhã às 14h" em horários corretos e, quando a pessoa pede, marcar de verdade.',
+    finalidade: 'Converter "amanhã às 14h" em horários corretos e deixar o evento pronto para a pessoa marcar pelo botão.',
     entradas: ['participantes', 'janela de datas', 'duração', 'assunto'],
     saidas: [
       'sugestões de horário (cartão) com link para o formulário do Google Agenda',
-      'prévia, e depois o evento criado, remarcado ou cancelado',
+      'prévia com botão; o evento criado, remarcado ou cancelado só aparece depois do clique',
     ],
     capacidades: [
       'resolver datas relativas no fuso de quem usa',
       'consultar compromissos relacionados',
       'consultar ocupado/livre dos colegas (só das agendas visíveis)',
-      'criar, remarcar e cancelar eventos na agenda da pessoa (só com a integração disponível)',
+      'preparar a criação, a remarcação e o cancelamento de eventos (só com a integração disponível); o botão executa',
     ],
     limites: [
       'sem a conta do CITi conectada, só sugere: não consulta agenda nem cria evento',
       'agenda que a conta não enxerga = disponibilidade DESCONHECIDA, nunca "livre"',
       'fala numa reunião sobre marcar outro encontro é sugestão: só a pessoa, na conversa, autoriza criar',
-      'convite com convidados passa por prévia, salvo pedido claro; cancelar com convidados sempre',
+      'toda criação, remarcação e cancelamento passa por prévia; só o clique no botão executa',
     ],
     fronteiras: ['Não é o `commitments`: agenda encontros, não acompanha entregas.'],
     usaModelo: true,

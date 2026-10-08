@@ -41,6 +41,7 @@ import type {
 import type { EstadoDoAgente } from '@/features/agent/atividade';
 import { anunciarEscrita } from '@/features/agent/escuta';
 import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
+import type { ResultadoDaConfirmacao } from '@/features/taq/orquestrador';
 import { EstadoDaExecucao, RespostaDoTaq } from '@/shared/ui/RespostaDoTaq';
 import { Icon } from '@/shared/ui/Icon';
 import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
@@ -72,6 +73,8 @@ interface Props {
   onAbrirDocumento?: (id: string) => void;
   /** Desfazer uma exclusão feita pelo Taq (lixeira). */
   onDesfazer?: (id: string) => Promise<boolean>;
+  /** Confirma, pelo botão do cartão, uma ação externa preparada. */
+  onConfirmarAcao?: (conversaId: string, chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>;
 }
 
 const ALTURA_MAXIMA = 140;
@@ -96,6 +99,7 @@ export function Conversa({
   onAbrirFonte = () => {},
   onAbrirDocumento = () => {},
   onDesfazer,
+  onConfirmarAcao,
 }: Props) {
   const pronto = taq.fase === 'pronto';
   const trabalhando =
@@ -264,6 +268,7 @@ export function Conversa({
                   onAbrirFonte={onAbrirFonte}
                   onAbrirDocumento={onAbrirDocumento}
                   onDesfazer={onDesfazer}
+                  onConfirmarAcao={onConfirmarAcao}
                   onAbrirReuniao={(id) =>
                     onAbrirFonte({
                       ref: '',
@@ -310,6 +315,7 @@ export function Conversa({
       onAbrirFonte,
       onAbrirDocumento,
       onDesfazer,
+      onConfirmarAcao,
       onEnviar,
     ],
   );

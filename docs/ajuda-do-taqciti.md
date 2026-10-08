@@ -119,7 +119,7 @@ reunião, registrar e acompanhar compromissos, registrar decisão, comparar
 fontes, resolver achado, rascunho de mensagem, sugerir horário, estado da
 captura, revisar documento, revisar exposição e "O que o Taq faz".
 
-"Enviar e-mail", "agenda", "lembretes" e "copiloto automático" deixaram de ser
+"Enviar e-mail" (hoje: o Taq prepara e o botão **Enviar** do cartão confirma), "agenda", "lembretes" e "copiloto automático" deixaram de ser
 **planejado** e passaram a **indisponível**, com a resposta do que existe no
 lugar (rascunho copiável, sugestão de horário, Acompanhamento, pergunta sob
 pedido). Nenhum especialista do catálogo segue `planned`.

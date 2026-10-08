@@ -50,6 +50,7 @@ import {
 } from '@/features/agent/atividade';
 import {
   cancelarTaq,
+  confirmarAcaoDoTaq,
   desfazerExclusao,
   mensagemDoDesfecho,
   perguntarAoTaq,
@@ -255,6 +256,12 @@ export function App() {
   /** Estável: é dependência do histórico memorizado da conversa. */
   const desfazer = useCallback(
     (id: string) => desfazerExclusao(id, acoesDaTela),
+    [acoesDaTela],
+  );
+  /** Estável: é dependência do histórico memorizado. O botão do cartão confirma por aqui. */
+  const confirmarAcao = useCallback(
+    (conversaId: string, chave: string, repetir?: boolean) =>
+      confirmarAcaoDoTaq({ conversaId, chave, ...(repetir ? { repetir } : {}), acoes: acoesDaTela }),
     [acoesDaTela],
   );
   /** Como a última execução terminou quando não deixou resposta. */
@@ -626,6 +633,7 @@ export function App() {
             onAbrirFonte={abrirFonte}
             onAbrirDocumento={abrirDocumento}
             onDesfazer={desfazer}
+            onConfirmarAcao={confirmarAcao}
           />
         </Painel>
       </div>

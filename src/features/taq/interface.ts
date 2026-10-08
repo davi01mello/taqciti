@@ -39,7 +39,12 @@ import type { RegistroSelecionado } from './contratos';
 import { armazenamentoLocal } from './armazenamento';
 import { restaurarDaLixeira } from './lixeira';
 import { criarAdaptadorHttp, ErroDoModelo, type AdaptadorHttp } from './modelo';
-import { criarOrquestrador, type ExecucaoDoTaq, type Orquestrador } from './orquestrador';
+import {
+  criarOrquestrador,
+  type ExecucaoDoTaq,
+  type Orquestrador,
+  type ResultadoDaConfirmacao,
+} from './orquestrador';
 import type { AcoesDaInterface, EventoDeExecucao } from './tipos';
 
 // ------------------------------------------------------------ disponibilidade
@@ -142,6 +147,43 @@ export function cancelarTaq(): void {
 export async function desfazerExclusao(meetingId: string, acoes: AcoesDaInterface): Promise<boolean> {
   const r = await restaurarDaLixeira(meetingId, acoes.enviar);
   return r.ok;
+}
+
+/**
+ * O botão "Enviar" / "Marcar" / "Remarcar" / "Cancelar o evento" de um cartão:
+ * a pessoa confirma o rascunho guardado. Sem modelo no meio — é um CLIQUE, e é
+ * isso (e só isso) que o código aceita como confirmação. O desfecho vira uma
+ * mensagem do Taq na conversa, com o cartão do resultado.
+ *
+ * Nunca lança: falha vira `ok: false` com o motivo, para o botão mostrar.
+ */
+export async function confirmarAcaoDoTaq(p: {
+  conversaId: string;
+  chave: string;
+  repetir?: boolean;
+  acoes?: AcoesDaInterface;
+}): Promise<ResultadoDaConfirmacao> {
+  let r: ResultadoDaConfirmacao;
+  try {
+    r = await obterOrquestrador().confirmarAcao(p);
+  } catch (e) {
+    return {
+      execucaoId: '',
+      ok: false,
+      cartoes: [],
+      erro: { codigo: 'erro_interno', mensagem: (e as Error)?.message ?? 'erro' },
+      texto: 'Não foi feito: a confirmação falhou antes de chegar ao Google.',
+    };
+  }
+  // Só o desfecho real vai para a conversa; recusa antes de agir fica no botão.
+  if (r.cartoes.length)
+    await acrescentarResposta(p.conversaId, {
+      text: r.texto,
+      desfecho: 'concluido',
+      ...(r.execucaoId ? { execucaoId: r.execucaoId } : {}),
+      cartoes: r.cartoes,
+    }).catch(() => undefined);
+  return r;
 }
 
 /** A etapa que a interface mostra para cada evento. */

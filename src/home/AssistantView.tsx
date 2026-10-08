@@ -38,6 +38,7 @@ import { Icon } from '@/shared/ui/Icon';
 import type { EstadoDoAgente } from '@/features/agent/atividade';
 import { anunciarEscrita } from '@/features/agent/escuta';
 import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
+import type { ResultadoDaConfirmacao } from '@/features/taq/orquestrador';
 import { EstadoDaExecucao, RespostaDoTaq } from '@/shared/ui/RespostaDoTaq';
 import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
 import { TrilhaDaConversa, marcasDasMensagens } from '@/shared/ui/TrilhaDaConversa';
@@ -76,6 +77,8 @@ interface Props {
   onAbrirDocumento: (id: string) => void;
   /** Desfazer uma exclusão feita pelo Taq (lixeira). */
   onDesfazer?: (id: string) => Promise<boolean>;
+  /** Confirma, pelo botão do cartão, uma ação externa preparada. */
+  onConfirmarAcao?: (conversaId: string, chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>;
 }
 
 export function AssistantView({
@@ -95,6 +98,7 @@ export function AssistantView({
   onAbrirFonte,
   onAbrirDocumento,
   onDesfazer,
+  onConfirmarAcao,
 }: Props) {
   const trabalhando =
     agente.atividade === 'preparando' || agente.atividade === 'escrevendo';
@@ -212,6 +216,7 @@ export function AssistantView({
                       onAbrirFonte={onAbrirFonte}
                       onAbrirDocumento={onAbrirDocumento}
                       onDesfazer={onDesfazer}
+                      onConfirmarAcao={onConfirmarAcao}
                       onAbrirReuniao={(id) =>
                         onAbrirFonte({
                           ref: '',
@@ -299,6 +304,7 @@ export function AssistantView({
       onAbrirFonte,
       onAbrirDocumento,
       onDesfazer,
+      onConfirmarAcao,
       onEnviar,
       onCancelar,
     ],

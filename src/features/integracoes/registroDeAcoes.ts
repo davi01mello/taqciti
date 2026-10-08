@@ -114,6 +114,21 @@ export async function guardarRascunho(p: {
   });
 }
 
+/**
+ * A pessoa desistiu do rascunho ("Descartar"). Só atua em `rascunho`: o que já
+ * foi enviado, está em curso ou tem resultado desconhecido não volta atrás.
+ * `conversaId`: o rascunho tem de ser desta conversa.
+ */
+export async function cancelarRascunho(chave: string, conversaId: string): Promise<boolean> {
+  return transacao((mapa, agora) => {
+    const atual = mapa[chave];
+    if (!atual || atual.estado !== 'rascunho' || atual.conversaId !== conversaId) return false;
+    atual.estado = 'cancelado';
+    atual.atualizadoEm = agora;
+    return true;
+  });
+}
+
 export type Reserva =
   | { tipo: 'reservado'; registro: RegistroDeAcao }
   /** Outra chamada está em curso. */

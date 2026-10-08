@@ -245,8 +245,8 @@ ele está ativo, o Taq não tem `create_document`: tem só a delegação.
 | `commitments` | modelo | `commitments-v1` | `list_commitments`, `suggest_commitments`, `register_commitments`, `update_commitment`, `link_dependency` |
 | `continuity` | modelo | `continuity-v1` | `list_decisions`, `record_decision`, `list_findings`, `resolve_finding` |
 | `handoff_analysis` | modelo | `handoff-v1` | `save_finding`, `list_findings`, `resolve_finding` |
-| `communication` | modelo | `communication-v1` | `prepare_message` (só rascunho) |
-| `scheduling` | modelo | `scheduling-v1` | `prepare_event` (só sugestão) |
+| `communication` | modelo | `communication-v3` | `prepare_message` (rascunho); com a conta do CITi, `send_email` só PREPARA a prévia — quem envia é o botão |
+| `scheduling` | modelo | `scheduling-v3` | `prepare_event` (sugestão); com a conta do CITi, `create_event`/`reschedule_event`/`cancel_event` só preparam — o botão executa |
 | `organizational_memory` | modelo | `memory-v1` | leitura + `list_decisions` |
 | `context` | modelo | `context-v1` | leitura + compromissos, decisões, achados, análise |
 | `meeting_copilot` | modelo | `copilot-v1` | `read_meeting`, `get_capture_state`, `list_decisions` |

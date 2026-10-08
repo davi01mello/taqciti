@@ -14,6 +14,7 @@ import { STORAGE_KEYS } from '@/shared/config/constants';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { lerTrabalho, registrarCompromissos } from '@/features/trabalho/store';
 import type { CartaoDaResposta } from '@/features/taq/contratos';
+import type { ResultadoDaConfirmacao } from '@/features/taq/orquestrador';
 import { CartoesDoTaq } from './CartoesDoTaq';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -54,10 +55,21 @@ afterEach(() => {
   palco.remove();
 });
 
-async function montar(cartoes: CartaoDaResposta[], onAbrirFonte = vi.fn()) {
+async function montar(
+  cartoes: CartaoDaResposta[],
+  onAbrirFonte = vi.fn(),
+  onConfirmarAcao?: (chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>,
+) {
   await act(async () => {
     raiz.render(
-      <CartoesDoTaq cartoes={cartoes} mensagemId="msg-1" conversaId="c-1" onAbrirFonte={onAbrirFonte} onAbrirDocumento={vi.fn()} />,
+      <CartoesDoTaq
+        cartoes={cartoes}
+        mensagemId="msg-1"
+        conversaId="c-1"
+        onAbrirFonte={onAbrirFonte}
+        onAbrirDocumento={vi.fn()}
+        {...(onConfirmarAcao ? { onConfirmarAcao } : {})}
+      />,
     );
   });
   // O storage responde em microtarefas: mais uma volta para os observadores.
@@ -174,5 +186,96 @@ describe('sem integração, sem botão de integração', () => {
     const link = [...palco.querySelectorAll('a')].find((a) => a.textContent === 'Abrir no Google Agenda')!;
     expect(new URL(link.href).searchParams.has('add')).toBe(false);
     expect(botao('Agendar')).toBeUndefined();
+  });
+});
+
+describe('ação externa: o botão é a confirmação', () => {
+  const rascunho = (chave?: string): CartaoDaResposta => ({
+    tipo: 'rascunho_de_mensagem',
+    canal: 'email',
+    publico: 'interno',
+    destinatarios: [{ nome: 'Bruno', endereco: 'bruno@citi.org.br', situacao: 'verificado' }],
+    assunto: 'Relatório',
+    corpo: 'Oi, Bruno!',
+    alertas: [],
+    ...(chave ? { chaveDoRascunho: chave } : {}),
+  });
+  const resposta = (estado: 'aceito' | 'falhou' | 'desconhecido', texto: string): ResultadoDaConfirmacao => ({
+    execucaoId: 'x1',
+    ok: true,
+    texto,
+    cartoes: [
+      { tipo: 'acao_externa', operacao: 'email', estado, titulo: 'Relatório', linhas: [], alertas: [], chaveDoRascunho: 'email:k1' },
+    ],
+  });
+
+  it('sem chave ou sem a ação da tela, não há botão de enviar', async () => {
+    await montar([rascunho()], vi.fn(), vi.fn());
+    expect(botao('Enviar')).toBeUndefined();
+    await montar([rascunho('email:k1')]);
+    expect(botao('Enviar')).toBeUndefined();
+  });
+
+  it('“Enviar” chama a ação com a chave, fica desabilitado enquanto roda, e só diz o que o desfecho real disse', async () => {
+    let concluir!: (r: ResultadoDaConfirmacao) => void;
+    const confirmar = vi.fn(() => new Promise<ResultadoDaConfirmacao>((r) => (concluir = r)));
+    await montar([rascunho('email:k1')], vi.fn(), confirmar);
+    expect(palco.textContent).not.toMatch(/aceitou|Aceito pelo Google/);
+    expect(botao('Descartar')).toBeTruthy();
+
+    await act(async () => botao('Enviar')!.click());
+    expect(confirmar).toHaveBeenCalledWith('email:k1', undefined);
+    expect(palco.querySelector<HTMLButtonElement>('button[disabled]')).toBeTruthy();
+    // Um segundo clique no meio do envio não chama de novo.
+    await act(async () => palco.querySelector<HTMLButtonElement>('button[disabled]')!.click());
+    expect(confirmar).toHaveBeenCalledTimes(1);
+
+    await act(async () => concluir(resposta('aceito', 'O Google aceitou o e-mail “Relatório”.')));
+    expect(palco.textContent).toContain('O Google aceitou o e-mail');
+    expect(botao('Enviar')).toBeUndefined();
+  });
+
+  it('resultado desconhecido: avisa para conferir Enviados e só reenvia com “Reenviar mesmo assim” (repetir)', async () => {
+    const confirmar = vi
+      .fn<(chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>>()
+      .mockResolvedValueOnce(resposta('desconhecido', 'Não sei se o e-mail “Relatório” foi feito.'))
+      .mockResolvedValueOnce(resposta('aceito', 'O Google aceitou o e-mail “Relatório”.'));
+    await montar([rascunho('email:k1')], vi.fn(), confirmar);
+    await act(async () => botao('Enviar')!.click());
+    expect(palco.textContent).toContain('Não sei se o e-mail');
+    expect(palco.textContent).toMatch(/confira a pasta Enviados/);
+    expect(botao('Enviar')).toBeUndefined();
+    await act(async () => botao('Reenviar mesmo assim')!.click());
+    expect(confirmar).toHaveBeenLastCalledWith('email:k1', true);
+    expect(palco.textContent).toContain('O Google aceitou');
+  });
+
+  it('recusa da ação aparece como erro, e o botão continua para tentar de novo', async () => {
+    const confirmar = vi.fn(async () => ({
+      execucaoId: 'x1',
+      ok: false,
+      cartoes: [],
+      erro: { codigo: 'anexo_mudou', mensagem: 'O documento mudou depois da prévia.' },
+      texto: 'Não foi feito: O documento mudou depois da prévia.',
+    }));
+    await montar([rascunho('email:k1')], vi.fn(), confirmar);
+    await act(async () => botao('Enviar')!.click());
+    expect(palco.querySelector('[role="alert"]')?.textContent).toContain('mudou depois da prévia');
+    expect(botao('Enviar') ?? botao('Tentar de novo')).toBeTruthy();
+  });
+
+  it('cartão de evento em prévia: “Marcar” e “Descartar”; cancelamento: “Cancelar o evento”', async () => {
+    const confirmar = vi.fn();
+    await montar(
+      [
+        { tipo: 'acao_externa', operacao: 'evento_criar', estado: 'aguardando_confirmacao', titulo: 'Retro', linhas: [], alertas: [], chaveDoRascunho: 'evento:k2' },
+        { tipo: 'acao_externa', operacao: 'evento_cancelar', estado: 'aguardando_confirmacao', titulo: 'Alinhamento', linhas: [], alertas: [], chaveDoRascunho: 'cancelar:k3' },
+      ],
+      vi.fn(),
+      confirmar,
+    );
+    expect(botao('Marcar')).toBeTruthy();
+    expect(botao('Cancelar o evento')).toBeTruthy();
+    expect(palco.textContent).not.toMatch(/diga “envie”/);
   });
 });
