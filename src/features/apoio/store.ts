@@ -412,6 +412,19 @@ export async function definirPausa(reuniaoId: string, pausada: boolean): Promise
   });
 }
 
+/** Apaga tudo o que o apoio guardou de uma reunião (sugestões, retornos, pausa, medição). Devolve quantas sugestões saíram. */
+export async function removerReuniaoDoApoio(reuniaoId: string): Promise<number> {
+  return transacao((a) => {
+    const { apoio, removidas } = semApoioDaReuniao(a, reuniaoId);
+    const mudou = removidas > 0 || reuniaoId in a.pausadas || reuniaoId in a.medicoes || a.feedback.length !== apoio.feedback.length;
+    a.sugestoes = apoio.sugestoes;
+    a.feedback = apoio.feedback;
+    a.pausadas = apoio.pausadas;
+    a.medicoes = apoio.medicoes;
+    return { resultado: removidas, mudou };
+  });
+}
+
 /**
  * A pessoa decidiu (aplicou ou recusou) uma proposta de ajuste deste tipo: só
  * retorno posterior a esta hora conta para propor o mesmo ajuste de novo.

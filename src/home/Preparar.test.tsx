@@ -16,6 +16,8 @@ import type { MeetingRecord } from '@/shared/types/domain';
 
 const proporPerfil = vi.fn();
 vi.mock('@/features/conducao/proposta', () => ({ proporPerfil: (...a: unknown[]) => proporPerfil(...a) }));
+const reproduzirReuniao = vi.fn();
+vi.mock('@/features/calibracao/historico', () => ({ reproduzirReuniao: (...a: unknown[]) => reproduzirReuniao(...a) }));
 
 import { PaginaPreparar } from './Preparar';
 
@@ -144,6 +146,130 @@ it('o briefing guarda o objetivo que a pessoa escreveu, e sem objetivo não há 
   expect(conducao()!.briefings[0]).toMatchObject({
     objetivo: 'Decidir se o piloto começa com uma ou duas unidades.',
     prioridades: ['Quem levanta os dados?', 'Quando revisamos?'],
+  });
+});
+
+describe('testar o assistente numa reunião passada', () => {
+  const COM_FALAS = {
+    ...REUNIAO,
+    id: 'm-9',
+    title: 'Planejamento passado',
+    segments: Array.from({ length: 8 }, (_, i) => ({
+      captionId: `c${i}`,
+      speaker: 'Ana',
+      text: `Fala ${i} sobre o planejamento da sprint.`,
+      startOffsetMs: i * 20_000,
+      endOffsetMs: i * 20_000 + 5_000,
+    })),
+  } as unknown as MeetingRecord;
+  const comPerfil = async () =>
+    salvarPerfil(
+      { missao: 'Apoiar o planejamento.', observar: [], intervencao: { modo: 'discreto', estilo: '' }, contexto: [], preferencias: [] },
+      0,
+    );
+  const montarCom = async (registros: MeetingRecord[]) => {
+    await act(async () => root.render(<PaginaPreparar registros={registros} />));
+    await esperar(() => host.querySelector('#tq-prep-reuniao') !== null);
+  };
+  const escolher = async () => {
+    const sel = [...host.querySelectorAll<HTMLSelectElement>('select')].find((s) =>
+      s.parentElement?.textContent?.includes('Reunião para reproduzir'),
+    )!;
+    await act(async () => {
+      sel.value = 'm-9';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  };
+
+  it('só aparece com perfil salvo e com reunião que tenha falas, e avisa que envia trechos ao provedor', async () => {
+    reproduzirReuniao.mockReset();
+    await montarCom([COM_FALAS]);
+    expect(host.textContent).not.toContain('Testar o assistente numa reunião passada');
+    await comPerfil();
+    await esperar(() => host.textContent!.includes('Testar o assistente numa reunião passada'));
+    expect(host.textContent).toContain('Envia trechos da reunião ao provedor de IA');
+    expect(host.textContent).toContain('só roda quando você clica');
+    // Reunião sem falas suficientes não é candidata.
+    await montarCom([REUNIAO]);
+    expect(host.textContent).not.toContain('Reunião para reproduzir');
+    expect(reproduzirReuniao).not.toHaveBeenCalled();
+  });
+
+  it('reproduz e mostra o relatório: o que sugeriria, quando, sobre o quê, com a fonte e até onde o Taq tinha lido', async () => {
+    reproduzirReuniao.mockReset();
+    reproduzirReuniao.mockImplementation(async (p: { aoAndar: (f: number, t: number) => void }) => {
+      p.aoAndar(1, 2);
+      p.aoAndar(2, 2);
+      return {
+        reuniaoId: 'm-9',
+        passos: 2,
+        avaliacoes: 2,
+        sugestoesGeradas: 1,
+        sugestoesMostradas: 1,
+        erros: 0,
+        paradoPeloTeto: false,
+        fontesValidas: true,
+        linhas: [
+          { noInstanteMs: 60_000, falasVistas: 4, falasConsolidadas: 2, acao: 'silencio', chamouOModelo: true },
+          {
+            noInstanteMs: 120_000,
+            falasVistas: 7,
+            falasConsolidadas: 5,
+            acao: 'mostrou',
+            chamouOModelo: true,
+            sugestao: { tipo: 'pergunta', ponto: 'Prazo da entrega', texto: 'Vale esclarecer o prazo.', pergunta: 'Qual é o prazo da entrega?', falasCitadas: [3, 4] },
+          },
+        ],
+      };
+    });
+    await comPerfil();
+    await montarCom([COM_FALAS]);
+    await esperar(() => host.textContent!.includes('Reunião para reproduzir'));
+    await escolher();
+    await act(async () => botao('Reproduzir')!.click());
+    await esperar(() => host.querySelector('[aria-label="Relatório do teste"]') !== null);
+
+    const r = host.querySelector('[aria-label="Relatório do teste"]')!.textContent!;
+    expect(r).toContain('2 avaliações, 1 sugestão que apareceria');
+    expect(r).toContain('Todas as fontes citadas existiam no corte');
+    expect(r).toContain('1:00 — Silêncio');
+    expect(r).toContain('2:00 — Sugeriria');
+    expect(r).toContain('“Qual é o prazo da entrega?”');
+    expect(r).toContain('sobre “Prazo da entrega” · falas 4, 5 · o Taq tinha lido até a fala 5');
+    // O teste usa a reunião escolhida e a transcrição dela, nunca grava nada na reunião.
+    const arg = reproduzirReuniao.mock.calls[0]![0] as { reuniao: { id: string }; falas: unknown[] };
+    expect(arg.reuniao.id).toBe('m-9');
+    expect(arg.falas).toHaveLength(8);
+  });
+
+  it('cancelar aborta o teste, e um erro do reprodutor é dito', async () => {
+    reproduzirReuniao.mockReset();
+    let sinal: AbortSignal | undefined;
+    let liberar!: () => void;
+    reproduzirReuniao.mockImplementation(
+      (p: { sinal: AbortSignal }) =>
+        new Promise((resolve) => {
+          sinal = p.sinal;
+          liberar = () => resolve({ reuniaoId: 'm-9', passos: 0, avaliacoes: 0, sugestoesGeradas: 0, sugestoesMostradas: 0, erros: 0, paradoPeloTeto: false, fontesValidas: true, linhas: [] });
+        }),
+    );
+    await comPerfil();
+    await montarCom([COM_FALAS]);
+    await esperar(() => host.textContent!.includes('Reunião para reproduzir'));
+    await escolher();
+    await act(async () => botao('Reproduzir')!.click());
+    await esperar(() => botao('Cancelar') !== undefined);
+    expect(botao('Reproduzir')).toBeUndefined(); // desligado: virou "Reproduzindo…"
+    await act(async () => botao('Cancelar')!.click());
+    expect(sinal!.aborted).toBe(true);
+    await act(async () => liberar());
+
+    reproduzirReuniao.mockReset();
+    reproduzirReuniao.mockRejectedValue(new Error('O provedor caiu.'));
+    await escolher();
+    await act(async () => botao('Reproduzir')!.click());
+    await esperar(() => host.querySelector('[role="alert"]') !== null);
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain('O provedor caiu.');
   });
 });
 

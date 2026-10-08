@@ -31,6 +31,7 @@ import {
   type ModoDeIntervencao,
 } from '@/features/conducao/store';
 import { aplicarAjuste, proporAjustes, type PropostaDeAjuste } from '@/features/calibracao/propostas';
+import { reproduzirReuniao, type AcaoNoCorte, type RelatorioHistorico } from '@/features/calibracao/historico';
 import { observarApoio, registrarDecisaoDeAjuste, type Apoio, type Medicao } from '@/features/apoio/store';
 import { proporPerfil } from '@/features/conducao/proposta';
 import { useTrabalho } from '@/features/trabalho/useTrabalho';
@@ -501,6 +502,124 @@ function CustoDoApoio({ medicao }: { medicao: Medicao | undefined }) {
   );
 }
 
+// ---------------------------------------------------------- teste histórico
+
+const mmss = (ms: number) => {
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+const ROTULO_DA_ACAO: Record<AcaoNoCorte, string> = {
+  mostrou: 'Sugeriria',
+  silencio: 'Silêncio (o Taq avaliou e não havia o que dizer)',
+  esperou: 'Esperou (o orçamento de atenção ou de chamadas não deixou avaliar)',
+  erro: 'Erro do provedor',
+  sem_orcamento: 'Parou: teto de chamadas do teste',
+};
+
+/**
+ * "Testar numa reunião passada": reproduz a reunião por cortes de tempo com o seu
+ * assistente atual, para ver o que ele teria sugerido. A cada corte só existe o
+ * que já tinha sido dito. Envia trechos da reunião ao provedor, por isso só roda
+ * quando você clica, e para quando você cancela.
+ */
+function TesteHistorico({ registros }: { registros: readonly MeetingRecord[] }) {
+  const candidatas = useMemo(
+    () => [...registros].filter((r) => r.segments.length >= 6).sort((a, b) => b.startedAt - a.startedAt),
+    [registros],
+  );
+  const [id, setId] = useState('');
+  const [rodando, setRodando] = useState<{ feito: number; total: number } | null>(null);
+  const [relatorio, setRelatorio] = useState<RelatorioHistorico | null>(null);
+  const [erro, setErro] = useState('');
+  const controle = useRef<AbortController | null>(null);
+  const adaptador = useRef(criarAdaptadorHttp());
+  const escolhida = candidatas.find((r) => r.id === id) ?? null;
+
+  const reproduzir = async () => {
+    if (!escolhida) return;
+    controle.current = new AbortController();
+    setRelatorio(null);
+    setErro('');
+    setRodando({ feito: 0, total: 0 });
+    try {
+      const r = await reproduzirReuniao({
+        adaptador: adaptador.current,
+        reuniao: { id: escolhida.id, titulo: escolhida.title },
+        falas: escolhida.segments,
+        sinal: controle.current.signal,
+        aoAndar: (feito, total) => setRodando({ feito, total }),
+      });
+      setRelatorio(r);
+    } catch (e) {
+      setErro((e as Error)?.message ?? 'Não foi possível reproduzir a reunião.');
+    } finally {
+      setRodando(null);
+    }
+  };
+
+  if (!candidatas.length) return null;
+  return (
+    <section className="tq-prep-bloco" aria-labelledby="tq-prep-historico">
+      <h2 id="tq-prep-historico">Testar o assistente numa reunião passada</h2>
+      <p className="tq-prep-dica">
+        Reproduz a reunião por cortes de tempo com o seu assistente atual: a cada ponto só existe o que já tinha sido
+        dito. Mostra o que ele teria sugerido, sem gravar nada na reunião. <strong>Envia trechos da reunião ao
+        provedor de IA</strong> e usa algumas chamadas; só roda quando você clica.
+      </p>
+      <label className="tq-c-campo">
+        Reunião para reproduzir
+        <select value={id} disabled={!!rodando} onChange={(e) => setId(e.target.value)}>
+          <option value="">Escolha uma reunião…</option>
+          {candidatas.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.title} — {formatDate(r.startedAt)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="tq-c-acoes">
+        <button type="button" className="tq-acao" disabled={!escolhida || !!rodando} onClick={() => void reproduzir()}>
+          {rodando ? `Reproduzindo… ${rodando.feito}${rodando.total ? ` de ${rodando.total}` : ''}` : 'Reproduzir'}
+        </button>
+        {rodando && (
+          <button type="button" className="tq-acao" onClick={() => controle.current?.abort()}>
+            Cancelar
+          </button>
+        )}
+      </div>
+      {erro && <p className="tq-aviso" role="alert">{erro}</p>}
+      {relatorio && (
+        <div className="tq-prep-relatorio" aria-label="Relatório do teste">
+          <p className="tq-prep-comentario">
+            {relatorio.avaliacoes} {relatorio.avaliacoes === 1 ? 'avaliação' : 'avaliações'}, {relatorio.sugestoesMostradas}{' '}
+            {relatorio.sugestoesMostradas === 1 ? 'sugestão que apareceria' : 'sugestões que apareceriam'}
+            {relatorio.erros ? `, ${relatorio.erros} com erro` : ''}.
+            {relatorio.paradoPeloTeto ? ' O teste parou no teto de chamadas: o resto da reunião não foi avaliado.' : ''}
+            {relatorio.fontesValidas ? ' Todas as fontes citadas existiam no corte.' : ' Atenção: alguma fonte citada não existia no corte.'}
+          </p>
+          <ol className="tq-prep-linhas">
+            {relatorio.linhas.map((l) => (
+              <li key={l.noInstanteMs} className={`tq-prep-linha tq-prep-${l.acao}`}>
+                <span className="tq-prep-instante">{mmss(l.noInstanteMs)}</span> — {ROTULO_DA_ACAO[l.acao]}
+                {l.sugestao && (
+                  <blockquote className="tq-apoio-pergunta">
+                    {l.sugestao.pergunta ? `“${l.sugestao.pergunta}”` : l.sugestao.texto}
+                    <span className="tq-apoio-aviso">
+                      sobre “{l.sugestao.ponto}” · fala{l.sugestao.falasCitadas.length > 1 ? 's' : ''}{' '}
+                      {l.sugestao.falasCitadas.map((n) => n + 1).join(', ')} · o Taq tinha lido até a fala {l.falasConsolidadas}
+                    </span>
+                  </blockquote>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ------------------------------------------------------------------- página
 
 export function PaginaPreparar({ registros }: { registros: readonly MeetingRecord[] }) {
@@ -520,6 +639,7 @@ export function PaginaPreparar({ registros }: { registros: readonly MeetingRecor
           <PerfilDeConducao conducao={conducao} />
           <AjustesSugeridos conducao={conducao} apoio={apoio} />
           <PreparoDeReuniao registros={registros} conducao={conducao} medicoes={apoio.medicoes} />
+          {conducao.perfil && <TesteHistorico registros={registros} />}
         </>
       )}
     </div>

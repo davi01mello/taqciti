@@ -3592,3 +3592,23 @@ body .tq-home [role='dialog'] button {
 .tq-prep-ajuste h3 {
   margin: 0 0 4px;
 }
+
+.tq-prep-linhas {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: var(--fs-ui);
+  color: rgb(214 218 222);
+}
+
+.tq-prep-instante {
+  font-variant-numeric: tabular-nums;
+  color: rgb(166 169 173);
+}
+
+.tq-prep-esperou,
+.tq-prep-silencio {
+  color: rgb(166 169 173);
+}
