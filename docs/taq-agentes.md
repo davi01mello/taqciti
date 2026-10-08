@@ -249,7 +249,7 @@ ele está ativo, o Taq não tem `create_document`: tem só a delegação.
 | `scheduling` | modelo | `scheduling-v1` | `prepare_event` (só sugestão) |
 | `organizational_memory` | modelo | `memory-v1` | leitura + `list_decisions` |
 | `context` | modelo | `context-v1` | leitura + compromissos, decisões, achados, análise |
-| `meeting_copilot` | modelo | `copilot-v1` | `read_meeting`, `get_capture_state`, `list_decisions` |
+| `meeting_copilot` | modelo | `copilot-v2` | `read_meeting`, `get_capture_state`, `list_decisions` |
 | `capture_monitor` | determinístico | — | `get_capture_state` (`captura.ts`) |
 | `quality_review` | determinístico | — | `check_document` (`revisao.ts`, parte de forma) |
 | `evidence_verifier` | determinístico | — | `check_document` (`revisao.ts`, parte de fontes) |

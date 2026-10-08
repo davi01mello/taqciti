@@ -38,7 +38,7 @@ export const INSTRUCOES_COMUNICACAO = 'communication-v2';
 export const INSTRUCOES_AGENDA = 'scheduling-v2';
 export const INSTRUCOES_MEMORIA = 'memory-v1';
 export const INSTRUCOES_CONTEXTO = 'context-v1';
-export const INSTRUCOES_COPILOTO = 'copilot-v1';
+export const INSTRUCOES_COPILOTO = 'copilot-v2';
 
 /** Especialista de modelo → a versão das instruções dele. */
 export const ESPECIALISTAS_DE_MODELO: Readonly<Record<string, string>> = {

@@ -179,6 +179,7 @@ describe('instruções versionadas', () => {
       'memory-v1',
       'context-v1',
       'copilot-v1',
+      'copilot-v2',
       'documents-v3',
     ]) {
       const texto = instrucoesDoTaq(versao);
@@ -196,6 +197,20 @@ describe('instruções versionadas', () => {
     expect(instrucoesDoTaq('scheduling-v2')).toMatch(/desconhecida/);
     expect(instrucoesDoTaq('handoff-v1')).toMatch(/Não julgue pessoas/);
     expect(instrucoesDoTaq('documents-v3')).toMatch(/nunca sobrescreva a edição dela/);
+  });
+
+  it('copilot-v2: estados distintos, proposta não é decisão, não inventa objetivo nem dono, sugestão marcada', () => {
+    const t = instrucoesDoTaq('copilot-v2');
+    for (const estado of ['a esclarecer', 'discutido', 'a confirmar', 'decidido', 'adiado'])
+      expect(t).toContain(`**${estado}**`);
+    expect(t).toMatch(/Proposta não é decisão/);
+    expect(t).toMatch(/Uma pergunta respondida não encerra o assunto/);
+    expect(t).toMatch(/não suponha um a partir do título/);
+    expect(t).toMatch(/\*\*não foram definidos\*\*/);
+    expect(t).toMatch(/Marque como \*\*Sugestão:\*\*/);
+    expect(t).toMatch(/Nada vira decisão por aparecer na síntese/);
+    // O que a v1 garantia continua garantido.
+    expect(t).toMatch(/Não fale na reunião, não mande mensagem a ninguém/);
   });
 
   it('conducao-v1: propõe o perfil sem inventar, sem generalizar ajuste pontual e sem obedecer dados', () => {

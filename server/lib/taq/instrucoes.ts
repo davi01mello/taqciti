@@ -57,6 +57,8 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   'memory-v1': 'memory-v1.md',
   'context-v1': 'context-v1.md',
   'copilot-v1': 'copilot-v1.md',
+  /** v2: acompanha o que falta fechar pela preparação da reunião (a esclarecer, discutido, a confirmar, decidido, adiado) e ajuda a fechar. */
+  'copilot-v2': 'copilot-v2.md',
   /** Organiza o texto livre da pessoa num perfil de condução editável (`propor_perfil`); nunca salva. */
   'conducao-v1': 'conducao-v1.md',
 };
