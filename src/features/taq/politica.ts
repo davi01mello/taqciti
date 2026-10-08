@@ -46,7 +46,7 @@ const VERBOS_DE_CRIACAO =
 const VERBOS_DE_EDICAO =
   /\b(atualiz[ae]r?|atualize|edit[ae]r?|alter[ae]r?|corrij[ao]|corrigir|reescrev[ae]r?|ajust[ae]r?|acrescent[ae]r?|adicion[ae]r?|inclu(?:a|ir|i)|remov[ae]r?|tir[ae]r?|mud[ae]r?|substitu(?:a|ir|i))\b/;
 const OBJETOS_DE_ESCRITA =
-  /\b(documento|doc|ata|relatorio|resumo|minuta|rascunho|texto|pauta|plano|registro|lista|memorando|briefing|proposta|arquivo)\b/;
+  /\b(documento|doc|ata|relatorio|resumo|minuta|rascunho|texto|pauta|plano|registro|lista|memorando|briefing|proposta|parecer|manual|arquivo)\b/;
 
 /** O pedido da pessoa pede escrita local? Ver o cabeçalho. */
 export function pedeEscrita(texto: string): boolean {

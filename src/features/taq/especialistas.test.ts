@@ -7,7 +7,7 @@
  * para o Taq e para o especialista — as chamadas são em sequência). A tela é
  * um `acoes` com `vi.fn`, no lugar do `platform.send` e da navegação da HOME.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import type { MeetingRecord } from '@/shared/types/domain';
@@ -28,6 +28,14 @@ vi.mock('@/features/history/export', async (original) => ({
   downloadTranscript: vi.fn(),
 }));
 const { downloadTranscript } = await import('@/features/history/export');
+
+import type * as ClienteDoPersonalizado from '@/features/documents/personalizado/cliente';
+
+const gerarPersonalizado = vi.hoisted(() => vi.fn());
+vi.mock('@/features/documents/personalizado/cliente', async (original) => ({
+  ...(await original<typeof ClienteDoPersonalizado>()),
+  gerarPersonalizado,
+}));
 
 function reuniao(id: string, title: string, dia: number): MeetingRecord {
   const inicio = Date.UTC(2026, 8, dia, 13);
@@ -423,8 +431,9 @@ describe('documents', () => {
   });
 
   it('o objetivo escrito pelo modelo não disfarça um pedido fora do catálogo', async () => {
+    // "Relatório" tem dica de roteamento: o especialista roda direto, e o modelo
+    // (aqui roteirizado) tenta "traduzir" o pedido para uma ata.
     const { modelo } = roteiro([
-      delegar('documents', 'Criar uma ata da sprint'), // o modelo "traduziu" o pedido
       pede('create_document', {
         tipo: 'ata',
         reuniao_id: 'm-sprint',
@@ -441,5 +450,64 @@ describe('documents', () => {
     const r = await executar('Crie um relatório executivo da sprint', modelo);
     expect(r.resposta).toMatch(/ainda não está disponível/); // o roteiro chegou ao fim
     expect(r.documentos).toEqual([]);
+  });
+});
+
+describe('documents — documento personalizado', () => {
+  afterEach(() => gerarPersonalizado.mockReset());
+
+  const resposta = () => ({
+    status: 'ok' as const,
+    dados: {
+      arvore: {
+        revisao: 1,
+        titulo: 'Relatório da Sprint 12',
+        lacunas: [],
+        blocos: [
+          { tipo: 'capa', blockId: 'capa', variante: 'padrao', titulo: 'Relatório da Sprint 12', fontes: [], origem: 'agente' },
+          { tipo: 'paragrafo', blockId: 's1-b1', texto: 'O deploy ficou na sexta.', fontes: [], origem: 'agente' },
+        ],
+      },
+      pdf: 'JVBERg==',
+      manifesto: {
+        revisaoDoConteudo: 1,
+        perfilId: 'citi',
+        perfilVersao: 2,
+        perfilEstado: 'provisorio',
+        rendererVersao: 'x',
+        ativosEFontes: [],
+        formatos: [{ formato: 'pdf', hash: 'a'.repeat(64) }],
+        paginas: 2,
+      },
+      relatorio: { problemas: [], verificacoesRealizadas: ['x'], limitacoes: [] },
+      avisos: [],
+      lacunas: [],
+    },
+  });
+
+  it('"monte um relatório" vai direto ao especialista, que cria o documento personalizado com a reunião do pedido', async () => {
+    gerarPersonalizado.mockResolvedValue(resposta());
+    const { modelo, pedidos } = roteiro([
+      // Sem `delegar`: a dica de roteamento põe o especialista de documentos na frente.
+      pede('create_custom_document', { pedido: 'Relatório da sprint 12', reuniao_ids: ['m-sprint'] }),
+      final('Criei o relatório para revisão, com a reunião da Sprint 12 como fonte.'),
+    ]);
+    const r = await executar('Monte um relatório da sprint 12', modelo);
+
+    expect(pedidos.map((p) => p.instrucoes)).toEqual(['documents-v4', 'documents-v4']);
+    expect(r.documentos).toHaveLength(1);
+    const doc = (await lerDocumentos()).find((d) => d.id === r.documentos[0]!.id)!;
+    expect(doc).toMatchObject({ tipo: 'personalizado', meetingId: 'm-sprint', conversationId: 'c-1' });
+    // O servidor só recebeu a reunião pedida.
+    const [enviado] = gerarPersonalizado.mock.calls[0]!;
+    expect(enviado.fontes.map((f: { id: string }) => f.id)).toEqual(['m-sprint']);
+    expect(enviado.pedido).toContain('Monte um relatório da sprint 12');
+  });
+
+  it('"prepare um e-mail sobre o relatório" NÃO vai para o documento personalizado', async () => {
+    const { modelo, pedidos } = roteiro([final('Posso preparar o rascunho do e-mail.')]);
+    await executar('Prepare um e-mail para a Ana sobre o relatório', modelo);
+    expect(pedidos.map((p) => p.instrucoes)).not.toContain('documents-v4');
+    expect(gerarPersonalizado).not.toHaveBeenCalled();
   });
 });

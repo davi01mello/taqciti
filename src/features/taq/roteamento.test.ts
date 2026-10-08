@@ -26,6 +26,10 @@ describe('especialistaIndicado', () => {
     ['Prepare-me para a reunião de quinta.', 'context'],
     ['Já discutimos exportação antes?', 'organizational_memory'],
     ['Revise a ata da sprint.', 'quality_review'],
+    // Documento personalizado: vem antes de compromissos mesmo citando próximos passos.
+    ['Monte um relatório executivo da sprint 12 para o cliente.', 'documents'],
+    ['Faça uma proposta com os próximos passos e prazos.', 'documents'],
+    ['Elabore um parecer sobre a integração com o ERP.', 'documents'],
   ])('%s → %s', (pedido, esperado) => {
     expect(especialistaIndicado(pedido, TODOS)).toBe(esperado);
   });
@@ -33,6 +37,13 @@ describe('especialistaIndicado', () => {
   it('documento nomeado fica com o fluxo de documento; pergunta comum não indica nada', () => {
     expect(especialistaIndicado('Gere a ata com os próximos passos da sprint', TODOS)).toBeNull();
     expect(especialistaIndicado('O que foi falado sobre o deploy?', TODOS)).toBeNull();
+  });
+
+  it('outro formato no mesmo pedido não vira documento personalizado', () => {
+    expect(especialistaIndicado('Prepare um e-mail para a Rita sobre o relatório.', TODOS)).toBe('communication');
+    expect(especialistaIndicado('Crie uma apresentação de slides com o relatório.', TODOS)).not.toBe('documents');
+    // Só falar do relatório, sem pedir para criá-lo, também não.
+    expect(especialistaIndicado('O que o relatório diz sobre o deploy?', TODOS)).toBeNull();
   });
 
   it('não indica especialista indisponível', () => {

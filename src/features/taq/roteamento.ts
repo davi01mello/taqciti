@@ -14,12 +14,15 @@
  * não indica nada.
  */
 import { normalizar } from './busca';
+import { pedeDocumentoPersonalizado } from './documentosPersonalizados';
 import { PEDIDO_DE_TELA } from './politica';
 
 interface Regra {
   agente: string;
   /** Casa com o pedido normalizado (sem acento, minúsculas). */
   padrao: RegExp;
+  /** Alternativa ao `padrao`, para quem já normaliza por conta própria. */
+  teste?: (pedido: string) => boolean;
 }
 
 /**
@@ -30,6 +33,9 @@ interface Regra {
 const REGRAS: readonly Regra[] = [
   // Um quadro da tela sob pedido é operação do aplicativo (cartão com escolha e prévia).
   { agente: 'app_assistant', padrao: PEDIDO_DE_TELA },
+  // "Monte um relatório", "faça uma proposta": documento personalizado. Antes de
+  // `commitments`, porque "relatório com os próximos passos" é documento, não compromisso.
+  { agente: 'documents', padrao: /(?!)/, teste: pedeDocumentoPersonalizado },
   { agente: 'capture_monitor', padrao: /\bcaptura\b.*\b(ok|confiavel|funcionando|problema|falh|lacuna|estado)/ },
   { agente: 'meeting_copilot', padrao: /\bo que (eu )?perdi\b|\bate agora\b.*\b(decid|falad)|\bnesta reuniao em andamento\b/ },
   {
@@ -64,9 +70,10 @@ const PEDE_DOCUMENTO = /\b(ata|x1|doc conversa|documento|minuta)\b/;
 export function especialistaIndicado(pedido: string, disponiveis: readonly string[]): string | null {
   const t = normalizar(pedido);
   for (const r of REGRAS) {
-    if (!r.padrao.test(t)) continue;
+    if (!(r.teste ? r.teste(pedido) : r.padrao.test(t))) continue;
     // "revise a ata" é revisão; "gere a ata dos próximos passos" é documento.
-    if (PEDE_DOCUMENTO.test(t) && r.agente !== 'quality_review') return null;
+    // O especialista de documentos é o próprio fluxo de documento: não se cala.
+    if (PEDE_DOCUMENTO.test(t) && r.agente !== 'quality_review' && r.agente !== 'documents') return null;
     return disponiveis.includes(r.agente) ? r.agente : null;
   }
   return null;

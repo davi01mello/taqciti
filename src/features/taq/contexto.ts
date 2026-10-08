@@ -25,6 +25,7 @@ import { semMarcadores } from './evidencias';
 import type { MensagemDoTurno } from './modelo';
 import { linhasDaMemoria, revalidarMemoria } from './memoria';
 import { normalizar } from './busca';
+import { nomeiaDocumentoPersonalizado } from './documentosPersonalizados';
 import { especialistaIndicado } from './roteamento';
 import { podeLerConversa, podeLerDocumento, podeLerReuniao } from './politica';
 
@@ -40,7 +41,11 @@ function dia(ms: number): string {
 }
 
 function pedidoOriginalNomeiaDocumento(pedido: string | undefined): boolean {
-  return !pedido || /\b(ata|x1|doc conversa|documento|minuta)\b/.test(normalizar(pedido));
+  return (
+    !pedido ||
+    /\b(ata|x1|doc conversa|documento|minuta)\b/.test(normalizar(pedido)) ||
+    nomeiaDocumentoPersonalizado(pedido)
+  );
 }
 
 export async function montarContextoInicial(
