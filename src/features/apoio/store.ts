@@ -66,7 +66,7 @@ export type EstadoDaSugestao = (typeof ESTADOS_DA_SUGESTAO)[number];
 const TRANSICOES: Readonly<Record<EstadoDaSugestao, readonly EstadoDaSugestao[]>> = {
   pendente: ['mostrada', 'descartada', 'expirada', 'substituida'],
   mostrada: ['usada', 'guardada', 'resolvida', 'descartada', 'expirada'],
-  guardada: ['mostrada', 'descartada'],
+  guardada: ['mostrada', 'descartada', 'resolvida'],
   usada: [],
   resolvida: [],
   descartada: [],
