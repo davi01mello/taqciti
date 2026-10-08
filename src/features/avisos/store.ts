@@ -294,16 +294,6 @@ export async function removerAvisosDaConversa(conversaIds: readonly string[]): P
   });
 }
 
-/** Apaga os avisos de uma reunião (derivado exclusivo dela, como as análises). */
-export async function removerAvisosDaReuniao(reuniaoId: string): Promise<number> {
-  return transacao((itens) => {
-    const antes = itens.length;
-    const resto = itens.filter((a) => a.reuniaoId !== reuniaoId);
-    itens.splice(0, itens.length, ...resto);
-    return { resultado: antes - resto.length, mudou: antes !== resto.length };
-  });
-}
-
 // ------------------------------------------------------------------- seleção
 
 export interface FiltroDeAvisos {

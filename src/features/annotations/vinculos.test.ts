@@ -77,7 +77,30 @@ describe('limparVinculosDaReuniao', () => {
       prints: 0,
       documentosDesvinculados: 0,
       analises: 0,
+      avisos: 0,
     });
+  });
+
+  /* Aviso é derivado da reunião: um "Ver" para reunião apagada seria órfão. */
+  it('leva os avisos da reunião e deixa os das outras', async () => {
+    const aviso = (id: string, reuniaoId?: string) => ({
+      id,
+      chave: `k-${id}`,
+      ...(reuniaoId ? { reuniaoId } : {}),
+    });
+    await storage.local.set({
+      [STORAGE_KEYS.avisos]: {
+        versao: 1,
+        itens: [aviso('a1', 'm-1'), aviso('a2', 'm-2'), aviso('a3')],
+      },
+    });
+
+    const resultado = await limparVinculosDaReuniao('m-1');
+
+    expect(resultado.avisos).toBe(1);
+    expect(
+      ler<{ itens: Array<{ id: string }> }>(STORAGE_KEYS.avisos).itens.map((a) => a.id),
+    ).toEqual(['a2', 'a3']);
   });
 
   /* A análise morre com a reunião; o compromisso, que é registro próprio, fica. */
