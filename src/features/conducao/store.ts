@@ -261,6 +261,8 @@ export async function salvarPerfil(
   conteudo: unknown,
   revisaoEsperada: number,
   autor: AutorDaMudanca = 'pessoa',
+  /** O que o histórico diz sobre esta mudança. Padrão: "perfil criado" ou "perfil atualizado". */
+  acao?: string,
 ): Promise<ResultadoDaEdicao<PerfilDeConducao>> {
   const novo = normalizarConteudoDoPerfil(conteudo);
   if (!novo) return { tipo: 'invalido', motivo: 'Diga, ao menos, em que o Taq vai ajudar.' };
@@ -276,9 +278,10 @@ export async function salvarPerfil(
       revisao: (atual?.revisao ?? 0) + 1,
       criadoEm: atual?.criadoEm ?? agora,
       atualizadoEm: Math.max(agora, (atual?.atualizadoEm ?? 0) + 1),
-      historico: [...(atual?.historico ?? []), eventoDe(atual ? 'perfil atualizado' : 'perfil criado', autor)].slice(
-        -MAX_HISTORICO,
-      ),
+      historico: [
+        ...(atual?.historico ?? []),
+        eventoDe(acao ?? (atual ? 'perfil atualizado' : 'perfil criado'), autor),
+      ].slice(-MAX_HISTORICO),
     };
     c.perfil = perfil;
     return { resultado: { tipo: 'ok' as const, item: perfil }, mudou: true };

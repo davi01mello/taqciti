@@ -8,10 +8,10 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
-import type { Conducao } from '@/features/conducao/store';
+import { salvarPerfil, type Conducao } from '@/features/conducao/store';
 import type { MeetingRecord } from '@/shared/types/domain';
 
 const proporPerfil = vi.fn();
@@ -144,6 +144,94 @@ it('o briefing guarda o objetivo que a pessoa escreveu, e sem objetivo não há 
   expect(conducao()!.briefings[0]).toMatchObject({
     objetivo: 'Decidir se o piloto começa com uma ou duas unidades.',
     prioridades: ['Quem levanta os dados?', 'Quando revisamos?'],
+  });
+});
+
+describe('ajustes sugeridos e custo do apoio', () => {
+  const retornos = (tipo: string, quantos: number, desde: number) =>
+    Array.from({ length: quantos }, (_, i) => ({
+      id: `f-${tipo}-${desde}-${i}`,
+      sugestaoId: `s-${i}`,
+      reuniaoId: 'm-1',
+      em: desde + i * 1000,
+      tipo,
+      alcance: 'agora',
+    }));
+  const comPerfilParticipativo = async (feedback: unknown[], extra: Record<string, unknown> = {}) => {
+    await salvarPerfil(
+      { missao: 'Apoiar a descoberta.', observar: [], intervencao: { modo: 'participativo', estilo: '' }, contexto: [], preferencias: [] },
+      0,
+    );
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.apoio]: { versao: 1, sugestoes: [], feedback, pausadas: {}, medicoes: {}, ajustes: {}, ...extra },
+    });
+  };
+
+  it('sem retorno nenhum, a seção nem aparece', async () => {
+    await comPerfilParticipativo([]);
+    await montar();
+    expect(host.textContent).not.toContain('Ajustes sugeridos');
+  });
+
+  it('poucos retornos: diz que não há ajuste e que é preciso haver vários do mesmo tipo', async () => {
+    await comPerfilParticipativo(retornos('descartada', 1, 1_000));
+    await montar();
+    expect(host.textContent).toContain('Ajustes sugeridos');
+    expect(host.textContent).toContain('Nenhum ajuste por enquanto');
+    expect(host.textContent).toContain('1 retorno');
+    expect(botao('Aplicar ao meu assistente')).toBeUndefined();
+  });
+
+  it('descartes demais: mostra o porquê com os números e o antes → depois; só o botão aplica', async () => {
+    await comPerfilParticipativo(retornos('descartada', 3, 1_000));
+    await montar();
+    expect(host.textContent).toContain('Sugerir menos vezes');
+    expect(host.textContent).toContain('3 dos seus últimos 3 retornos');
+    expect(host.textContent).toContain('Hoje: Participativo');
+    expect(host.textContent).toContain('Passaria a: Discreto');
+    // Nada mudou só por a proposta existir.
+    expect(conducao()!.perfil!.intervencao.modo).toBe('participativo');
+
+    await act(async () => botao('Aplicar ao meu assistente')!.click());
+    await esperar(() => conducao()!.perfil!.intervencao.modo === 'discreto');
+    expect(conducao()!.perfil!.revisao).toBe(2);
+    expect(conducao()!.perfil!.historico.at(-1)!.acao).toContain('proposto pelo Taq e aprovado');
+    // Decidida, a proposta some até haver retorno novo.
+    await esperar(() => !host.textContent!.includes('Passaria a:'));
+    expect(host.textContent).not.toContain('Passaria a:');
+  });
+
+  it('"Agora não" recusa sem mudar o perfil, e a proposta não volta', async () => {
+    await comPerfilParticipativo(retornos('descartada', 3, 1_000));
+    await montar();
+    await act(async () => botao('Agora não')!.click());
+    await esperar(() => !host.textContent!.includes('Passaria a:'));
+    expect(conducao()!.perfil!.intervencao.modo).toBe('participativo');
+    expect(conducao()!.perfil!.revisao).toBe(1);
+    expect(host.textContent).toContain('Nenhum ajuste por enquanto');
+  });
+
+  it('o custo do apoio medido na reunião aparece com contagens, tempo e tokens', async () => {
+    await comPerfilParticipativo([], {
+      medicoes: {
+        'm-1': {
+          avaliacoes: 4, silencios: 2, sugestoesGeradas: 2, retiradas: 1, recusadas: 0, erros: 1,
+          latenciaTotalMs: 9000, tokensEntrada: 8000, tokensSaida: 900,
+        },
+      },
+    });
+    await montar();
+    await act(async () => {
+      const sel = q<HTMLSelectElement>('.tq-prep select');
+      sel.value = 'm-1';
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await esperar(() => host.querySelector('[data-testid="custo-do-apoio"]') !== null);
+    const t = host.querySelector('[data-testid="custo-do-apoio"]')!.textContent!;
+    expect(t).toContain('4 avaliações');
+    expect(t).toContain('2 com sugestão, 2 em silêncio, 1 com erro');
+    expect(t).toContain('cerca de 3,0 s cada');
+    expect(t).toContain((8900).toLocaleString('pt-BR'));
   });
 });
 

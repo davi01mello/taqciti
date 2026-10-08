@@ -155,6 +155,11 @@ export interface Apoio {
   /** Reuniões em que a pessoa pausou as sugestões. Captura e perguntas manuais seguem. */
   pausadas: Record<string, true>;
   medicoes: Record<string, Medicao>;
+  /**
+   * A última decisão da pessoa sobre cada tipo de proposta de ajuste (a hora):
+   * só retorno POSTERIOR conta para uma nova proposta do mesmo tipo.
+   */
+  ajustes: Record<string, number>;
 }
 
 export type NovaSugestao = Omit<
@@ -193,7 +198,7 @@ export const estaAberta = (s: Pick<Sugestao, 'estado'>): boolean =>
   s.estado === 'pendente' || s.estado === 'mostrada';
 
 export function normalizarApoio(bruto: unknown): Apoio {
-  const vazio: Apoio = { versao: VERSAO_DO_APOIO, sugestoes: [], feedback: [], pausadas: {}, medicoes: {} };
+  const vazio: Apoio = { versao: VERSAO_DO_APOIO, sugestoes: [], feedback: [], pausadas: {}, medicoes: {}, ajustes: {} };
   if (!bruto || typeof bruto !== 'object') return vazio;
   const b = bruto as Partial<Record<keyof Apoio, unknown>>;
   const sugestoes = Array.isArray(b.sugestoes)
@@ -231,7 +236,9 @@ export function normalizarApoio(bruto: unknown): Apoio {
       tokensSaida: n('tokensSaida'),
     };
   }
-  return { versao: VERSAO_DO_APOIO, sugestoes, feedback, pausadas, medicoes };
+  const ajustes: Record<string, number> = {};
+  for (const [k, v] of Object.entries(mapa(b.ajustes))) if (typeof v === 'number' && Number.isFinite(v)) ajustes[k] = v;
+  return { versao: VERSAO_DO_APOIO, sugestoes, feedback, pausadas, medicoes, ajustes };
 }
 
 export async function lerApoio(): Promise<Apoio> {
@@ -401,6 +408,17 @@ export async function definirPausa(reuniaoId: string, pausada: boolean): Promise
     if (jaEstava === pausada) return { resultado: undefined, mudou: false };
     if (pausada) a.pausadas[reuniaoId] = true;
     else delete a.pausadas[reuniaoId];
+    return { resultado: undefined, mudou: true };
+  });
+}
+
+/**
+ * A pessoa decidiu (aplicou ou recusou) uma proposta de ajuste deste tipo: só
+ * retorno posterior a esta hora conta para propor o mesmo ajuste de novo.
+ */
+export async function registrarDecisaoDeAjuste(tipo: string, em: number = Date.now()): Promise<void> {
+  await transacao((a) => {
+    a.ajustes[tipo] = em;
     return { resultado: undefined, mudou: true };
   });
 }

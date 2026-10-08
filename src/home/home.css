@@ -3581,3 +3581,14 @@ body .tq-home [role='dialog'] button {
 .tq-personalizado-historico li[aria-current='true'] {
   border-color: rgb(var(--c-primary) / 0.45);
 }
+
+.tq-prep-ajuste {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 12px;
+}
+
+.tq-prep-ajuste h3 {
+  margin: 0 0 4px;
+}

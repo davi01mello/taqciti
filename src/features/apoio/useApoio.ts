@@ -27,7 +27,7 @@ export interface ApoioAoVivo {
   modo: 'sob_demanda' | 'discreto' | 'participativo' | null;
 }
 
-const VAZIO_DO_APOIO: Apoio = { versao: 1, sugestoes: [], feedback: [], pausadas: {}, medicoes: {} };
+const VAZIO_DO_APOIO: Apoio = { versao: 1, sugestoes: [], feedback: [], pausadas: {}, medicoes: {}, ajustes: {} };
 const VAZIA_A_CONDUCAO: Conducao = { versao: 1, perfil: null, briefings: [] };
 
 export function useApoioAoVivo(state: MeetingState, taqPronto: boolean): ApoioAoVivo {

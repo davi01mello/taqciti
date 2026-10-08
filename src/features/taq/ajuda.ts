@@ -1113,6 +1113,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'O Taq não supõe um objetivo: sem um objetivo escrito por você, a reunião fica sem objetivo.',
       'Uma reunião já preparada continua com a versão do assistente que usava, até você pedir “Usar a versão atual”.',
       'Só os encontros que você marcar em “Retomar de encontros anteriores” entram: o Taq não liga encontros por nome nem por semelhança. “Sem atualização registrada” num combinado não significa que alguém deixou de cumprir.',
+      'Se você der vários retornos do mesmo tipo sobre as sugestões (descartar, “tarde demais”, “já foi resolvido”), aparecem “Ajustes sugeridos”, com o que mudaria. Nada muda sozinho: “Aplicar ao meu assistente” grava uma nova versão do perfil; “Agora não” recusa, e a proposta só volta com retorno novo.',
     ],
     rotulos: [
       'Preparar',
@@ -1121,6 +1122,9 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Salvar a preparação',
       'Usar a versão atual',
       'Retomar de encontros anteriores',
+      'Ajustes sugeridos',
+      'Aplicar ao meu assistente',
+      'Agora não',
     ],
     implementacao: ['src/home/Preparar.tsx', NAV],
     verificacao: 'codigo',

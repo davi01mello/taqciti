@@ -30,6 +30,8 @@ import {
   type ConteudoDoPerfil,
   type ModoDeIntervencao,
 } from '@/features/conducao/store';
+import { aplicarAjuste, proporAjustes, type PropostaDeAjuste } from '@/features/calibracao/propostas';
+import { observarApoio, registrarDecisaoDeAjuste, type Apoio, type Medicao } from '@/features/apoio/store';
 import { proporPerfil } from '@/features/conducao/proposta';
 import { useTrabalho } from '@/features/trabalho/useTrabalho';
 import { criarAdaptadorHttp } from '@/features/taq/modelo';
@@ -364,7 +366,15 @@ function BriefingDaReuniao({
   );
 }
 
-function PreparoDeReuniao({ registros, conducao }: { registros: readonly MeetingRecord[]; conducao: Conducao }) {
+function PreparoDeReuniao({
+  registros,
+  conducao,
+  medicoes,
+}: {
+  registros: readonly MeetingRecord[];
+  conducao: Conducao;
+  medicoes: Record<string, Medicao>;
+}) {
   const ordenadas = useMemo(() => [...registros].sort((a, b) => b.startedAt - a.startedAt), [registros]);
   const [id, setId] = useState('');
   const escolhida = ordenadas.find((r) => r.id === id) ?? null;
@@ -390,11 +400,14 @@ function PreparoDeReuniao({ registros, conducao }: { registros: readonly Meeting
             </select>
           </label>
           {escolhida && (
-            <BriefingDaReuniao
-              reuniao={escolhida}
-              conducao={conducao}
-              outras={ordenadas.filter((r) => r.id !== escolhida.id && r.startedAt <= escolhida.startedAt)}
-            />
+            <>
+              <BriefingDaReuniao
+                reuniao={escolhida}
+                conducao={conducao}
+                outras={ordenadas.filter((r) => r.id !== escolhida.id && r.startedAt <= escolhida.startedAt)}
+              />
+              <CustoDoApoio medicao={medicoes[escolhida.id]} />
+            </>
           )}
         </>
       )}
@@ -402,10 +415,98 @@ function PreparoDeReuniao({ registros, conducao }: { registros: readonly Meeting
   );
 }
 
+// ---------------------------------------------------------- ajustes sugeridos
+
+/**
+ * "Ajustes sugeridos": o feedback que a pessoa deu sobre as sugestões vira uma
+ * proposta específica, mostrando o antes e o depois. Nada muda sozinho: só o
+ * botão aplica, e recusar não faz a proposta voltar sem retorno novo.
+ */
+function AjustesSugeridos({ conducao, apoio }: { conducao: Conducao; apoio: Apoio }) {
+  const [aviso, setAviso] = useState('');
+  const [ocupado, setOcupado] = useState(false);
+  if (!conducao.perfil || apoio.feedback.length === 0) return null;
+  const perfil = conducao.perfil;
+  const propostas = proporAjustes({ feedback: apoio.feedback, perfil, decisoes: apoio.ajustes });
+
+  const decidir = async (p: PropostaDeAjuste, aplicar: boolean) => {
+    setOcupado(true);
+    setAviso('');
+    try {
+      if (aplicar) {
+        const r = await aplicarAjuste(perfil, p);
+        if (r.tipo === 'conflito') {
+          setAviso('O assistente mudou em outra aba. Confira o que está salvo; a proposta continua aqui se ainda fizer sentido.');
+          return;
+        }
+        if (r.tipo === 'invalido') {
+          setAviso(r.motivo);
+          return;
+        }
+        setAviso('Ajuste aplicado: o assistente tem uma nova versão.');
+      }
+      await registrarDecisaoDeAjuste(p.tipo);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  return (
+    <section className="tq-prep-bloco" aria-labelledby="tq-prep-ajustes">
+      <h2 id="tq-prep-ajustes">Ajustes sugeridos</h2>
+      {propostas.length === 0 ? (
+        <p className="tq-prep-dica">
+          Nenhum ajuste por enquanto. Você deu {apoio.feedback.length}{' '}
+          {apoio.feedback.length === 1 ? 'retorno' : 'retornos'} sobre as sugestões; o Taq só propõe mudança depois de
+          vários retornos do mesmo tipo, e nada muda sem você aprovar.
+        </p>
+      ) : (
+        propostas.map((p) => (
+          <div key={p.tipo} className="tq-prep-ajuste">
+            <h3>{p.titulo}</h3>
+            <p className="tq-prep-comentario">{p.porque}</p>
+            <p className="tq-prep-dica">
+              <strong>Hoje:</strong> {p.antes}
+              <br />
+              <strong>Passaria a:</strong> {p.depois}
+            </p>
+            <div className="tq-c-acoes">
+              <button type="button" className="tq-acao tq-acao-principal" disabled={ocupado} onClick={() => void decidir(p, true)}>
+                Aplicar ao meu assistente
+              </button>
+              <button type="button" className="tq-acao" disabled={ocupado} onClick={() => void decidir(p, false)}>
+                Agora não
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+      {aviso && <p className="tq-prep-comentario" role="status">{aviso}</p>}
+    </section>
+  );
+}
+
+/** O que o apoio custou nesta reunião: contagens, tempo e tokens medidos. */
+function CustoDoApoio({ medicao }: { medicao: Medicao | undefined }) {
+  if (!medicao || medicao.avaliacoes === 0) return null;
+  const seg = (medicao.latenciaTotalMs / Math.max(1, medicao.avaliacoes - medicao.erros)) / 1000;
+  const tokens = medicao.tokensEntrada + medicao.tokensSaida;
+  return (
+    <p className="tq-prep-dica" data-testid="custo-do-apoio">
+      Apoio nesta reunião: {medicao.avaliacoes} {medicao.avaliacoes === 1 ? 'avaliação' : 'avaliações'} (
+      {medicao.sugestoesGeradas} com sugestão, {medicao.silencios} em silêncio
+      {medicao.erros ? `, ${medicao.erros} com erro` : ''}), cerca de {seg.toFixed(1).replace('.', ',')} s cada e{' '}
+      {tokens.toLocaleString('pt-BR')} tokens no total.
+    </p>
+  );
+}
+
 // ------------------------------------------------------------------- página
 
 export function PaginaPreparar({ registros }: { registros: readonly MeetingRecord[] }) {
   const { conducao, carregada } = useConducao();
+  const [apoio, setApoio] = useState<Apoio>({ versao: 1, sugestoes: [], feedback: [], pausadas: {}, medicoes: {}, ajustes: {} });
+  useEffect(() => observarApoio(setApoio), []);
   return (
     <div className="tq-pagina tq-prep">
       <header className="tq-pagina-topo">
@@ -417,7 +518,8 @@ export function PaginaPreparar({ registros }: { registros: readonly MeetingRecor
       ) : (
         <>
           <PerfilDeConducao conducao={conducao} />
-          <PreparoDeReuniao registros={registros} conducao={conducao} />
+          <AjustesSugeridos conducao={conducao} apoio={apoio} />
+          <PreparoDeReuniao registros={registros} conducao={conducao} medicoes={apoio.medicoes} />
         </>
       )}
     </div>
