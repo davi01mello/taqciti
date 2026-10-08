@@ -21,11 +21,12 @@ import type { Lacuna, Pergunta } from './answers';
 export type { GoogleDocResult };
 
 /** Espelha DOCUMENT_TYPES em server/lib/generateDocument.ts. */
-export type DocumentType = 'ata' | 'x1' | 'daily' | 'planning' | 'review';
+export type DocumentType = 'ata' | 'x1' | 'resumo' | 'daily' | 'planning' | 'review';
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   ata: 'Ata de Reunião',
   x1: 'Doc Conversa (X1)',
+  resumo: 'Resumo completo',
   daily: 'Daily',
   planning: 'Planning',
   review: 'Review',

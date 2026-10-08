@@ -391,7 +391,13 @@ describe('documento pedido', () => {
     expect(r.pergunta?.opcoes.map((o) => o.mensagem)).toEqual([
       'Criar Ata de Reunião',
       'Criar Doc Conversa (X1)',
+      'Criar Resumo completo',
     ]);
+  });
+
+  it('"resumo completo" nomeia o tipo: cria sem perguntar qual é', () => {
+    expect(pedeDocumentoSemTipo('Gera um resumo completo da reunião')).toBe(false);
+    expect(pedeDocumentoSemTipo('Faz o resumo por período da sprint')).toBe(false);
   });
 
   it('só "documento sem nome" dispara a pergunta antecipada', () => {

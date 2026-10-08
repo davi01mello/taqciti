@@ -261,13 +261,14 @@ it('pergunta o tipo com opções do catálogo, sem ir ao servidor, e o clique co
   await ate(() => host.textContent!.includes('IA conectada'));
 
   await enviar('Crie um documento da reunião da sprint');
-  await ate(() => host.querySelectorAll('.tq-resp-opcoes button').length === 2);
+  await ate(() => host.querySelectorAll('.tq-resp-opcoes button').length === 3);
   // Documento sem tipo não gasta chamada ao modelo: a pergunta sai do catálogo.
   expect(turnosPedidos).toEqual([]);
   const opcoes = [...host.querySelectorAll<HTMLButtonElement>('.tq-resp-opcoes button')];
   expect(opcoes.map((b) => b.querySelector('strong')!.textContent)).toEqual([
     'Ata de Reunião',
     'Doc Conversa (X1)',
+    'Resumo completo',
   ]);
 
   await act(async () => opcoes[0]!.click());

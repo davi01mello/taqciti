@@ -303,3 +303,69 @@ describe('identificação e assinatura', () => {
     expect(specForSection(sectionById('assinatura')).claims(data, 'assinatura')).toEqual([]);
   });
 });
+
+describe('resumo_por_periodo', () => {
+  const section = TEMPLATES.resumo.sections[0]!;
+  const spec = specForSection(section);
+  const registro = TRANSCRIPT.split('\n')[0]!;
+
+  it('tem spec própria e é auditada em modo strict', () => {
+    expect(SECTION_DATA_SPECS[section.id]).toBeDefined();
+    expect(section.audit).toBe('strict');
+  });
+
+  it('ancora as citações, preserva a ordem e descarta trecho sem título ou resumo', () => {
+    const data: DocumentData = {};
+    spec.merge(
+      data,
+      {
+        periodos: [
+          { titulo: 'Abertura', inicio: ' 00:00:00 ', fim: '00:05:00', resumo: 'Maria abriu.', quotes: [registro] },
+          { titulo: '', resumo: 'sem título', quotes: [] },
+          { titulo: 'Sem resumo', quotes: [] },
+          { titulo: 'Pipeline', resumo: 'João explicou o pipeline.', quotes: ['João explicou o pipeline.'] },
+        ],
+      },
+      section.id,
+      locator(),
+    );
+    expect(data.periods?.map((p) => p.title)).toEqual(['Abertura', 'Pipeline']);
+    expect(data.periods?.[0]).toMatchObject({ start: '00:00:00', end: '00:05:00' });
+    expect(data.periods?.[1]?.start).toBeUndefined();
+    expect(data.periods?.[0]?.quotes[0]?.anchor).not.toBeNull();
+  });
+
+  it('trecho cuja citação não existe fica sem âncora (o auditor o derruba)', () => {
+    const data: DocumentData = {};
+    spec.merge(
+      data,
+      { periodos: [{ titulo: 'Inventado', resumo: 'Nada disso foi dito.', quotes: ['frase que não existe'] }] },
+      section.id,
+      locator(),
+    );
+    const [claim] = spec.claims(data, section.id);
+    expect(claim?.anchors).toHaveLength(0);
+  });
+
+  it('drop remove só o trecho rejeitado, e serialize devolve null sem trechos', () => {
+    const data: DocumentData = {
+      periods: [
+        { title: 'A', summary: 'a', quotes: [] },
+        { title: 'B', summary: 'b', quotes: [] },
+      ],
+    };
+    spec.drop(data, new Set(['periods[0]']), section.id);
+    expect(data.periods?.map((p) => p.title)).toEqual(['B']);
+    spec.drop(data, new Set(['periods[0]']), section.id);
+    expect(spec.serialize(data, section.id)).toBeNull();
+  });
+
+  it('markdown numera os trechos com o intervalo', () => {
+    const data: DocumentData = {
+      periods: [{ title: 'Abertura', start: '00:00:00', end: '00:05:00', summary: 'Maria abriu.', quotes: [] }],
+    };
+    const md = spec.markdown(data, section, []);
+    expect(md).toContain('### 1. Abertura (00:00:00 – 00:05:00)');
+    expect(md).toContain('Maria abriu.');
+  });
+});

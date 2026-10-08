@@ -210,3 +210,17 @@ describe('renderPdf', () => {
     expect(ehPdfValido(buffer)).toBe(true);
   });
 });
+
+describe('renderPdf — resumo completo', () => {
+  it('gera um PDF válido com vários trechos, inclusive longos', async () => {
+    const periods = Array.from({ length: 12 }, (_, i) => ({
+      title: `Assunto ${i + 1}`,
+      start: `00:${String(i * 5).padStart(2, '0')}:00`,
+      end: `00:${String(i * 5 + 5).padStart(2, '0')}:00`,
+      summary: 'A equipe discutiu o tema com bastante detalhe. '.repeat(20),
+      quotes: [],
+    }));
+    const buffer = await renderPdf({ documentType: 'resumo', data: { periods }, gaps: [], title: 'Resumo' });
+    expect(ehPdfValido(buffer)).toBe(true);
+  });
+});

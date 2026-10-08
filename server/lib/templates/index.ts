@@ -8,6 +8,7 @@ import type { DocumentType } from '../documentTypes';
 import type { DocumentTemplate } from './types';
 import { ata } from './ata';
 import { x1 } from './x1';
+import { resumo } from './resumo';
 import { daily } from './daily';
 import { planning } from './planning';
 import { review } from './review';
@@ -17,6 +18,7 @@ export type { SectionSpec, DocumentTemplate } from './types';
 export const TEMPLATES: Record<DocumentType, DocumentTemplate> = {
   ata,
   x1,
+  resumo,
   daily,
   planning,
   review,

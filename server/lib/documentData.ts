@@ -154,6 +154,29 @@ export interface QaExchange {
   quotesResposta: AnchoredQuote[];
 }
 
+/**
+ * Um trecho da reunião, do Resumo completo. `start`/`end` são os carimbos
+ * `HH:MM:SS` da própria transcrição — copiados, nunca calculados — e somem
+ * quando a transcrição não os traz. O resumo é prosa condensada, então a
+ * evidência é uma lista de citações do trecho, auditada como o X1 audita as
+ * respostas.
+ */
+export interface MeetingPeriod {
+  title: string;
+  start?: string;
+  end?: string;
+  summary: string;
+  quotes: AnchoredQuote[];
+}
+
+/** "00:00:00 – 00:12:40", só com o início, ou `''` sem carimbo. Uma função só
+ *  para markdown, HTML e PDF mostrarem o mesmo intervalo. */
+export function rotuloDoPeriodo(period: Pick<MeetingPeriod, 'start' | 'end'>): string {
+  if (period.start && period.end) return `${period.start} – ${period.end}`;
+  if (period.start) return `a partir de ${period.start}`;
+  return '';
+}
+
 export interface DocumentData {
   metadata?: Metadata;
   generalTopic?: GeneralTopic;
@@ -166,6 +189,8 @@ export interface DocumentData {
   signature?: Signature;
   /** X1 — pares pergunta/resposta, na ordem em que apareceram na entrevista. */
   qa?: QaExchange[];
+  /** Resumo completo — os trechos da reunião, do começo ao fim. */
+  periods?: MeetingPeriod[];
   /** Por seção, para os templates que ainda não têm estrutura própria. */
   generic?: Record<string, GenericItem[]>;
 }
@@ -871,6 +896,103 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
         return [`**Gente e gestão:** ${pergunta}`, '', `**Entrevistado:** ${resposta}`].join('\n');
       });
       return ['## Perguntas e respostas', '', blocos.join('\n\n')].join('\n');
+    },
+  },
+
+  /**
+   * Resumo completo — a reunião em trechos, na ordem do relógio.
+   *
+   * Como o X1, devolve a lista INTEIRA numa leitura só: o número de trechos
+   * acompanha a duração e o conteúdo da reunião, e não um teto fixo. Cada
+   * trecho é uma afirmação auditável (o resumo + suas citações); trecho
+   * rejeitado sai inteiro, e o resto do documento segue.
+   */
+  resumo_por_periodo: {
+    schema: {
+      type: 'object',
+      properties: {
+        periodos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              titulo: {
+                type: 'string',
+                description: 'Nome curto do assunto dominante do trecho.',
+              },
+              inicio: {
+                type: 'string',
+                description:
+                  'Carimbo HH:MM:SS do começo do trecho, COPIADO de um carimbo [HH:MM:SS] ' +
+                  'da transcrição. Omita se a transcrição não tiver carimbos.',
+              },
+              fim: {
+                type: 'string',
+                description:
+                  'Carimbo HH:MM:SS do fim do trecho (o início do trecho seguinte, ou o ' +
+                  'último carimbo da reunião). Omita se não houver carimbos.',
+              },
+              resumo: {
+                type: 'string',
+                description:
+                  'O que foi tratado neste trecho, em prosa condensada, sem inventar nada.',
+              },
+              quotes: QUOTES,
+            },
+            required: ['titulo', 'resumo', 'quotes'],
+          },
+        },
+      },
+      required: ['periodos'],
+    },
+    merge(data, payload, _sectionId, locate) {
+      data.periods = (
+        (
+          payload as {
+            periodos?: {
+              titulo?: string;
+              inicio?: string;
+              fim?: string;
+              resumo?: string;
+              quotes?: unknown;
+            }[];
+          }
+        )?.periodos ?? []
+      )
+        .filter((periodo) => periodo?.titulo && periodo?.resumo)
+        .map((periodo) => ({
+          title: periodo.titulo!,
+          ...(periodo.inicio?.trim() ? { start: periodo.inicio.trim() } : {}),
+          ...(periodo.fim?.trim() ? { end: periodo.fim.trim() } : {}),
+          summary: periodo.resumo!,
+          quotes: anchorQuotes(periodo.quotes, locate),
+        }));
+    },
+    claims(data) {
+      return (data.periods ?? []).map((periodo, index) => ({
+        path: `periods[${index}]`,
+        text: `Na reunião foi tratado (${periodo.title}): ${periodo.summary}`,
+        anchors: located(periodo.quotes),
+      }));
+    },
+    drop(data, paths) {
+      data.periods = (data.periods ?? []).filter((_, index) => !paths.has(`periods[${index}]`));
+    },
+    serialize(data) {
+      const periodos = data.periods ?? [];
+      if (periodos.length === 0) return null;
+      return periodos
+        .map((p) => `${[rotuloDoPeriodo(p), p.title].filter(Boolean).join(' · ')}: ${p.summary}`)
+        .join('\n');
+    },
+    markdown(data, section) {
+      const blocos = (data.periods ?? []).map((p, index) => {
+        const intervalo = rotuloDoPeriodo(p);
+        return [`### ${index + 1}. ${p.title}${intervalo ? ` (${intervalo})` : ''}`, '', p.summary].join(
+          '\n',
+        );
+      });
+      return secaoMarkdown(section, blocos.length > 0 ? [blocos.join('\n\n')] : []);
     },
   },
 };

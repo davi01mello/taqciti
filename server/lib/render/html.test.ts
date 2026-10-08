@@ -402,3 +402,60 @@ describe('X1 — perguntas e respostas', () => {
     expect(html).toContain('Qual foi a resposta a esta pergunta?');
   });
 });
+
+describe('Resumo completo — resumo por período', () => {
+  const data = {
+    periods: [
+      {
+        title: 'Abertura e pauta',
+        start: '00:00:00',
+        end: '00:08:30',
+        summary: 'Maria abriu a reunião e apresentou a pauta.',
+        quotes: [],
+      },
+      {
+        title: 'Integração com a API',
+        start: '00:08:30',
+        end: '00:31:10',
+        summary: 'A equipe explicou o atraso.\nFicou combinado revisar a documentação.',
+        quotes: [],
+      },
+    ],
+  };
+
+  it('mostra os trechos numerados, em ordem, com o intervalo de cada um', () => {
+    const html = renderHtml({ documentType: 'resumo', data, gaps: [], title: 'Resumo' });
+    expect(html).toContain('1. Abertura e pauta (00:00:00 – 00:08:30)');
+    expect(html).toContain('2. Integração com a API (00:08:30 – 00:31:10)');
+    expect(html.indexOf('Abertura e pauta')).toBeLessThan(html.indexOf('Integração com a API'));
+    expect(html).toContain('Ficou combinado revisar a documentação.');
+  });
+
+  it('usa o título próprio e não repete cabeçalho de seção', () => {
+    const html = renderHtml({ documentType: 'resumo', data, gaps: [], title: 'Resumo' });
+    expect(html).toContain('Resumo completo da reunião</h1>');
+    expect(html).not.toContain('Resumo por período</h2>');
+    expect(html).not.toContain('Ata de reunião</h1>');
+  });
+
+  it('sem carimbo, o trecho sai só com o título', () => {
+    const html = renderHtml({
+      documentType: 'resumo',
+      data: { periods: [{ title: 'Único assunto', summary: 'Tudo.', quotes: [] }] },
+      gaps: [],
+      title: 'Resumo',
+    });
+    expect(html).toContain('1. Único assunto<');
+  });
+
+  it('escapa HTML no que vem do modelo', () => {
+    const html = renderHtml({
+      documentType: 'resumo',
+      data: { periods: [{ title: 'A <b>', summary: '<script>x</script>', quotes: [] }] },
+      gaps: [],
+      title: 'Resumo',
+    });
+    expect(html).not.toContain('<script>x');
+    expect(html).toContain('&lt;script&gt;');
+  });
+});

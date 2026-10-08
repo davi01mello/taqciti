@@ -61,7 +61,13 @@ import PDFDocument from 'pdfkit';
 import type { DocumentType } from '../documentTypes';
 import { TEMPLATES } from '../templates';
 import type { DocumentTemplate } from '../templates/types';
-import { specForSection, textoDeLacuna, type DocumentData, type Gap } from '../documentData';
+import {
+  rotuloDoPeriodo,
+  specForSection,
+  textoDeLacuna,
+  type DocumentData,
+  type Gap,
+} from '../documentData';
 import {
   marcaBuffer,
   MARCA_CABECALHO_ALTURA_PT,
@@ -94,7 +100,7 @@ import {
 /** Igual ao `@page { margin: 1in }` do HTML — o modelo usa 72pt real de
  *  margem (confirmado no `cm` de cada bloco de texto do stream: translada
  *  x=72 antes de desenhar), não 2,5cm como uma primeira leitura assumiu. */
-const MARGEM_PT = 72;
+export const MARGEM_PT = 72;
 
 /**
  * Margem INFERIOR do conteúdo — maior que as outras porque a base da página
@@ -102,14 +108,14 @@ const MARGEM_PT = 72;
  * deixa o texto parar ~14pt acima da linha fina, sem chance de encostar
  * nela. Não é assimetria decorativa: é a faixa que o modelo reserva.
  */
-const MARGEM_INFERIOR_PT = 140;
+export const MARGEM_INFERIOR_PT = 140;
 
 /** A4 nos mesmos pontos que o `pdfkit` usa para `size: 'A4'`. Repetido aqui
  *  como constante porque as coordenadas absolutas da capa e do rodapé
  *  precisam da largura e da altura da folha, e o `pdfkit` só as expõe pela
  *  página, que nem sempre existe na hora de calcular. */
-const A4_LARGURA_PT = 595.28;
-const A4_ALTURA_PT = 841.89;
+export const A4_LARGURA_PT = 595.28;
+export const A4_ALTURA_PT = 841.89;
 
 // ── Capa: geometria do modelo, medida a partir do TOPO da página ──────────
 
@@ -130,7 +136,7 @@ const CAPA_GRAFICO_RECORTE_TOPO_PT = 470.45288;
  *  calculadas do par `cm`+`Tm`+`Td` de cada bloco (`.75 0 0 .75 72 275.64771`
  *  e `.75 0 0 .75 72 319.2865`). */
 const CAPA_TITULO_BASE_PT = 306.6;
-const CAPA_SUBTITULO_BASE_PT = 338.05;
+export const CAPA_SUBTITULO_BASE_PT = 338.05;
 
 // ── Rodapé: geometria do modelo, também a partir do topo ──────────────────
 
@@ -245,7 +251,7 @@ export function renderPdf(input: RenderPdfInput): Promise<Buffer> {
  * regra da identidade, e ele salta aos olhos quando o título abaixo está
  * centrado de verdade.
  */
-function desenharCapa(
+export function desenharCapa(
   doc: Doc,
   titulo: string,
   data: DocumentData,
@@ -300,7 +306,7 @@ function desenharCapa(
  * dos dois lados, então o eixo é o mesmo — e assim um título longo demais
  * quebra dentro da margem em vez de vazar pra fora da página.
  */
-function desenharCentralizado(
+export function desenharCentralizado(
   doc: Doc,
   texto: string,
   tamanho: number,
@@ -343,7 +349,7 @@ function desenharConteudo(doc: Doc, input: RenderPdfInput, template: DocumentTem
  * cursor: por isso o cursor é DEVOLVIDO ao canto do texto no fim, senão a
  * primeira linha de conteúdo da página sairia de dentro do rodapé.
  */
-function desenharMoldura(doc: Doc): void {
+export function desenharMoldura(doc: Doc): void {
   doc.image(
     marcaBuffer(),
     (A4_LARGURA_PT - MARCA_CABECALHO_LARGURA_PT) / 2,
@@ -403,7 +409,7 @@ function desenharMoldura(doc: Doc): void {
 /** Folga que o `pdfkit` precisa somar à altura natural da linha pra chegar na
  *  entrelinha do modelo. `currentLineHeight(false)` = (ascendente −
  *  descendente) × tamanho. */
-function folgaDeLinha(doc: Doc, tamanho: number): number {
+export function folgaDeLinha(doc: Doc, tamanho: number): number {
   return Math.max(0, tamanho * ENTRELINHA - doc.currentLineHeight(false));
 }
 
@@ -412,7 +418,7 @@ function folgaDeLinha(doc: Doc, tamanho: number): number {
  * modelo. O `pdfkit` posiciona pelo topo e desce até a base pela ascendente da
  * fonte — a mesma conta, com o mesmo número, que ele faz internamente.
  */
-function topoDaLinhaDeBase(doc: Doc, base: number, tamanho: number): number {
+export function topoDaLinhaDeBase(doc: Doc, base: number, tamanho: number): number {
   // `_font` é interno do `pdfkit`, mas é de onde ele próprio tira a
   // ascendente na hora de desenhar; qualquer outra fonte de verdade
   // divergiria dele. O fallback de 1000 (=1em) é o da Barlow, então na pior
@@ -422,7 +428,7 @@ function topoDaLinhaDeBase(doc: Doc, base: number, tamanho: number): number {
 }
 
 /** Opções de fluxo pra um parágrafo de corpo — margem a margem. */
-const fluxoDeParagrafo = (doc: Doc, tamanho: number) => ({ lineGap: folgaDeLinha(doc, tamanho) });
+export const fluxoDeParagrafo = (doc: Doc, tamanho: number) => ({ lineGap: folgaDeLinha(doc, tamanho) });
 
 /**
  * Um item de lista, com o marcador na coluna dele e o texto na coluna do
@@ -444,7 +450,7 @@ const fluxoDeParagrafo = (doc: Doc, tamanho: number) => ({ lineGap: folgaDeLinha
  * `textoPlano` é o conteúdo do item sem formatação, só pra medir — `escrever`
  * é que desenha de verdade, com os pesos certos.
  */
-function desenharItemDeLista(
+export function desenharItemDeLista(
   doc: Doc,
   marcador: string,
   textoPlano: string,
@@ -471,7 +477,7 @@ function desenharItemDeLista(
 }
 
 /** Opções de fluxo pro TEXTO de um item — largura reduzida pelo recuo. */
-const fluxoDeItem = (doc: Doc) => ({
+export const fluxoDeItem = (doc: Doc) => ({
   width: A4_LARGURA_PT - MARGEM_PT - (MARGEM_PT + LISTA_TEXTO_RECUO_PT),
   lineGap: folgaDeLinha(doc, TAMANHO_ITEM_PT),
 });
@@ -486,7 +492,7 @@ function desenharListaSimples(doc: Doc, textos: string[]): void {
   if (textos.length > 0) doc.y += GAP_PARAGRAFO_PT;
 }
 
-function desenharTituloSecao(doc: Doc, titulo: string): void {
+export function desenharTituloSecao(doc: Doc, titulo: string): void {
   doc
     .font(FONTE_NEGRITO)
     .fontSize(TAMANHO_SECAO_PT)
@@ -664,6 +670,41 @@ function desenharPerguntasRespostas(doc: Doc, data: DocumentData, gaps: Gap[]): 
   return partes.join('\n');
 }
 
+/**
+ * Resumo completo — cada trecho abre com "1. Título (intervalo)" em negrito e
+ * segue com o resumo em parágrafos, igual a `SECTION_RENDERERS
+ * .resumo_por_periodo` do HTML.
+ */
+function desenharResumoPorPeriodo(doc: Doc, data: DocumentData): string {
+  const partes: string[] = [];
+
+  (data.periods ?? []).forEach((periodo, index) => {
+    const intervalo = rotuloDoPeriodo(periodo);
+    const titulo = `${index + 1}. ${periodo.title}${intervalo ? ` (${intervalo})` : ''}`;
+    doc
+      .font(FONTE_NEGRITO)
+      .fontSize(TAMANHO_CORPO_PT)
+      .fillColor(TINTA)
+      .text(titulo, fluxoDeParagrafo(doc, TAMANHO_CORPO_PT));
+    doc.y += GAP_ANTES_DA_LISTA_PT;
+    partes.push(titulo);
+
+    for (const paragrafo of periodo.summary.split(/\n+/).filter((linha) => linha.trim())) {
+      doc
+        .font(FONTE_REGULAR)
+        .fontSize(TAMANHO_CORPO_PT)
+        .fillColor(TINTA)
+        .text(paragrafo, fluxoDeParagrafo(doc, TAMANHO_CORPO_PT));
+      doc.y += GAP_PARAGRAFO_PT;
+      partes.push(paragrafo);
+    }
+    // Um respiro a mais entre trechos, para cada título abrir um bloco novo.
+    doc.y += GAP_PARAGRAFO_PT;
+  });
+
+  return partes.join('\n');
+}
+
 /** Dedicada pras seções com tratamento próprio no HTML; as demais caem no
  *  genérico — título (se `temCabecalho`) já foi desenhado por fora, aqui só
  *  o corpo, reaproveitando `spec.serialize()` em vez de duplicar a extração
@@ -694,6 +735,8 @@ function desenharConteudoSecao(
       return desenharTextosSimples(doc, data.outputs ?? []);
     case 'perguntas_respostas':
       return desenharPerguntasRespostas(doc, data, gaps);
+    case 'resumo_por_periodo':
+      return desenharResumoPorPeriodo(doc, data);
     default: {
       const texto = dados ?? '';
       if (texto) {

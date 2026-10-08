@@ -19,7 +19,7 @@
  * texto para levar ao Claude (ver `prepare_external_brief`).
  */
 
-export type IdDoTipoDeDocumento = 'ata' | 'x1';
+export type IdDoTipoDeDocumento = 'ata' | 'x1' | 'resumo';
 
 export interface SecaoDoModelo {
   id: string;
@@ -177,6 +177,32 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
         pergunta: 'Quem é a pessoa entrevistada?',
       },
     ],
+  },
+  {
+    id: 'resumo',
+    nome: 'Resumo completo',
+    finalidade:
+      'Conta a reunião inteira por trechos de tempo, do começo ao fim, mostrando etapa por etapa o que foi discutido.',
+    tituloDoDocumento: 'Resumo completo da reunião',
+    // Só nomes que dizem qual resumo é. "Resumo da reunião" solto fica de fora
+    // de propósito: é pedido ambíguo (pode ser a ata, pode ser texto na
+    // conversa), e o Taq deve perguntar o tipo em vez de escolher este.
+    apelidos: [
+      'resumo completo',
+      'resumo por periodo',
+      'resumo por trechos',
+      'resumo cronologico',
+      'resumo etapa por etapa',
+    ],
+    estrutura: [
+      {
+        id: 'resumo_por_periodo',
+        titulo: 'Resumo por período',
+        obrigatoria: true,
+        precisa: ['os assuntos tratados, trecho a trecho, do começo ao fim da reunião'],
+      },
+    ],
+    campos: [],
   },
 ];
 

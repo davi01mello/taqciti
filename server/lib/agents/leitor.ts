@@ -227,6 +227,7 @@ function structuredCloneish(data: DocumentData): DocumentData {
     ...(data.outcomes ? { outcomes: [...data.outcomes] } : {}),
     ...(data.outputs ? { outputs: [...data.outputs] } : {}),
     ...(data.qa ? { qa: [...data.qa] } : {}),
+    ...(data.periods ? { periods: [...data.periods] } : {}),
     ...(data.generic ? { generic: { ...data.generic } } : {}),
   };
 }

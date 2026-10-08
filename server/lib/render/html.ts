@@ -39,7 +39,13 @@
  */
 import type { DocumentType } from '../documentTypes';
 import { TEMPLATES } from '../templates';
-import { specForSection, textoDeLacuna, type DocumentData, type Gap } from '../documentData';
+import {
+  rotuloDoPeriodo,
+  specForSection,
+  textoDeLacuna,
+  type DocumentData,
+  type Gap,
+} from '../documentData';
 import type { SectionSpec } from '../templates/types';
 import { marcaDataUri, MARCA_CAPA_ALTURA_PT, MARCA_CAPA_LARGURA_PT } from './brand';
 import {
@@ -271,6 +277,29 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
           ].join('\n');
         })
         .join(`\n<div style="margin:0 0 14pt 0"></div>\n`);
+    },
+  },
+
+  resumo_por_periodo: {
+    // Sem <h2> próprio, como o X1: o <h1> da abertura já diz o que é o
+    // documento. Cada trecho abre com a linha em negrito "1. Título (intervalo)"
+    // e segue com o resumo em parágrafos.
+    cabecalho: false,
+    render(data) {
+      return (data.periods ?? [])
+        .map((periodo, index) => {
+          const intervalo = rotuloDoPeriodo(periodo);
+          const titulo = `${index + 1}. ${periodo.title}${intervalo ? ` (${intervalo})` : ''}`;
+          const paragrafos = periodo.summary
+            .split(/\n+/)
+            .filter((linha) => linha.trim())
+            .map((linha) => p(escapeHtml(linha)));
+          return [
+            p(`<span style="${S.rotulo}">${escapeHtml(titulo)}</span>`, S.rotuloLinha),
+            ...paragrafos,
+          ].join('\n');
+        })
+        .join('\n');
     },
   },
 };
