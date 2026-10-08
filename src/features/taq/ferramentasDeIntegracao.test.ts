@@ -465,6 +465,23 @@ describe('enviar e-mail', () => {
     expect(noGmail()).toHaveLength(0);
   });
 
+  it('documento vazio e reunião sem transcrição não são anexados: recusa, nada sai', async () => {
+    const { documento: vazio } = await armazenamentoLocal.criarDocumento(
+      { title: 'Rascunho', content: '   ', formato: 'markdown', tipo: 'ata' },
+      { execucaoId: 'seed', chave: 'seed-vazio' },
+    );
+    const base = { destinatarios: [{ nome: 'Ana Souza' }], assunto: 'Ata', corpo: 'Segue.' };
+    await expect(
+      rodar(sendEmail, { ...base, anexos: [{ tipo: 'documento', id: vazio.id }] }, ctx('envie a ata para a Ana Souza')),
+    ).rejects.toMatchObject({ codigo: 'anexo_vazio' });
+
+    await chrome.storage.local.set({ [STORAGE_KEYS.history]: [{ ...REUNIAO, segments: [] }] });
+    await expect(
+      rodar(sendEmail, { ...base, anexos: [{ tipo: 'transcricao', id: 'm-1' }] }, ctx('envie a transcrição para a Ana Souza')),
+    ).rejects.toMatchObject({ codigo: 'anexo_vazio' });
+    expect(noGmail()).toHaveLength(0);
+  });
+
   it('documento fora do escopo da conversa não é anexado', async () => {
     const c = ctx('envie a ata da sprint para a Ana Souza');
     c.tarefa.escopo.documentos = 'vinculados';

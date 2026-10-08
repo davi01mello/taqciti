@@ -60,6 +60,7 @@ import {
 import { fusoValido, localParaInstante, rotuloDoHorario } from './agenda';
 import { versaoDaReuniao } from './armazenamento';
 import { normalizar } from './busca';
+import { revisarDocumento } from './revisao';
 import {
   decidirAlteracaoDeEvento,
   decidirEnvio,
@@ -70,7 +71,7 @@ import {
   type PessoaDaDecisao,
 } from './autorizacaoExterna';
 import { documentoNoEscopo, hash, instante, reuniaoNoEscopo } from './ferramentas';
-import { confirmaAcaoExterna, pedeRepeticao } from './politica';
+import { confirmaAcaoExterna, pedeRepeticao, podeLerReuniao } from './politica';
 import { acharSensiveis, avisosDeExposicao } from './privacidade';
 import { ErroDeFerramenta, type ContextoDeFerramenta, type DefinicaoDeFerramenta } from './tipos';
 
@@ -363,9 +364,21 @@ async function montarAnexos(ctx: ContextoDeFerramenta, pedidos: readonly AnexoPe
   const avisos: string[] = [];
   let texto = '';
   let bytes = 0;
+  let reunioesDoEscopo: Awaited<ReturnType<typeof ctx.armazenamento.listarReunioes>> | null = null;
   for (const p of pedidos) {
     if (p.tipo === 'documento') {
       const d = await documentoNoEscopo(ctx, p.id);
+      if (!d.content.trim())
+        throw new ErroDeFerramenta('anexo_vazio', `O documento “${d.title}” está vazio: não há o que enviar.`);
+      // Pendência grave não trava o envio, mas a pessoa precisa saber antes.
+      reunioesDoEscopo ??= (await ctx.armazenamento.listarReunioes()).filter((r) =>
+        podeLerReuniao(ctx.tarefa.escopo, r.id),
+      );
+      const graves = revisarDocumento(d, reunioesDoEscopo).problemas.filter((x) => x.gravidade === 'alta');
+      if (graves.length)
+        avisos.push(
+          `“${d.title}” ainda tem ${graves.length} pendência(s) grave(s): ${graves.map((x) => x.texto).join(' ')}`,
+        );
       // O conteúdo EDITÁVEL (com a edição humana), nunca o HTML da geração.
       const ext = d.formato === 'texto' ? 'txt' : 'md';
       const nome = `${seguro(d.title)}.${ext}`;
@@ -376,6 +389,8 @@ async function montarAnexos(ctx: ContextoDeFerramenta, pedidos: readonly AnexoPe
       bytes += conteudo.length;
     } else {
       const r = await reuniaoNoEscopo(ctx, p.id);
+      if (!r.segments.length)
+        throw new ErroDeFerramenta('anexo_vazio', `A reunião “${r.title}” não tem transcrição: não há o que enviar.`);
       const vivo = await ctx.armazenamento.lerEstadoAoVivo().catch(() => null);
       const emAndamento =
         r.status === 'recording' ||

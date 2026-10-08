@@ -359,7 +359,7 @@ npx vitest run src/features/taq/taq.live.test.ts
   (com `editado_pela_pessoa`) e o Taq diz que o anterior continua em Documentos.
 - **Conferências determinísticas**: `revisarDocumento` agora aponta
   `campo_indispensavel` (campo obrigatório do modelo ausente ou "A confirmar") e
-  `vinculo_quebrado` (reunião de origem indisponível). `conferirEnvio`
-  (`verificacaoDeEnvio.ts`) confere, antes de qualquer envio, destinatários
-  (endereço válido, autorizado pela pessoa, domínio da organização) e anexos
-  (existem, no escopo, com conteúdo). Não envia nada.
+  `vinculo_quebrado` (reunião de origem indisponível). Antes de qualquer envio,
+  `send_email` resolve os destinatários no diretório, lê os anexos no escopo da
+  conversa, recusa anexo vazio (`anexo_vazio`) e avisa de documento com pendência
+  grave. Não envia nada sem a confirmação da pessoa.
