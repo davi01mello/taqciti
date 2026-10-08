@@ -147,7 +147,7 @@ export function Reuniao({
 
   const meetingId = sessao?.meetingId ?? null;
 
-  // Extração incremental, avisos do acompanhamento e da captura: só gravam.
+  // Avisos do acompanhamento e da captura: só gravam.
   useAvisosDaReuniao(state);
   const organizador = souOrganizador(sessao?.participants);
   const avisos = useAvisosVisiveis({
