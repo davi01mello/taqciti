@@ -79,7 +79,32 @@ describe('limparVinculosDaReuniao', () => {
       analises: 0,
       avisos: 0,
       briefings: 0,
+      sugestoes: 0,
     });
+  });
+
+  /* Sugestão de condução é derivada da transcrição: vai com a reunião, feedback junto. */
+  it('leva as sugestões de condução da reunião e o feedback delas', async () => {
+    await storage.local.set({
+      [STORAGE_KEYS.apoio]: {
+        versao: 1,
+        sugestoes: [
+          { id: 's1', reuniaoId: 'm-1' },
+          { id: 's2', reuniaoId: 'm-2' },
+        ],
+        feedback: [
+          { id: 'f1', reuniaoId: 'm-1' },
+          { id: 'f2', reuniaoId: 'm-2' },
+        ],
+      },
+    });
+
+    const resultado = await limparVinculosDaReuniao('m-1');
+
+    expect(resultado.sugestoes).toBe(1);
+    const guardado = ler<{ sugestoes: Array<{ id: string }>; feedback: Array<{ id: string }> }>(STORAGE_KEYS.apoio);
+    expect(guardado.sugestoes.map((s) => s.id)).toEqual(['s2']);
+    expect(guardado.feedback.map((f) => f.id)).toEqual(['f2']);
   });
 
   /* O briefing é escrito sobre a reunião e vai com ela; o perfil é da pessoa e fica. */

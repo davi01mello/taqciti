@@ -170,6 +170,13 @@ export const STORAGE_KEYS = {
    * Apagar a reunião leva só o briefing dela. Ver `features/conducao/store.ts`.
    */
   conducao: 'taq:conducao',
+
+  /**
+   * chrome.storage.local — as sugestões de condução (privadas, para quem
+   * conduz) e o feedback sobre elas. Derivados da reunião: apagá-la leva as
+   * dela. Ver `features/apoio/store.ts`.
+   */
+  apoio: 'taq:apoio',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

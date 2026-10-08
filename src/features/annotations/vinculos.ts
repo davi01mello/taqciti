@@ -41,6 +41,8 @@ export interface ResultadoDaLimpeza {
   avisos: number;
   /** O briefing da reunião (o objetivo que a pessoa escreveu para ela). */
   briefings: number;
+  /** As sugestões de condução da reunião (e o feedback sobre elas). */
+  sugestoes: number;
 }
 
 /** A exclusão e seus vínculos são confirmados juntos pelo storage. */
@@ -56,6 +58,7 @@ export async function limparVinculosDaReuniao(
     STORAGE_KEYS.trabalho,
     STORAGE_KEYS.avisos,
     STORAGE_KEYS.conducao,
+    STORAGE_KEYS.apoio,
   ].sort();
   const executar = async (): Promise<ResultadoDaLimpeza> => {
     const bruto = Object.fromEntries(
@@ -152,8 +155,23 @@ export async function limparVinculosDaReuniao(
       briefings = conducao.briefings.length - ficam.length;
       if (briefings) alteracoes[STORAGE_KEYS.conducao] = { ...conducao, briefings: ficam };
     }
+    // As sugestões de condução são derivadas da transcrição que deixou de existir.
+    let sugestoes = 0;
+    const apoio = bruto[STORAGE_KEYS.apoio] as { sugestoes?: unknown; feedback?: unknown } | null | undefined;
+    if (apoio && typeof apoio === 'object' && Array.isArray(apoio.sugestoes)) {
+      const deOutras = (x: unknown) =>
+        !x || typeof x !== 'object' || (x as { reuniaoId?: unknown }).reuniaoId !== meetingId;
+      const ficam = apoio.sugestoes.filter(deOutras);
+      sugestoes = apoio.sugestoes.length - ficam.length;
+      if (sugestoes)
+        alteracoes[STORAGE_KEYS.apoio] = {
+          ...apoio,
+          sugestoes: ficam,
+          feedback: Array.isArray(apoio.feedback) ? apoio.feedback.filter(deOutras) : [],
+        };
+    }
     if (Object.keys(alteracoes).length) await writeLocalBatch(alteracoes);
-    return { nota, marcas, prints, documentosDesvinculados, analises, avisos, briefings };
+    return { nota, marcas, prints, documentosDesvinculados, analises, avisos, briefings, sugestoes };
   };
   const travar = (i: number): Promise<ResultadoDaLimpeza> =>
     i === chaves.length ? executar() : comTravaLocal(chaves[i]!, () => travar(i + 1));
