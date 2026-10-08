@@ -43,6 +43,8 @@ export interface ResultadoDaLimpeza {
   briefings: number;
   /** As sugestões de condução da reunião (e o feedback sobre elas). */
   sugestoes: number;
+  /** O estado dos pontos da reunião ("o que falta fechar"): leitura derivada da transcrição. */
+  estados: number;
 }
 
 /** A exclusão e seus vínculos são confirmados juntos pelo storage. */
@@ -59,6 +61,7 @@ export async function limparVinculosDaReuniao(
     STORAGE_KEYS.avisos,
     STORAGE_KEYS.conducao,
     STORAGE_KEYS.apoio,
+    STORAGE_KEYS.estado,
   ].sort();
   const executar = async (): Promise<ResultadoDaLimpeza> => {
     const bruto = Object.fromEntries(
@@ -184,8 +187,22 @@ export async function limparVinculosDaReuniao(
           medicoes: medicoes.mapa,
         };
     }
+    // O estado dos pontos é uma leitura da transcrição que deixou de existir.
+    let estados = 0;
+    const mapaDeEstados = bruto[STORAGE_KEYS.estado];
+    if (
+      mapaDeEstados &&
+      typeof mapaDeEstados === 'object' &&
+      !Array.isArray(mapaDeEstados) &&
+      meetingId in (mapaDeEstados as Record<string, unknown>)
+    ) {
+      const copia = { ...(mapaDeEstados as Record<string, unknown>) };
+      delete copia[meetingId];
+      alteracoes[STORAGE_KEYS.estado] = copia;
+      estados = 1;
+    }
     if (Object.keys(alteracoes).length) await writeLocalBatch(alteracoes);
-    return { nota, marcas, prints, documentosDesvinculados, analises, avisos, briefings, sugestoes };
+    return { nota, marcas, prints, documentosDesvinculados, analises, avisos, briefings, sugestoes, estados };
   };
   const travar = (i: number): Promise<ResultadoDaLimpeza> =>
     i === chaves.length ? executar() : comTravaLocal(chaves[i]!, () => travar(i + 1));

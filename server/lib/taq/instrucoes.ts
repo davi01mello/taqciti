@@ -66,6 +66,8 @@ const ARQUIVO_POR_VERSAO: Record<string, string> = {
   'copilot-v2': 'copilot-v2.md',
   /** Acompanha a reunião em silêncio e propõe, no máximo, UMA sugestão privada de condução por chamada (`avaliar`). */
   'intervencao-v1': 'intervencao-v1.md',
+  /** Estado de cada ponto da reunião (a esclarecer, discutido, a confirmar, decidido, adiado), com fala citada (`atualizar_pontos`). */
+  'estado-v1': 'estado-v1.md',
   /** Organiza o texto livre da pessoa num perfil de condução editável (`propor_perfil`); nunca salva. */
   'conducao-v1': 'conducao-v1.md',
 };

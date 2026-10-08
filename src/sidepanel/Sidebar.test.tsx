@@ -469,17 +469,18 @@ describe('as ações da reunião', () => {
 
       const atalhos = todos<HTMLButtonElement>('.tq-rapida-atalhos button');
       expect(atalhos.map((b) => b.textContent)).toEqual([
-        'O que falta esclarecer?',
-        'O que foi decidido?',
+        'O que falta fechar',
         'Me ajude a fechar',
         'Sugerir acompanhamentos',
       ]);
 
-      await clicar(atalhos[0]!);
+      // "O que falta fechar" abre o cartão do estado: não é pergunta ao copiloto.
+      // Os outros são perguntas comuns, enviadas exatamente como estão escritas.
+      await clicar(atalhos[1]!);
       await act(async () => new Promise((r) => setTimeout(r, 20)));
       expect(executar).toHaveBeenCalledTimes(1);
       expect((executar.mock.calls[0] as unknown as [{ texto: string }])[0].texto).toBe(
-        'O que ainda falta esclarecer nesta reunião?',
+        'Me ajude a fechar a reunião: o que foi decidido, o que segue em aberto e o que ainda falta definir (responsável e data).',
       );
       expect(q('.tq-rapida-texto').textContent).toContain('Falta fechar o responsável');
     } finally {

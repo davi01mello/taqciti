@@ -188,6 +188,13 @@ export const STORAGE_KEYS = {
    * dela. Ver `features/apoio/store.ts`.
    */
   apoio: 'taq:apoio',
+
+  /**
+   * chrome.storage.local — o estado dos pontos de cada reunião (a esclarecer,
+   * discutido, a confirmar, decidido, adiado), com a fala que sustenta cada um.
+   * Derivado da reunião: apagá-la leva o dela. Ver `features/estado/store.ts`.
+   */
+  estado: 'taq:estado',
 } as const;
 
 /** Chaves da era "CITi Flow Companion" — migradas uma única vez no boot. */

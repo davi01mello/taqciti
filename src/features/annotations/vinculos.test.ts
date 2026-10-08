@@ -80,7 +80,23 @@ describe('limparVinculosDaReuniao', () => {
       avisos: 0,
       briefings: 0,
       sugestoes: 0,
+      estados: 0,
     });
+  });
+
+  /* O estado dos pontos é leitura da transcrição: vai com a reunião. */
+  it('leva o estado dos pontos da reunião e deixa o das outras', async () => {
+    await storage.local.set({
+      [STORAGE_KEYS.estado]: {
+        'm-1': { reuniaoId: 'm-1', revisao: 5, pontos: [] },
+        'm-2': { reuniaoId: 'm-2', revisao: 7, pontos: [] },
+      },
+    });
+
+    const resultado = await limparVinculosDaReuniao('m-1');
+
+    expect(resultado.estados).toBe(1);
+    expect(Object.keys(ler<Record<string, unknown>>(STORAGE_KEYS.estado))).toEqual(['m-2']);
   });
 
   /* Sugestão de condução é derivada da transcrição: vai com a reunião, feedback junto. */

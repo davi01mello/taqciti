@@ -76,6 +76,8 @@ import { useApoioAoVivo } from '@/features/apoio/useApoio';
 import { souOrganizador, useAvisosVisiveis } from '@/features/avisos/useAvisos';
 import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
 import { CartaoDeApoio } from './CartaoDeApoio';
+import { EstadoDosPontos } from './EstadoDosPontos';
+import { useEstadoDosPontos } from '@/features/estado/useEstado';
 import { SugestoesDoOrganizador } from './SugestoesDoOrganizador';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
@@ -153,6 +155,9 @@ export function Reuniao({
   useAvisosDaReuniao(state);
   // Apoio à condução: sugestões privadas, no máximo uma por vez, só com perfil e assistente.
   const apoio = useApoioAoVivo(state, taqPronto);
+  // O que falta fechar, ponto a ponto: lido pelo Taq a pedido, conferido em código.
+  const estadoDosPontos = useEstadoDosPontos(state);
+  const [estadoAberto, setEstadoAberto] = useState(false);
   const organizador = souOrganizador(sessao?.participants);
   const avisos = useAvisosVisiveis({
     ...(meetingId ? { reuniaoId: meetingId } : {}),
@@ -256,6 +261,14 @@ export function Reuniao({
 
       <CartaoDeApoio meetingId={sessao.meetingId} apoio={apoio} />
 
+      <EstadoDosPontos
+        meetingId={sessao.meetingId}
+        estado={estadoDosPontos}
+        aberto={estadoAberto}
+        onAlternar={() => setEstadoAberto((v) => !v)}
+        taqPronto={taqPronto}
+      />
+
       {avisosAberto && (
         <SugestoesDoOrganizador
           visiveis={avisos.visiveis}
@@ -315,6 +328,11 @@ export function Reuniao({
             onContinuarNaConversa(id);
           }}
           onFechar={() => setRapidaAberta(false)}
+          onVerEstado={() => {
+            setRapidaAberta(false);
+            setEstadoAberto(true);
+            void estadoDosPontos.atualizar();
+          }}
         />
       )}
 
@@ -571,14 +589,16 @@ function PrintsDaReuniao({
 type FaseDaRapida = 'escrevendo' | 'procurando' | 'respondida';
 
 /**
- * Perguntas prontas de condução. Só preenchem e enviam o pedido: quem decide o
- * que está esclarecido, decidido ou em aberto é o copiloto, com as fontes — não
- * há regra de texto aqui. Cada uma é uma pergunta comum da pessoa, que ela
- * também poderia ter digitado.
+ * Perguntas prontas de condução. Só preenchem e enviam o pedido: quem responde é
+ * o copiloto, com as fontes — não há regra de texto aqui. Cada uma é uma
+ * pergunta comum da pessoa, que ela também poderia ter digitado.
+ *
+ * "O que falta fechar" NÃO é pergunta em prosa: abre o cartão com o estado de
+ * cada ponto (a esclarecer, discutido, a confirmar, decidido, adiado), que tem
+ * a fala citada e é conferido em código. Em prosa livre o modelo listou como
+ * aberto o que o cliente já tinha respondido.
  */
 const ATALHOS_DA_CONDUCAO: ReadonlyArray<{ rotulo: string; pedido: string }> = [
-  { rotulo: 'O que falta esclarecer?', pedido: 'O que ainda falta esclarecer nesta reunião?' },
-  { rotulo: 'O que foi decidido?', pedido: 'O que já foi decidido até agora nesta reunião?' },
   {
     rotulo: 'Me ajude a fechar',
     pedido:
@@ -603,6 +623,7 @@ function PerguntaRapida({
   onCancelar,
   onContinuar,
   onFechar,
+  onVerEstado,
 }: {
   meetingId: string;
   titulo: string;
@@ -612,6 +633,8 @@ function PerguntaRapida({
   onCancelar: () => void;
   onContinuar: (conversaId: string) => void;
   onFechar: () => void;
+  /** Abre o cartão do estado dos pontos e o atualiza. */
+  onVerEstado: () => void;
 }) {
   const [texto, setTexto] = useState('');
   const [fase, setFase] = useState<FaseDaRapida>('escrevendo');
@@ -684,6 +707,9 @@ function PerguntaRapida({
 
       {taqPronto && fase === 'escrevendo' && (
         <div className="tq-rapida-pe tq-rapida-atalhos" role="group" aria-label="Perguntas prontas">
+          <button type="button" onClick={onVerEstado}>
+            O que falta fechar
+          </button>
           {ATALHOS_DA_CONDUCAO.map((a) => (
             <button key={a.rotulo} type="button" onClick={() => void perguntar(a.pedido)}>
               {a.rotulo}
