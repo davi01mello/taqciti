@@ -10,7 +10,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
-import type { ResultadoDoRegistro } from '@/features/estado/registrar';
+import type { ResultadoDoRegistro, ResultadoDoRegistroDeDecisao } from '@/features/estado/registrar';
 import { lerEstados, snapshotInicial, transacaoDoEstado, mesclar, type Ponto, type Snapshot } from '@/features/estado/store';
 import type { EstadoDaReuniao } from '@/features/estado/useEstado';
 import { EstadoDosPontos } from './EstadoDosPontos';
@@ -238,6 +238,46 @@ describe('Fechar a reunião', () => {
     jaExistia = true;
     await act(async () => botoes[0]!.click());
     expect(host.querySelector('.tq-fechamento-registrar [role="status"]')!.textContent).toBe('Já estava em Acompanhamento.');
+  });
+
+  it('decidido ganha "Registrar como decisão", por clique, com recibo; o que só está a confirmar não', async () => {
+    // Cenário base: um ponto "a confirmar" e nenhum decidido → nenhuma seção de decisões.
+    const naoDecidido = vi.fn(async (): Promise<ResultadoDoRegistroDeDecisao> => ({ tipo: 'recusado', motivo: 'x' }));
+    await act(async () =>
+      root.render(
+        <EstadoDosPontos meetingId="m-1" estado={estado(comFechamento())} aberto onAlternar={() => undefined} taqPronto
+          falasAgora={3} onRegistrar={ok} onRegistrarDecisao={naoDecidido} fechamentoAberto onAlternarFechamento={() => undefined} />,
+      ),
+    );
+    expect(host.textContent).not.toContain('Registrar em Decisões');
+
+    // Com um ponto decidido, o botão aparece e o clique chama o registro com aquele ponto.
+    const s = comFechamento();
+    const dados = s.pontos.find((p) => p.texto === 'Quem levanta os dados e quando')!;
+    dados.estado = 'decidido';
+    const chamadas: string[] = [];
+    let jaExistia = false;
+    const registrarDecisao = async (p: Ponto): Promise<ResultadoDoRegistroDeDecisao> => {
+      chamadas.push(p.texto);
+      return { tipo: 'ok', jaExistia, decisao: {} as never };
+    };
+    await act(async () =>
+      root.render(
+        <EstadoDosPontos meetingId="m-1" estado={estado(s)} aberto onAlternar={() => undefined} taqPronto
+          falasAgora={3} onRegistrar={ok} onRegistrarDecisao={registrarDecisao} fechamentoAberto onAlternarFechamento={() => undefined} />,
+      ),
+    );
+    expect(host.textContent).toContain('Registrar em Decisões');
+    const botaoDecisao = () => [...host.querySelectorAll<HTMLButtonElement>('.tq-fechamento-decisoes button')];
+    expect(botaoDecisao()).toHaveLength(1);
+    expect(chamadas).toEqual([]);
+    await act(async () => botaoDecisao()[0]!.click());
+    expect(chamadas).toEqual(['Quem levanta os dados e quando']);
+    expect(host.querySelector('.tq-fechamento-decisoes [role="status"]')!.textContent).toBe('Registrada em Decisões.');
+    jaExistia = true;
+    await act(async () => botaoDecisao()[0]!.click());
+    expect(host.querySelector('.tq-fechamento-decisoes [role="status"]')!.textContent).toBe('Já estava em Decisões.');
+    expect(host.textContent).toContain('copiada da transcrição');
   });
 
   it('um registro recusado mostra o motivo, e o texto avisa que dono e prazo só entram se ditos', async () => {

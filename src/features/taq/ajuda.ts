@@ -1167,6 +1167,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Use “Ver fonte” para conferir a fala de cada estado. Se o Taq errou, troque o estado no seletor do ponto: a sua correção só muda por uma fala posterior.',
       'Para encerrar, clique em “Fechar a reunião” (ou, na “Pergunta rápida”, em “Me ajude a fechar”): aparece a síntese do que foi decidido, do que está a confirmar ou em aberto e do que ainda não tem responsável ou prazo, com uma frase de fechamento sugerida.',
       'Para guardar um combinado, clique em “Registrar como acompanhamento”: ele vai para “Acompanhamento” com o responsável e o prazo só se a fala os trouxe.',
+      'Para guardar uma decisão, clique em “Registrar como decisão” num ponto decidido: ela vai para “Acompanhamento” com o assunto e a fala em que foi decidida, copiada da transcrição.',
     ],
     preRequisitos: ['O assistente conectado, para “Ler a reunião” e “Atualizar”.'],
     limitacoes: [
@@ -1185,6 +1186,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Pergunta rápida',
       'Me ajude a fechar',
       'Registrar como acompanhamento',
+      'Registrar como decisão',
       'Acompanhamento',
     ],
     implementacao: [

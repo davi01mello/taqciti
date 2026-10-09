@@ -18,7 +18,7 @@ import {
   type EstadoDoPonto,
   type Ponto,
 } from '@/features/estado/store';
-import type { ResultadoDoRegistro } from '@/features/estado/registrar';
+import type { ResultadoDoRegistro, ResultadoDoRegistroDeDecisao } from '@/features/estado/registrar';
 import { podeVirarAcompanhamento, sintetizar } from '@/features/estado/sintese';
 import type { EstadoDaReuniao } from '@/features/estado/useEstado';
 
@@ -101,12 +101,24 @@ function Fechamento({
   estado,
   falasAgora,
   onRegistrar,
+  onRegistrarDecisao,
 }: {
   estado: EstadoDaReuniao;
   falasAgora: number;
   onRegistrar: (ponto: Ponto) => Promise<ResultadoDoRegistro>;
+  onRegistrarDecisao?: (ponto: Ponto) => Promise<ResultadoDoRegistroDeDecisao>;
 }) {
   const [recibo, setRecibo] = useState<Record<string, string>>({});
+  const [reciboDecisao, setReciboDecisao] = useState<Record<string, string>>({});
+  const registrarDecisao = async (p: Ponto) => {
+    if (!onRegistrarDecisao) return;
+    const r = await onRegistrarDecisao(p);
+    setReciboDecisao((x) => ({
+      ...x,
+      [p.id]:
+        r.tipo === 'recusado' ? r.motivo : r.jaExistia ? 'Já estava em Decisões.' : 'Registrada em Decisões.',
+    }));
+  };
   const s = sintetizar(estado.snapshot, falasAgora);
   const fechamento = estado.snapshot?.fechamento;
   const registrar = async (p: Ponto) => {
@@ -172,6 +184,25 @@ function Fechamento({
               <span className="tq-apoio-aviso">Sugestão de fechamento — não é uma fala registrada</span>“{fechamento.texto}”
             </blockquote>
           )}
+          {onRegistrarDecisao && s.decidido.length > 0 && (
+            <div>
+              <h4>Registrar em Decisões</h4>
+              <ul className="tq-fechamento-registrar tq-fechamento-decisoes">
+                {s.decidido.map((p) => (
+                  <li key={p.id}>
+                    <span>{p.texto}</span>
+                    <button type="button" onClick={() => void registrarDecisao(p)}>
+                      Registrar como decisão
+                    </button>
+                    {reciboDecisao[p.id] && <span role="status">{reciboDecisao[p.id]}</span>}
+                  </li>
+                ))}
+              </ul>
+              <p className="tq-estado-nota">
+                A decisão registrada leva o assunto e a fala em que foi decidida, copiada da transcrição.
+              </p>
+            </div>
+          )}
           {elegiveis.length > 0 && (
             <div>
               <h4>Registrar em Acompanhamento</h4>
@@ -205,6 +236,7 @@ export function EstadoDosPontos({
   taqPronto,
   falasAgora = 0,
   onRegistrar,
+  onRegistrarDecisao,
   fechamentoAberto = false,
   onAlternarFechamento,
 }: {
@@ -216,6 +248,7 @@ export function EstadoDosPontos({
   /** Quantas falas a transcrição tem agora: a síntese diz se a leitura ficou para trás. */
   falasAgora?: number;
   onRegistrar?: (ponto: Ponto) => Promise<ResultadoDoRegistro>;
+  onRegistrarDecisao?: (ponto: Ponto) => Promise<ResultadoDoRegistroDeDecisao>;
   fechamentoAberto?: boolean;
   onAlternarFechamento?: () => void;
 }) {
@@ -254,7 +287,12 @@ export function EstadoDosPontos({
             </p>
           )}
           {fechamentoAberto && onRegistrar && (
-            <Fechamento estado={estado} falasAgora={falasAgora} onRegistrar={onRegistrar} />
+            <Fechamento
+              estado={estado}
+              falasAgora={falasAgora}
+              onRegistrar={onRegistrar}
+              {...(onRegistrarDecisao ? { onRegistrarDecisao } : {})}
+            />
           )}
           <div className="tq-estado-rodape">
             <button type="button" disabled={!taqPronto || atualizando} onClick={() => void estado.atualizar()}>

@@ -78,7 +78,7 @@ import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
 import { CartaoDeApoio } from './CartaoDeApoio';
 import { EstadoDosPontos } from './EstadoDosPontos';
 import { useEstadoDosPontos } from '@/features/estado/useEstado';
-import { registrarPontoComoAcompanhamento } from '@/features/estado/registrar';
+import { registrarPontoComoAcompanhamento, registrarPontoComoDecisao } from '@/features/estado/registrar';
 import { SugestoesDoOrganizador } from './SugestoesDoOrganizador';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
@@ -274,6 +274,13 @@ export function Reuniao({
         onAlternarFechamento={() => setFechamentoAberto((v) => !v)}
         onRegistrar={(ponto) =>
           registrarPontoComoAcompanhamento({
+            reuniao: { id: sessao.meetingId, titulo: sessao.title },
+            ponto,
+            versao: `${sessao.endedAt ?? sessao.startedAt}:${sessao.segments.length}`,
+          })
+        }
+        onRegistrarDecisao={(ponto) =>
+          registrarPontoComoDecisao({
             reuniao: { id: sessao.meetingId, titulo: sessao.title },
             ponto,
             versao: `${sessao.endedAt ?? sessao.startedAt}:${sessao.segments.length}`,

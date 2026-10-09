@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { lerTrabalho } from '@/features/trabalho/store';
-import { registrarPontoComoAcompanhamento } from './registrar';
+import { registrarPontoComoAcompanhamento, registrarPontoComoDecisao } from './registrar';
 import { sintetizar, podeVirarAcompanhamento } from './sintese';
 import { idDoPontoDaPreparacao, mesclar, snapshotInicial, type Snapshot } from './store';
 
@@ -131,6 +131,48 @@ describe('registrarPontoComoAcompanhamento', () => {
   it('ponto sem fala que o sustente não é registrado', async () => {
     const semFala = { ...pontoDe('Contratar atendentes'), evidencias: [] };
     expect((await registrarPontoComoAcompanhamento({ reuniao, ponto: semFala, versao: '9:6' }))).toMatchObject({ tipo: 'recusado' });
+  });
+});
+
+describe('registrarPontoComoDecisao', () => {
+  const reuniao = { id: 'm-1', titulo: 'Descoberta' };
+  const pontoDe = (t: string) => estado().pontos.find((p) => p.texto === t)!;
+
+  it('registra a decisão com o assunto e a fala COPIADA da transcrição, como confirmada, por clique da pessoa', async () => {
+    const r = await registrarPontoComoDecisao({ reuniao, ponto: pontoDe('Quem levanta os dados e quando'), versao: '9:6' });
+    if (r.tipo !== 'ok') throw new Error('esperava ok');
+    expect(r.jaExistia).toBe(false);
+    expect(r.decisao).toMatchObject({
+      assunto: 'Quem levanta os dados e quando',
+      estado: 'confirmada',
+      reuniaoId: 'm-1',
+      texto: 'Quem levanta os dados e quando: Fechado então: a Marta levanta os dados até sexta-feira.',
+    });
+    // O texto da decisão é a fala da transcrição, não uma frase escrita pelo Taq.
+    expect(TRANSCRICAO.some((f) => r.decisao.texto.endsWith(f.text))).toBe(true);
+    expect(r.decisao.evidencias.map((e) => e.segmento)).toEqual([3, 4]);
+    expect(r.decisao.historico[0]).toMatchObject({ origem: 'pessoa' });
+    expect((await lerTrabalho()).decisoes).toHaveLength(1);
+  });
+
+  it('repetir o clique não duplica', async () => {
+    const ponto = pontoDe('Quem levanta os dados e quando');
+    await registrarPontoComoDecisao({ reuniao, ponto, versao: '9:6' });
+    const de_novo = await registrarPontoComoDecisao({ reuniao, ponto, versao: '9:6' });
+    expect(de_novo).toMatchObject({ tipo: 'ok', jaExistia: true });
+    expect((await lerTrabalho()).decisoes).toHaveLength(1);
+  });
+
+  it('proposta, discussão, adiamento e ponto a esclarecer NÃO viram decisão', async () => {
+    for (const t of ['Contratar atendentes', 'Onde ocorre a espera', 'Pesquisa de satisfação', 'Orçamento']) {
+      expect((await registrarPontoComoDecisao({ reuniao, ponto: pontoDe(t), versao: '9:6' })).tipo, t).toBe('recusado');
+    }
+    expect((await lerTrabalho()).decisoes).toEqual([]);
+  });
+
+  it('decidido sem fala que o sustente não é registrado', async () => {
+    const semFala = { ...pontoDe('Quem levanta os dados e quando'), evidencias: [] };
+    expect(await registrarPontoComoDecisao({ reuniao, ponto: semFala, versao: '9:6' })).toMatchObject({ tipo: 'recusado' });
   });
 });
 
