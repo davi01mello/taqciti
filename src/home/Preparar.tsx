@@ -92,6 +92,7 @@ function PerfilDeConducao({ conducao }: { conducao: Conducao }) {
       intervencao: { modo: novo.modo, estilo: novo.estilo },
       contexto: linhas(novo.contexto),
       preferencias: linhas(novo.preferencias),
+      ...(novo.ler ? { lerAoEncerrar: true as const } : {}),
     });
     setEditado(true);
     setAviso('');
@@ -108,8 +109,10 @@ function PerfilDeConducao({ conducao }: { conducao: Conducao }) {
     });
     setFase('ocioso');
     if (r.tipo === 'ok') {
-      setRascunho(r.proposta);
-      setCampos(camposDe(r.proposta));
+      // A opção de leitura ao encerrar é da pessoa; a proposta do modelo não a muda.
+      const proposta = { ...r.proposta, ...(campos.ler ? { lerAoEncerrar: true as const } : {}) };
+      setRascunho(proposta);
+      setCampos(camposDe(proposta));
       setEditado(true);
       setComentario(r.comentario);
     } else if (r.tipo === 'sem_proposta') {
@@ -198,6 +201,11 @@ function PerfilDeConducao({ conducao }: { conducao: Conducao }) {
         <textarea rows={2} value={campos.preferencias} onChange={(e) => mudar({ preferencias: e.target.value })} />
       </label>
 
+      <label className="tq-prep-opcao">
+        <input type="checkbox" checked={campos.ler} onChange={(e) => mudar({ ler: e.target.checked })} />
+        Ao encerrar a reunião, ler o que ficou decidido e em aberto (envia a transcrição ao provedor de IA; nada é registrado sozinho)
+      </label>
+
       {aviso && <p className="tq-aviso" role="alert">{aviso}</p>}
       <div className="tq-c-acoes">
         <button
@@ -227,6 +235,7 @@ function camposDe(c: ConteudoDoPerfil) {
     estilo: c.intervencao.estilo,
     contexto: comoTexto(c.contexto),
     preferencias: comoTexto(c.preferencias),
+    ler: c.lerAoEncerrar === true,
   };
 }
 

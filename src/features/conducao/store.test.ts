@@ -8,8 +8,10 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
+import { perfilQueValeParaAReuniao } from './contexto';
 import {
   atualizarPerfilDoBriefing,
+  conteudoDe,
   briefingDaReuniao,
   lerConducao,
   normalizarConteudoDoPerfil,
@@ -74,6 +76,15 @@ describe('perfil', () => {
     expect(c.observar).toHaveLength(8);
     expect(c.observar[0]).toBe('Impacto');
     expect(c.intervencao.modo).toBe('discreto');
+  });
+
+  it('"ler ao encerrar" só vale quando a pessoa marcou, e sobrevive ao salvar e ler', async () => {
+    expect(normalizarConteudoDoPerfil(PERFIL)!.lerAoEncerrar).toBeUndefined();
+    expect(normalizarConteudoDoPerfil({ ...PERFIL, lerAoEncerrar: 'sim' })!.lerAoEncerrar).toBeUndefined();
+    await salvarPerfil({ ...PERFIL, lerAoEncerrar: true }, 0);
+    const { perfil } = await lerConducao();
+    expect(conteudoDe(perfil!).lerAoEncerrar).toBe(true);
+    expect(perfilQueValeParaAReuniao(await lerConducao(), null)?.lerAoEncerrar).toBe(true);
   });
 });
 

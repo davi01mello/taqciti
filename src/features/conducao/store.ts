@@ -65,6 +65,13 @@ export interface ConteudoDoPerfil {
   contexto: string[];
   /** Meu jeito de trabalhar: preferências estáveis, uma por item. */
   preferencias: string[];
+  /**
+   * Ao encerrar a reunião, o Taq lê os pontos uma vez (o que foi decidido, o que
+   * segue em aberto) e mostra no cartão, para a pessoa revisar. É uma escolha
+   * EXPLÍCITA e fica desligada por padrão: ler a reunião envia trechos dela ao
+   * provedor de IA. Presente só quando ligada.
+   */
+  lerAoEncerrar?: true;
 }
 
 export interface PerfilDeConducao extends ConteudoDoPerfil {
@@ -173,6 +180,7 @@ export function normalizarConteudoDoPerfil(bruto: unknown): ConteudoDoPerfil | n
     intervencao: { modo, estilo: limpar(i.estilo, MAX_ITEM) },
     contexto: limparLista(b.contexto),
     preferencias: limparLista(b.preferencias),
+    ...((b as { lerAoEncerrar?: unknown }).lerAoEncerrar === true ? { lerAoEncerrar: true as const } : {}),
   };
 }
 
@@ -295,6 +303,7 @@ export function conteudoDe(p: PerfilDeConducao): ConteudoDoPerfil {
     intervencao: p.intervencao,
     contexto: p.contexto,
     preferencias: p.preferencias,
+    ...(p.lerAoEncerrar ? { lerAoEncerrar: true as const } : {}),
   };
 }
 

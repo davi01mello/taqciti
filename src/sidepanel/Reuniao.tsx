@@ -157,7 +157,7 @@ export function Reuniao({
   // Apoio à condução: sugestões privadas, no máximo uma por vez, só com perfil e assistente.
   const apoio = useApoioAoVivo(state, taqPronto);
   // O que falta fechar, ponto a ponto: lido pelo Taq a pedido, conferido em código.
-  const estadoDosPontos = useEstadoDosPontos(state);
+  const estadoDosPontos = useEstadoDosPontos(state, taqPronto);
   const [estadoAberto, setEstadoAberto] = useState(false);
   const [fechamentoAberto, setFechamentoAberto] = useState(false);
   const organizador = souOrganizador(sessao?.participants);

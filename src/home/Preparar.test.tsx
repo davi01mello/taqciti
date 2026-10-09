@@ -99,8 +99,28 @@ it('organiza o texto da pessoa em resumo, mas só salva em "Usar este assistente
   expect(conducao()!.perfil!.observar).toEqual(['Impacto', 'Processo atual']);
 });
 
-it('sem IA, o resumo escrito à mão vale igual', async () => {
+it('"ler ao encerrar" é opção da pessoa: vem desligada e só vale depois de salva', async () => {
+  proporPerfil.mockResolvedValue({
+    tipo: 'ok',
+    comentario: '',
+    proposta: { missao: 'Apoiar reuniões.', observar: [], intervencao: { modo: 'discreto', estilo: '' }, contexto: [], preferencias: [] },
+  });
   await montar();
+  const caixa = () => q<HTMLInputElement>('.tq-prep-opcao input');
+  expect(caixa().checked).toBe(false);
+  await act(async () => caixa().click());
+  await digitar(campo('Conte com suas palavras'), 'Conduzo reuniões.');
+  await act(async () => botao('Organizar')!.click());
+  await esperar(() => (campo('Em que vou ajudar') as HTMLInputElement).value !== '');
+  // A proposta do modelo não desfaz a escolha da pessoa.
+  expect(caixa().checked).toBe(true);
+  expect(conducao()?.perfil ?? null).toBeNull();
+  await act(async () => botao('Usar este assistente')!.click());
+  await esperar(() => !!conducao()?.perfil);
+  expect(conducao()!.perfil!.lerAoEncerrar).toBe(true);
+});
+
+it('sem IA, o resumo escrito à mão vale igual', async () => {  await montar();
   await digitar(campo('Em que vou ajudar'), 'Apoiar reuniões de planejamento.');
   await act(async () => botao('Usar este assistente')!.click());
   await esperar(() => !!conducao()?.perfil);

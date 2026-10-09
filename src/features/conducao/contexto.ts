@@ -16,7 +16,14 @@
  * A reunião com briefing usa a CÓPIA do perfil de quando foi preparada
  * (`perfilUsado`); sem briefing, vale o perfil de hoje.
  */
-import { MODOS_DE_INTERVENCAO, ROTULO_DO_MODO, briefingDaReuniao, type Conducao, type ConteudoDoPerfil } from './store';
+import {
+  MODOS_DE_INTERVENCAO,
+  ROTULO_DO_MODO,
+  briefingDaReuniao,
+  conteudoDe,
+  type Conducao,
+  type ConteudoDoPerfil,
+} from './store';
 
 const lista = (itens: readonly string[]) => itens.join('; ');
 
@@ -27,15 +34,7 @@ export function perfilQueValeParaAReuniao(c: Conducao, reuniaoId: string | null)
     const usado = briefing.perfilUsado;
     return usado && briefing.modo ? { ...usado, intervencao: { ...usado.intervencao, modo: briefing.modo } } : usado;
   }
-  return c.perfil
-    ? {
-        missao: c.perfil.missao,
-        observar: c.perfil.observar,
-        intervencao: c.perfil.intervencao,
-        contexto: c.perfil.contexto,
-        preferencias: c.perfil.preferencias,
-      }
-    : null;
+  return c.perfil ? conteudoDe(c.perfil) : null;
 }
 
 export function linhasDaConducao(c: Conducao, reuniao: { id: string; titulo: string } | null): string[] {
