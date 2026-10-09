@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { contentTreeSchema, ConflitoDeRevisao } from './contentTree';
 import { ErroDeCompilacao } from './compilador';
+import { OverloadedError, RateLimitError } from '../ai/types';
 import { ErroDeGeracao, type ResultadoDaEdicao, type ResultadoDoDocumento } from './gerar';
 
 const fonteSchema = z.object({
@@ -73,6 +74,19 @@ export function erroConhecido(erro: unknown): { status: number; error: string } 
   }
   if (erro instanceof ErroDeGeracao || erro instanceof ErroDeCompilacao) {
     return { status: 422, error: erro.message };
+  }
+  // O provedor de IA, dito como é: cota ou sobrecarga. Quem usa precisa saber que
+  // não é erro dele nem do documento — e se espera ou não.
+  if (erro instanceof RateLimitError) {
+    return {
+      status: 429,
+      error: erro.perDay
+        ? 'O provedor de IA atingiu a cota do dia. O documento só pode ser gerado ou alterado quando ela reabrir.'
+        : 'O provedor de IA está com muitas chamadas agora. Tente de novo em um minuto.',
+    };
+  }
+  if (erro instanceof OverloadedError) {
+    return { status: 503, error: 'O provedor de IA está sobrecarregado. Tente de novo em instantes.' };
   }
   return null;
 }

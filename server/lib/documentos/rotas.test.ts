@@ -245,3 +245,25 @@ describe('edição sem fontes', () => {
     expect(complete.mock.calls[1]![1].cacheablePrefix).toBeUndefined();
   });
 });
+
+describe('falhas do provedor de IA chegam ditas, com o status certo', () => {
+  it('cota diária estourada: 429 com a explicação, sem vazar o erro do provedor', async () => {
+    const { RateLimitError } = await import('../ai/types');
+    complete.mockRejectedValue(new RateLimitError('google', 'modelo', 'chave sk-secreta: cota', undefined, undefined, true));
+    const r = await post(gerar, { pedido: 'x', fontes: [FONTE] });
+    expect(r.status).toBe(429);
+    const corpo = JSON.stringify(await r.json());
+    expect(corpo).toContain('cota do dia');
+    expect(corpo).not.toContain('sk-secreta');
+  });
+
+  it('limite por minuto: 429 pedindo um minuto; sobrecarga: 503', async () => {
+    const { RateLimitError, OverloadedError } = await import('../ai/types');
+    complete.mockRejectedValueOnce(new RateLimitError('google', 'modelo', 'rpm'));
+    expect((await (await post(gerar, { pedido: 'x', fontes: [FONTE] })).json()).error).toContain('um minuto');
+    complete.mockRejectedValueOnce(new OverloadedError('google', 'modelo', '503'));
+    const r = await post(gerar, { pedido: 'x', fontes: [FONTE] });
+    expect(r.status).toBe(503);
+    expect((await r.json()).error).toContain('sobrecarregado');
+  });
+});
