@@ -522,7 +522,12 @@ function usePrint(meetingId: string | null) {
   const desfazer = useCallback(async () => {
     if (!recente) return;
     setRecente(null);
-    await apagarPrint(recente.id);
+    try {
+      await apagarPrint(recente.id);
+    } catch {
+      // O print continua guardado: dizer que foi desfeito seria falso.
+      setErro('Não foi possível desfazer o print. Ele continua guardado: apague-o na aba Prints.');
+    }
   }, [recente]);
 
   return { tirar, desfazer, esquecer: () => setRecente(null), recente, erro, ocupado, clarao };
@@ -541,6 +546,7 @@ function PrintsDaReuniao({
   viva: boolean;
 }) {
   const [abertoId, setAbertoId] = useState<string | null>(null);
+  const [erroAoApagar, setErroAoApagar] = useState<string | null>(null);
   const aberto = prints.find((p) => p.id === abertoId) ?? null;
   const fechar = useRef<HTMLButtonElement | null>(null);
 
@@ -570,6 +576,11 @@ function PrintsDaReuniao({
           ))}
         </ul>
       )}
+      {erroAoApagar && (
+        <p className="tq-aviso-falha" role="alert">
+          {erroAoApagar}
+        </p>
+      )}
       {viva && prints.length >= MAX_POR_REUNIAO && (
         <p className="tq-fino" role="status">
           Limite de {MAX_POR_REUNIAO} prints por reunião: o próximo substitui o mais antigo.
@@ -594,7 +605,11 @@ function PrintsDaReuniao({
               className="perigo"
               onClick={() => {
                 setAbertoId(null);
-                void apagarPrint(aberto.id);
+                setErroAoApagar(null);
+                // Falha de armazenamento não pode virar rejeição solta: o print continua lá.
+                void apagarPrint(aberto.id).catch(() =>
+                  setErroAoApagar('Não foi possível apagar o print. Ele continua guardado.'),
+                );
               }}
             >
               Apagar

@@ -78,6 +78,27 @@ async function transacao<R>(mudar: (m: Mapa, agora: number) => R): Promise<R> {
   });
 }
 
+/**
+ * A conversa foi apagada: os rascunhos dela (destinatários e texto, às vezes
+ * derivado de uma reunião) não têm mais como ser confirmados e não têm tela para
+ * apagá-los. Saem só `rascunho` e `cancelado`. As ações que JÁ aconteceram ou
+ * ficaram incertas (`enviando`, `aceito`, `falhou`, `desconhecido`) ficam: elas
+ * são a trava que impede reenviar às cegas. Devolve quantos saíram.
+ */
+export async function removerRascunhosDasConversas(conversaIds: readonly string[]): Promise<number> {
+  const alvo = new Set(conversaIds);
+  return transacao((mapa) => {
+    let n = 0;
+    for (const [chave, r] of Object.entries(mapa)) {
+      if (alvo.has(r.conversaId) && (r.estado === 'rascunho' || r.estado === 'cancelado')) {
+        delete mapa[chave];
+        n += 1;
+      }
+    }
+    return n;
+  });
+}
+
 export async function obterAcao(chave: string): Promise<RegistroDeAcao | null> {
   const mapa = await ler();
   vencerEnviando(mapa, dependencias().agora());

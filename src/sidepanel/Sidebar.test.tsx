@@ -491,6 +491,29 @@ describe('as ações da reunião', () => {
     }
   });
 
+  it('o trecho escolhido para perguntar não vai junto para OUTRA conversa quando a pessoa troca de conversa', async () => {
+    await storage.local.set({
+      [STORAGE_KEYS.conversations]: [
+        { id: 'c-a', title: 'Primeira conversa', createdAt: 1, updatedAt: 2, messages: [{ id: 'u1', role: 'user', text: 'oi', at: 1 }] },
+        { id: 'c-b', title: 'Segunda conversa', createdAt: 1, updatedAt: 1, messages: [{ id: 'u2', role: 'user', text: 'olá', at: 1 }] },
+      ],
+    });
+    estado = { phase: 'recording', session: sessao() };
+    await montar();
+    await clicar(q<HTMLButtonElement>('.tq-fala-corpo'));
+    await clicar(
+      todos<HTMLButtonElement>('.tq-fala-acoes button').find((b) => b.textContent?.includes('Perguntar sobre o trecho'))!,
+    );
+    expect(q('.tq-contexto-pendente').textContent).toContain('fechar o escopo');
+
+    await clicar(q<HTMLButtonElement>('.tq-seletor-conversa'));
+    const outra = todos<HTMLButtonElement>('.tq-conversa-menu button').find((b) => b.textContent?.includes('Segunda conversa'))!;
+    await clicar(outra);
+
+    // Foi para outra conversa: o trecho pendente foi abandonado, não vai na próxima mensagem.
+    expect(host.querySelector('.tq-contexto-pendente')).toBeNull();
+  });
+
   it('"Perguntar sobre o trecho" leva o trecho como contexto e abre a conversa', async () => {
     estado = { phase: 'recording', session: sessao() };
     await montar();

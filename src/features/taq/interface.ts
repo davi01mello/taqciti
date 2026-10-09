@@ -225,6 +225,10 @@ export function mensagemDoDesfecho(r: ExecucaoDoTaq): string {
       return 'Falha de execução: o provedor de IA demorou demais para responder. Tente de novo.';
     case 'nao_autorizado':
       return 'Falha de execução: o servidor recusou a chave desta extensão.';
+    case 'ocupado':
+      return 'O assistente ainda está respondendo a pergunta anterior. Sua mensagem ficou na conversa: envie de novo quando ele terminar.';
+    case 'erro_interno':
+      return 'Falha de execução: a resposta não pôde ser gravada. Sua mensagem ficou na conversa.';
     default:
       return 'Falha de execução: a resposta não pôde ser produzida.';
   }
@@ -270,7 +274,10 @@ export interface PerguntaAoTaq {
  * resultado `falhou`, e a atividade do agente diz isso.
  */
 export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | null> {
-  if (emCurso) return null;
+  // Ocupado: a mensagem JÁ está gravada na conversa e ficaria sem resposta e sem
+  // aviso. Devolve um desfecho que a tela diz (e NÃO publica atividade: isso
+  // atropelaria a execução que está em curso).
+  if (emCurso) return execucaoSemResposta('ocupado', 'O assistente já está respondendo outra pergunta.');
   const controle = new AbortController();
   emCurso = controle;
   publicarAtividade('preparando');
@@ -404,9 +411,23 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
     return r;
   } catch {
     publicarAtividade('falhou');
-    return null;
+    return execucaoSemResposta('erro_interno', 'A execução falhou antes de gravar a resposta.');
   } finally {
     pararDeObservar();
     if (emCurso === controle) emCurso = null;
   }
+}
+
+/** Um desfecho "falhou" sem execução de verdade: a tela o diz pelo mesmo caminho dos demais. */
+function execucaoSemResposta(codigo: string, mensagem: string): ExecucaoDoTaq {
+  return {
+    execucaoId: '',
+    estado: 'falhou',
+    evidencias: [],
+    documentos: [],
+    informacoesAusentes: [],
+    limitacoes: [],
+    erros: [{ codigo, mensagem }],
+    metricas: { duracaoMs: 0, passos: 0, chamadasDeFerramenta: 0, uso: { entrada: 0, saida: 0 } },
+  };
 }

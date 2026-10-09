@@ -212,7 +212,17 @@ export function historicoDaConversa(
   let total = 0;
   for (let i = turnos.length - 1; i >= 0; i -= 1) {
     const t = turnos[i]!;
-    if (total + t.texto.length > maxCaracteres) break;
+    if (total + t.texto.length > maxCaracteres) {
+      // Um turno sozinho maior que o limite não pode zerar o histórico inteiro: fica o
+      // FIM dele (o mais recente), com um aviso, em vez de o modelo perder a conversa toda.
+      if (!escolhidos.length) {
+        escolhidos.unshift({
+          papel: t.papel,
+          texto: `[início deste turno omitido por tamanho] …${t.texto.slice(-Math.max(200, maxCaracteres - 80))}`,
+        });
+      }
+      break;
+    }
     total += t.texto.length;
     escolhidos.unshift(t);
   }

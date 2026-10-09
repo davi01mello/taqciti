@@ -267,8 +267,13 @@ const leituraDeReuniaoSchema = z.object({
     .describe('Quando presente, devolve só os segmentos que contêm estas palavras.'),
 });
 
-/** Teto de uma fala dentro da fatia — fala enorme não pode comer a fatia toda. */
-const MAX_FALA = 1_200;
+/**
+ * Teto de uma fala dentro da fatia — fala enorme não pode comer a fatia toda.
+ * Alto de propósito: o corte esconde o fim da fala, e o modelo pode concluir que
+ * algo "não foi dito" quando estava justamente no que foi cortado. O marcador
+ * `cortado` e a descrição da ferramenta cobrem o que ainda passar do teto.
+ */
+const MAX_FALA = 3_500;
 
 export const readMeeting: DefinicaoDeFerramenta<z.infer<typeof leituraDeReuniaoSchema>> =
   {
@@ -277,7 +282,8 @@ export const readMeeting: DefinicaoDeFerramenta<z.infer<typeof leituraDeReuniaoS
       'Abre uma reunião pelo id: título, data, duração, participantes, quem falou, total de ' +
       'segmentos e a versão. Traz uma FATIA da transcrição (até 40 segmentos a partir de ' +
       '`a_partir_do_segmento`), cada segmento com `ref`, instante e falante. Com `consulta`, ' +
-      'traz só os segmentos que contêm as palavras. Para continuar, use `proximo`.',
+      'traz só os segmentos que contêm as palavras. Para continuar, use `proximo`. Se um segmento ' +
+      'vier com `cortado: true`, a fala continua além do que foi lido: não afirme que algo NÃO foi dito nela.',
     schemaDeEntrada: leituraDeReuniaoSchema,
     efeito: 'leitura',
     requisitos: ['reunioes'],

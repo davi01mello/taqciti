@@ -626,7 +626,12 @@ export function App() {
             onEnviar={enviar}
             onLimparContexto={() => setContexto(null)}
             onNova={novaConversa}
-            onEscolher={escolherConversa}
+            onEscolher={(id) => {
+              // O trecho escolhido era para a pergunta de ONTEM nesta conversa: ir para outra
+              // conversa o abandona, em vez de levá-lo junto na próxima mensagem.
+              setContexto(null);
+              escolherConversa(id);
+            }}
             taq={taq}
             desfecho={daOutraConversa ? null : desfecho}
             onCancelar={cancelarTaq}
