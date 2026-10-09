@@ -429,3 +429,44 @@ describe('referência e sumário na geração', () => {
     expect(r).toMatchObject({ problema: { tipo: 'estrutural' } });
   });
 });
+
+describe('capa e título não precisam de citação', () => {
+  const ctx = { locators: localizadoresDe([FONTE_A]), origem: 'agente' as const };
+
+  it('capa classificada como fato, sem citação, entra (era recusada em produção)', () => {
+    const r = blocoDoModelo({ tipo: 'capa', texto: 'Verificação final', classificacao: 'fato', fontes: [] }, 'capa', ctx);
+    expect(r).toMatchObject({ bloco: { tipo: 'capa', titulo: 'Verificação final' } });
+  });
+
+  it('título de seção também; o texto vazio continua inválido', () => {
+    expect(blocoDoModelo({ tipo: 'titulo', texto: 'Novo nome', nivel: 1 }, 't', ctx)).toMatchObject({ bloco: { tipo: 'titulo', texto: 'Novo nome' } });
+    expect(blocoDoModelo({ tipo: 'titulo', texto: '', nivel: 1 }, 't', ctx)).toMatchObject({ problema: { tipo: 'estrutural' } });
+  });
+
+  it('o resto da regra de sustentação segue valendo: parágrafo fato sem citação sai', () => {
+    const r = blocoDoModelo({ tipo: 'paragrafo', texto: 'Custa R$ 1 milhão.', classificacao: 'fato', fontes: [] }, 'p', ctx);
+    expect(r).toMatchObject({ problema: { tipo: 'sustentacao' } });
+  });
+
+  it('troca do título da capa pela edição: aplicada, preservando cliente e autor', async () => {
+    complete.mockResolvedValueOnce(reply(geracaoValida));
+    const base = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], capa: { cliente: 'Aurora', autor: 'CITi' }, variante: 'ata' });
+    complete.mockResolvedValueOnce(
+      reply({
+        operacoes: [{ op: 'substituir', blockId: 'capa', bloco: { tipo: 'capa', texto: 'Verificação final', classificacao: 'fato', fontes: [] } }],
+        lacunas: [],
+      }),
+    );
+    const r = await editarDocumentoPersonalizado({
+      arvore: base.arvore,
+      revisaoEsperada: base.arvore.revisao,
+      pedido: 'Troque o título da capa.',
+      fontes: [],
+      escopo: ['capa'],
+      variante: 'ata',
+    });
+    expect(r.aplicadas).toBe(1);
+    expect(r.relatorio.problemas).toEqual([]);
+    expect(r.arvore.blocos[0]).toMatchObject({ titulo: 'Verificação final', cliente: 'Aurora', autor: 'CITi' });
+  });
+});

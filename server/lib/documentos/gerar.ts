@@ -213,11 +213,24 @@ export function blocoDoModelo(
   // Sumário e referência não afirmam fato novo: um aponta para os títulos do
   // próprio documento, a outra é nota de fonte. Não passam pela checagem de
   // citação (que existe para afirmação), só pela validação de formato.
-  if (bruto.tipo === 'sumario' || bruto.tipo === 'referencia') {
+  //
+  // Capa e título entram aqui também: são rótulos. Em produção o modelo
+  // classificou o novo título da capa como `fato`, sem citação, e a troca foi
+  // recusada como "afirmação sem sustentação".
+  if (
+    bruto.tipo === 'sumario' ||
+    bruto.tipo === 'referencia' ||
+    bruto.tipo === 'capa' ||
+    bruto.tipo === 'titulo'
+  ) {
     const candidato =
       bruto.tipo === 'sumario'
         ? { blockId, tipo: 'sumario', origem: ctx.origem }
-        : { blockId, tipo: 'referencia', texto: bruto.texto, origem: ctx.origem };
+        : bruto.tipo === 'referencia'
+          ? { blockId, tipo: 'referencia', texto: bruto.texto, origem: ctx.origem }
+          : bruto.tipo === 'capa'
+            ? { blockId, tipo: 'capa', titulo: bruto.texto, subtitulo: bruto.subtitulo, origem: ctx.origem }
+            : { blockId, tipo: 'titulo', nivel: bruto.nivel ?? 1, texto: bruto.texto, origem: ctx.origem };
     const r = blocoSchema.safeParse(candidato);
     return r.success
       ? { bloco: r.data }
