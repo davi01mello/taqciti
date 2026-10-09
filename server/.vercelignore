@@ -1,0 +1,8 @@
+# Testes n?o v?o para a Vercel. O build faz type-check de **/*.ts, e alguns testes
+# (templates/catalogo.test.ts) importam da extens?o (`src/`), que n?o faz parte do
+# upload de `server/` ? o build falhava com "Cannot find module". Teste roda aqui,
+# na m?quina e no CI, nunca no deploy.
+**/*.test.ts
+**/*.test.tsx
+vitest.config.mts
+vitest.setup.ts
