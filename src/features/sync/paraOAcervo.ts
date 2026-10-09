@@ -28,8 +28,18 @@ import type { DocumentoGuardado } from '@/features/documents/store';
 import type { Conversation } from '@/home/conversations';
 import type { Nota } from '@/features/annotations/notes';
 import type { MarcasDaReuniao, TipoDeMarca } from '@/features/annotations/marks';
+import type { HistoricoDoDocumento } from '@/features/documents/personalizado/versoes';
+import type {
+  ArvoreDoDocumento,
+  ManifestoDeRender,
+} from '@/features/documents/personalizado/tipos';
 
-export type TipoDeItem = 'reuniao' | 'documento' | 'conversa' | 'nota';
+/**
+ * historico NÃO é um tipo do acervo do servidor (o conector MCP não o enumera):
+ * é o backup do histórico de versões dos documentos personalizados, que o
+ * /api/sync recebe por uma via própria (server/lib/conector/historico.ts).
+ */
+export type TipoDeItem = 'reuniao' | 'documento' | 'conversa' | 'nota' | 'historico';
 
 export interface Fala {
   falante: string | null;
@@ -81,9 +91,50 @@ export interface NotaDoAcervo {
   prints: number;
 }
 
+/** Espelha HistoricoDoDocumento de server/lib/conector/historico.ts. */
+export interface HistoricoDoAcervo {
+  /** O id do documento. */
+  id: string;
+  variante?: string;
+  fontesIds: string[];
+  versoes: VersaoDoHistorico[];
+}
+
+export interface VersaoDoHistorico {
+  revisao: number;
+  arvore: ArvoreDoDocumento;
+  criadaEm: number;
+  origem: 'geracao' | 'edicao' | 'restauracao';
+  pedido?: string;
+  manifesto?: ManifestoDeRender;
+  problemas: number;
+}
+
 export interface ItemParaOAcervo {
   tipo: TipoDeItem;
-  item: ReuniaoDoAcervo | DocumentoDoAcervo | ConversaDoAcervo | NotaDoAcervo;
+  item:
+    | ReuniaoDoAcervo
+    | DocumentoDoAcervo
+    | ConversaDoAcervo
+    | NotaDoAcervo
+    | HistoricoDoAcervo;
+}
+
+export function historicoParaOAcervo(h: HistoricoDoDocumento): HistoricoDoAcervo {
+  return {
+    id: h.documentoId,
+    ...(h.variante ? { variante: h.variante } : {}),
+    fontesIds: h.fontesIds,
+    versoes: h.versoes.map((v) => ({
+      revisao: v.revisao,
+      arvore: v.arvore,
+      criadaEm: v.criadaEm,
+      origem: v.origem,
+      ...(v.pedido ? { pedido: v.pedido } : {}),
+      ...(v.manifesto ? { manifesto: v.manifesto } : {}),
+      problemas: v.problemas,
+    })),
+  };
 }
 
 export function reuniaoParaOAcervo(r: MeetingRecord): ReuniaoDoAcervo {

@@ -38,6 +38,7 @@ import { tokenDeIdentidade, descartarToken } from '@/shared/services/identidade'
 import { logger } from '@/shared/services/log';
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { DocumentoGuardado } from '@/features/documents/store';
+import type { HistoricoDoDocumento } from '@/features/documents/personalizado/versoes';
 import type { Conversation } from '@/home/conversations';
 import type { Nota } from '@/features/annotations/notes';
 import type { MarcasDaReuniao } from '@/features/annotations/marks';
@@ -47,12 +48,20 @@ import {
   type TipoDeItem,
   conversaParaOAcervo,
   documentoParaOAcervo,
+  historicoParaOAcervo,
   notaParaOAcervo,
   reuniaoParaOAcervo,
 } from './paraOAcervo';
 
 /** Espelha MAX_POR_LOTE em `server/app/api/sync/route.ts`. */
 const POR_LOTE = 50;
+/**
+ * Teto de bytes por lote, abaixo dos 8 MiB do servidor: o histórico de um
+ * documento chega a alguns megabytes, e 50 deles juntos estourariam o corpo —
+ * falhando o lote inteiro, de novo a cada passada. Um item maior que o teto
+ * viaja sozinho.
+ */
+const BYTES_POR_LOTE = 4 * 1024 * 1024;
 
 /** `tipo:id` → assinatura do que já foi aceito pelo servidor. */
 type Assinaturas = Record<string, string>;
@@ -116,6 +125,18 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
     desejado.set(comporId('documento', d.id), {
       tipo: 'documento',
       item: documentoParaOAcervo(d),
+    });
+  }
+
+  // O histórico de versões dos documentos personalizados sobe como backup, só
+  // dos documentos que existem: histórico órfão não é enviado.
+  const historicos = (await readLocal<HistoricoDoDocumento[]>(STORAGE_KEYS.documentVersions)) ?? [];
+  const idsDosDocumentos = new Set(documentos.map((d) => d.id));
+  for (const h of historicos) {
+    if (!h || typeof h.documentoId !== 'string' || !Array.isArray(h.versoes) || !idsDosDocumentos.has(h.documentoId)) continue;
+    desejado.set(comporId('historico', h.documentoId), {
+      tipo: 'historico',
+      item: historicoParaOAcervo(h),
     });
   }
 
@@ -226,12 +247,17 @@ interface Lote {
 export function fatiar(plano: Plano, porLote = POR_LOTE): Lote[] {
   const lotes: Lote[] = [];
   let atual: Lote = { itens: [], apagados: [], chaves: [] };
+  let bytes = 0;
   const fechar = () => {
     if (atual.chaves.length) lotes.push(atual);
     atual = { itens: [], apagados: [], chaves: [] };
+    bytes = 0;
   };
 
   for (const e of plano.enviar) {
+    const tamanho = JSON.stringify(e.item).length;
+    if (atual.chaves.length > 0 && bytes + tamanho > BYTES_POR_LOTE) fechar();
+    bytes += tamanho;
     atual.itens.push({ tipo: e.tipo, item: e.item });
     atual.chaves.push({ chave: e.chave, assinatura: e.assinatura });
     if (atual.chaves.length >= porLote) fechar();
@@ -296,6 +322,12 @@ export async function sincronizar(): Promise<ResultadoDoSync> {
       return { estado: 'falhou', enviados, apagados, motivo: `servidor ${resposta.status}` };
     }
 
+    // Item que o servidor RECUSOU por formato (histórico torto) não derruba o
+    // lote: é registrado como aceito — reenviar o mesmo item só o recusaria
+    // de novo, para sempre — e o motivo vai para o log.
+    const corpo = (await resposta.json().catch(() => null)) as { recusados?: { id: string; motivo: string }[] } | null;
+    for (const r of corpo?.recusados ?? []) logger.warn('item recusado pelo servidor', { id: r.id, motivo: r.motivo });
+
     // O lote inteiro foi aceito: registra as assinaturas dele ANTES do
     // próximo. Ver o cabeçalho.
     for (const { chave, assinatura } of lote.chaves) {
@@ -335,9 +367,10 @@ export async function esquecerSincronizado(): Promise<void> {
  * (`taq:history`) é reescrito ao longo da captura e no fim dela, e é ele que
  * carrega a transcrição — é o gatilho certo.
  */
-const CHAVES_OBSERVADAS: readonly string[] = [
+export const CHAVES_OBSERVADAS: readonly string[] = [
   STORAGE_KEYS.history,
   STORAGE_KEYS.documents,
+  STORAGE_KEYS.documentVersions,
   STORAGE_KEYS.conversations,
   STORAGE_KEYS.notes,
   STORAGE_KEYS.marks,

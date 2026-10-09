@@ -431,3 +431,132 @@ describe('sincronizar', () => {
     expect(await sincronizar()).toEqual({ estado: 'ok', enviados: 1, apagados: 0 });
   });
 });
+
+// ------------------------------------------------ histórico dos documentos
+
+describe('histórico de versões dos documentos personalizados', () => {
+  const documento = (id: string) => ({
+    id,
+    title: 'Proposta',
+    content: 'x',
+    formato: 'markdown' as const,
+    createdAt: 1,
+    updatedAt: 2,
+    origem: 'gerado' as const,
+    tipo: 'personalizado',
+  });
+  const arvore = (revisao: number) => ({
+    revisao,
+    titulo: 'Proposta',
+    lacunas: [],
+    blocos: [{ tipo: 'capa', blockId: 'capa', variante: 'padrao', titulo: 'Proposta', fontes: [], origem: 'agente' as const }],
+  });
+  const historico = (documentoId: string, revisoes: number[]) => ({
+    documentoId,
+    variante: 'editorial',
+    fontesIds: ['m1'],
+    versoes: revisoes.map((r) => ({
+      revisao: r,
+      arvore: arvore(r),
+      criadaEm: 1000 + r,
+      origem: 'edicao' as const,
+      problemas: 0,
+    })),
+  });
+
+  it('entra no estado desejado como "historico:<id>", só para documento que existe', async () => {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.documents]: [documento('d1')],
+      [STORAGE_KEYS.documentVersions]: [historico('d1', [1, 2]), historico('orfao', [1])],
+    });
+    const desejado = await montarDesejado();
+    expect([...desejado.keys()].sort()).toEqual(['documento:d1', 'historico:d1']);
+    const item = desejado.get('historico:d1')!.item as { id: string; versoes: { revisao: number }[] };
+    expect(item.id).toBe('d1');
+    expect(item.versoes.map((v) => v.revisao)).toEqual([1, 2]);
+  });
+
+  it('versão nova muda a assinatura e reenvia só o histórico', async () => {
+    await ligar();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.documents]: [documento('d1')],
+      [STORAGE_KEYS.documentVersions]: [historico('d1', [1])],
+    });
+    const rede = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ gravados: 2 })));
+    expect(await sincronizar()).toMatchObject({ estado: 'ok', enviados: 2 });
+    expect(await sincronizar()).toEqual({ estado: 'nada-a-fazer' });
+
+    await chrome.storage.local.set({ [STORAGE_KEYS.documentVersions]: [historico('d1', [1, 2])] });
+    expect(await sincronizar()).toMatchObject({ estado: 'ok', enviados: 1 });
+    const corpo = JSON.parse(String((rede.mock.calls.at(-1)![1] as RequestInit).body)) as { itens: { tipo: string }[] };
+    expect(corpo.itens.map((i) => i.tipo)).toEqual(['historico']);
+  });
+
+  it('apagar o documento (e o histórico) vira apagar lá', async () => {
+    await ligar();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.documents]: [documento('d1')],
+      [STORAGE_KEYS.documentVersions]: [historico('d1', [1])],
+    });
+    const rede = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ gravados: 2 })));
+    await sincronizar();
+    await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [], [STORAGE_KEYS.documentVersions]: [] });
+    expect(await sincronizar()).toMatchObject({ estado: 'ok', apagados: 2 });
+    const corpo = JSON.parse(String((rede.mock.calls.at(-1)![1] as RequestInit).body)) as { apagados: { tipo: string; id: string }[] };
+    expect(corpo.apagados.map((a) => `${a.tipo}:${a.id}`).sort()).toEqual(['documento:d1', 'historico:d1']);
+  });
+
+  it('item recusado pelo servidor por formato não trava a sincronização: registra e segue', async () => {
+    await ligar();
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.documents]: [documento('d1')],
+      [STORAGE_KEYS.documentVersions]: [historico('d1', [1])],
+    });
+    const rede = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({ gravados: 1, apagados: 0, recusados: [{ tipo: 'historico', id: 'd1', motivo: 'Histórico inválido (x).' }] }),
+        ),
+    );
+    expect(await sincronizar()).toMatchObject({ estado: 'ok' });
+    // Reenviar o mesmo item só o recusaria de novo: a passada seguinte não tenta.
+    expect(await sincronizar()).toEqual({ estado: 'nada-a-fazer' });
+    expect(rede).toHaveBeenCalledTimes(1);
+  });
+
+  it('a chave do histórico é observada: uma versão nova dispara a sincronização sozinha', async () => {
+    const { CHAVES_OBSERVADAS } = await import('./sincronizacao');
+    expect(CHAVES_OBSERVADAS).toContain(STORAGE_KEYS.documentVersions);
+  });
+});
+
+describe('fatiar por bytes', () => {
+  it('histórico grande não se junta a outros além do teto do lote', () => {
+    const grande = 'x'.repeat(3 * 1024 * 1024);
+    const plano = {
+      enviar: [1, 2, 3].map((n) => ({
+        chave: `historico:${n}`,
+        tipo: 'historico' as const,
+        item: { id: String(n), texto: grande },
+        assinatura: String(n),
+      })),
+      apagar: [],
+    };
+    const lotes = fatiar(plano);
+    // 3 MiB + 3 MiB passa de 4 MiB: um por lote.
+    expect(lotes.map((l) => l.itens.length)).toEqual([1, 1, 1]);
+  });
+
+  it('itens pequenos continuam em lotes de 50, como antes', () => {
+    const plano = {
+      enviar: Array.from({ length: 120 }, (_, n) => ({
+        chave: `nota:${n}`,
+        tipo: 'nota' as const,
+        item: { id: String(n) },
+        assinatura: String(n),
+      })),
+      apagar: [],
+    };
+    expect(fatiar(plano).map((l) => l.itens.length)).toEqual([50, 50, 20]);
+  });
+});

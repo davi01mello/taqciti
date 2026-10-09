@@ -161,3 +161,31 @@ create index if not exists reuniao_por_data   on reuniao   (pessoa_id, inicio_ms
 create index if not exists documento_por_data on documento (pessoa_id, criado_ms desc);
 create index if not exists conversa_por_data  on conversa  (pessoa_id, criada_ms desc);
 create index if not exists nota_por_data      on nota      (pessoa_id, atualizada_ms desc);
+
+-- ------------------------------------------------ histórico dos documentos
+
+-- O histórico de versões de um documento PERSONALIZADO (a árvore de cada
+-- revisão), espelhado da extensão como backup. Uma linha por documento, com as
+-- versões num jsonb: a extensão já guarda assim, no máximo 30, e o diff dela
+-- manda o documento inteiro quando uma versão nova entra.
+--
+-- `id` é o id do documento na extensão (único só DENTRO de uma pessoa). Não há
+-- chave estrangeira para `documento`: o histórico pode chegar antes do texto
+-- na mesma sincronização, e apagar um é decisão separada do outro.
+--
+-- Só escrita: o conector MCP não lê esta tabela, e o histórico não é exposto à
+-- IA. RLS ligada como nas demais — o servidor acessa pelo papel que a ignora,
+-- e a chave pública do Supabase não alcança nada aqui.
+create table if not exists historico_do_documento (
+  pessoa_id      uuid    not null references pessoa(id) on delete cascade,
+  id             text    not null,
+  variante       text,
+  fontes_ids     jsonb   not null default '[]'::jsonb,
+  versoes        jsonb   not null default '[]'::jsonb,
+  revisao_atual  integer not null,
+  atualizado_ms  bigint  not null,
+  atualizado_em  timestamptz not null default now(),
+  primary key (pessoa_id, id)
+);
+
+alter table historico_do_documento enable row level security;

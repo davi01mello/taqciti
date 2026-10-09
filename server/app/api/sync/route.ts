@@ -25,6 +25,13 @@ import { corsHeaders } from '@/lib/apiGuard';
 import { autenticar } from '@/lib/identidade/rota';
 import { apagarItem, gravarItem } from '@/lib/conector/escrita';
 import { TIPOS_DE_ITEM, type ItemPorTipo, type TipoDeItem } from '@/lib/conector/tipos';
+import {
+  TIPO_HISTORICO,
+  apagarHistorico,
+  gravarHistorico,
+  validarHistorico,
+  type HistoricoDoDocumento,
+} from '@/lib/conector/historico';
 
 /** Itens por requisição. O cliente fatia; ver o cabeçalho. */
 const MAX_POR_LOTE = 50;
@@ -42,9 +49,15 @@ function ehTipo(v: unknown): v is TipoDeItem {
   return typeof v === 'string' && (TIPOS_DE_ITEM as readonly string[]).includes(v);
 }
 
-interface Entrada {
-  tipo: TipoDeItem;
-  item: ItemPorTipo[TipoDeItem];
+type Entrada =
+  | { tipo: TipoDeItem; item: ItemPorTipo[TipoDeItem] }
+  | { tipo: typeof TIPO_HISTORICO; item: HistoricoDoDocumento };
+
+/** O que a rota recusou sem derrubar o lote: o cliente registra e segue. */
+interface Recusado {
+  tipo: string;
+  id: string;
+  motivo: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -78,9 +91,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const entradas: Entrada[] = [];
+  const recusados: Recusado[] = [];
   for (const bruto of itensBrutos) {
     const e = bruto as { tipo?: unknown; item?: unknown };
-    if (!ehTipo(e.tipo) || typeof e.item !== 'object' || e.item === null) {
+    if (e.tipo !== TIPO_HISTORICO && !ehTipo(e.tipo)) {
+      return NextResponse.json(
+        { error: 'Cada item precisa de `tipo` conhecido e `item` objeto.' },
+        { status: 400, headers },
+      );
+    }
+    if (typeof e.item !== 'object' || e.item === null) {
       return NextResponse.json(
         { error: 'Cada item precisa de `tipo` conhecido e `item` objeto.' },
         { status: 400, headers },
@@ -89,19 +109,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (typeof (e.item as { id?: unknown }).id !== 'string') {
       return NextResponse.json({ error: 'Cada item precisa de `id`.' }, { status: 400, headers });
     }
-    entradas.push({ tipo: e.tipo, item: e.item as ItemPorTipo[TipoDeItem] });
+    if (e.tipo === TIPO_HISTORICO) {
+      // O corpo é uma árvore de documento aninhada: valida antes de gravar, e
+      // um histórico torto é RECUSADO, não derruba os outros itens do lote.
+      const v = validarHistorico(e.item);
+      if (v.ok) entradas.push({ tipo: TIPO_HISTORICO, item: v.item });
+      else recusados.push({ tipo: TIPO_HISTORICO, id: String((e.item as { id?: unknown }).id), motivo: v.motivo });
+      continue;
+    }
+    entradas.push({ tipo: e.tipo as TipoDeItem, item: e.item as ItemPorTipo[TipoDeItem] });
   }
 
-  const remocoes: { tipo: TipoDeItem; id: string }[] = [];
+  const remocoes: { tipo: TipoDeItem | typeof TIPO_HISTORICO; id: string }[] = [];
   for (const bruto of apagadosBrutos) {
     const a = bruto as { tipo?: unknown; id?: unknown };
-    if (!ehTipo(a.tipo) || typeof a.id !== 'string') {
+    if ((a.tipo !== TIPO_HISTORICO && !ehTipo(a.tipo)) || typeof a.id !== 'string') {
       return NextResponse.json(
         { error: 'Cada apagado precisa de `tipo` e `id`.' },
         { status: 400, headers },
       );
     }
-    remocoes.push({ tipo: a.tipo, id: a.id });
+    remocoes.push({ tipo: a.tipo as TipoDeItem | typeof TIPO_HISTORICO, id: a.id });
   }
 
   /*
@@ -115,12 +143,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
    */
   let gravados = 0;
   try {
-    for (const { tipo, item } of entradas) {
-      await gravarItem(auth.pessoaId, tipo, item);
+    for (const entrada of entradas) {
+      if (entrada.tipo === TIPO_HISTORICO) await gravarHistorico(auth.pessoaId, entrada.item);
+      else await gravarItem(auth.pessoaId, entrada.tipo, entrada.item);
       gravados += 1;
     }
     for (const { tipo, id } of remocoes) {
-      await apagarItem(auth.pessoaId, tipo, id);
+      if (tipo === TIPO_HISTORICO) await apagarHistorico(auth.pessoaId, id);
+      else await apagarItem(auth.pessoaId, tipo, id);
     }
   } catch (erro) {
     console.error('[api/sync] falha ao gravar', erro);
@@ -136,7 +166,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json(
-    { gravados, apagados: remocoes.length },
+    { gravados, apagados: remocoes.length, ...(recusados.length > 0 ? { recusados } : {}) },
     { status: 200, headers },
   );
 }
