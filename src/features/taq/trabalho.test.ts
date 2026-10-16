@@ -124,6 +124,17 @@ function roteiroDeRegistro() {
           { descricao: 'Revisar o contrato com o cliente', responsavel: 'Carla', prazo: 'amanhã', refs: [refDe(p, 'revisar o contrato')] },
         ],
       }),
+    // O juiz (IA) recebe os dois candidatos e escolhe os dois.
+    (p) => {
+      expect(p.instrucoes).toBe('acompanhamento-v1');
+      expect(p.contexto).toMatch(/Vagas livres: 3/);
+      return pede('escolher_acompanhamentos', {
+        escolhidos: [
+          { id: 'c1', motivo: 'Tem dono e prazo.' },
+          { id: 'c2', motivo: 'Combinado com o cliente.' },
+        ],
+      });
+    },
     (p) => {
       const r = resultadoDe(p, 'register_commitments') as { descartados: string[] };
       expect(r.descartados.join(' ')).toMatch(/Carla/);
@@ -140,7 +151,12 @@ describe('commitments', () => {
       pedido('Registre os próximos passos do planejamento do painel'),
     );
     // Delegado direto pela dica de roteamento: nenhum turno do Taq.
-    expect(primeiro.pedidos.map((p) => p.instrucoes)).toEqual(['commitments-v1', 'commitments-v1', 'commitments-v1']);
+    expect(primeiro.pedidos.map((p) => p.instrucoes)).toEqual([
+      'commitments-v1',
+      'commitments-v1',
+      'acompanhamento-v1',
+      'commitments-v1',
+    ]);
     expect(r.estado).toBe('concluido');
     expect(r.cartoes).toEqual([{ tipo: 'compromissos', ids: expect.any(Array) }]);
 
@@ -159,6 +175,68 @@ describe('commitments', () => {
     );
     ({ compromissos } = await lerTrabalho());
     expect(compromissos).toHaveLength(2);
+  });
+
+  it('no máximo 3 por reunião: a IA escolhe, o código segura o teto e ignora id inventado', async () => {
+    const itens = (p: PedidoDeTurno) =>
+      ['Fechado', 'Eu fico', 'revisar o contrato', 'dez mil reais'].map((t, i) => ({
+        descricao: `Item ${i + 1}`,
+        refs: [refDe(p, t)],
+      }));
+    const { modelo } = roteiro([
+      pede('read_meeting', { reuniao_id: 'm-plan' }),
+      (p) => pede('register_commitments', { reuniao_id: 'm-plan', itens: itens(p) }),
+      // A IA tenta passar 4 e inventa um id: só 3 existentes, em ordem, entram.
+      pede('escolher_acompanhamentos', {
+        escolhidos: [{ id: 'c4' }, { id: 'c9' }, { id: 'c2' }, { id: 'c1' }, { id: 'c3' }],
+      }),
+      final('Registrei os mais importantes.'),
+    ]);
+    await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Registre os próximos passos do planejamento do painel'),
+    );
+    const { compromissos } = await lerTrabalho();
+    expect(compromissos.map((c) => c.descricao).sort()).toEqual(['Item 1', 'Item 2', 'Item 4']);
+  });
+
+  it('sem julgamento válido da IA nada é registrado — não cai para os três primeiros', async () => {
+    const { modelo } = roteiro([
+      pede('read_meeting', { reuniao_id: 'm-plan' }),
+      (p) =>
+        pede('register_commitments', {
+          reuniao_id: 'm-plan',
+          itens: [{ descricao: 'Item 1', refs: [refDe(p, 'relatório de métricas')] }],
+        }),
+      () => {
+        throw new ErroDoModelo('limite_do_provedor', 'Cota esgotada.');
+      },
+      final('Não consegui registrar agora.'),
+    ]);
+    await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Registre os próximos passos do planejamento do painel'),
+    );
+    expect((await lerTrabalho()).compromissos).toHaveLength(0);
+  });
+
+  it('reunião com 3 acompanhamentos: nada novo entra e a IA nem é consultada', async () => {
+    await registrarCompromissos(
+      ['A', 'B', 'C'].map((d) => ({ descricao: d, responsavel: null, prazo: null, reuniaoId: 'm-plan', evidencias: [] })),
+      { origem: 'pessoa' },
+    );
+    const { modelo, pedidos } = roteiro([
+      pede('read_meeting', { reuniao_id: 'm-plan' }),
+      (p) =>
+        pede('register_commitments', {
+          reuniao_id: 'm-plan',
+          itens: [{ descricao: 'Item 1', refs: [refDe(p, 'relatório de métricas')] }],
+        }),
+      final('A reunião já tem o máximo.'),
+    ]);
+    await criarOrquestrador({ modelo, armazenamento: armazenamentoLocal }).executar(
+      pedido('Registre os próximos passos do planejamento do painel'),
+    );
+    expect(pedidos.some((p) => p.instrucoes === 'acompanhamento-v1')).toBe(false);
+    expect((await lerTrabalho()).compromissos).toHaveLength(3);
   });
 
   it('pedido de leitura: o especialista nem recebe as ferramentas de escrita', async () => {

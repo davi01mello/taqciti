@@ -230,6 +230,7 @@ export async function executarCiclo(
       if (repetido === -1) cartoes.push(lido);
     },
     ...(ambiente.acoes ? { acoes: ambiente.acoes } : {}),
+    modelo: ambiente.modelo,
     ...(ofertadas.some((f) => f.requisitos.includes('agentes'))
       ? {
           delegar: (p: PedidoDeDelegacao) => ambiente.delegar(tarefa, p),

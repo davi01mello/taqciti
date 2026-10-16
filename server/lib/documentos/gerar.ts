@@ -97,7 +97,12 @@ const BLOCO_SCHEMA: JsonSchema = {
   type: 'object',
   properties: {
     tipo: { type: 'string', enum: ['paragrafo', 'lista', 'tabela', 'referencia'] },
-    texto: { type: 'string', description: 'Corpo do parágrafo ou da referência. Omita em listas e tabelas.' },
+    texto: {
+      type: 'string',
+      description:
+        'OBRIGATÓRIO em parágrafo e referência: o texto que aparece no documento, escrito por você. ' +
+        'Em lista e tabela, string vazia.',
+    },
     itens: { type: 'array', items: { type: 'string' }, description: 'Itens da lista.' },
     cabecalho: { type: 'array', items: { type: 'string' }, description: 'Nomes das colunas da tabela.' },
     linhas: {
@@ -109,7 +114,7 @@ const BLOCO_SCHEMA: JsonSchema = {
     classificacao: { type: 'string', enum: ['fato', 'recomendacao'] },
     fontes: FONTES_SCHEMA,
   },
-  required: ['tipo', 'classificacao', 'fontes'],
+  required: ['tipo', 'texto', 'classificacao', 'fontes'],
 };
 
 const LACUNAS_SCHEMA: JsonSchema = {
@@ -240,7 +245,7 @@ export function blocoDoModelo(
   const classificacao = bruto.classificacao === 'recomendacao' ? 'recomendacao' : 'fato';
   const fontes = classificacao === 'fato' ? citacoesLocalizadas(bruto, ctx.locators) : [];
   const conteudo =
-    bruto.texto ?? bruto.itens?.join(' ') ?? bruto.linhas?.map((l) => l.join(' ')).join(' ') ?? '';
+    bruto.texto || (bruto.itens?.join(' ') ?? bruto.linhas?.map((l) => l.join(' ')).join(' ') ?? '');
 
   if (classificacao === 'fato' && fontes.length === 0) {
     return {
@@ -449,19 +454,27 @@ export async function gerarDocumentoPersonalizado(
 ): Promise<ResultadoDoDocumento> {
   validarEntrada(entrada);
 
-  const resposta = await complete('leitor', {
-    system: renderPrompt('redator', 'v1'),
-    messages: [{ role: 'user', content: orientacoesEPedido(entrada) }],
-    maxTokens: 12000,
-    jsonSchema: SCHEMA_DE_GERACAO,
-    // As fontes vão no prefixo: é o que o provedor pode reaproveitar entre
-    // geração e edições seguintes.
-    cacheablePrefix: serializarFontes(entrada.fontes),
-    reasoning: raciocinioDoRedator(),
-  });
-
-  const saida = (resposta.parsed ?? {}) as SaidaDeGeracao;
-  const { arvore, problemas, lacunas } = construirArvore(saida, entrada.fontes, entrada.capa);
+  // O modelo às vezes devolve blocos que a checagem descarta por inteiro
+  // (parágrafo sem texto, citação parafraseada). Quando nada sobrevive, uma
+  // segunda chamada costuma resolver; só depois disso o pedido falha.
+  const TENTATIVAS = 2;
+  let resposta!: Awaited<ReturnType<typeof complete>>;
+  let construido!: ReturnType<typeof construirArvore>;
+  for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+    resposta = await complete('leitor', {
+      system: renderPrompt('redator', 'v1'),
+      messages: [{ role: 'user', content: orientacoesEPedido(entrada) }],
+      maxTokens: 12000,
+      jsonSchema: SCHEMA_DE_GERACAO,
+      // As fontes vão no prefixo: é o que o provedor pode reaproveitar entre
+      // geração e edições seguintes.
+      cacheablePrefix: serializarFontes(entrada.fontes),
+      reasoning: raciocinioDoRedator(),
+    });
+    construido = construirArvore((resposta.parsed ?? {}) as SaidaDeGeracao, entrada.fontes, entrada.capa);
+    if (construido.arvore.blocos.length > 1) break;
+  }
+  const { arvore, problemas, lacunas } = construido;
 
   if (arvore.blocos.length <= 1) {
     throw new ErroDeGeracao(

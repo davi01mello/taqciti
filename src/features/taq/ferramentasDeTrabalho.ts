@@ -31,9 +31,11 @@
 import { z } from 'zod/v4';
 import type { MeetingRecord } from '@/shared/types/domain';
 import {
+  LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO,
   SECOES_DA_ANALISE,
   analiseDesatualizada,
   situacaoDoPrazo,
+  vagasDeAcompanhamento,
   type Achado,
   type Compromisso,
   type Decisao,
@@ -41,6 +43,7 @@ import {
   type ItemDaAnalise,
   type SecaoDaAnalise,
 } from '@/features/trabalho/store';
+import { julgarAcompanhamentos } from '@/features/acompanhamento/juiz';
 import { versaoDaReuniao } from './armazenamento';
 import { normalizar, termosDe } from './busca';
 import { avaliarCaptura } from './captura';
@@ -363,6 +366,70 @@ function reuniaoDosItens(args: { reuniao_id?: string }, itens: readonly Compromi
   return args.reuniao_id ?? itens.flatMap((i) => i.evidencias).find((e) => e.tipo === 'reuniao')?.registroId;
 }
 
+/**
+ * Das vagas da reunião (no máximo `LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO`
+ * acompanhamentos), quem fica é decidido pela IA (`julgarAcompanhamentos`), nunca
+ * por regra daqui. Sem reunião de origem não há vaga a disputar.
+ *
+ * Sem juiz disponível (execução sem modelo, só em teste) só passa o que cabe nas
+ * vagas sem precisar escolher; havendo mais que vagas, a ferramenta recusa em vez
+ * de escolher por posição.
+ */
+async function julgarOsCompromissos(
+  ctx: ContextoDeFerramenta,
+  reuniaoId: string | undefined,
+  conferidos: readonly CompromissoConferido[],
+): Promise<{ aprovados: CompromissoConferido[]; julgamento: Record<string, unknown> }> {
+  if (!reuniaoId || conferidos.length === 0) return { aprovados: [...conferidos], julgamento: {} };
+  const { compromissos } = await ctx.armazenamento.trabalho.ler();
+  const vagas = vagasDeAcompanhamento(compromissos, reuniaoId);
+  if (vagas === 0)
+    return {
+      aprovados: [],
+      julgamento: {
+        vagas: 0,
+        aviso: `Esta reunião já tem ${LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO} acompanhamentos, o máximo. Nada novo entra; para abrir uma vaga é preciso concluir ou cancelar um deles.`,
+      },
+    };
+  if (!ctx.modelo) {
+    if (conferidos.length > vagas)
+      throw new ErroDeFerramenta(
+        'julgamento_indisponivel',
+        `Há ${conferidos.length} candidatos para ${vagas} vaga(s) e não há como julgar quais ficam. Nada foi feito.`,
+      );
+    return { aprovados: [...conferidos], julgamento: { vagas } };
+  }
+  const ids = conferidos.map((_, i) => `c${i + 1}`);
+  const r = await julgarAcompanhamentos({
+    adaptador: ctx.modelo,
+    reuniao: { id: reuniaoId, titulo: conferidos[0]?.evidencias[0]?.titulo ?? '' },
+    candidatos: conferidos.map((c, i) => ({
+      id: ids[i]!,
+      descricao: c.descricao,
+      responsavel: c.responsavel?.nome ?? null,
+      prazo: c.prazo?.texto ?? null,
+      trecho: c.evidencias[0]?.trecho ?? '',
+    })),
+    existentes: compromissos
+      .filter((c) => c.reuniaoId === reuniaoId && c.estado !== 'cancelado')
+      .map((c) => c.descricao),
+    vagas,
+    sinal: ctx.tarefa.sinal,
+  });
+  if (r.tipo === 'erro')
+    throw new ErroDeFerramenta('julgamento_indisponivel', `${r.mensagem} Nada foi registrado nem sugerido.`);
+  const escolhidos = new Set(r.julgamento.escolhidos.map((e) => e.id));
+  const descricaoDe = (id: string) => conferidos[ids.indexOf(id)]?.descricao ?? '';
+  return {
+    aprovados: conferidos.filter((_, i) => escolhidos.has(ids[i]!)),
+    julgamento: {
+      vagas,
+      escolhidos: r.julgamento.escolhidos.map((e) => ({ descricao: descricaoDe(e.id), motivo: e.motivo })),
+      descartados: r.julgamento.descartados.map((d) => ({ descricao: descricaoDe(d.id), motivo: d.motivo })),
+    },
+  };
+}
+
 export const suggestCommitments: DefinicaoDeFerramenta<z.infer<typeof compromissosSchema>> = {
   nome: 'suggest_commitments',
   descricao:
@@ -378,20 +445,23 @@ export const suggestCommitments: DefinicaoDeFerramenta<z.infer<typeof compromiss
     if (args.reuniao_id) await reuniaoNoEscopo(ctx, args.reuniao_id);
     const { conferidos, descartes } = await conferirCompromissos(ctx, args.itens);
     const reuniaoId = reuniaoDosItens(args, conferidos);
-    ctx.registrarCartao({
-      tipo: 'sugestoes_de_compromisso',
-      ...(reuniaoId ? { reuniaoId } : {}),
-      itens: conferidos.map((c) => ({
-        descricao: c.descricao,
-        responsavel: c.responsavel?.nome ?? null,
-        prazo: c.prazo?.texto ?? null,
-        ...(c.prazo?.data ? { prazoData: c.prazo.data } : {}),
-        evidencias: c.evidencias,
-      })),
-    });
+    const { aprovados, julgamento } = await julgarOsCompromissos(ctx, reuniaoId, conferidos);
+    if (aprovados.length)
+      ctx.registrarCartao({
+        tipo: 'sugestoes_de_compromisso',
+        ...(reuniaoId ? { reuniaoId } : {}),
+        itens: aprovados.map((c) => ({
+          descricao: c.descricao,
+          responsavel: c.responsavel?.nome ?? null,
+          prazo: c.prazo?.texto ?? null,
+          ...(c.prazo?.data ? { prazoData: c.prazo.data } : {}),
+          evidencias: c.evidencias,
+        })),
+      });
     return {
-      sugeridos: conferidos.length,
+      sugeridos: aprovados.length,
       descartados: descartes,
+      julgamento,
       aviso: 'Nada foi registrado. O cartão deixa a pessoa revisar e registrar os que quiser.',
     };
   },
@@ -413,8 +483,9 @@ export const registerCommitments: DefinicaoDeFerramenta<z.infer<typeof compromis
     if (args.reuniao_id) await reuniaoNoEscopo(ctx, args.reuniao_id);
     const { conferidos, descartes } = await conferirCompromissos(ctx, args.itens);
     const reuniaoId = reuniaoDosItens(args, conferidos);
+    const { aprovados, julgamento } = await julgarOsCompromissos(ctx, reuniaoId, conferidos);
     const { criados, jaExistiam } = await ctx.armazenamento.trabalho.registrarCompromissos(
-      conferidos.map((c) => ({ ...c, ...(reuniaoId ? { reuniaoId } : {}) })),
+      aprovados.map((c) => ({ ...c, ...(reuniaoId ? { reuniaoId } : {}) })),
       { origem: 'taq', execucaoId: ctx.tarefa.execucaoId },
     );
     const ids = [...criados, ...jaExistiam].map((c) => c.id);
@@ -423,6 +494,7 @@ export const registerCommitments: DefinicaoDeFerramenta<z.infer<typeof compromis
       registrados: criados.map((c) => ({ id: c.id, descricao: c.descricao })),
       ja_existiam: jaExistiam.map((c) => ({ id: c.id, descricao: c.descricao, estado: c.estado })),
       descartados: descartes,
+      julgamento,
     };
   },
   resumir: (s) =>

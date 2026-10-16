@@ -95,6 +95,8 @@ export interface ContextoDeFerramenta {
    */
   registrarRespostaFinal: (texto: string, parcial: boolean) => void;
   acoes?: AcoesDaInterface;
+  /** O modelo desta execução — para ferramentas que precisam de um julgamento próprio (ex.: o juiz dos acompanhamentos). */
+  modelo?: AdaptadorDeModelo;
   /** Só existe quando a delegação está autorizada nesta tarefa. */
   delegar?: (pedido: PedidoDeDelegacao) => Promise<ResultadoDoAgente>;
 }

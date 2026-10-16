@@ -15,6 +15,7 @@
  * dono. Repetir o clique não duplica (a chave do compromisso é idempotente).
  */
 import {
+  LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO,
   registrarCompromissos,
   registrarDecisao,
   type Compromisso,
@@ -46,7 +47,7 @@ export async function registrarPontoComoAcompanhamento(p: {
     trecho: e.trecho,
     segmento: e.segmento,
   }));
-  const { criados, jaExistiam } = await registrarCompromissos(
+  const { criados, jaExistiam, recusadosPorLimite } = await registrarCompromissos(
     [
       {
         descricao: p.ponto.texto,
@@ -60,6 +61,11 @@ export async function registrarPontoComoAcompanhamento(p: {
     { origem: 'pessoa' },
   );
   const compromisso = criados[0] ?? jaExistiam[0];
+  if (!compromisso && recusadosPorLimite.length)
+    return {
+      tipo: 'recusado',
+      motivo: `Esta reunião já tem ${LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO} acompanhamentos, o máximo. Conclua ou cancele um deles para abrir vaga.`,
+    };
   if (!compromisso) return { tipo: 'recusado', motivo: 'Não foi possível registrar.' };
   return { tipo: 'ok', compromisso, jaExistia: criados.length === 0 };
 }

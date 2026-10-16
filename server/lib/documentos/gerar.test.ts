@@ -115,6 +115,35 @@ describe('gerarDocumentoPersonalizado', () => {
     expect(r.relatorio.problemas[0]).toMatchObject({ tipo: 'sustentacao' });
   });
 
+  it('o schema obriga o texto do bloco: sem ele o modelo devolvia parágrafos só com citação (visto ao vivo)', async () => {
+    complete.mockResolvedValue(reply(geracaoValida));
+    await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    const { jsonSchema } = complete.mock.calls[0]![1];
+    const bloco = jsonSchema.properties.secoes.items.properties.blocos.items;
+    expect(bloco.required).toContain('texto');
+  });
+
+  it('se nada sobrevive à checagem, tenta uma segunda vez antes de falhar', async () => {
+    const semTexto = {
+      ...geracaoValida,
+      secoes: [{ titulo: 'Diagnóstico', blocos: [{ tipo: 'paragrafo', classificacao: 'fato', fontes: [] }] }],
+    };
+    complete.mockResolvedValueOnce(reply(semTexto)).mockResolvedValueOnce(reply(geracaoValida));
+    const r = await gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' });
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(r.arvore.blocos)).toContain('gargalo');
+  });
+
+  it('duas tentativas sem nada sustentado: o erro continua dito, e sem laço', async () => {
+    complete.mockResolvedValue(
+      reply({ ...geracaoValida, secoes: [{ titulo: 'x', blocos: [{ tipo: 'paragrafo', classificacao: 'fato', fontes: [] }] }] }),
+    );
+    await expect(gerarDocumentoPersonalizado({ pedido: 'x', fontes: [FONTE_A], variante: 'ata' })).rejects.toBeInstanceOf(
+      ErroDeGeracao,
+    );
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
   it('fonte de outro cliente não sustenta nada: citação da Borealis é descartada', async () => {
     complete.mockResolvedValue(
       reply({

@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
-import { lerTrabalho } from '@/features/trabalho/store';
+import { atualizarCompromisso, lerTrabalho, registrarCompromissos } from '@/features/trabalho/store';
 import { registrarPontoComoAcompanhamento, registrarPontoComoDecisao } from './registrar';
 import { sintetizar, podeVirarAcompanhamento } from './sintese';
 import { idDoPontoDaPreparacao, mesclar, snapshotInicial, type Snapshot } from './store';
@@ -126,6 +126,21 @@ describe('registrarPontoComoAcompanhamento', () => {
       expect(r.tipo, t).toBe('recusado');
     }
     expect((await lerTrabalho()).compromissos).toEqual([]);
+  });
+
+  it('reunião com 3 acompanhamentos: o clique é recusado e diz o limite; cancelar um abre vaga', async () => {
+    const { criados } = await registrarCompromissos(
+      ['A', 'B', 'C'].map((d) => ({ descricao: d, responsavel: null, prazo: null, reuniaoId: 'm-1', evidencias: [] })),
+      { origem: 'pessoa' },
+    );
+    const ponto = pontoDe('Quem levanta os dados e quando');
+    const recusado = await registrarPontoComoAcompanhamento({ reuniao, ponto, versao: '9:6' });
+    expect(recusado).toMatchObject({ tipo: 'recusado' });
+    if (recusado.tipo === 'recusado') expect(recusado.motivo).toMatch(/3 acompanhamentos/);
+    expect((await lerTrabalho()).compromissos).toHaveLength(3);
+
+    await atualizarCompromisso(criados[0]!.id, 1, { estado: 'cancelado' }, { origem: 'pessoa' });
+    expect(await registrarPontoComoAcompanhamento({ reuniao, ponto, versao: '9:6' })).toMatchObject({ tipo: 'ok' });
   });
 
   it('ponto sem fala que o sustente não é registrado', async () => {

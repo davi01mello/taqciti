@@ -30,6 +30,28 @@ pedido + reuniões ──► redator (1 chamada) ──► ContentTree ──►
   (medida da Apostila Unit Economics). **Provisório**: nenhum responsável do CITi
   o validou. Fonte ausente sem substituição autorizada bloqueia a variante.
 
+## Falha vista ao vivo em 16/10/2026 (e o conserto)
+
+O redator real, de vez em quando, devolvia parágrafos só com a citação, sem `texto`
+(o campo era opcional no schema). A checagem descartava todos como "bloco inválido" e
+o pedido falhava com "Nenhum trecho do documento ficou sustentado" — o documento não
+era criado. Agora `texto` é obrigatório no schema (string vazia em lista e tabela) e,
+se mesmo assim nada sobrevive, `gerarDocumentoPersonalizado` tenta uma segunda vez
+antes de falhar. Medido: `gerar.live.test.ts` falhou 1 de 1 antes e passou 3 de 3 depois.
+
+## Acompanhamentos: no máximo 3 por reunião, julgados por IA
+
+Os compromissos que o Taq sugere ou registra a partir de uma reunião passam por um
+juiz (`src/features/acompanhamento/juiz.ts`, instrução `acompanhamento-v1`, ferramenta
+`escolher_acompanhamentos`). A IA escolhe quais ficam com as vagas e diz o motivo;
+nenhum critério de importância é código. O código só garante o teto
+(`LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO = 3`, em `trabalho/store.ts`), que vale para
+qualquer caminho que grave um compromisso com reunião (inclusive o clique do
+fechamento). Sem julgamento válido (cota, servidor fora, resposta torta) ninguém é
+escolhido: não há "os três primeiros" de reserva. Compromisso cancelado libera a vaga;
+o registrado à mão em "Novo", sem reunião, não conta. Publicar o servidor antes da
+extensão (a instrução nova mora lá).
+
 ## Rotas (servidor)
 
 | Rota | O que faz | Modelo |

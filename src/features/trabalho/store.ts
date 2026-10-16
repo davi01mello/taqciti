@@ -313,6 +313,9 @@ export type ResultadoDaEdicao<T> =
 
 // ------------------------------------------------------------- compromissos
 
+/** Acompanhamentos por reunião: o mais que a equipe consegue acompanhar de verdade. */
+export const LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO = 3;
+
 export interface NovoCompromisso {
   descricao: string;
   responsavel: Compromisso['responsavel'];
@@ -337,10 +340,11 @@ export interface Autoria {
 export async function registrarCompromissos(
   novos: readonly NovoCompromisso[],
   autoria: Autoria,
-): Promise<{ criados: Compromisso[]; jaExistiam: Compromisso[] }> {
+): Promise<{ criados: Compromisso[]; jaExistiam: Compromisso[]; recusadosPorLimite: NovoCompromisso[] }> {
   return transacao((t) => {
     const criados: Compromisso[] = [];
     const jaExistiam: Compromisso[] = [];
+    const recusadosPorLimite: NovoCompromisso[] = [];
     for (const n of novos) {
       const descricao = n.descricao.trim();
       if (!descricao) continue;
@@ -376,6 +380,19 @@ export async function registrarCompromissos(
           jaExistiam.push(existente);
         continue;
       }
+      // O teto por reunião é de código, não de julgamento: QUEM entra nas vagas
+      // é decidido antes, pela IA (`features/acompanhamento/juiz.ts`); aqui só
+      // se garante que nada passe do limite, venha de onde vier. Item sem
+      // reunião (registrado à mão em "Novo") não pertence a nenhuma e não conta.
+      if (n.reuniaoId && !n.demo) {
+        const ocupadas =
+          t.compromissos.filter((x) => x.reuniaoId === n.reuniaoId && !x.demo && x.estado !== 'cancelado').length +
+          criados.filter((x) => x.reuniaoId === n.reuniaoId).length;
+        if (ocupadas >= LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO) {
+          recusadosPorLimite.push(n);
+          continue;
+        }
+      }
       const agora = Date.now();
       const c: Compromisso = {
         id: novoId('k'),
@@ -397,8 +414,19 @@ export async function registrarCompromissos(
       criados.push(c);
     }
     t.compromissos.unshift(...criados);
-    return { resultado: { criados, jaExistiam }, mudou: criados.length > 0 };
+    return { resultado: { criados, jaExistiam, recusadosPorLimite }, mudou: criados.length > 0 };
   });
+}
+
+/** Quantas vagas de acompanhamento a reunião ainda tem (cancelados liberam a vaga). */
+export function vagasDeAcompanhamento(
+  compromissos: readonly Pick<Compromisso, 'reuniaoId' | 'estado' | 'demo'>[],
+  reuniaoId: string,
+): number {
+  const ocupadas = compromissos.filter(
+    (c) => c.reuniaoId === reuniaoId && !c.demo && c.estado !== 'cancelado',
+  ).length;
+  return Math.max(0, LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO - ocupadas);
 }
 
 export interface MudancaDeCompromisso {
