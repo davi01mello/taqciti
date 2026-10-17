@@ -1897,57 +1897,75 @@
 /* ------------------------------------------------------------ reuniões */
 
 /*
- * O histórico é uma lista, não uma pilha de cartões: linhas separadas por um
- * traço, com a seta à direita dizendo que cada uma abre. Cartão em volta de
- * cada reunião era moldura repetida dez vezes para separar o que um traço
- * separa.
+ * O histórico é uma pilha de BOTÕES (17/10/2026): a lista de linhas finas
+ * lia como texto corrido, e com hora e duração em cada uma ficava poluída.
+ * Agora cada reunião é um alvo grande, com placa e borda, que diz "clique":
+ * título, a data embaixo e a seta à direita. O resto mora dentro da reunião.
  */
 .tq-lista {
   list-style: none;
-  margin: 4px 0 0;
+  margin: 8px 0 0;
   padding: 0;
   display: grid;
+  gap: 8px;
 }
 
-.tq-lista li + li {
-  border-top: 1px solid rgb(255 255 255 / 0.05);
-}
-
-/*
- * Cada reunião é uma linha: o título à esquerda, "data  hora  duração" à
- * direita na mesma linha quando cabe. Só isso — a direção "Espectro" tirou a
- * contagem de falas e o "com nota" da lista.
- */
 .tq-lista button {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 2px 10px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
+  min-height: 64px;
   text-align: left;
-  padding: 11px 8px;
-  border-radius: 12px;
-  transition: background 0.2s;
+  padding: 12px 12px 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--s-traco);
+  background: var(--s-placa);
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .tq-lista button:hover {
-  background: var(--s-placa);
+  background: var(--s-placa-forte);
+  border-color: rgb(255 255 255 / 0.16);
 }
 
-.tq-lista strong {
+.tq-lista-textos {
+  flex: 1;
   min-width: 0;
-  font-size: var(--fs-corpo);
+  display: grid;
+  gap: 3px;
+}
+
+/* O título em até duas linhas: inteiro quando cabe, reticências quando não. */
+.tq-lista strong {
+  font-size: var(--fs-leitura);
   font-weight: 600;
+  line-height: 1.3;
   color: var(--s-texto);
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .tq-lista-meta {
   font-size: var(--fs-meta);
   color: var(--s-cinza);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+
+/* A seta para a direita: o chevron gira de "para baixo" para "para frente". */
+.tq-lista-seta {
+  flex: 0 0 auto;
+  color: var(--s-cinza);
+  transform: rotate(-90deg);
+}
+
+.tq-lista button:hover .tq-lista-seta {
+  color: var(--s-texto);
 }
 
 .tq-secao-cabeca {

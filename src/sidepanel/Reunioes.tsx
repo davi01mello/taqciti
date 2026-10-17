@@ -3,8 +3,9 @@
  *
  * ── Uma lista limpa, uma leitura limpa ───────────────────────────────────
  *
- * Direção "Espectro" (02/10/2026): a lista tem só título, data, hora e
- * duração. Abrir uma reunião mostra APENAS a transcrição dela — voltar, título,
+ * Direção "Espectro" (02/10/2026), limpa em 17/10/2026: cada reunião é um
+ * botão grande com título e data, e só. Hora, duração e o número de falas
+ * moram DENTRO da reunião. Abrir uma reunião mostra APENAS a transcrição dela — voltar, título,
  * a linha de informações e as falas. Sem botões, sem abas, sem notas.
  *
  * O que saiu daqui não sumiu do produto: baixar o .txt, as notas e tudo o que
@@ -123,12 +124,14 @@ export function Reunioes({
         <ul className="tq-lista">
           {registros.map((r) => (
             <li key={r.id}>
+              {/* Um botão por reunião: título e data, e só. Hora, duração e
+                  falas ficam dentro dela (ver `DetalheDaReuniao`). */}
               <button type="button" onClick={() => onAbrir(r.id)}>
-                <strong>{r.title}</strong>
-                <span className="tq-lista-meta">
-                  {formatDate(r.startedAt)} <span className="tq-relogio">{formatTime(r.startedAt)}</span>{' '}
-                  {formatDurationHuman(r.durationSeconds)}
+                <span className="tq-lista-textos">
+                  <strong>{r.title}</strong>
+                  <span className="tq-lista-meta">{formatDate(r.startedAt)}</span>
                 </span>
+                <Icon name="chevron" size={16} className="tq-lista-seta" />
               </button>
             </li>
           ))}
