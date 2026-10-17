@@ -1,0 +1,40 @@
+/*
+ * Barra de rolagem — UMA definição para todas as superfícies (HOME, sidebar e o
+ * painel dentro do Meet). Só os tokens `--scroll-*` (tokens.css) variam; as
+ * regras não são copiadas em lugar nenhum.
+ *
+ * O padrão do Chrome no Windows é uma calha opaca de 15px com setas, e é dela
+ * que vem boa parte da sensação de "página de navegador". O polegar fino com
+ * `background-clip: content-box` e borda transparente se comporta como uma barra
+ * overlay: respiro dos dois lados, sem calha.
+ *
+ * Duas coisas valem para quem for mexer:
+ *  - `scrollbar-width` e `scrollbar-color` (as propriedades padrão) DESLIGAM o
+ *    estilo `::-webkit-scrollbar` no Chrome 121+. Por isso nenhum seletor deve
+ *    usá-las com valor diferente de `none`: um `scrollbar-width: thin` solto
+ *    devolvia a barra nativa àquele elemento.
+ *  - `scrollbar-width: none` é o ÚNICO desvio permitido, para onde outra coisa
+ *    faz o papel da barra (o mapa da `TrilhaDaConversa`, as falas com máscara).
+ */
+@layer base {
+  ::-webkit-scrollbar {
+    width: var(--scroll-size);
+    height: var(--scroll-size);
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--scroll-thumb);
+    background-clip: content-box;
+    border: var(--scroll-pad) solid transparent;
+    border-radius: var(--radius-full);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scroll-thumb-hover);
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--scroll-thumb-active);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}

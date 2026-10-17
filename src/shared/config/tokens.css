@@ -109,6 +109,16 @@
   --radius-lg: 28px;
   --radius-full: 999px;
 
+  /* ── Barra de rolagem ───────────────────────────────────────────────────
+   * Polegar = tamanho − 2 × respiro. O painel dentro do Meet usa uma barra
+   * mais fina (ver panel.css); é o único que sobrescreve estes valores.
+   */
+  --scroll-size: 10px;
+  --scroll-pad: 3px;
+  --scroll-thumb: rgba(255, 255, 255, 0.14);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.26);
+  --scroll-thumb-active: rgba(255, 255, 255, 0.36);
+
   /* ── Sombra ─────────────────────────────────────────────────────────────
    * Duas camadas sempre: uma larga e quase invisível que dá o assentamento,
    * uma curta e mais fechada que dá o contato. Nenhuma sombra preta dura.

@@ -1,6 +1,7 @@
 @import './tokens.css';
 @import './glass.css';
 @import './fontes.css';
+@import './scrollbar.css';
 
 @tailwind base;
 @tailwind components;
@@ -38,34 +39,6 @@
       radial-gradient(700px 420px at -16% 110%, rgba(64, 158, 170, 0.06), transparent 62%),
       var(--color-background);
     background-attachment: fixed;
-  }
-
-  /*
-   * Barra de rolagem.
-   *
-   * O padrão do Chrome no Windows é uma calha opaca de 15px com setas — é
-   * dela que vem boa parte da sensação de "página de navegador" (no macOS a
-   * barra é overlay e some sozinha, por isso o problema só aparecia aqui). O
-   * truque do `background-clip: content-box` com borda transparente desenha um
-   * polegar fino com respiro dos dois lados, que é como uma barra overlay se
-   * comporta — sem precisar de scrollbar customizada em JS.
-   */
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  ::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.13);
-    background-clip: content-box;
-    border: 3px solid transparent;
-    border-radius: var(--radius-full);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.24);
-  }
-  ::-webkit-scrollbar-track,
-  ::-webkit-scrollbar-corner {
-    background: transparent;
   }
 
   ::selection {

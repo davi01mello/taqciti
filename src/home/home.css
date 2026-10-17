@@ -800,7 +800,6 @@ html {
   font-size: var(--fs-leitura);
   line-height: 1.6;
   color: rgb(240 242 244);
-  scrollbar-width: thin;
   /* Um dos poucos verdes que sobraram, e o mais justificado: é o ponto exato
      onde a sua voz entra na tela. */
   caret-color: rgb(var(--c-glow));
