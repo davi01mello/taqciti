@@ -30,6 +30,7 @@ import {
   speakerLabel,
 } from '@/shared/ui/format';
 import { papelDoFalante } from '@/features/integracoes/colegas';
+import { TrilhaDaConversa, marcasDasFalas } from '@/shared/ui/TrilhaDaConversa';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 import { Carta, IconeEnviar } from './Carta';
 import { GerarDocumento } from './GerarDocumento';
@@ -274,6 +275,38 @@ function agruparPorSemana(registros: MeetingRecord[]): Array<[string, MeetingRec
  * `content-visibility` em cada fala, no lugar de virtualizar: a reunião de duas
  * horas rola tão leve quanto a de cinco minutos, e o Ctrl+F continua achando.
  */
+const idDaFala = (s: MeetingRecord['segments'][number], i: number) => `${s.captionId}:${i}`;
+
+/**
+ * A coluna que rola com a transcrição, e a barra-mapa ao lado — a mesma da
+ * conversa. A barra nativa sai desta coluna (`tq-com-mapa`): duas barras
+ * fazendo o mesmo, lado a lado, era o defeito que a conversa já resolveu.
+ */
+function TranscricaoComMapa({ registro }: { registro: MeetingRecord }) {
+  const [coluna, setColuna] = useState<HTMLDivElement | null>(null);
+  const colegas = useColegasDoCiti(registro.segments.map((s) => s.speaker ?? 'Alguém'));
+  const eu = hostName(registro.participants);
+  const marcas = marcasDasFalas(
+    registro.segments.map((s, i) => {
+      const nome = s.speaker ?? 'Alguém';
+      return {
+        id: idDaFala(s, i),
+        quem: speakerLabel(nome, eu),
+        eu: papelDoFalante(nome, eu, colegas) === 'eu',
+        texto: s.text,
+      };
+    }),
+  );
+  return (
+    <>
+      <div className="tq-coluna-corpo tq-com-mapa" ref={setColuna}>
+        <FalasDaReuniao registro={registro} />
+      </div>
+      <TrilhaDaConversa itens={marcas} rolador={coluna} assunto="reunião" />
+    </>
+  );
+}
+
 function FalasDaReuniao({ registro }: { registro: MeetingRecord }) {
   const colegas = useColegasDoCiti(registro.segments.map((s) => s.speaker ?? 'Alguém'));
   if (registro.segments.length === 0)
@@ -288,7 +321,8 @@ function FalasDaReuniao({ registro }: { registro: MeetingRecord }) {
         const seguida = i > 0 && (registro.segments[i - 1]?.speaker ?? 'Alguém') === nome;
         return (
           <li
-            key={`${s.captionId}:${i}`}
+            key={idDaFala(s, i)}
+            data-tq-turno={idDaFala(s, i)}
             className={`tq-fala${papel === 'eu' ? ' voce' : papel === 'citi' ? ' citi' : ''}${
               seguida ? ' seguida' : ''
             }`}
@@ -614,9 +648,7 @@ function DetalheDaReuniao({
           {/* `scroll={false}`: quem rola é a coluna, e só ela. Uma caixa de
               rolagem a mais aqui dentro seria a caixa aninhada que engole a
               roda do mouse. */}
-          <div className="tq-coluna-corpo">
-            <FalasDaReuniao registro={registro} />
-          </div>
+          <TranscricaoComMapa registro={registro} />
         </Coluna>
 
         <Coluna

@@ -31,6 +31,7 @@ import {
   speakerLabel,
 } from '@/shared/ui/format';
 import { papelDoFalante } from '@/features/integracoes/colegas';
+import { TrilhaDaConversa, marcasDasFalas } from '@/shared/ui/TrilhaDaConversa';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
 
 interface Props {
@@ -151,9 +152,22 @@ function DetalheDaReuniao({
   const eu = hostName(registro.participants);
   const total = registro.segments.length;
   const colegas = useColegasDoCiti(registro.segments.map((s) => s.speaker ?? 'Alguém'));
+  // A coluna que rola, como estado: a barra precisa renderizar quando ela existir.
+  const [coluna, setColuna] = useState<HTMLDivElement | null>(null);
+  const marcas = marcasDasFalas(
+    registro.segments.map((s) => {
+      const quem = s.speaker ?? 'Alguém';
+      return {
+        id: s.captionId,
+        quem: speakerLabel(quem, eu),
+        eu: papelDoFalante(quem, eu, colegas) === 'eu',
+        texto: s.text,
+      };
+    }),
+  );
 
   return (
-    <div className="tq-rolavel tq-detalhe">
+    <div className="tq-rolavel tq-detalhe tq-com-mapa" ref={setColuna}>
       <button type="button" className="tq-voltar" onClick={onVoltar}>
         <Icon name="chevron" size={13} className="tq-girado" />
         Reuniões
@@ -189,6 +203,7 @@ function DetalheDaReuniao({
             return (
               <article
                 key={s.captionId}
+                data-tq-turno={s.captionId}
                 className={`tq-fala${papel === 'eu' ? ' minha' : papel === 'citi' ? ' citi' : ''}${
                   seguida ? ' seguida' : ''
                 }`}
@@ -208,6 +223,7 @@ function DetalheDaReuniao({
           })}
         </section>
       )}
+      <TrilhaDaConversa itens={marcas} rolador={coluna} assunto="reunião" />
     </div>
   );
 }

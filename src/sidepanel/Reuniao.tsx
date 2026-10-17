@@ -26,6 +26,7 @@
  * fala entra direto na lista: a legenda é um gesto de quem está olhando.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { TrilhaDaConversa, marcasDasFalas } from '@/shared/ui/TrilhaDaConversa';
 import type { LiveSegment, MeetingState } from '@/shared/types/domain';
 import { usePlatform } from '@/shared/platform/context';
 import type { EstadoDaGravacao } from '@/features/annotations/notes';
@@ -1014,6 +1015,15 @@ function ListaDeFalas({
   const [marcas, setMarcas] = useState<MarcasDaReuniao>({});
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const noFim = useRef(true);
+  // A lista que rola, como estado: a barra precisa renderizar quando ela existir.
+  const [coluna, setColuna] = useState<HTMLDivElement | null>(null);
+  const refDaLista = useCallback(
+    (el: HTMLDivElement | null) => {
+      listaRef.current = el;
+      setColuna(el);
+    },
+    [listaRef],
+  );
 
   useEffect(() => {
     void lerMarcas(meetingId).then(setMarcas);
@@ -1040,7 +1050,8 @@ function ListaDeFalas({
   }, []);
 
   return (
-    <div className="tq-falas" ref={listaRef} onScroll={aoRolar}>
+    <>
+    <div className="tq-falas" ref={refDaLista} onScroll={aoRolar}>
       {segmentos.map((s, i) => {
         const marca = marcas[s.captionId];
         const aberto = selecionado === s.captionId;
@@ -1063,6 +1074,7 @@ function ListaDeFalas({
           <article
             key={s.captionId}
             data-caption={s.captionId}
+            data-tq-turno={s.captionId}
             className={`tq-fala${aberto ? ' selecionada' : ''}${marca ? ' marcada' : ''}${
               papel === 'eu' ? ' minha' : papel === 'citi' ? ' citi' : ''
             }${seguida ? ' seguida' : ''}${s.captionId === chegandoId ? ' chegando' : ''}`}
@@ -1137,6 +1149,25 @@ function ListaDeFalas({
         );
       })}
     </div>
+    {/* Irmã da lista, e não filha: a máscara do alto e do pé da lista cortaria a barra. */}
+    <TrilhaDaConversa
+      itens={marcasDasFalas(
+        segmentos
+          .filter((s) => s.captionId !== chegandoId)
+          .map((s) => {
+            const quem = s.speaker ?? 'Alguém';
+            return {
+              id: s.captionId,
+              quem: speakerLabel(quem, selfName),
+              eu: papelDoFalante(quem, selfName, colegas) === 'eu',
+              texto: s.text,
+            };
+          }),
+      )}
+      rolador={coluna}
+      assunto="reunião"
+    />
+    </>
   );
 }
 

@@ -296,3 +296,15 @@ body:has(.tq-trilha.segurando) * {
     animation: none;
   }
 }
+
+/*
+ * Onde a barra-mapa existe, a nativa sai: duas barras fazendo o mesmo, lado a
+ * lado, era o defeito. Vale para a conversa (que já faz isso em `home.css` e
+ * `sidepanel.css`) e para as transcrições de reunião, que usam o mesmo mapa.
+ * `scrollbar-width: none` é o desvio permitido de scrollbar.css.
+ */
+.tq-rolavel.tq-com-mapa,
+.tq-coluna-corpo.tq-com-mapa {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}

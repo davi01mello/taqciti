@@ -48,12 +48,19 @@ export interface MarcaDaTrilha {
   voce: boolean;
   /** O começo do texto — o que aparece na prévia. */
   resumo: string;
+  /** Quem disse, na prévia. Sem isto: "Você" ou "Taq", como na conversa. */
+  autor?: string;
 }
 
 interface Props {
   itens: readonly MarcaDaTrilha[];
   /** A coluna que rola. `null` = a página. */
   rolador: HTMLElement | null;
+  /**
+   * O que a barra mapeia: as mensagens de uma conversa ou as falas de uma
+   * reunião. É a MESMA barra — só muda o que os leitores de tela ouvem.
+   */
+  assunto?: 'conversa' | 'reunião';
 }
 
 interface Medida {
@@ -113,7 +120,7 @@ function medir(rolador: HTMLElement | null, ids: readonly string[]): Medida {
   return { total, visivel, topo, blocos, caixa };
 }
 
-export function TrilhaDaConversa({ itens, rolador }: Props) {
+export function TrilhaDaConversa({ itens, rolador, assunto = 'conversa' }: Props) {
   const [medida, setMedida] = useState<Medida | null>(null);
   const [desperta, setDesperta] = useState(false);
   const [segurando, setSegurando] = useState(false);
@@ -259,7 +266,7 @@ export function TrilhaDaConversa({ itens, rolador }: Props) {
   return (
     <nav
       className={`tq-trilha${desperta ? ' desperta' : ''}${segurando ? ' segurando' : ''}`}
-      aria-label="Mapa da conversa"
+      aria-label={`Mapa da ${assunto}`}
       style={{ top: caixa.top, right: caixa.right, height: trilho }}
       onWheel={(e) => {
         // Sobre a barra, a roda rola a conversa — na sidebar a barra fica sobre
@@ -312,7 +319,9 @@ export function TrilhaDaConversa({ itens, rolador }: Props) {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(fracao * 100)}
-          aria-label="Trecho da conversa na tela: arraste para subir ou descer (Alt+↑/↓ pula mensagens)"
+          aria-label={`Trecho da ${assunto} na tela: arraste para subir ou descer (Alt+↑/↓ pula ${
+            assunto === 'conversa' ? 'mensagens' : 'falas'
+          })`}
           tabIndex={0}
           style={{ top: topoDaLente, height: alturaDaLente }}
           onPointerDown={apertarLente}
@@ -346,7 +355,7 @@ export function TrilhaDaConversa({ itens, rolador }: Props) {
 
         {itemMirado && mira !== null && !segurando && (
           <span className="tq-trilha-previa" style={{ top: mira }} aria-hidden="true">
-            <strong>{itemMirado.voce ? 'Você' : 'Taq'}</strong>
+            <strong>{itemMirado.autor ?? (itemMirado.voce ? 'Você' : 'Taq')}</strong>
             {itemMirado.resumo}
           </span>
         )}
@@ -355,16 +364,25 @@ export function TrilhaDaConversa({ itens, rolador }: Props) {
   );
 }
 
+const resumir = (texto: string): string => {
+  const limpo = texto.replace(/[*_`#>[\]]/g, '').replace(/\s+/g, ' ').trim();
+  return limpo.length > 96 ? `${limpo.slice(0, 96)}…` : limpo || '(sem texto)';
+};
+
 /** As marcas a partir das mensagens de uma conversa. */
 export function marcasDasMensagens(
   mensagens: ReadonlyArray<{ id: string; role: string; text: string }>,
 ): MarcaDaTrilha[] {
-  return mensagens.map((m) => {
-    const limpo = m.text.replace(/[*_`#>[\]]/g, '').replace(/\s+/g, ' ').trim();
-    return {
-      id: m.id,
-      voce: m.role === 'user',
-      resumo: limpo.length > 96 ? `${limpo.slice(0, 96)}…` : limpo || '(sem texto)',
-    };
-  });
+  return mensagens.map((m) => ({ id: m.id, voce: m.role === 'user', resumo: resumir(m.text) }));
+}
+
+/**
+ * As marcas a partir das falas de uma reunião. `eu` é quem a tela já decidiu
+ * ser "eu" (`papelDoFalante`): essas falas ficam estreitas, à direita, como as
+ * suas na conversa. O `id` é o mesmo posto em `data-tq-turno` na fala.
+ */
+export function marcasDasFalas(
+  falas: ReadonlyArray<{ id: string; quem: string; eu: boolean; texto: string }>,
+): MarcaDaTrilha[] {
+  return falas.map((f) => ({ id: f.id, voce: f.eu, autor: f.quem, resumo: resumir(f.texto) }));
 }
