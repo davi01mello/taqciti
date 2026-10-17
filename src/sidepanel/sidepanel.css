@@ -2865,3 +2865,30 @@
   font-size: var(--fs-meta);
   color: var(--s-cinza);
 }
+
+/*
+ * Botões SEM borda (17/10/2026): o botão se lê pelo fundo, e o estado (hover,
+ * aberto, armado, escolhido) pela cor do fundo — nunca por um contorno.
+ * `border: 0`, e não `border-color: transparent`: zerada a largura, as regras
+ * de estado que só trocam a cor da borda deixam de ter efeito, sem precisar
+ * repeti-las aqui.
+ */
+.tq-side .tq-acao,
+.tq-side .tq-botao-principal,
+.tq-side .tq-botao-fantasma,
+.tq-side .tq-finalizar,
+.tq-side .tq-print-visor-barra button,
+.tq-side .tq-fala-acoes .marca,
+.tq-side .tq-lista button {
+  border: 0;
+}
+
+/* Sem a borda, o fundo do botão de reunião sobe um pouco para continuar sendo
+   um botão, e não um texto solto. */
+.tq-side .tq-lista button {
+  background: rgb(255 255 255 / 0.04);
+}
+
+.tq-side .tq-lista button:hover {
+  background: rgb(var(--c-primary) / 0.1);
+}
