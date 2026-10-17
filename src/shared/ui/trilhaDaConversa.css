@@ -275,15 +275,29 @@ body:has(.tq-trilha.segurando) * {
   user-select: none;
 }
 
-/* Na sidebar, a mesma barra numa escala de coluna estreita. */
-.tq-conversa-col .tq-trilha {
+/*
+ * Na sidebar, a mesma barra numa escala de coluna estreita — em TODAS as telas
+ * dela: a conversa, a reunião ao vivo e a reunião aberta pelo histórico. Antes
+ * a escala valia só na conversa, e as reuniões saíam com a medida da HOME.
+ */
+.tq-side .tq-trilha {
   --largura: 16px;
   --bloco-taq: 8px;
   --bloco-voce: 4px;
 }
 
-.tq-conversa-col .tq-trilha-previa {
+.tq-side .tq-trilha-previa {
   max-width: 200px;
+}
+
+/*
+ * E o texto abre espaço para ela, como a conversa já faz
+ * (`.tq-conversa-col:has(> .tq-trilha)` em sidepanel.css): sem isto as falas
+ * corriam por baixo do mapa.
+ */
+.tq-side .tq-rolavel.tq-com-mapa,
+.tq-side .tq-transcricao-palco:has(> .tq-trilha) > .tq-falas {
+  padding-right: 26px;
 }
 
 @media (prefers-reduced-motion: reduce) {
