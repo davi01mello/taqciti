@@ -1919,16 +1919,18 @@
   text-align: left;
   padding: 12px 12px 12px 14px;
   border-radius: 14px;
-  border: 1px solid var(--s-traco);
-  background: var(--s-placa);
+  /* Quase transparente: o botão se lê pela borda fina, não por uma placa. */
+  border: 1px solid rgb(255 255 255 / 0.06);
+  background: rgb(255 255 255 / 0.02);
   transition:
     background 0.2s,
     border-color 0.2s;
 }
 
+/* No hover, um verde tênue: só uma tinta, para dizer "este abre". */
 .tq-lista button:hover {
-  background: var(--s-placa-forte);
-  border-color: rgb(255 255 255 / 0.16);
+  background: rgb(var(--c-primary) / 0.07);
+  border-color: rgb(var(--c-primary) / 0.28);
 }
 
 .tq-lista-textos {
@@ -1965,7 +1967,7 @@
 }
 
 .tq-lista button:hover .tq-lista-seta {
-  color: var(--s-texto);
+  color: rgb(var(--c-glow));
 }
 
 .tq-secao-cabeca {
