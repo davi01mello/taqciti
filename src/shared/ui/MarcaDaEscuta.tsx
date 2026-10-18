@@ -10,7 +10,8 @@
  * redondas), a mesma tinta (o degradê da marca, amostrado na mesma posição) e a
  * mesma gramática de estado:
  *
- *   - MOVIMENTO só quando algo acontece de verdade;
+ *   - MOVIMENTO de trabalho só quando algo acontece de verdade; em repouso
+ *     (`desligada`, `salva`) a marca apenas RESPIRA, como a da conversa;
  *   - CINZA é parado; ÂMBAR é atenção; o degradê é o normal.
  *
  * ── Os estados ───────────────────────────────────────────────────────────
@@ -25,8 +26,9 @@
  *     escrito continua lá;
  *   - `interrompida`: a onda achata em âmbar e as linhas piscam devagar — há
  *     legenda na tela que a captura não lê;
- *   - `salva`: a página completa, e um brilho passa por ela uma vez;
- *   - `desligada`: o desenho apagado. Não há reunião.
+ *   - `salva`: a página completa, um brilho passa por ela uma vez, e depois ela
+ *     respira;
+ *   - `desligada`: o desenho apagado, respirando devagar. Não há reunião.
  *
  * Não é medidor de áudio: a extensão nunca ouviu microfone nenhum. O que move
  * as barras é o ESTADO da captura de legendas; a faísca é a chegada de um

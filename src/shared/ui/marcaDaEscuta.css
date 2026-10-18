@@ -189,7 +189,49 @@
   opacity: 0.6;
 }
 
+/* --------------------------------------------------------------- repouso */
+
+/*
+ * Sem captura (desligada) ou com a reunião já guardada (salva), a marca RESPIRA,
+ * como a da conversa em repouso (`tq-marca-respirar`): as duas ficam à vista
+ * lado a lado, e uma parada ao lado da outra viva lia-se como quebrada. É um
+ * respirar, e não o movimento da captura: lento, pequeno e sem faísca, de modo
+ * que "ao vivo" continua inconfundível. Pausada e erro ficam parados de
+ * propósito — parado é o que elas dizem.
+ */
+.tq-escuta[data-estado='desligada'] .tq-escuta-onda .v,
+.tq-escuta[data-estado='salva'] .tq-escuta-onda .v {
+  animation: tq-escuta-respirar 3.4s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -1.13s);
+}
+
+.tq-escuta[data-estado='desligada'] .tq-escuta-linha .e,
+.tq-escuta[data-estado='salva'] .tq-escuta-linha .e {
+  animation: tq-escuta-respirar-linha 3.4s ease-in-out infinite alternate;
+  animation-delay: calc(var(--i) * -1.13s);
+}
+
 /* ------------------------------------------------------------- keyframes */
+
+/* Mais fundo que o da marca (0,93–1,06): são só três barras finas, e menos que
+   isto não se vê a 20 px. */
+@keyframes tq-escuta-respirar {
+  from {
+    transform: scaleY(0.78);
+  }
+  to {
+    transform: scaleY(1.12);
+  }
+}
+
+@keyframes tq-escuta-respirar-linha {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 @keyframes tq-escuta-ouvir {
   from {
