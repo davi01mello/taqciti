@@ -39,10 +39,11 @@ interface Props {
   animando: boolean;
 }
 
+/** Amplitudes 25% maiores desde 18/10/2026, junto com a altura do chão (312px). */
 const PERFIL: Record<EstadoDaOndaDoPainel, { a: number; v: number }> = {
-  repouso: { a: 11, v: 0.00019 },
-  escrita: { a: 20, v: 0.00052 },
-  captando: { a: 24, v: 0.00042 },
+  repouso: { a: 14, v: 0.00019 },
+  escrita: { a: 25, v: 0.00052 },
+  captando: { a: 30, v: 0.00042 },
 };
 
 const VERDE = [92, 203, 133];

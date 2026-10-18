@@ -2850,3 +2850,90 @@
 .tq-side .tq-lista button:focus-visible {
   background: var(--s-placa);
 }
+
+/*
+ * O SELETOR Reunião | Conversa sem moldura (18/10/2026): os dois nomes soltos
+ * sobre o fundo, e embaixo um trilho fino com a BARRINHA da seção aberta. A
+ * barrinha se arrasta para o outro lado, ou se clica na outra metade do
+ * trilho, para trocar a seção (ver `Seletores.tsx`).
+ */
+.tq-side .tq-modos {
+  position: relative;
+  gap: 0;
+  padding: 0 0 12px;
+  background: none;
+  box-shadow: none;
+}
+
+.tq-side .tq-modo,
+.tq-side .tq-modo:hover,
+.tq-side .tq-modo.atual {
+  background: transparent;
+  box-shadow: none;
+}
+
+.tq-side .tq-modo:hover,
+.tq-side .tq-modo.atual {
+  color: var(--s-texto);
+}
+
+/* O trilho: alto o bastante para pegar com o ponteiro, fino na aparência. */
+.tq-modos-trilho {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tq-modos-trilho::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5px;
+  height: 1px;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.tq-modos-trilho.arrastando {
+  cursor: grabbing;
+}
+
+/* A barrinha ocupa a metade do trilho; o traço visível fica no meio dela. */
+.tq-modos-barra {
+  position: absolute;
+  left: 0;
+  bottom: 4px;
+  width: 50%;
+  height: 3px;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tq-modos-barra::after {
+  content: '';
+  position: absolute;
+  inset: 0 22%;
+  border-radius: 3px;
+  background: rgb(var(--c-primary));
+  transition: background 0.2s;
+}
+
+.tq-modos-trilho:hover .tq-modos-barra::after,
+.tq-modos-trilho.arrastando .tq-modos-barra::after {
+  background: rgb(var(--c-glow));
+}
+
+.tq-modos-trilho.arrastando .tq-modos-barra {
+  transition: none;
+}
+
+/*
+ * A onda do fundo 25% maior (18/10/2026): a altura do chão vai de 250px para
+ * 312px; a amplitude sobe na mesma proporção em `OndaDoPainel.tsx`.
+ */
+.tq-onda {
+  height: 312px;
+}

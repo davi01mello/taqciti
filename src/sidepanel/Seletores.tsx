@@ -18,8 +18,8 @@
  *
  * A linguagem separa as duas leituras:
  *
- *   - SELEÇÃO é luz neutra — o mesmo realce branco que a HOME usa para "você
- *     está aqui", mais `aria-current`;
+ *   - SELEÇÃO é a barrinha embaixo do nome (sem moldura nos botões), o nome
+ *     em branco, mais `aria-current`;
  *   - ATIVIDADE é a animação e a palavra ao lado do nome. Verde só quando algo
  *     acontece de verdade, e nunca sozinho: sempre acompanhado de texto, porque
  *     um ponto colorido não diz nada a quem não distingue a cor.
@@ -34,6 +34,7 @@
  * captura dependa da seção "Transcrição" estar aberta — e a única superfície
  * que satisfaz isso sem voltar a desenhar por cima da página é esta.
  */
+import { useRef, useState } from 'react';
 import type { AtividadeDoAgente } from '@/features/agent/atividade';
 import { MarcaDoTaq } from '@/shared/ui/MarcaDoTaq';
 import { MarcaDaEscuta, type EstadoDaCaptura } from '@/shared/ui/MarcaDaEscuta';
@@ -121,6 +122,49 @@ export function Seletores({
     agente === 'falhou' || agente === 'cancelado' || agente === 'interrompido';
   const palavraAgente = PALAVRA_DO_AGENTE[agente] ?? '';
 
+  /*
+   * A BARRINHA embaixo dos dois nomes (18/10/2026): ela marca a seção aberta e
+   * é ela mesma um controle — arrastar para o outro lado, ou clicar numa das
+   * metades do trilho, troca a seção. Os botões continuam os alvos de teclado
+   * e de leitor de tela; o trilho é só para o ponteiro (`aria-hidden`).
+   *
+   * Durante o arrasto a posição segue o ponteiro, em fração do trilho (0 =
+   * Reunião, 1 = Conversa); ao soltar, vale a metade mais perto.
+   */
+  const fracao = modo === 'conversa' ? 1 : 0;
+  const [arrasto, setArrasto] = useState<number | null>(null);
+  const gesto = useRef<{ x: number; de: number; moveu: boolean; largura: number; esquerda: number } | null>(
+    null,
+  );
+
+  const comecar = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const caixa = e.currentTarget.getBoundingClientRect();
+    gesto.current = { x: e.clientX, de: fracao, moveu: false, largura: caixa.width, esquerda: caixa.left };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const mover = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const g = gesto.current;
+    if (!g) return;
+    const dx = e.clientX - g.x;
+    if (Math.abs(dx) > 3) g.moveu = true;
+    if (!g.moveu) return;
+    setArrasto(Math.min(1, Math.max(0, g.de + dx / (g.largura / 2))));
+  };
+
+  const soltar = (e: React.PointerEvent<HTMLSpanElement>) => {
+    const g = gesto.current;
+    gesto.current = null;
+    if (!g) return;
+    // Arrastou: vale a metade mais perto. Clicou: vale a metade clicada.
+    const destino = g.moveu
+      ? (arrasto ?? g.de) >= 0.5
+      : e.clientX - g.esquerda >= g.largura / 2;
+    setArrasto(null);
+    const novo: Modo = destino ? 'conversa' : 'transcricao';
+    if (novo !== modo) onModo(novo);
+  };
+
   return (
     <nav className="tq-modos" aria-label="Seções da sidebar">
       <button
@@ -170,6 +214,23 @@ export function Seletores({
       </button>
       <span className="tq-so-leitor" role="status">
         Conversa: {LEITURA_DO_AGENTE[agente] ?? 'o agente está parado'}
+      </span>
+
+      <span
+        className={`tq-modos-trilho${arrasto !== null ? ' arrastando' : ''}`}
+        aria-hidden="true"
+        onPointerDown={comecar}
+        onPointerMove={mover}
+        onPointerUp={soltar}
+        onPointerCancel={() => {
+          gesto.current = null;
+          setArrasto(null);
+        }}
+      >
+        <span
+          className="tq-modos-barra"
+          style={{ transform: `translateX(${(arrasto ?? fracao) * 100}%)` }}
+        />
       </span>
     </nav>
   );

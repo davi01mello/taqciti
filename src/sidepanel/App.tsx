@@ -479,22 +479,23 @@ export function App() {
 
   /*
    * A onda conta o que a tela está fazendo. Na reunião ao vivo ela capta, e
-   * recua na pausa; na conversa ela é violeta e só aparece enquanto o
-   * assistente responde; no histórico e na pergunta de registro ela fica baixa,
-   * em repouso — é chão, não assunto.
+   * recua na pausa; na conversa ela é violeta e sobe enquanto o assistente
+   * responde. Desde 18/10/2026 ela fica SEMPRE à vista e em movimento no fundo
+   * das duas abas (antes sumia na conversa parada e ficava baixa no
+   * histórico): em repouso, a 55%.
    */
   const onda: { estado: EstadoDaOndaDoPainel; recuo: number; tinta: number } =
     perguntando && detectada
-      ? { estado: 'repouso', recuo: 0.35, tinta: 0 }
+      ? { estado: 'repouso', recuo: 0.55, tinta: 0 }
       : naReuniaoAoVivo
         ? state.phase === 'recording'
           ? { estado: 'captando', recuo: 1, tinta: respondendoRapida ? 1 : 0 }
           : { estado: 'repouso', recuo: 0.55, tinta: respondendoRapida ? 1 : 0 }
         : modo === 'conversa'
           ? agenteVisivel.atividade === 'preparando' || agenteVisivel.atividade === 'escrevendo'
-            ? { estado: 'escrita', recuo: 0.55, tinta: 1 }
-            : { estado: 'repouso', recuo: 0, tinta: 1 }
-          : { estado: 'repouso', recuo: 0.35, tinta: 0 };
+            ? { estado: 'escrita', recuo: 0.8, tinta: 1 }
+            : { estado: 'repouso', recuo: 0.55, tinta: 1 }
+          : { estado: 'repouso', recuo: 0.55, tinta: 0 };
 
   const fundo = (
     <>
