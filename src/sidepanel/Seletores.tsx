@@ -52,7 +52,12 @@ interface Props {
   sinalDoAgente?: string | number;
 }
 
-/** A palavra que acompanha cada estado da captura. Nunca só a cor. */
+/**
+ * A palavra que acompanha cada estado da captura. Nunca só a cor — com uma
+ * exceção pedida (18/10/2026): "desligada" não diz nada ao lado de "Reunião",
+ * porque é o estado de quem não está numa reunião. A marca fica apagada, e o
+ * leitor de tela continua ouvindo "captura desligada" (`LEITURA_DA_CAPTURA`).
+ */
 const PALAVRA_DA_CAPTURA: Record<EstadoDaCaptura, string> = {
   capturando: 'Ao vivo',
   preparando: 'Preparando',
@@ -62,7 +67,7 @@ const PALAVRA_DA_CAPTURA: Record<EstadoDaCaptura, string> = {
   interrompida: 'Interrompida',
   erro: 'Erro',
   salva: 'Salva',
-  desligada: 'Desligada',
+  desligada: '',
 };
 
 /** O que a captura está fazendo, por extenso, para quem usa leitor de tela. */

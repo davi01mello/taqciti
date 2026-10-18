@@ -246,9 +246,12 @@ describe('os dois seletores', () => {
     expect(q('.tq-falas')).toBe(falas);
   });
 
-  it('sem reunião nenhuma, a captura está desligada', async () => {
+  it('sem reunião nenhuma, a captura está desligada: sem palavra na tela, e dita ao leitor de tela', async () => {
     await montar();
-    expect(estadoDe('Reunião').toUpperCase()).toBe('DESLIGADA');
+    expect(estadoDe('Reunião')).toBe('');
+    // A palavra visível não existe mais; a frase por extenso fica fora do botão.
+    expect(seletor('Reunião').textContent).not.toMatch(/desligada/i);
+    expect(q('.tq-modos').textContent).toContain('Reunião: captura desligada');
   });
 
   /* Cor não é o único canal: a palavra do estado precisa estar lá. */
