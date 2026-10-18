@@ -90,11 +90,11 @@ export function Reunioes({
     <div className="tq-rolavel tq-historico">
       <div className="tq-secao-cabeca">
         <h2 className="tq-secao-titulo">Reuniões</h2>
-        <p className="tq-fino">
-          {recusada
-            ? 'Captura desligada nesta reunião. As anteriores continuam aqui.'
-            : 'As reuniões guardadas neste computador, da mais recente para a mais antiga.'}
-        </p>
+        {/* Sem subtítulo fixo: a lista se explica sozinha. Só o aviso de
+            captura recusada, que é estado, continua. */}
+        {recusada && (
+          <p className="tq-fino">Captura desligada nesta reunião. As anteriores continuam aqui.</p>
+        )}
         {onGravarAgora && (
           <>
             <button
