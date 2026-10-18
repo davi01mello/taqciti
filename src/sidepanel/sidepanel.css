@@ -2883,12 +2883,31 @@
   border: 0;
 }
 
-/* Sem a borda, o fundo do botão de reunião sobe um pouco para continuar sendo
-   um botão, e não um texto solto. */
+/*
+ * E sem fundo em repouso (18/10/2026): o botão tem a cor da página e só se
+ * revela quando o ponteiro chega — o hover acende um fundo leve. Ficam com cor
+ * apenas o que é ESTADO (Retomar, a pergunta rápida aberta, Finalizar armado)
+ * e o botão principal, que é a decisão da tela.
+ *
+ * As regras de hover e de estado de cima são mais específicas que estas, e
+ * continuam valendo.
+ */
+.tq-side .tq-acao,
+.tq-side .tq-botao-fantasma,
+.tq-side .tq-print-visor-barra button,
+.tq-side .tq-nova,
 .tq-side .tq-lista button {
-  background: rgb(255 255 255 / 0.04);
+  background: transparent;
 }
 
 .tq-side .tq-lista button:hover {
-  background: rgb(var(--c-primary) / 0.1);
+  background: rgb(var(--c-primary) / 0.08);
+}
+
+/* O foco de teclado também revela, para quem não usa ponteiro. */
+.tq-side .tq-acao:focus-visible,
+.tq-side .tq-botao-fantasma:focus-visible,
+.tq-side .tq-nova:focus-visible,
+.tq-side .tq-lista button:focus-visible {
+  background: var(--s-placa);
 }
