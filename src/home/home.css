@@ -2355,13 +2355,10 @@ body .tq-home [role='dialog'] button {
   color: var(--e-cinza);
 }
 
-/* Quem fala, no chat: a sua mensagem numa placa verde; a resposta em lilás. */
+/* Quem fala, no chat: a sua mensagem em branco, texto solto à direita — sem
+   placa, sem cor e sem borda; a resposta em lilás, também solta. */
 .tq-turno-voce .tq-bolha {
-  padding: 10px 15px;
-  border-radius: 18px 18px 6px 18px;
-  background: rgba(92, 203, 133, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(92, 203, 133, 0.14);
-  color: var(--voz-clara);
+  color: var(--e-texto);
   font-size: 15px;
   line-height: 1.5;
 }
@@ -2733,7 +2730,8 @@ body .tq-home [role='dialog'] button {
   color: var(--e-cinza);
 }
 
-/* Quem fala: as pessoas de fora em branco; você e o CITi em verde. O "(Eu)" continua escrito. */
+/* Quem fala: você e o pessoal do CITi (e-mail @citi.org.br) em branco, como todos —
+   a cor não distingue ninguém; o "(Eu)" continua escrito ao lado do nome. */
 .tq-fala-quem b {
   font-weight: 600;
   color: var(--e-texto);
@@ -2762,17 +2760,6 @@ body .tq-home [role='dialog'] button {
   color: var(--e-texto);
   overflow-wrap: anywhere;
   text-wrap: pretty;
-}
-
-/* Você e o pessoal do CITi (e-mail @citi.org.br): verde. De fora: branco. */
-.tq-fala.voce .tq-fala-texto,
-.tq-fala.citi .tq-fala-texto {
-  color: rgb(178 230 197);
-}
-
-.tq-fala.voce .tq-fala-quem b,
-.tq-fala.citi .tq-fala-quem b {
-  color: var(--voz-clara);
 }
 
 /* ------------------------------------------------- documentos: a estante */

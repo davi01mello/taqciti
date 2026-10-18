@@ -51,10 +51,6 @@
   --s-perigo: rgb(var(--c-danger));
   --s-ideia: rgb(155 130 245);
   --s-ideia-clara: rgb(205 192 252);
-  /* A fala: você em verde, os outros em roxo. "(Eu)" continua escrito. */
-  --s-fala-voce: rgb(178 230 197);
-  --s-fala-outros: rgb(212 205 248);
-  --s-nome-outros: rgb(180 166 242);
 
   position: relative;
   isolation: isolate;
@@ -1402,11 +1398,11 @@
 /*
  * ── De quem é a fala ─────────────────────────────────────────────────────
  *
- * Pedido explícito (06/10/2026, trocou o de 02/10): VOCÊ e o pessoal do CITi
- * (e-mail @citi.org.br) em verde; as DEMAIS pessoas em branco.
+ * Pedido explícito (18/10/2026, trocou o de 06/10): VOCÊ e o pessoal do CITi
+ * (e-mail @citi.org.br) com letra BRANCA, como todas as demais pessoas. Na
+ * transcrição, na legenda e na conversa com o agente.
  *
- * E a cor nunca vem sozinha: o "(Eu)" continua escrito ao lado do nome. Quem
- * não distingue a cor lê a mesma coisa.
+ * A cor não distingue ninguém: o "(Eu)" continua escrito ao lado do nome.
  */
 .tq-fala-texto {
   display: block;
@@ -1415,17 +1411,6 @@
   color: var(--s-texto);
   overflow-wrap: anywhere;
   text-wrap: pretty;
-}
-
-/* Você e o pessoal do CITi: verde. As demais pessoas: branco (o padrão acima). */
-.tq-fala.minha .tq-fala-texto,
-.tq-fala.citi .tq-fala-texto {
-  color: var(--s-fala-voce);
-}
-
-.tq-fala.minha .tq-fala-nome,
-.tq-fala.citi .tq-fala-nome {
-  color: rgb(var(--c-glow));
 }
 
 .tq-fala-acoes {
@@ -1716,24 +1701,18 @@
 }
 
 /*
- * A SUA mensagem é uma placa, alinhada à direita; a do Taq é texto direto
- * sobre o fundo, à esquerda. Antes as duas eram texto solto e só o ícone do
- * Taq dizia quem falava — numa coluna de 300px, rolando rápido, a conversa
- * virava uma parede só. O canto de baixo à direita é o único reto: ele aponta
- * para quem escreveu.
+ * A SUA mensagem é texto branco solto, alinhado à direita; a do Taq é texto
+ * direto sobre o fundo, à esquerda. Nenhuma das duas tem placa, balão, cor de
+ * fundo ou borda (pedido de 18/10/2026): quem diferencia os autores é o
+ * alinhamento, o recuo e o nome do Taq.
  */
 .tq-msg-voce {
   justify-self: end;
   max-width: 88%;
   margin: 0;
-  padding: 9px 13px;
-  border-radius: 16px 16px 5px 16px;
-  /* Você em verde, como na transcrição: a placa é sua. */
-  background: rgb(var(--c-primary) / 0.1);
-  box-shadow: inset 0 0 0 1px rgb(var(--c-primary) / 0.14);
   font-size: var(--fs-leitura);
   line-height: 1.5;
-  color: rgb(var(--c-glow));
+  color: var(--s-texto);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -2263,11 +2242,6 @@
   font-weight: 600;
   letter-spacing: 0.2px;
   color: var(--s-texto);
-}
-
-.tq-legenda.minha .tq-legenda-quem,
-.tq-legenda.citi .tq-legenda-quem {
-  color: rgb(var(--c-glow));
 }
 
 .tq-legenda-texto {
