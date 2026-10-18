@@ -162,12 +162,6 @@ export const STORAGE_KEYS = {
   integracoesAcoes: 'taq:acoes-externas',
 
   /**
-   * chrome.storage.local — avisos que o Taq produziu a partir de eventos reais
-   * (captura, acompanhamento, documento, operação). Ver `features/avisos`.
-   */
-  avisos: 'taq:avisos',
-
-  /**
    * chrome.storage.local — quem, pelo NOME, já foi reconhecido (ou descartado)
    * como gente do CITi no diretório. O Meet entrega o nome do falante, não o
    * e-mail; este cache evita buscar o mesmo nome a cada fala. Ver
@@ -249,7 +243,7 @@ export const LIVE_SAVE_THROTTLE_MS = 4000;
 export const ACTIVE_IDENTITY_NAMESPACE_KEY = 'taq:activeIdentityNamespace';
 /** Versão global das migrações locais; não pertence a um usuário. */
 export const LOCAL_STORAGE_SCHEMA_VERSION_KEY = 'taq:storageSchemaVersion';
-export const LOCAL_STORAGE_SCHEMA_VERSION = 2;
+export const LOCAL_STORAGE_SCHEMA_VERSION = 3;
 export const ANONYMOUS_IDENTITY_NAMESPACE = 'anonymous';
 
 export const PROVIDER_GOOGLE_MEET = 'google-meet';

@@ -30,10 +30,6 @@ import {
   type Conversation,
   type FonteDaResposta,
 } from '@/home/conversations';
-import {
-  emitirAvisosDaExecucao,
-  resolverPerguntaDaConversa,
-} from '@/features/avisos/produtores';
 import { registrosUsados } from './memoria';
 import type { RegistroSelecionado } from './contratos';
 import { armazenamentoLocal } from './armazenamento';
@@ -282,8 +278,6 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
   emCurso = controle;
   publicarAtividade('preparando');
   publicarEtapa('Preparando');
-  // Esta mensagem responde ao que o Taq perguntou: a pergunta deixa de estar pendente.
-  void resolverPerguntaDaConversa(p.conversaId);
   /*
    * A conversa apagada no meio (por esta tela, por outra aba, pela sidebar ou
    * pelo próprio Taq): a execução para. O que já chegou não é gravado —
@@ -388,16 +382,6 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
 
     // A memória da conversa: o que esta resposta usou vira o foco da próxima.
     await lembrarRegistros(p.conversaId, registrosUsados(r)).catch(() => undefined);
-
-    // Avisos nascidos desta execução (documento salvo, pergunta pendente,
-    // operação parada). Conversa apagada no meio: nada é emitido.
-    if (!controle.signal.aborted) {
-      await emitirAvisosDaExecucao(r, {
-        conversaId: p.conversaId,
-        ...(conversa?.meetingId ? { reuniaoId: conversa.meetingId } : {}),
-        desfecho: mensagemDoDesfecho(r),
-      });
-    }
 
     publicarAtividade(
       r.estado === 'concluido' || r.estado === 'parcial'

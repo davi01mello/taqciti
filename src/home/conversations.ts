@@ -28,7 +28,6 @@
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage';
 import { comTravaLocal } from '@/shared/services/storageLock';
-import { removerAvisosDaConversa } from '@/features/avisos/store';
 import { removerRascunhosDasConversas } from '@/features/integracoes/registroDeAcoes';
 import { desvincularDaConversa } from '@/features/documents/store';
 import type { CartaoDaResposta } from '@/features/taq/contratos';
@@ -545,8 +544,6 @@ export async function apagarConversas(ids: readonly string[]): Promise<Resultado
     const ficam = execucoes.filter((e) => !e?.conversaId || !apagadas.includes(e.conversaId));
     if (ficam.length !== execucoes.length) await writeLocal(STORAGE_KEYS.taqExecucoes, ficam);
   });
-  // Os avisos que apontavam para ela não têm mais para onde levar.
-  await removerAvisosDaConversa(apagadas).catch(() => undefined);
   // Os rascunhos de e-mail e agenda dela ficariam retidos e sem como confirmar.
   await removerRascunhosDasConversas(apagadas).catch(() => undefined);
   return { apagadas, documentosDesvinculados };

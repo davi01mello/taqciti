@@ -72,15 +72,12 @@ import {
 import { papelDoFalante } from '@/features/integracoes/colegas';
 import { BotaoCopiar } from '@/shared/ui/BotaoCopiar';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
-import { useAvisosDaReuniao } from '@/features/avisos/useAvisosDaReuniao';
 import { useApoioAoVivo } from '@/features/apoio/useApoio';
-import { souOrganizador, useAvisosVisiveis } from '@/features/avisos/useAvisos';
 import { AcoesDaReuniao, FinalizarReuniao } from './AcoesDaReuniao';
 import { CartaoDeApoio } from './CartaoDeApoio';
 import { EstadoDosPontos } from './EstadoDosPontos';
 import { useEstadoDosPontos } from '@/features/estado/useEstado';
 import { registrarPontoComoAcompanhamento, registrarPontoComoDecisao } from '@/features/estado/registrar';
-import { SugestoesDoOrganizador } from './SugestoesDoOrganizador';
 import { EditorDeNota } from './Notas';
 import { AbasDaReuniao, ParteDaReuniao, type AbaDaReuniao } from './AbasDaReuniao';
 
@@ -148,24 +145,16 @@ export function Reuniao({
    */
   const [aba, setAba] = useState<AbaDaReuniao>('transcricao');
   const [rapidaAberta, setRapidaAberta] = useState(false);
-  const [avisosAberto, setAvisosAberto] = useState(false);
   const [prints, setPrints] = useState<Print[]>([]);
 
   const meetingId = sessao?.meetingId ?? null;
 
-  // Avisos do acompanhamento e da captura: só gravam.
-  useAvisosDaReuniao(state);
   // Apoio à condução: sugestões privadas, no máximo uma por vez, só com perfil e assistente.
   const apoio = useApoioAoVivo(state, taqPronto);
   // O que falta fechar, ponto a ponto: lido pelo Taq a pedido, conferido em código.
   const estadoDosPontos = useEstadoDosPontos(state, taqPronto);
   const [estadoAberto, setEstadoAberto] = useState(false);
   const [fechamentoAberto, setFechamentoAberto] = useState(false);
-  const organizador = souOrganizador(sessao?.participants);
-  const avisos = useAvisosVisiveis({
-    ...(meetingId ? { reuniaoId: meetingId } : {}),
-    souOrganizador: organizador,
-  });
   useEffect(() => {
     if (meetingId === null) return;
     return observarPrints((todos) =>
@@ -246,20 +235,11 @@ export function Reuniao({
         capturando={print.ocupado}
         quantosPrints={prints.length}
         rapidaAberta={rapidaAberta}
-        avisosNovos={avisos.novos}
-        avisosAberto={avisosAberto}
         onPrint={() => void print.tirar()}
         onPausar={() =>
           void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
         }
-        onRapida={() => {
-          setAvisosAberto(false);
-          setRapidaAberta((v) => !v);
-        }}
-        onAvisos={() => {
-          setRapidaAberta(false);
-          setAvisosAberto((v) => !v);
-        }}
+        onRapida={() => setRapidaAberta((v) => !v)}
       />
 
       <CartaoDeApoio meetingId={sessao.meetingId} apoio={apoio} />
@@ -288,29 +268,6 @@ export function Reuniao({
           })
         }
       />
-
-      {avisosAberto && (
-        <SugestoesDoOrganizador
-          visiveis={avisos.visiveis}
-          historico={avisos.historico}
-          participantes={sessao.participants.map((p) => p.name)}
-          souOrganizador={organizador}
-          onFechar={() => setAvisosAberto(false)}
-          onAbrir={(a) => {
-            if (a.acao?.tipo === 'abrir_conversa') {
-              setAvisosAberto(false);
-              onContinuarNaConversa(a.acao.alvoId);
-            } else if (a.acao?.tipo === 'abrir_documento') {
-              void platform.send({ type: 'ui/openHome', documentId: a.acao.alvoId });
-            } else {
-              // Reunião e acompanhamento abrem a HOME na reunião de origem.
-              const recordId =
-                a.acao?.tipo === 'abrir_reuniao' ? a.acao.alvoId : a.reuniaoId;
-              void platform.send({ type: 'ui/openHome', ...(recordId ? { recordId } : {}) });
-            }
-          }}
-        />
-      )}
 
       {print.recente && (
         <p className="tq-aviso-print" role="status">

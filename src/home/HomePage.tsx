@@ -633,13 +633,7 @@ export function HomePage() {
         )}
 
         {secao === 'acompanhamento' && (
-          <PaginaAcompanhamento
-            onAbrirFonte={abrirFonte}
-            onAbrirConversa={(id) => void navegar(() => {
-              escolherConversa(id);
-              definirSecao('assistente');
-            })}
-          />
+          <PaginaAcompanhamento onAbrirFonte={abrirFonte} />
         )}
 
         {secao === 'conexoes' && <PaginaConexoes registros={records} taq={taq} />}

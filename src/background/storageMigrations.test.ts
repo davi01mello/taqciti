@@ -52,6 +52,19 @@ describe('migrações locais versionadas', () => {
     expect((await chrome.storage.local.get(STORAGE_KEYS.history))[STORAGE_KEYS.history]).toEqual([]);
   });
 
+  it('apaga os avisos do Taq já guardados (o recurso foi removido) e deixa o resto', async () => {
+    await chrome.storage.local.set({
+      [LOCAL_STORAGE_SCHEMA_VERSION_KEY]: 2,
+      'taq:avisos': { versao: 1, itens: [{ id: 'a1' }] },
+      [STORAGE_KEYS.history]: [legacyMeeting()],
+    });
+    await migrateLocalStorage();
+    const stored = await chrome.storage.local.get(null);
+    expect(stored['taq:avisos']).toBeUndefined();
+    expect((stored[STORAGE_KEYS.history] as MeetingRecord[])[0]?.id).toBe('legacy-meeting');
+    expect(stored[LOCAL_STORAGE_SCHEMA_VERSION_KEY]).toBe(LOCAL_STORAGE_SCHEMA_VERSION);
+  });
+
   it('não tenta rebaixar storage criado por uma extensão mais nova', async () => {
     await chrome.storage.local.set({
       [LOCAL_STORAGE_SCHEMA_VERSION_KEY]: LOCAL_STORAGE_SCHEMA_VERSION + 1,

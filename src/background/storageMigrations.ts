@@ -34,6 +34,14 @@ export async function migrateLocalStorage(): Promise<void> {
     }
     await writeLocal(LOCAL_STORAGE_SCHEMA_VERSION_KEY, 2);
   }
+
+  if (version < 3) {
+    // Os "Avisos do Taq" deixaram de existir (18/10/2026). O que já estava
+    // guardado não tem mais tela que o leia: sai, para não ficar ocupando o
+    // storage da pessoa para sempre.
+    await removeLocal('taq:avisos');
+    await writeLocal(LOCAL_STORAGE_SCHEMA_VERSION_KEY, 3);
+  }
 }
 
 /** Era "CITi Flow Companion" (`cfc:*`) → chaves TaqCITi (`taq:*`). */

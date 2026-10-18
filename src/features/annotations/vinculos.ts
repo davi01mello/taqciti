@@ -37,8 +37,6 @@ export interface ResultadoDaLimpeza {
   documentosDesvinculados: number;
   /** Análises da reunião, que só existiam sobre a transcrição dela. */
   analises: number;
-  /** Avisos da reunião: derivados dela, com ação "abrir a reunião". */
-  avisos: number;
   /** O briefing da reunião (o objetivo que a pessoa escreveu para ela). */
   briefings: number;
   /** As sugestões de condução da reunião (e o feedback sobre elas). */
@@ -58,7 +56,6 @@ export async function limparVinculosDaReuniao(
     STORAGE_KEYS.shots,
     STORAGE_KEYS.documents,
     STORAGE_KEYS.trabalho,
-    STORAGE_KEYS.avisos,
     STORAGE_KEYS.conducao,
     STORAGE_KEYS.apoio,
     STORAGE_KEYS.estado,
@@ -136,17 +133,6 @@ export async function limparVinculosDaReuniao(
       analises = trabalho.analises.length - ficam.length;
       if (analises) alteracoes[STORAGE_KEYS.trabalho] = { ...trabalho, analises: ficam };
     }
-    // Os avisos da reunião também são derivados: ficariam com um "Ver" que
-    // abre uma reunião que não existe mais.
-    let avisos = 0;
-    const guardados = bruto[STORAGE_KEYS.avisos] as { itens?: unknown } | null | undefined;
-    if (guardados && typeof guardados === 'object' && Array.isArray(guardados.itens)) {
-      const ficam = guardados.itens.filter(
-        (a: unknown) => !a || typeof a !== 'object' || (a as { reuniaoId?: unknown }).reuniaoId !== meetingId,
-      );
-      avisos = guardados.itens.length - ficam.length;
-      if (avisos) alteracoes[STORAGE_KEYS.avisos] = { ...guardados, itens: ficam };
-    }
     // O briefing é escrito SOBRE a reunião, como a nota: sem ela, nenhuma tela o
     // mostra. O perfil de condução, que é da pessoa, fica.
     let briefings = 0;
@@ -202,7 +188,7 @@ export async function limparVinculosDaReuniao(
       estados = 1;
     }
     if (Object.keys(alteracoes).length) await writeLocalBatch(alteracoes);
-    return { nota, marcas, prints, documentosDesvinculados, analises, avisos, briefings, sugestoes, estados };
+    return { nota, marcas, prints, documentosDesvinculados, analises, briefings, sugestoes, estados };
   };
   const travar = (i: number): Promise<ResultadoDaLimpeza> =>
     i === chaves.length ? executar() : comTravaLocal(chaves[i]!, () => travar(i + 1));
