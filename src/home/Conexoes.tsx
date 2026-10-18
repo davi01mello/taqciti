@@ -254,8 +254,8 @@ function ComoConectar({ so }: { so: 'Claude' | 'ChatGPT' }) {
  * Conexões é um HUB curto: em cima o que falta conectar, embaixo o que já
  * está. Cada "Conectar" abre o caminho certo ali mesmo, no próprio tile — o
  * login do Google, o endereço do conector para a Claude ou o ChatGPT. O que
- * ainda não existe nesta versão (Gmail, Agenda, WhatsApp) aparece com "Em
- * breve", sem botão: um botão que não inicia fluxo real seria decorativo.
+ * não existe nesta versão não aparece: nem como "Em breve" (18/10/2026) — um
+ * item que não inicia fluxo real seria decorativo.
  */
 export function PaginaConexoes({
   registros,
@@ -477,7 +477,6 @@ export function PaginaConexoes({
     faz: string;
     icone: React.ReactNode;
     fluxo?: React.ReactNode;
-    emBreve?: true;
   }> = [
     ...(!ligada
       ? [
@@ -507,7 +506,6 @@ export function PaginaConexoes({
           },
         ]
       : []),
-    { id: 'whatsapp', nome: 'WhatsApp', faz: 'Envia atas e recados por mensagem.', icone: <Icon name="chats" size={18} />, emBreve: true },
   ];
 
   function fluxoDoGoogle() {
@@ -562,6 +560,7 @@ export function PaginaConexoes({
         <>
           {erro && <div className="tq-aviso">{erro}</div>}
 
+          {pendentes.length > 0 && (
           <section className="tq-hub-grupo" aria-labelledby="tq-hub-pendentes">
             <h2 id="tq-hub-pendentes">
               Para conectar <span className="tq-hub-conta">{pendentes.length}</span>
@@ -570,7 +569,7 @@ export function PaginaConexoes({
               {pendentes.map((c) => (
                 <li
                   key={c.id}
-                  className={`tq-hub-tile${aberto === c.id ? ' aberta' : ''}${c.emBreve ? ' em-breve' : ''}`}
+                  className={`tq-hub-tile${aberto === c.id ? ' aberta' : ''}`}
                 >
                   <div className="tq-hub-tile-topo">
                     <span className="tq-hub-icone" aria-hidden="true">
@@ -580,18 +579,14 @@ export function PaginaConexoes({
                       <b>{c.nome}</b>
                       <p>{c.faz}</p>
                     </div>
-                    {c.emBreve ? (
-                      <span className="tq-hub-breve">Em breve</span>
-                    ) : (
-                      aberto !== c.id && (
-                        <button
-                          type="button"
-                          className="tq-acao tq-pilula"
-                          onClick={() => setAberto(c.id)}
-                        >
-                          Conectar
-                        </button>
-                      )
+                    {aberto !== c.id && (
+                      <button
+                        type="button"
+                        className="tq-acao tq-pilula"
+                        onClick={() => setAberto(c.id)}
+                      >
+                        Conectar
+                      </button>
                     )}
                   </div>
                   {aberto === c.id && c.fluxo}
@@ -599,6 +594,7 @@ export function PaginaConexoes({
               ))}
             </ul>
           </section>
+          )}
 
           <section className="tq-hub-grupo" aria-labelledby="tq-hub-conectadas">
             <h2 id="tq-hub-conectadas">

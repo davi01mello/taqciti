@@ -992,16 +992,16 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     assunto: 'configuracoes',
     titulo: 'Ver o que dá para conectar e o que já está conectado',
     oQueFaz:
-      'Mostra, em “Para conectar”, cada ferramenta com o que ela faz — as que ainda não existem nesta versão aparecem como “Em breve” — e, em “Conectadas”, o que já está ligado.',
+      'Mostra, em “Para conectar”, cada ferramenta que dá para conectar agora, com o que ela faz, e, em “Conectadas”, o que já está ligado.',
     onde: 'HOME → Conexões',
     passos: [
       'Na HOME, abra “Conexões”.',
       'Em “Para conectar”, “Conectar” abre o caminho daquela ferramenta ali mesmo; “Conectadas” lista o que já está ligado.',
     ],
     limitacoes: [
-      'Gmail, Google Agenda e WhatsApp ainda não existem nesta versão: aparecem como “Em breve”, sem botão.',
+      'Só aparece o que dá para conectar de verdade. WhatsApp não existe nesta versão e não é listado; mensagens saem por e-mail, pela conta do CITi.',
     ],
-    rotulos: ['Conexões', 'Para conectar', 'Conectar', 'Em breve', 'Conectadas'],
+    rotulos: ['Conexões', 'Para conectar', 'Conectar', 'Conectadas'],
     implementacao: [CONEXOES, NAV],
     verificacao: 'codigo',
     palavras: ['capacidades', 'o que o taq faz', 'funcoes do taq', 'recursos do taq'],

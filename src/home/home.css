@@ -3093,10 +3093,6 @@ body .tq-home [role='dialog'] button {
   animation: tq-chegar 0.28s ease both;
 }
 
-.tq-hub-tile.em-breve {
-  opacity: 0.6;
-}
-
 .tq-hub-tile-topo {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) auto;
@@ -3129,12 +3125,6 @@ body .tq-home [role='dialog'] button {
   font-family: var(--font-titulo);
   font-weight: 700;
   font-size: 17px;
-}
-
-.tq-hub-breve {
-  font-size: 12px;
-  color: var(--e-cinza);
-  white-space: nowrap;
 }
 
 .tq-hub-fluxo {
