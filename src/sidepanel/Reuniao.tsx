@@ -363,10 +363,7 @@ export function Reuniao({
       )}
 
       {fase === 'paused' && (
-        <p className="tq-aviso-caixa">
-          Captura pausada. O que já foi transcrito continua guardado; nada novo entra até
-          você retomar.
-        </p>
+        <p className="tq-aviso-caixa">Captura pausada.</p>
       )}
 
       {/*
@@ -376,8 +373,7 @@ export function Reuniao({
        */}
       {interrompida && (
         <p className="tq-aviso-caixa tq-aviso-atencao" role="status">
-          A captura parou de ler as legendas do Meet. O TaqCiti está tentando religar
-          sozinho — o que já foi transcrito continua guardado.{' '}
+          A captura parou de ler as legendas. Tentando religar…{' '}
           <button
             type="button"
             className="tq-acao tq-pilula"
@@ -431,10 +427,10 @@ export function Reuniao({
           {sessao.segments.length === 0 ? (
             <p className="tq-fino tq-centrado tq-falas-vazio">
               {fase === 'paused'
-                ? 'Captura pausada. As falas voltam a aparecer aqui quando você retomar.'
+                ? 'Captura pausada.'
                 : interrompida
-                  ? 'A captura não está conseguindo ler as legendas. O TaqCiti está tentando religar.'
-                  : 'Capturando. As falas aparecem aqui conforme as legendas chegam.'}
+                  ? 'Religando a captura das legendas…'
+                  : 'Aguardando as primeiras falas.'}
             </p>
           ) : (
             <TranscricaoAoVivo
@@ -558,9 +554,7 @@ function PrintsDaReuniao({
   return (
     <section className="tq-prints" aria-label="Prints da reunião">
       {prints.length === 0 ? (
-        <p className="tq-fino">
-          Nenhum print ainda. Use Print durante a reunião para guardar o que está na tela.
-        </p>
+        <p className="tq-fino">Nenhum print ainda.</p>
       ) : (
         <ul className="tq-prints-grade">
           {prints.map((p) => (

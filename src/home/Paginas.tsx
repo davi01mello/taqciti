@@ -38,11 +38,11 @@ import { NotasDaReuniao } from './NotasDaReuniao';
 import { PrintsDaReuniao } from './PrintsDaReuniao';
 import { useCabemDuasColunas } from './useLargura';
 
-function Cabecalho({ titulo, sub }: { titulo: string; sub: string }) {
+/** O título da seção, sem subtítulo: a tela se explica pelo que mostra. */
+function Cabecalho({ titulo }: { titulo: string }) {
   return (
     <header className="tq-pagina-topo">
       <h1>{titulo}</h1>
-      <p>{sub}</p>
     </header>
   );
 }
@@ -138,7 +138,7 @@ export function PaginaReunioes({
 
   return (
     <div className="tq-pagina">
-      <Cabecalho titulo="Reuniões" sub="O que a extensão capturou neste computador." />
+      <Cabecalho titulo="Reuniões" />
 
       {!carregado ? (
         <Vazio>Lendo o histórico…</Vazio>

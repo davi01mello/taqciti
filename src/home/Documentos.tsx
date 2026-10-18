@@ -131,7 +131,6 @@ export function PaginaDocumentos({
     <div className="tq-pagina">
       <header className="tq-pagina-topo">
         <h1>Documentos</h1>
-        <p>O que você gerou e guardou neste computador.</p>
       </header>
 
       {erro ? (

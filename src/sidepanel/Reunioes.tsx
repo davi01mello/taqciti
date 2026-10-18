@@ -117,10 +117,7 @@ export function Reunioes({
       {!carregado ? (
         <p className="tq-fino">Lendo o histórico…</p>
       ) : registros.length === 0 ? (
-        <p className="tq-fino">
-          Nenhuma reunião guardada ainda. Entre num Meet, aceite registrar quando o
-          TaqCiti perguntar, e ela aparece aqui.
-        </p>
+        <p className="tq-fino">Nenhuma reunião guardada ainda.</p>
       ) : (
         <ul className="tq-lista">
           {registros.map((r) => (
@@ -186,10 +183,7 @@ function DetalheDaReuniao({
       </div>
 
       {total === 0 ? (
-        <p className="tq-fino">
-          Esta reunião não tem transcrição: as legendas do Meet não chegaram a produzir
-          fala nenhuma.
-        </p>
+        <p className="tq-fino">Esta reunião não tem transcrição.</p>
       ) : (
         <section className="tq-falas tq-falas-estatica" aria-label="Transcrição">
           {/* A mesma leitura da reunião ao vivo: você em branco, o pessoal do

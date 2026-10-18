@@ -425,7 +425,6 @@ export function AssistantView({
          */}
         <div className="tq-escrita-pe">
           <AvisoDoTaq taq={taq} onVerificarDeNovo={onVerificarDeNovo} />
-          <p className="tq-dica-teclas">Enter envia, Shift+Enter quebra linha</p>
         </div>
       </form>
 

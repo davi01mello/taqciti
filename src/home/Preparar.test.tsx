@@ -319,12 +319,13 @@ describe('ajustes sugeridos e custo do apoio', () => {
     expect(host.textContent).not.toContain('Ajustes sugeridos');
   });
 
-  it('poucos retornos: diz que não há ajuste e que é preciso haver vários do mesmo tipo', async () => {
+  // A explicação "você deu N retornos…" saiu em 18/10/2026 (auto-explicação);
+  // fica a frase de estado.
+  it('poucos retornos: diz que não há ajuste', async () => {
     await comPerfilParticipativo(retornos('descartada', 1, 1_000));
     await montar();
     expect(host.textContent).toContain('Ajustes sugeridos');
     expect(host.textContent).toContain('Nenhum ajuste por enquanto');
-    expect(host.textContent).toContain('1 retorno');
     expect(botao('Aplicar ao meu assistente')).toBeUndefined();
   });
 
@@ -437,7 +438,6 @@ it('retomar: lista só encontros anteriores, a pessoa marca, e o vínculo é gua
   // Só o encontro ANTERIOR à reunião escolhida aparece: o posterior e a própria reunião não.
   expect(rotulos).toHaveLength(1);
   expect(rotulos[0]).toContain('Descoberta — 1º encontro');
-  expect(host.textContent).toContain('o Taq não liga encontros por nome nem por semelhança');
   // Nada marcado por padrão: o Taq não escolhe por ele.
   expect(caixas[0]!.checked).toBe(false);
 

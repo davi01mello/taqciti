@@ -54,11 +54,11 @@ import {
 import type { DisponibilidadeDoTaq } from '@/features/taq/interface';
 import { FluxoContaDoCiti, LinhaContaDoCiti, useContaDoCiti } from './ContaDoCiti';
 
-function Cabecalho({ titulo, sub }: { titulo: string; sub: string }) {
+/** O título da seção, sem subtítulo: a tela se explica pelo que mostra. */
+function Cabecalho({ titulo }: { titulo: string }) {
   return (
     <header className="tq-pagina-topo">
       <h1>{titulo}</h1>
-      <p>{sub}</p>
     </header>
   );
 }
@@ -554,10 +554,7 @@ export function PaginaConexoes({
 
   return (
     <div className="tq-pagina tq-conexoes">
-      <Cabecalho
-        titulo="Conexões"
-        sub="As ferramentas que o TaqCiti usa para responder, enviar e agendar por você."
-      />
+      <Cabecalho titulo="Conexões" />
 
       {estado === null ? (
         <p className="tq-vazio">Verificando…</p>
@@ -751,11 +748,6 @@ export function PaginaConexoes({
           </section>
         </>
       )}
-
-      <p className="tq-hub-pe">
-        Envio e agendamento sempre vão pedir a sua confirmação. Sem conexões, tudo continua
-        funcionando neste computador.
-      </p>
 
       <div className="tq-guia">
         <details>

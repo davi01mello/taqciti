@@ -177,7 +177,6 @@ export function NotasDaReuniao({
         onChange={(e) => onEscrever(meetingId, e.target.value)}
       />
 
-      <p className="tq-coluna-rodape">Salvas neste computador.</p>
     </div>
   );
 }

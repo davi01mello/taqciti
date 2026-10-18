@@ -165,7 +165,6 @@ function PerfilDeConducao({ conducao }: { conducao: Conducao }) {
       {comentario && <p className="tq-prep-comentario" role="status">{comentario}</p>}
 
       <h3>O que o Taq entendeu</h3>
-      <p className="tq-prep-dica">Corrija qualquer frase. Nada vale até você usar este assistente.</p>
       <label className="tq-c-campo">
         Em que vou ajudar
         <input value={campos.missao} maxLength={400} onChange={(e) => mudar({ missao: e.target.value })} />
@@ -218,9 +217,7 @@ function PerfilDeConducao({ conducao }: { conducao: Conducao }) {
           {fase === 'salvando' ? 'Salvando…' : 'Usar este assistente'}
         </button>
         {salvo && (
-          <span className="tq-prep-dica">
-            Salvo (versão {salvo.revisao}). Reuniões já preparadas continuam com a versão que usavam.
-          </span>
+          <span className="tq-prep-dica">Salvo.</span>
         )}
       </div>
     </section>
@@ -333,10 +330,6 @@ function BriefingDaReuniao({
       {outras.length > 0 && (
         <fieldset className="tq-prep-modos">
           <legend>Retomar de encontros anteriores</legend>
-          <p className="tq-prep-dica">
-            Só entram os que você marcar: o Taq não liga encontros por nome nem por semelhança. Ele leva os combinados
-            em aberto e as decisões desses encontros, com data e fonte.
-          </p>
           {outras.slice(0, 12).map((o) => (
             <label key={o.id}>
               <input type="checkbox" checked={retomar.includes(o.id)} onChange={() => alternarRetomar(o.id)} />
@@ -392,9 +385,7 @@ function PreparoDeReuniao({
     <section className="tq-prep-bloco" aria-labelledby="tq-prep-reuniao">
       <h2 id="tq-prep-reuniao">Preparar uma reunião</h2>
       {!ordenadas.length ? (
-        <p className="tq-prep-dica">
-          Ainda não há reuniões neste computador. Quando houver, escolha uma aqui para dizer o que quer alcançar.
-        </p>
+        <p className="tq-prep-dica">Ainda não há reuniões neste computador.</p>
       ) : (
         <>
           <label className="tq-c-campo">
@@ -465,11 +456,7 @@ function AjustesSugeridos({ conducao, apoio }: { conducao: Conducao; apoio: Apoi
     <section className="tq-prep-bloco" aria-labelledby="tq-prep-ajustes">
       <h2 id="tq-prep-ajustes">Ajustes sugeridos</h2>
       {propostas.length === 0 ? (
-        <p className="tq-prep-dica">
-          Nenhum ajuste por enquanto. Você deu {apoio.feedback.length}{' '}
-          {apoio.feedback.length === 1 ? 'retorno' : 'retornos'} sobre as sugestões; o Taq só propõe mudança depois de
-          vários retornos do mesmo tipo, e nada muda sem você aprovar.
-        </p>
+        <p className="tq-prep-dica">Nenhum ajuste por enquanto.</p>
       ) : (
         propostas.map((p) => (
           <div key={p.tipo} className="tq-prep-ajuste">
@@ -571,10 +558,9 @@ function TesteHistorico({ registros }: { registros: readonly MeetingRecord[] }) 
   return (
     <section className="tq-prep-bloco" aria-labelledby="tq-prep-historico">
       <h2 id="tq-prep-historico">Testar o assistente numa reunião passada</h2>
+      {/* A explicação do método saiu; o aviso de privacidade fica. */}
       <p className="tq-prep-dica">
-        Reproduz a reunião por cortes de tempo com o seu assistente atual: a cada ponto só existe o que já tinha sido
-        dito. Mostra o que ele teria sugerido, sem gravar nada na reunião. <strong>Envia trechos da reunião ao
-        provedor de IA</strong> e usa algumas chamadas; só roda quando você clica.
+        <strong>Envia trechos da reunião ao provedor de IA</strong>; só roda quando você clica.
       </p>
       <label className="tq-c-campo">
         Reunião para reproduzir
@@ -639,7 +625,6 @@ export function PaginaPreparar({ registros }: { registros: readonly MeetingRecor
     <div className="tq-pagina tq-prep">
       <header className="tq-pagina-topo">
         <h1>Preparar</h1>
-        <p>Diga como quer ser ajudado e o que quer alcançar. O Taq sugere, em privado; quem conduz é você.</p>
       </header>
       {!carregada ? (
         <p className="tq-prep-dica" role="status">Carregando…</p>

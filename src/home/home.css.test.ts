@@ -85,10 +85,10 @@ describe('o compositor não ganha moldura ao ser focado', () => {
     expect(css).toMatch(/\.tq-campo textarea:focus-visible\s*\{[^}]*outline:\s*none/);
   });
 
-  /* O foco precisa continuar anunciado — sem moldura, por revelação. */
-  it('o foco revela os controles e a dica de teclas', () => {
+  /* O foco precisa continuar anunciado — sem moldura, por revelação. (A dica
+     "Enter envia" saiu da tela em 18/10/2026: era auto-explicação.) */
+  it('o foco revela os controles', () => {
     expect(css).toMatch(/\.tq-escrita:focus-within \.tq-campo-acoes/);
-    expect(css).toMatch(/\.tq-escrita:focus-within \.tq-dica-teclas/);
   });
 });
 

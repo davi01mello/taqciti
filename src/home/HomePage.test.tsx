@@ -125,7 +125,7 @@ describe('a barra lateral não recolhe ao navegar', () => {
       reunioes.click();
     });
 
-    expect(host.textContent).toContain('O que a extensão capturou');
+    expect(q('.tq-pagina-topo h1').textContent).toBe('Reuniões');
     // O bug: o `onIr` fechava a barra junto com a navegação.
     expect(q('.tq-home').classList.contains('nav-aberta')).toBe(true);
     expect(reunioes.getAttribute('aria-current')).toBe('page');
@@ -501,6 +501,6 @@ describe('a URL aponta para uma seção', () => {
   it('abre direto em Reuniões quando a query pede', async () => {
     window.history.replaceState({}, '', '/?secao=reunioes');
     await montar();
-    expect(host.textContent).toContain('O que a extensão capturou');
+    expect(q('.tq-pagina-topo h1').textContent).toBe('Reuniões');
   });
 });

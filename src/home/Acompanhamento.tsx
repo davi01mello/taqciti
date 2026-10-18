@@ -168,7 +168,6 @@ export function PaginaAcompanhamento({
     <div className="tq-pagina tq-acompanhamento">
       <header className="tq-pagina-topo">
         <h1>Acompanhamento</h1>
-        <p>O que saiu das reuniões e precisa de alguém. Registre aqui com “Novo”, ou peça ao Taq na conversa.</p>
       </header>
 
       {(avisos.visiveis.length > 0 || avisos.historico.length > 0) && (
