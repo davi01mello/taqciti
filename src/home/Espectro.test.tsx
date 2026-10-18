@@ -2,9 +2,7 @@
  * O que a direção "Espectro" acrescentou à HOME e que é fácil de regredir:
  *
  *  1. o acompanhamento registra à mão ("Novo") e exclui confirmando no lugar;
- *  2. a carta NÃO finge envio: sem canal conectado, "Enviar" fica desligado e
- *     a própria carta diz o que falta;
- *  3. o pedido livre da caixinha da IA vai para a conversa, não para um tipo
+ *  2. o pedido livre da caixinha da IA vai para a conversa, não para um tipo
  *     de documento escolhido por suposição.
  */
 import { act } from 'react';
@@ -15,7 +13,6 @@ import { STORAGE_KEYS } from '@/shared/config/constants';
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { Trabalho } from '@/features/trabalho/store';
 import { PaginaAcompanhamento } from './Acompanhamento';
-import { Carta } from './Carta';
 import { GerarDocumento } from './GerarDocumento';
 
 let host: HTMLDivElement;
@@ -79,23 +76,6 @@ it('"Novo" registra um compromisso à mão, e excluir pede confirmação no luga
   await act(async () => porTexto('.tq-acomp-confirma button', 'Excluir')!.click());
   await esperar(() => trabalho()!.compromissos.length === 0);
   expect(trabalho()!.compromissos).toHaveLength(0);
-});
-
-it('a carta não envia sem canal conectado, e diz isso nela mesma', async () => {
-  const irConexoes = vi.fn();
-  await act(async () =>
-    root.render(<Carta assunto="Ata" corpo="Oi" onFechar={() => {}} onIrConexoes={irConexoes} />),
-  );
-
-  expect(q<HTMLButtonElement>('.tq-carta-enviar').disabled).toBe(true);
-  expect(q('.tq-carta-aviso').textContent).toContain('conecte o Gmail');
-
-  await act(async () => porTexto('.tq-carta-canais button', 'Mensagem')!.click());
-  expect(q('.tq-carta-aviso').textContent).toContain('conecte o WhatsApp');
-  expect(q<HTMLButtonElement>('.tq-carta-enviar').disabled).toBe(true);
-
-  await act(async () => q<HTMLButtonElement>('.tq-carta-aviso button').click());
-  expect(irConexoes).toHaveBeenCalled();
 });
 
 it('o pedido livre da caixinha da IA segue como texto, sem gerar nada', async () => {

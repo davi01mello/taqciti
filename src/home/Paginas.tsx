@@ -32,7 +32,6 @@ import {
 import { papelDoFalante } from '@/features/integracoes/colegas';
 import { TrilhaDaConversa, marcasDasFalas } from '@/shared/ui/TrilhaDaConversa';
 import { useColegasDoCiti } from '@/shared/ui/useColegasDoCiti';
-import { Carta, IconeEnviar } from './Carta';
 import { GerarDocumento } from './GerarDocumento';
 import { NotasDaReuniao } from './NotasDaReuniao';
 import { PrintsDaReuniao } from './PrintsDaReuniao';
@@ -71,8 +70,6 @@ interface ReunioesProps {
   onEscreverNota: (meetingId: string, texto: string) => void;
   onApagarNota: (meetingId: string) => Promise<boolean>;
   onAbrirDocumento: (id: string) => void;
-  /** A carta manda para Conexões quando o canal não está conectado. */
-  onIrConexoes?: () => void;
   /** "Criar documento" em texto livre: o pedido segue para a conversa. */
   onPedirDocumento?: (registro: MeetingRecord, texto: string) => void;
 }
@@ -89,7 +86,6 @@ export function PaginaReunioes({
   onEscreverNota,
   onApagarNota,
   onAbrirDocumento,
-  onIrConexoes = () => {},
   onPedirDocumento = () => {},
 }: ReunioesProps) {
   // A reunião pode sumir (apagada aqui mesmo, ou noutra aba): a tela volta
@@ -128,7 +124,6 @@ export function PaginaReunioes({
         onApagarNota={onApagarNota}
         onAbrirDocumento={onAbrirDocumento}
         onVoltar={() => onAbrir(null)}
-        onIrConexoes={onIrConexoes}
         onPedirDocumento={onPedirDocumento}
       />
     );
@@ -376,7 +371,6 @@ function DetalheDaReuniao({
   onApagarNota,
   onAbrirDocumento,
   onVoltar,
-  onIrConexoes,
   onPedirDocumento,
 }: {
   registro: MeetingRecord;
@@ -387,15 +381,9 @@ function DetalheDaReuniao({
   onApagarNota: (meetingId: string) => Promise<boolean>;
   onAbrirDocumento: (id: string) => void;
   onVoltar: () => void;
-  onIrConexoes: () => void;
   onPedirDocumento: (registro: MeetingRecord, texto: string) => void;
 }) {
   const platform = usePlatform();
-  const [carta, setCarta] = useState<{
-    assunto: string;
-    corpo: string;
-    anexo: string | null;
-  } | null>(null);
   const cabemDuas = useCabemDuasColunas();
   const [titulo, setTitulo] = useState(registro.title);
   const cancelouTitulo = useRef(false);
@@ -510,34 +498,7 @@ function DetalheDaReuniao({
           registro={registro}
           onAbrirDocumento={onAbrirDocumento}
           onPedirLivre={(texto) => onPedirDocumento(registro, texto)}
-          onEnviar={(d) =>
-            setCarta({
-              assunto: d.title,
-              corpo: `Oi,\n\nSegue “${d.title}”, da reunião ${registro.title}.\n\n`,
-              anexo: `${d.title}.pdf`,
-            })
-          }
         />
-
-        <button
-          type="button"
-          className="tq-acao tq-pilula"
-          aria-expanded={carta !== null}
-          onClick={() =>
-            setCarta((atual) =>
-              atual
-                ? null
-                : {
-                    assunto: registro.title,
-                    corpo: `Oi,\n\nSegue a transcrição da reunião ${registro.title}, de ${formatDate(registro.startedAt)}.\n\n`,
-                    anexo: 'Transcrição.txt',
-                  },
-            )
-          }
-        >
-          <IconeEnviar />
-          Enviar
-        </button>
 
         {/* A que está sendo gravada não se apaga, como na lista: a captura
             ainda escreve nela, e o pedido seria recusado depois de confirmado. */}
@@ -576,21 +537,6 @@ function DetalheDaReuniao({
           <p className="tq-aviso-curto" role="status">
             {aviso}
           </p>
-        )}
-
-        {carta && (
-          <Carta
-            key={`${carta.assunto}:${carta.anexo ?? ''}`}
-            assunto={carta.assunto}
-            corpo={carta.corpo}
-            anexo={carta.anexo}
-            onPedirAoTaq={(texto) => {
-              setCarta(null);
-              onPedirDocumento(registro, texto);
-            }}
-            onFechar={() => setCarta(null)}
-            onIrConexoes={onIrConexoes}
-          />
         )}
       </div>
 

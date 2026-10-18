@@ -436,11 +436,6 @@ export function HomePage() {
     [navegar, escolherConversa, taq.fase, acoesDaTela],
   );
 
-  const irParaConexoes = useCallback(
-    () => void navegar(() => definirSecao('conexoes')),
-    [navegar],
-  );
-
   const abrirFonte = useCallback(
     (fonte: FonteDaResposta) =>
       fonte.tipo === 'reuniao'
@@ -612,7 +607,6 @@ export function HomePage() {
             onEscreverNota={escreverNota}
             onApagarNota={apagarNotaDaReuniao}
             onAbrirDocumento={abrirDocumento}
-            onIrConexoes={irParaConexoes}
             onPedirDocumento={pedirDocumento}
           />
         )}
@@ -627,8 +621,6 @@ export function HomePage() {
             abertoId={documentoAberto}
             onAbrir={setDocumentoAberto}
             onIrParaReuniao={irParaReuniao}
-            onIrConexoes={irParaConexoes}
-            onPedirAoTaq={pedirDocumento}
           />
         )}
 

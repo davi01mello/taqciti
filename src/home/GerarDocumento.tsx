@@ -109,11 +109,9 @@ interface Props {
   onAbrirDocumento: (id: string) => void;
   /** O pedido em texto livre: vai para a conversa, com a reunião como contexto. */
   onPedirLivre?: (texto: string) => void;
-  /** Abrir a carta com o documento recém-salvo anexado. */
-  onEnviar?: (documento: DocumentoGuardado) => void;
 }
 
-export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnviar }: Props) {
+export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Props) {
   const [aberto, setAberto] = useState(false);
   const [livre, setLivre] = useState('');
   const [estado, setEstado] = useState<Estado>({ fase: 'parado' });
@@ -435,15 +433,6 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre, onEnv
             >
               Abrir documento
             </button>
-            {onEnviar && (
-              <button
-                type="button"
-                className="tq-acao"
-                onClick={() => onEnviar(estado.documento)}
-              >
-                Enviar
-              </button>
-            )}
             <button
               type="button"
               className="tq-acao"
