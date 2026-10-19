@@ -258,7 +258,7 @@ export async function removerFonteDoContexto(
 
 /** Teto de conversas guardadas. O storage local da extensão não é infinito, e
  *  uma lista sem fim vira lentidão silenciosa meses depois. */
-const MAX_CONVERSAS = 60;
+export const MAX_CONVERSAS = 60;
 
 function novoId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;

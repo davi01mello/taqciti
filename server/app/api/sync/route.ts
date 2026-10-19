@@ -19,12 +19,21 @@
  * megabytes que estoura memória, tempo de resposta e o limite do proxy — e
  * falha INTEIRA, para recomeçar do zero na tentativa seguinte. Com teto, o
  * cliente manda em pedaços e cada pedaço que chega fica.
+ *
+ * ── A volta: GET ──────────────────────────────────────────────────────────
+ *
+ * Outra máquina da mesma conta traz o acervo de volta com
+ * GET /api/sync?desde=<seq>: a cópia fiel de tudo que mudou depois do cursor,
+ * em páginas, com lápide para o que foi apagado (copia.ts). A resposta traz
+ * proximo (o cursor para a chamada seguinte) e im. É pessoa-a-pessoa: o
+ * pessoa_id vem do token, nunca de parâmetro.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders } from '@/lib/apiGuard';
 import { autenticar } from '@/lib/identidade/rota';
 import { apagarItem, gravarItem } from '@/lib/conector/escrita';
 import { TIPOS_DE_ITEM, type ItemPorTipo, type TipoDeItem } from '@/lib/conector/tipos';
+import { TIPO_COPIA, gravarCopia, lerCopias, validarCopia, type CopiaRecebida } from '@/lib/conector/copia';
 import {
   TIPO_HISTORICO,
   apagarHistorico,
@@ -33,15 +42,22 @@ import {
   type HistoricoDoDocumento,
 } from '@/lib/conector/historico';
 
-/** Itens por requisição. O cliente fatia; ver o cabeçalho. */
-const MAX_POR_LOTE = 50;
+/**
+ * Itens por requisição. O cliente fatia; ver o cabeçalho.
+ *
+ * 100 e não 50 porque cada reunião, documento, conversa ou nota viaja em DOIS
+ * itens: a projeção do conector e a cópia fiel (copia.ts).
+ */
+const MAX_POR_LOTE = 100;
 /** Teto do corpo, como segunda barreira: 50 reuniões longas ainda são muito. */
 const MAX_CORPO_BYTES = 8 * 1024 * 1024;
+
+const METODOS = 'GET, POST, OPTIONS';
 
 export function OPTIONS(request: NextRequest): NextResponse {
   return new NextResponse(null, {
     status: 204,
-    headers: corsHeaders(request.headers.get('origin')),
+    headers: corsHeaders(request.headers.get('origin'), METODOS),
   });
 }
 
@@ -51,7 +67,8 @@ function ehTipo(v: unknown): v is TipoDeItem {
 
 type Entrada =
   | { tipo: TipoDeItem; item: ItemPorTipo[TipoDeItem] }
-  | { tipo: typeof TIPO_HISTORICO; item: HistoricoDoDocumento };
+  | { tipo: typeof TIPO_HISTORICO; item: HistoricoDoDocumento }
+  | { tipo: typeof TIPO_COPIA; item: CopiaRecebida };
 
 /** O que a rota recusou sem derrubar o lote: o cliente registra e segue. */
 interface Recusado {
@@ -61,7 +78,7 @@ interface Recusado {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const headers = corsHeaders(request.headers.get('origin'));
+  const headers = corsHeaders(request.headers.get('origin'), METODOS);
   const auth = await autenticar(request, headers);
   if (!auth.ok) return auth.resposta;
 
@@ -94,7 +111,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const recusados: Recusado[] = [];
   for (const bruto of itensBrutos) {
     const e = bruto as { tipo?: unknown; item?: unknown };
-    if (e.tipo !== TIPO_HISTORICO && !ehTipo(e.tipo)) {
+    if (e.tipo !== TIPO_HISTORICO && e.tipo !== TIPO_COPIA && !ehTipo(e.tipo)) {
       return NextResponse.json(
         { error: 'Cada item precisa de `tipo` conhecido e `item` objeto.' },
         { status: 400, headers },
@@ -115,6 +132,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const v = validarHistorico(e.item);
       if (v.ok) entradas.push({ tipo: TIPO_HISTORICO, item: v.item });
       else recusados.push({ tipo: TIPO_HISTORICO, id: String((e.item as { id?: unknown }).id), motivo: v.motivo });
+      continue;
+    }
+    if (e.tipo === TIPO_COPIA) {
+      // Mesmo trato do histórico: corpo torto é recusado com motivo, e o resto do
+      // lote segue. Reenviar o mesmo corpo só o recusaria de novo.
+      const v = validarCopia(e.item);
+      if (v.ok) entradas.push({ tipo: TIPO_COPIA, item: v.item });
+      else recusados.push({ tipo: TIPO_COPIA, id: String((e.item as { id?: unknown }).id), motivo: v.motivo });
       continue;
     }
     entradas.push({ tipo: e.tipo as TipoDeItem, item: e.item as ItemPorTipo[TipoDeItem] });
@@ -145,6 +170,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     for (const entrada of entradas) {
       if (entrada.tipo === TIPO_HISTORICO) await gravarHistorico(auth.pessoaId, entrada.item);
+      else if (entrada.tipo === TIPO_COPIA) await gravarCopia(auth.pessoaId, entrada.item);
       else await gravarItem(auth.pessoaId, entrada.tipo, entrada.item);
       gravados += 1;
     }
@@ -169,4 +195,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     { gravados, apagados: remocoes.length, ...(recusados.length > 0 ? { recusados } : {}) },
     { status: 200, headers },
   );
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const headers = corsHeaders(request.headers.get('origin'), METODOS);
+  const auth = await autenticar(request, headers);
+  if (!auth.ok) return auth.resposta;
+
+  const bruto = request.nextUrl.searchParams.get('desde');
+  const desde = bruto === null || bruto === '' ? 0 : Number(bruto);
+  if (!Number.isInteger(desde) || desde < 0) {
+    return NextResponse.json({ error: '`desde` precisa ser um inteiro >= 0.' }, { status: 400, headers });
+  }
+
+  try {
+    const pagina = await lerCopias(auth.pessoaId, desde);
+    // `no-store`: a resposta é o acervo de UMA pessoa, e um cache no meio do
+    // caminho serviria o de uma para a outra.
+    return NextResponse.json(pagina, { status: 200, headers: { ...headers, 'Cache-Control': 'no-store' } });
+  } catch (erro) {
+    console.error('[api/sync] falha ao ler', erro);
+    return NextResponse.json({ error: 'Falha ao ler o acervo.' }, { status: 500, headers });
+  }
 }

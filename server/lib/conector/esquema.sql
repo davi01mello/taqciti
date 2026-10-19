@@ -173,7 +173,7 @@ create index if not exists nota_por_data      on nota      (pessoa_id, atualizad
 -- chave estrangeira para `documento`: o histórico pode chegar antes do texto
 -- na mesma sincronização, e apagar um é decisão separada do outro.
 --
--- Só escrita: o conector MCP não lê esta tabela, e o histórico não é exposto à
+-- O conector MCP não lê esta tabela, e o histórico não é exposto à
 -- IA. RLS ligada como nas demais — o servidor acessa pelo papel que a ignora,
 -- e a chave pública do Supabase não alcança nada aqui.
 create table if not exists historico_do_documento (
@@ -189,3 +189,40 @@ create table if not exists historico_do_documento (
 );
 
 alter table historico_do_documento enable row level security;
+
+-- ------------------------------------------------- a cópia fiel (restauração)
+
+-- As tabelas acima guardam a PROJEÇÃO magra que o conector serve para a IA
+-- (sem prints, sem os ids das marcações, sem o html dos documentos...). Ela não
+-- basta para reconstruir o storage de uma máquina nova. Esta tabela guarda o
+-- registro INTEIRO como a extensão o tem, por (coleção, id), para outra máquina
+-- da mesma conta trazer tudo de volta. O conector MCP NÃO lê esta tabela.
+--
+-- `apagado` é a lápide: apagar numa máquina precisa chegar às outras, e uma
+-- linha que simplesmente some não diz nada a quem pergunta "o que mudou?".
+--
+-- `seq` é o cursor da leitura incremental. É uma sequência, e não o relógio,
+-- porque duas escritas no mesmo milissegundo (ou um relógio que anda para
+-- trás entre instâncias) fariam a leitura pular linhas sem ninguém ver. Cada
+-- escrita, inclusive a lápide, ganha um `seq` novo e maior.
+create sequence if not exists copia_seq;
+
+create table if not exists copia_local (
+  pessoa_id      uuid    not null references pessoa(id) on delete cascade,
+  colecao        text    not null,
+  id             text    not null,
+  corpo          jsonb,
+  apagado        boolean not null default false,
+  marca_ms       bigint  not null default 0,
+  seq            bigint  not null default nextval('copia_seq'),
+  atualizado_em  timestamptz not null default now(),
+  primary key (pessoa_id, colecao, id)
+);
+
+create index if not exists copia_por_seq on copia_local (pessoa_id, seq);
+
+alter table copia_local enable row level security;
+
+-- O histórico de versões também volta para a máquina nova, pelo mesmo cursor.
+alter table historico_do_documento add column if not exists seq bigint not null default nextval('copia_seq');
+create index if not exists historico_por_seq on historico_do_documento (pessoa_id, seq);

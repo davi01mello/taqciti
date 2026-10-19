@@ -118,6 +118,68 @@ export interface ItemParaOAcervo {
     | ConversaDoAcervo
     | NotaDoAcervo
     | HistoricoDoAcervo;
+  /**
+   * O registro INTEIRO como a extensão o guarda — o que outra máquina da mesma
+   * conta usa para reconstruir o storage. Ausente no histórico de versões, que
+   * já viaja inteiro e tem o seu próprio caminho de volta.
+   */
+  copia?: CopiaParaOServidor;
+}
+
+/**
+ * Espelha `server/lib/conector/copia.ts`. Fica de fora, de propósito, o que é
+ * pesado ou local demais: os prints (imagens) não sobem — ver `NotaCopiada`.
+ */
+export type ColecaoDaCopia = 'reuniao' | 'documento' | 'conversa' | 'nota';
+
+export interface CopiaParaOServidor {
+  colecao: ColecaoDaCopia;
+  id: string;
+  corpo: Record<string, unknown>;
+}
+
+/**
+ * O corpo da cópia de uma nota: o texto E as marcações da reunião, juntos,
+ * porque na extensão vivem em chaves separadas e na outra máquina precisam
+ * voltar para as duas. As marcações levam o `captionId` — a projeção do
+ * conector guarda só a contagem, e a contagem não reconstrói nada. Prints não
+ * entram: cada um é uma imagem de centenas de KB, e o acervo não os leva.
+ */
+export interface NotaCopiada {
+  nota: Nota;
+  marcas: MarcasDaReuniao;
+}
+
+/**
+ * A reunião inteira, MENOS o que nunca saiu da máquina: `speakersObserved`
+ * (telemetria do parser de legenda) e `providerParticipantId` (id opaco de
+ * tile). São coisas da captura ao vivo — uma reunião encerrada e restaurada em
+ * outra máquina não precisa delas, e a decisão de não as mandar é anterior a
+ * esta cópia e vale para ela também.
+ */
+export function copiaDaReuniao(r: MeetingRecord): CopiaParaOServidor {
+  const semTile = (ps: MeetingRecord['participants']) =>
+    ps.map((p) => {
+      const copia = { ...p };
+      delete copia.providerParticipantId;
+      return copia;
+    });
+  const corpo: Partial<MeetingRecord> = { ...r, participants: semTile(r.participants) };
+  delete corpo.speakersObserved;
+  if (r.presentNow) corpo.presentNow = semTile(r.presentNow);
+  return { colecao: 'reuniao', id: r.id, corpo: corpo as unknown as Record<string, unknown> };
+}
+export function copiaDoDocumento(d: DocumentoGuardado): CopiaParaOServidor {
+  return { colecao: 'documento', id: d.id, corpo: d as unknown as Record<string, unknown> };
+}
+
+export function copiaDaConversa(c: Conversation): CopiaParaOServidor {
+  return { colecao: 'conversa', id: c.id, corpo: c as unknown as Record<string, unknown> };
+}
+
+export function copiaDaNota(nota: Nota, marcas: MarcasDaReuniao): CopiaParaOServidor {
+  const corpo: NotaCopiada = { nota, marcas };
+  return { colecao: 'nota', id: nota.meetingId, corpo: corpo as unknown as Record<string, unknown> };
 }
 
 export function historicoParaOAcervo(h: HistoricoDoDocumento): HistoricoDoAcervo {

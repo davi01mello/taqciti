@@ -483,7 +483,7 @@ export function PaginaConexoes({
           {
             id: 'google',
             nome: 'Conta Google',
-            faz: 'Sincroniza o acervo para os assistentes consultarem.',
+            faz: 'Sincroniza o acervo: os assistentes consultam, e a sua conta traz tudo em outro computador.',
             icone: <span>G</span>,
             fluxo: fluxoDoGoogle(),
           },

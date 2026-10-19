@@ -180,6 +180,18 @@ function pedirIdentidade(interativo: boolean, dicaDeConta?: string): Promise<Res
   });
 }
 
+/**
+ * De quem é este `id_token`: o `sub`, o identificador estável que o Google
+ * emite por conta (o e-mail pode mudar; ver `server/lib/conector/pessoa.ts`).
+ *
+ * Serve para a extensão perceber que a conta mudou nesta máquina — não é
+ * autoridade sobre nada. Quem decide de quem é o acervo é o servidor,
+ * conferindo a assinatura do mesmo token.
+ */
+export function contaDoToken(idToken: string): string | null {
+  const sub = payloadDoJwt(idToken)?.sub;
+  return typeof sub === 'string' && sub ? sub : null;
+}
 // ------------------------------------------------------- cache em memória
 
 /**

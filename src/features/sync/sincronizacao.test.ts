@@ -16,6 +16,7 @@ import type { MeetingRecord } from '@/shared/types/domain';
 import { limparCacheDeIdentidadeLocal } from '@/shared/services/identidade';
 import {
   assinar,
+  assinaturaDe,
   esquecerSincronizado,
   fatiar,
   montarDesejado,
@@ -91,6 +92,23 @@ function montarChromeComToken(idToken: string | null = 'presente') {
   };
   return chamadas;
 }
+
+/**
+ * O servidor, do ponto de vista destes testes: responde ao POST de subida e ao
+ * GET da volta (aqui sempre vazio — a volta tem os seus próprios testes em
+ * `restauracao.test.ts`). Troca `fetch`, para nenhum teste sair para a rede.
+ */
+function servidor(resposta: (init: RequestInit) => Response = () => new Response(JSON.stringify({ gravados: 1, apagados: 0 }))) {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) =>
+    init?.method === 'GET'
+      ? new Response(JSON.stringify({ itens: [], proximo: 0, fim: true }))
+      : resposta(init ?? {}),
+  );
+}
+
+/** Só as subidas: a volta (GET) não conta para o que estes testes afirmam. */
+const subidas = (rede: ReturnType<typeof servidor>) =>
+  rede.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
 
 async function ligar() {
   await chrome.storage.local.set({ [STORAGE_KEYS.sync]: { ligada: true } });
@@ -204,10 +222,15 @@ describe('montarDesejado', () => {
       ],
     });
     const r = (await montarDesejado()).get('reuniao:r1')!;
+    // Nem na projeção do conector, nem na cópia fiel que outra máquina restaura:
+    // a decisão de não mandar telemetria e id de tile vale para as duas.
     const texto = JSON.stringify(r);
     expect(texto).not.toContain('tile-xyz');
     expect(texto).not.toContain('matchedParticipant');
+    expect(texto).not.toContain('speakersObserved');
     expect(r.item).toMatchObject({ participantes: ['Ana'] });
+    // ...e o que a restauração precisa continua lá.
+    expect(r.copia?.corpo).toMatchObject({ id: 'r1', title: 'Planejamento', status: 'ready' });
   });
 });
 
@@ -224,7 +247,7 @@ describe('planejar', () => {
   it('o que não mudou não é reenviado', async () => {
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [reuniao()] });
     const desejado = await montarDesejado();
-    const assinaturas = { 'reuniao:r1': assinar(desejado.get('reuniao:r1')!.item) };
+    const assinaturas = { 'reuniao:r1': assinaturaDe(desejado.get('reuniao:r1')!) };
     expect(planejar(desejado, assinaturas).enviar).toHaveLength(0);
   });
 
@@ -233,7 +256,7 @@ describe('planejar', () => {
     // "sincronizei até tal momento" perderia calado.
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [reuniao()] });
     const antes = await montarDesejado();
-    const assinaturas = { 'reuniao:r1': assinar(antes.get('reuniao:r1')!.item) };
+    const assinaturas = { 'reuniao:r1': assinaturaDe(antes.get('reuniao:r1')!) };
 
     await chrome.storage.local.set({
       [STORAGE_KEYS.history]: [reuniao({ title: 'Nome novo' })],
@@ -315,26 +338,28 @@ describe('sincronizar', () => {
 
   it('sem novidade, não abre requisição', async () => {
     await ligar();
-    const rede = vi.spyOn(globalThis, 'fetch');
+    const rede = servidor();
     expect(await sincronizar()).toEqual({ estado: 'nada-a-fazer' });
-    expect(rede).not.toHaveBeenCalled();
+    // Pergunta ao servidor o que mudou lá (a volta), mas não SOBE nada.
+    expect(subidas(rede)).toHaveLength(0);
   });
 
   it('envia o que falta e não reenvia na passada seguinte', async () => {
     await ligar();
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [reuniao()] });
 
-    const rede = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ gravados: 1, apagados: 0 })));
+    const rede = servidor();
 
     expect(await sincronizar()).toEqual({ estado: 'ok', enviados: 1, apagados: 0 });
-    expect(rede).toHaveBeenCalledTimes(1);
+    expect(subidas(rede)).toHaveLength(1);
+    // A reunião e a cópia fiel dela vão juntas, no mesmo lote.
+    const lote = JSON.parse((subidas(rede)[0]![1] as RequestInit).body as string);
+    expect(lote.itens.map((i: { tipo: string }) => i.tipo)).toEqual(['reuniao', 'copia']);
 
     // A segunda passada não tem o que fazer — é o que prova que o progresso
     // foi registrado.
-    expect(await sincronizar()).toEqual({ estado: 'nada-a-fazer' });
-    expect(rede).toHaveBeenCalledTimes(1);
+    expect(await sincronizar({ forcarRestauracao: true })).toEqual({ estado: 'nada-a-fazer' });
+    expect(subidas(rede)).toHaveLength(1);
   });
 
   it('manda a identidade do Google no cabeçalho', async () => {
@@ -512,8 +537,8 @@ describe('histórico de versões dos documentos personalizados', () => {
       [STORAGE_KEYS.documents]: [documento('d1')],
       [STORAGE_KEYS.documentVersions]: [historico('d1', [1])],
     });
-    const rede = vi.spyOn(globalThis, 'fetch').mockImplementation(
-      async () =>
+    const rede = servidor(
+      () =>
         new Response(
           JSON.stringify({ gravados: 1, apagados: 0, recusados: [{ tipo: 'historico', id: 'd1', motivo: 'Histórico inválido (x).' }] }),
         ),
@@ -521,7 +546,7 @@ describe('histórico de versões dos documentos personalizados', () => {
     expect(await sincronizar()).toMatchObject({ estado: 'ok' });
     // Reenviar o mesmo item só o recusaria de novo: a passada seguinte não tenta.
     expect(await sincronizar()).toEqual({ estado: 'nada-a-fazer' });
-    expect(rede).toHaveBeenCalledTimes(1);
+    expect(subidas(rede)).toHaveLength(1);
   });
 
   it('a chave do histórico é observada: uma versão nova dispara a sincronização sozinha', async () => {
@@ -547,7 +572,7 @@ describe('fatiar por bytes', () => {
     expect(lotes.map((l) => l.itens.length)).toEqual([1, 1, 1]);
   });
 
-  it('itens pequenos continuam em lotes de 50, como antes', () => {
+  it('itens pequenos vão em lotes de 100 itens no fio (o teto do servidor)', () => {
     const plano = {
       enviar: Array.from({ length: 120 }, (_, n) => ({
         chave: `nota:${n}`,
@@ -557,6 +582,26 @@ describe('fatiar por bytes', () => {
       })),
       apagar: [],
     };
-    expect(fatiar(plano).map((l) => l.itens.length)).toEqual([50, 50, 20]);
+    expect(fatiar(plano).map((l) => l.itens.length)).toEqual([100, 20]);
+  });
+
+  it('cada item e a sua cópia fiel andam sempre no mesmo lote', () => {
+    const plano = {
+      enviar: Array.from({ length: 75 }, (_, n) => ({
+        chave: `reuniao:${n}`,
+        tipo: 'reuniao' as const,
+        item: { id: String(n) },
+        copia: { colecao: 'reuniao' as const, id: String(n), corpo: { id: String(n) } },
+        assinatura: String(n),
+      })),
+      apagar: [],
+    };
+    const lotes = fatiar(plano);
+    // 75 reuniões = 150 itens no fio: cabem 50 reuniões (100 itens) por lote.
+    expect(lotes.map((l) => l.itens.length)).toEqual([100, 50]);
+    for (const l of lotes) {
+      const tipos = l.itens.map((i) => i.tipo);
+      expect(tipos.filter((t) => t === 'reuniao')).toHaveLength(tipos.filter((t) => t === 'copia').length);
+    }
   });
 });

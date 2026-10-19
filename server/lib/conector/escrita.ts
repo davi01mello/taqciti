@@ -32,6 +32,7 @@
 import { type Consultador, banco } from './banco';
 import { textoDeBusca } from './acervoPostgres';
 import { invalidarPessoa } from './cache';
+import { apagarCopia } from './copia';
 import type {
   ConversaDoAcervo,
   DocumentoDoAcervo,
@@ -202,5 +203,8 @@ export async function apagarItem(
   // O nome da tabela vem de `TipoDeItem`, que é uma união fechada de
   // literais — não há string de fora chegando aqui.
   await pool.query(`delete from ${tipo} where pessoa_id = $1 and id = $2`, [pessoaId, id]);
+  // A lápide da cópia fiel: sem ela, outra máquina da mesma conta nunca saberia
+  // que isto foi apagado — e, pior, mandaria a sua cópia de volta.
+  await apagarCopia(pessoaId, tipo, id, pool);
   invalidarPessoa(pessoaId);
 }

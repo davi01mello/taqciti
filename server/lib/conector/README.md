@@ -1,4 +1,4 @@
-﻿# O conector
+# O conector
 
 Serve o acervo do TaqCiti — reuniões, documentos, conversas e notas — para
 uma IA de fora (Claude, ChatGPT) através de MCP. Quem paga o modelo é a
@@ -242,6 +242,55 @@ preservasse — e um mapa de sessões na memória do processo mandaria o cliente
 para a instância errada assim que houvesse mais de uma, que na Vercel é o
 caso normal.
 
+## A volta: a conta traz o que é dela em qualquer máquina
+
+Até aqui o servidor era um espelho para a IA. A volta o torna também a cópia
+da CONTA: instalar a extensão num segundo computador, com o mesmo Google, traz
+o acervo de volta (`features/sync/restauracao.ts`).
+
+A projeção do conector não serve para isso — ela perde prints, o `captionId`
+das marcações, o `html` dos documentos. Então cada reunião, documento, conversa
+e nota sobe em **dois** itens: a projeção (que a IA lê) e a **cópia fiel**
+(`copia.ts`, tabela `copia_local`), que o conector NÃO lê.
+
+```
+GET /api/sync?desde=<seq>   →   { itens: [{ colecao, id, corpo, apagado, seq }],
+                                  proximo, fim }
+```
+
+- **Cursor por `seq`**, de uma sequência do banco — não por relógio. Cada
+  escrita, inclusive a exclusão, ganha um `seq` maior; nada que aconteceu depois
+  do cursor escapa. A página é cortada por itens (25) e por bytes (3 MB), mas
+  sempre leva ao menos um item, para um registro grande poder sair.
+- **Exclusão é lápide** (`apagado`), não linha que some: sem ela a outra máquina
+  nunca saberia, e mandaria a sua cópia de volta.
+- **Isolamento**: o `pessoa_id` vem do token, nunca de parâmetro. Há teste
+  contra o Postgres de verdade (`copia.test.ts`) e pelas rotas (`syncRota.test.ts`).
+- O histórico de versões dos documentos sai na mesma leitura (coleção `historico`).
+
+**Fusão** (lado da extensão): só toma o remoto quem NÃO mexeu no item desde o
+último envio; o trabalho local que ainda não subiu nunca é atropelado, e o que
+foi apagado aqui nunca ressuscita. Em edição simultânea nas duas máquinas vale
+a última a sincronizar — não há relógio comparável entre máquinas. Ver o
+cabeçalho de `restauracao.ts`.
+
+**O que NÃO volta**: prints (imagens grandes demais para o acervo), preferências
+e o estado interno do Taq.
+A fusão é por item inteiro: uma nota e as marcações dela chegam e saem juntas.
+
+**Troca de conta na mesma máquina**: o storage é da conta anterior. A extensão
+guarda o `sub` da conta que sincronizou por último; se mudar, o acervo local NÃO
+sobe para a conta nova (seria entregar dados de uma pessoa à outra) e o cursor da
+volta recomeça. O que já estava no storage continua lá — apagar não é decisão
+que uma troca de conta deva tomar sozinha.
+
+**Deploy — a ordem é obrigatória**: (1) aplicar o `esquema.sql` novo no banco
+(cria `copia_local`, a sequência e a coluna `seq` do histórico); (2) publicar o
+servidor; (3) só então distribuir a extensão. Uma extensão nova contra um
+servidor ANTIGO não funciona: o servidor antigo responde 400 a qualquer lote
+com um item `copia` (tipo desconhecido), e como o lote é recusado inteiro, a
+subida para de funcionar — não só a volta. Servidor novo com extensão antiga é
+seguro: a extensão antiga só não manda a cópia nem lê de volta.
 ## Três coisas que só um cliente de verdade revelou
 
 Nada aqui apareceu em teste, em `curl` ou em log. Todas as três foram

@@ -1,10 +1,11 @@
 /**
  * Histórico de versões dos documentos personalizados, espelhado no servidor.
  *
- * É BACKUP, não fonte: a árvore de cada revisão mora na extensão
- * (`taq:documentVersions`) e sobe pela mesma sincronização do resto do
- * acervo. Sem leitura de volta e sem exposição ao conector MCP — por isso não
- * entra em `TipoDeItem` (que o conector enumera) e tem funções próprias.
+ * A árvore de cada revisão mora na extensão (`taq:documentVersions`) e sobe
+ * pela mesma sincronização do resto do acervo. Volta para outra máquina da
+ * mesma conta pela leitura incremental de `copia.ts` (coleção `historico`),
+ * mas não é exposto ao conector MCP — por isso não entra em `TipoDeItem`
+ * (que o conector enumera) e tem funções próprias.
  *
  * O que chega é VALIDADO antes de tocar o banco. A rota de sincronização
  * valida só `tipo` e `id` dos demais itens; aqui o corpo é uma árvore de
@@ -85,6 +86,7 @@ export async function gravarHistorico(
        versoes = excluded.versoes,
        revisao_atual = excluded.revisao_atual,
        atualizado_ms = excluded.atualizado_ms,
+       seq = nextval('copia_seq'),
        atualizado_em = now()`,
     [
       pessoaId,

@@ -34,7 +34,7 @@
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { readLocal, writeLocal } from '@/shared/services/storage';
 import { SERVER_BASE_URL } from '@/shared/config/serverConfig';
-import { tokenDeIdentidade, descartarToken } from '@/shared/services/identidade';
+import { tokenDeIdentidade, descartarToken, contaDoToken } from '@/shared/services/identidade';
 import { logger } from '@/shared/services/log';
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { DocumentoGuardado } from '@/features/documents/store';
@@ -44,17 +44,27 @@ import type { Nota } from '@/features/annotations/notes';
 import type { MarcasDaReuniao } from '@/features/annotations/marks';
 import type { Print } from '@/features/annotations/shots';
 import {
+  type CopiaParaOServidor,
   type ItemParaOAcervo,
   type TipoDeItem,
   conversaParaOAcervo,
+  copiaDaConversa,
+  copiaDaNota,
+  copiaDaReuniao,
+  copiaDoDocumento,
   documentoParaOAcervo,
   historicoParaOAcervo,
   notaParaOAcervo,
   reuniaoParaOAcervo,
 } from './paraOAcervo';
+import { CredencialRecusada, restaurar, type Assinaturas } from './restauracao';
 
-/** Espelha MAX_POR_LOTE em `server/app/api/sync/route.ts`. */
-const POR_LOTE = 50;
+/**
+ * Espelha MAX_POR_LOTE em `server/app/api/sync/route.ts`. Conta itens NO FIO:
+ * reunião, documento, conversa e nota viajam em dois (a projeção do conector e
+ * a cópia fiel), e o histórico de versões em um.
+ */
+const POR_LOTE = 100;
 /**
  * Teto de bytes por lote, abaixo dos 8 MiB do servidor: o histórico de um
  * documento chega a alguns megabytes, e 50 deles juntos estourariam o corpo —
@@ -63,12 +73,28 @@ const POR_LOTE = 50;
  */
 const BYTES_POR_LOTE = 4 * 1024 * 1024;
 
-/** `tipo:id` → assinatura do que já foi aceito pelo servidor. */
-type Assinaturas = Record<string, string>;
-
 interface EstadoDoSync {
   assinaturas: Assinaturas;
   ultimoMs?: number;
+  /** O `sub` da conta Google a que estas assinaturas e este cursor se referem. */
+  conta?: string;
+  /** Até onde a volta (`restauracao.ts`) já leu no servidor. */
+  cursor?: number;
+  /** Quando a volta rodou pela última vez, para não perguntar a cada tecla. */
+  restauradoEm?: number;
+}
+
+/**
+ * A assinatura de um item: a projeção E a cópia fiel, juntas. Se só a
+ * projeção contasse, uma mudança que o conector não enxerga — uma marcação
+ * movida, o `html` de um documento — nunca seria enviada, e a outra máquina
+ * restauraria a versão velha.
+ *
+ * O histórico não tem cópia: continua assinado só pelo item, e quem já o enviou
+ * não o reenvia por causa desta funcionalidade.
+ */
+export function assinaturaDe(e: ItemParaOAcervo): string {
+  return assinar(e.copia ? { item: e.item, copia: e.copia } : e.item);
 }
 
 function comporId(tipo: TipoDeItem, id: string): string {
@@ -117,6 +143,7 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
     desejado.set(comporId('reuniao', r.id), {
       tipo: 'reuniao',
       item: reuniaoParaOAcervo(r),
+      copia: copiaDaReuniao(r),
     });
   }
 
@@ -125,6 +152,7 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
     desejado.set(comporId('documento', d.id), {
       tipo: 'documento',
       item: documentoParaOAcervo(d),
+      copia: copiaDoDocumento(d),
     });
   }
 
@@ -145,6 +173,7 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
     desejado.set(comporId('conversa', c.id), {
       tipo: 'conversa',
       item: conversaParaOAcervo(c),
+      copia: copiaDaConversa(c),
     });
   }
 
@@ -191,6 +220,7 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
         marcas[meetingId] ?? {},
         printsPorReuniao.get(meetingId) ?? 0,
       ),
+      copia: copiaDaNota(nota, marcas[meetingId] ?? {}),
     });
   }
 
@@ -200,7 +230,13 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
 // --------------------------------------------------------------- o diff
 
 export interface Plano {
-  enviar: { chave: string; tipo: TipoDeItem; item: unknown; assinatura: string }[];
+  enviar: {
+    chave: string;
+    tipo: TipoDeItem;
+    item: unknown;
+    copia?: CopiaParaOServidor;
+    assinatura: string;
+  }[];
   apagar: { chave: string; tipo: TipoDeItem; id: string }[];
 }
 
@@ -210,10 +246,16 @@ export function planejar(
 ): Plano {
   const plano: Plano = { enviar: [], apagar: [] };
 
-  for (const [chave, { tipo, item }] of desejado) {
-    const assinatura = assinar(item);
+  for (const [chave, entrada] of desejado) {
+    const assinatura = assinaturaDe(entrada);
     if (assinaturas[chave] !== assinatura) {
-      plano.enviar.push({ chave, tipo, item, assinatura });
+      plano.enviar.push({
+        chave,
+        tipo: entrada.tipo,
+        item: entrada.item,
+        ...(entrada.copia ? { copia: entrada.copia } : {}),
+        assinatura,
+      });
     }
   }
 
@@ -234,20 +276,30 @@ export type ResultadoDoSync =
   | { estado: 'nada-a-fazer' }
   | { estado: 'desligado' }
   | { estado: 'sem-token' }
-  | { estado: 'ok'; enviados: number; apagados: number }
+  | { estado: 'ok'; enviados: number; apagados: number; restaurados?: number }
   | { estado: 'falhou'; enviados: number; apagados: number; motivo: string };
 
+/** Um item como vai no fio: a projeção do conector, a cópia fiel, ou o histórico. */
+type ItemNoFio = { tipo: TipoDeItem | 'copia'; item: unknown };
+
 interface Lote {
-  itens: { tipo: TipoDeItem; item: unknown }[];
+  itens: ItemNoFio[];
   apagados: { tipo: TipoDeItem; id: string }[];
   chaves: { chave: string; assinatura?: string }[];
 }
 
-/** Fatia o plano em lotes que caibam no teto do servidor. */
+/**
+ * Fatia o plano em lotes que caibam no teto do servidor.
+ *
+ * Um item e a sua cópia fiel andam SEMPRE no mesmo lote: a assinatura só é
+ * gravada depois de o lote ser aceito, e separá-los deixaria uma queda entre
+ * os dois registrar como enviado um item cuja cópia nunca chegou.
+ */
 export function fatiar(plano: Plano, porLote = POR_LOTE): Lote[] {
   const lotes: Lote[] = [];
   let atual: Lote = { itens: [], apagados: [], chaves: [] };
   let bytes = 0;
+  const cheio = (a: Lote) => a.itens.length + a.apagados.length;
   const fechar = () => {
     if (atual.chaves.length) lotes.push(atual);
     atual = { itens: [], apagados: [], chaves: [] };
@@ -255,17 +307,24 @@ export function fatiar(plano: Plano, porLote = POR_LOTE): Lote[] {
   };
 
   for (const e of plano.enviar) {
-    const tamanho = JSON.stringify(e.item).length;
-    if (atual.chaves.length > 0 && bytes + tamanho > BYTES_POR_LOTE) fechar();
+    const fios: ItemNoFio[] = [{ tipo: e.tipo, item: e.item }];
+    if (e.copia) fios.push({ tipo: 'copia', item: e.copia });
+    const tamanho = fios.reduce((soma, f) => soma + JSON.stringify(f.item).length, 0);
+    if (
+      atual.chaves.length > 0 &&
+      (bytes + tamanho > BYTES_POR_LOTE || cheio(atual) + fios.length > porLote)
+    ) {
+      fechar();
+    }
     bytes += tamanho;
-    atual.itens.push({ tipo: e.tipo, item: e.item });
+    atual.itens.push(...fios);
     atual.chaves.push({ chave: e.chave, assinatura: e.assinatura });
-    if (atual.chaves.length >= porLote) fechar();
+    if (cheio(atual) >= porLote) fechar();
   }
   for (const a of plano.apagar) {
     atual.apagados.push({ tipo: a.tipo, id: a.id });
     atual.chaves.push({ chave: a.chave });
-    if (atual.chaves.length >= porLote) fechar();
+    if (cheio(atual) >= porLote) fechar();
   }
   fechar();
   return lotes;
@@ -277,75 +336,148 @@ async function ligada(): Promise<boolean> {
   return sim?.ligada === true;
 }
 
+/** Quanto esperar entre duas voltas, a menos que a passada peça uma. */
+const INTERVALO_DA_RESTAURACAO_MS = 60_000;
+
+export interface OpcoesDoSync {
+  /** Pergunta ao servidor agora, mesmo que tenha perguntado há pouco. */
+  forcarRestauracao?: boolean;
+}
+
+async function salvar(estado: EstadoDoSync): Promise<void> {
+  await writeLocal(STORAGE_KEYS.syncEstado, estado);
+}
+
 /**
- * Uma passada de sincronização.
+ * Uma passada de sincronização: primeiro SOBE o que mudou aqui, depois TRAZ o
+ * que mudou nas outras máquinas da conta (`restauracao.ts`). Nessa ordem de
+ * propósito — ver o cabeçalho de lá.
  *
  * Nunca lança: é chamada de um listener de evento do service worker, onde uma
  * exceção não tem quem a pegue e só vira ruído no console. Tudo vira um
- * `ResultadoDoSync`, que quem chama pode registrar ou ignorar.
+ * `ResultadoDoSync`, que quem chama pode registrar ou ignorar. Uma volta que
+ * falha não derruba a subida: vai para o log e é tentada de novo na próxima.
  */
-export async function sincronizar(): Promise<ResultadoDoSync> {
+export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoDoSync> {
   if (!(await ligada())) return { estado: 'desligado' };
 
   const token = await tokenDeIdentidade(false);
   if (!token) return { estado: 'sem-token' };
 
-  const estado = await lerEstado();
-  const plano = planejar(await montarDesejado(), estado.assinaturas);
-  if (plano.enviar.length === 0 && plano.apagar.length === 0) {
-    return { estado: 'nada-a-fazer' };
+  let estado = await lerEstado();
+  const desejadoInicial = await montarDesejado();
+
+  /*
+   * De quem são estas assinaturas?
+   *
+   * Do `sub` da conta que sincronizou por último nesta máquina. Trocou a conta
+   * Google: o que está no storage é da conta ANTERIOR, e mandá-lo para o acervo
+   * da nova seria entregar dados de uma pessoa à outra. Então o que já está
+   * aqui é marcado como "já tratado" (não sobe) e o cursor da volta recomeça —
+   * a conta nova traz o que é dela. O que ficou no storage fica; apagar o
+   * acervo local de alguém por ter trocado de conta seria pior.
+   */
+  const conta = contaDoToken(token);
+  if (conta && estado.conta !== conta) {
+    if (estado.conta) {
+      logger.warn('conta do Google trocada nesta máquina; o acervo local não sobe');
+      estado = {
+        assinaturas: Object.fromEntries(
+          [...desejadoInicial].map(([chave, e]) => [chave, assinaturaDe(e)]),
+        ),
+        conta,
+        ...(estado.ultimoMs !== undefined ? { ultimoMs: estado.ultimoMs } : {}),
+      };
+    } else {
+      estado = { ...estado, conta };
+    }
+    await salvar(estado);
   }
 
-  const assinaturas = { ...estado.assinaturas };
+  const plano = planejar(desejadoInicial, estado.assinaturas);
+  const temPlano = plano.enviar.length > 0 || plano.apagar.length > 0;
+
   let enviados = 0;
   let apagados = 0;
 
-  for (const lote of fatiar(plano)) {
-    let resposta: Response;
-    try {
-      resposta = await fetch(`${SERVER_BASE_URL}/api/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ itens: lote.itens, apagados: lote.apagados }),
-      });
-    } catch {
-      return { estado: 'falhou', enviados, apagados, motivo: 'servidor inalcançável' };
-    }
+  if (temPlano) {
+    const assinaturas = { ...estado.assinaturas };
 
-    if (resposta.status === 401) {
-      // Token vencido. Descartar o cache local é o que permite a próxima
-      // passada pegar um novo — sem isso, vira recusa permanente.
-      await descartarToken();
-      return { estado: 'falhou', enviados, apagados, motivo: 'credencial recusada' };
-    }
-    if (!resposta.ok) {
-      return { estado: 'falhou', enviados, apagados, motivo: `servidor ${resposta.status}` };
-    }
+    for (const lote of fatiar(plano)) {
+      let resposta: Response;
+      try {
+        resposta = await fetch(`${SERVER_BASE_URL}/api/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ itens: lote.itens, apagados: lote.apagados }),
+        });
+      } catch {
+        return { estado: 'falhou', enviados, apagados, motivo: 'servidor inalcançável' };
+      }
 
-    // Item que o servidor RECUSOU por formato (histórico torto) não derruba o
-    // lote: é registrado como aceito — reenviar o mesmo item só o recusaria
-    // de novo, para sempre — e o motivo vai para o log.
-    const corpo = (await resposta.json().catch(() => null)) as { recusados?: { id: string; motivo: string }[] } | null;
-    for (const r of corpo?.recusados ?? []) logger.warn('item recusado pelo servidor', { id: r.id, motivo: r.motivo });
+      if (resposta.status === 401) {
+        // Token vencido. Descartar o cache local é o que permite a próxima
+        // passada pegar um novo — sem isso, vira recusa permanente.
+        await descartarToken();
+        return { estado: 'falhou', enviados, apagados, motivo: 'credencial recusada' };
+      }
+      if (!resposta.ok) {
+        return { estado: 'falhou', enviados, apagados, motivo: `servidor ${resposta.status}` };
+      }
 
-    // O lote inteiro foi aceito: registra as assinaturas dele ANTES do
-    // próximo. Ver o cabeçalho.
-    for (const { chave, assinatura } of lote.chaves) {
-      if (assinatura) assinaturas[chave] = assinatura;
-      else delete assinaturas[chave];
+      // Item que o servidor RECUSOU por formato (histórico torto) não derruba o
+      // lote: é registrado como aceito — reenviar o mesmo item só o recusaria
+      // de novo, para sempre — e o motivo vai para o log.
+      const corpo = (await resposta.json().catch(() => null)) as { recusados?: { id: string; motivo: string }[] } | null;
+      for (const r of corpo?.recusados ?? []) logger.warn('item recusado pelo servidor', { id: r.id, motivo: r.motivo });
+
+      // O lote inteiro foi aceito: registra as assinaturas dele ANTES do
+      // próximo. Ver o cabeçalho.
+      for (const { chave, assinatura } of lote.chaves) {
+        if (assinatura) assinaturas[chave] = assinatura;
+        else delete assinaturas[chave];
+      }
+      estado = { ...estado, assinaturas: { ...assinaturas }, ultimoMs: Date.now() };
+      await salvar(estado);
+
+      enviados += lote.chaves.filter((c) => c.assinatura).length;
+      apagados += lote.apagados.length;
     }
-    await writeLocal(STORAGE_KEYS.syncEstado, {
-      assinaturas,
-      ultimoMs: Date.now(),
-    } satisfies EstadoDoSync);
-
-    enviados += lote.itens.length;
-    apagados += lote.apagados.length;
   }
 
-  return { estado: 'ok', enviados, apagados };
-}
+  // ---- a volta
+  let restaurados = 0;
+  const devida =
+    opcoes.forcarRestauracao === true ||
+    estado.restauradoEm === undefined ||
+    Date.now() - estado.restauradoEm >= INTERVALO_DA_RESTAURACAO_MS;
+  if (devida) {
+    try {
+      const r = await restaurar({
+        token,
+        desde: estado.cursor ?? 0,
+        assinaturas: estado.assinaturas,
+        lerDesejado: montarDesejado,
+        assinaturaDe,
+        aoAvancar: async ({ cursor, assinaturas }) => {
+          estado = { ...estado, cursor, assinaturas };
+          await salvar(estado);
+        },
+      });
+      restaurados = r.aplicados;
+      estado = { ...estado, cursor: r.cursor, assinaturas: r.assinaturas, restauradoEm: Date.now() };
+      await salvar(estado);
+    } catch (erro) {
+      if (erro instanceof CredencialRecusada) await descartarToken();
+      logger.warn('restauracao falhou', {
+        motivo: erro instanceof Error ? erro.message : 'desconhecido',
+      });
+    }
+  }
 
+  if (!temPlano && restaurados === 0) return { estado: 'nada-a-fazer' };
+  return { estado: 'ok', enviados, apagados, ...(restaurados > 0 ? { restaurados } : {}) };
+}
 /**
  * Esquece o que já foi enviado, forçando a próxima passada a mandar tudo.
  *
@@ -391,13 +523,17 @@ let pendente: ReturnType<typeof setTimeout> | null = null;
 let rodando = false;
 
 /** Uma passada, sem deixar duas se atropelarem. */
-async function passada(): Promise<void> {
+async function passada(forcarRestauracao = false): Promise<void> {
   if (rodando) return;
   rodando = true;
   try {
-    const r = await sincronizar();
+    const r = await sincronizar({ forcarRestauracao });
     if (r.estado === 'ok') {
-      logger.info('sincronizado', { enviados: r.enviados, apagados: r.apagados });
+      logger.info('sincronizado', {
+        enviados: r.enviados,
+        apagados: r.apagados,
+        restaurados: r.restaurados ?? 0,
+      });
     } else if (r.estado === 'falhou') {
       logger.warn('sincronizacao falhou', { motivo: r.motivo, enviados: r.enviados });
     }
@@ -430,9 +566,11 @@ export function ligarSincronizacaoAutomatica(): void {
     agendarSincronizacao();
   });
 
-  chrome.runtime.onStartup.addListener(() => void passada());
+  // Abrir o navegador é o momento natural de perguntar ao servidor o que as
+  // outras máquinas fizeram enquanto este estava fechado: sempre pergunta.
+  chrome.runtime.onStartup.addListener(() => void passada(true));
   // Na instalação e a cada atualização: é quando o service worker nasce sem
   // nenhum evento de storage para acordá-lo, e pode haver pendência da
   // versão anterior.
-  chrome.runtime.onInstalled.addListener(() => void passada());
+  chrome.runtime.onInstalled.addListener(() => void passada(true));
 }
