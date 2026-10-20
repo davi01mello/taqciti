@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { DOCUMENT_TYPES, generateDocument, isDocumentType } from '@/lib/generateDocument';
 import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
 import { activeDataPolicyWarning } from '@/lib/ai';
+import { erroConhecido } from '@/lib/documentos/requisicao';
 
 /**
  * INERTE NO HOST ATUAL. `maxDuration` é diretiva da Vercel: o Next a compila
@@ -141,6 +142,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const result = await generateDocument({ transcript, title, date, documentType });
-  return NextResponse.json(result, { status: 200, headers });
+  try {
+    const result = await generateDocument({ transcript, title, date, documentType });
+    return NextResponse.json(result, { status: 200, headers });
+  } catch (erro) {
+    // Cota e sobrecarga do provedor viram 429/503 com a mensagem de sempre; antes
+    // o Next respondia 500 com o corpo vazio e quem chamava não sabia o motivo.
+    const conhecido = erroConhecido(erro);
+    if (conhecido) return NextResponse.json({ error: conhecido.error }, { status: conhecido.status, headers });
+    console.error('[generate]', erro);
+    return NextResponse.json(
+      { error: 'Não foi possível gerar o documento agora. Tente de novo em instantes.' },
+      { status: 502, headers },
+    );
+  }
 }
