@@ -158,7 +158,6 @@ export const metricasSchema = z.object({
   modelo: z.string().optional(),
   instrucoesVersao: z.string().optional(),
 });
-export type Metricas = z.infer<typeof metricasSchema>;
 
 /**
  * Uma pergunta do Taq à pessoa, com opções clicáveis quando houver. As opções

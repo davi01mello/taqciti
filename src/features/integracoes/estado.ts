@@ -119,16 +119,6 @@ export async function estadoDasCapacidades(): Promise<Record<CapacidadeExterna, 
   ) as Record<CapacidadeExterna, SituacaoDaCapacidade>;
 }
 
-/** As capacidades que podem ser oferecidas ao modelo agora. */
-export async function capacidadesDisponiveis(): Promise<Set<CapacidadeExterna>> {
-  try {
-    const estados = await estadoDasCapacidades();
-    return new Set(CAPACIDADES_EXTERNAS.filter((c) => estados[c].estado === 'available'));
-  } catch {
-    return new Set();
-  }
-}
-
 // ------------------------------------------------------------------ conectar
 
 /**

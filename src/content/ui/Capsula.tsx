@@ -142,6 +142,19 @@ export function Capsula({
     });
   }, [callbacks]);
 
+  /*
+   * Dizer que a reunião será registrada abre a sidebar: é o momento em que a
+   * pessoa quer ver a transcrição nascer. Abrir vem primeiro — o gesto do clique
+   * é o que autoriza, e ele não sobrevive a um `await`.
+   */
+  const aceitar = useCallback(
+    (decisao: DecisaoDeRegistro) => {
+      abrir();
+      callbacks.onResponder(decisao);
+    },
+    [abrir, callbacks],
+  );
+
   // O clique no ícone da extensão numa aba que já tem a cápsula montada.
   useEffect(() => {
     const aoPedir = () => abrir();
@@ -308,7 +321,7 @@ export function Capsula({
           {gravacaoAnterior && (
             <button
               type="button"
-              onClick={() => callbacks.onResponder(`continuar:${gravacaoAnterior.id}`)}
+              onClick={() => aceitar(`continuar:${gravacaoAnterior.id}`)}
               className="mt-3 w-full rounded-full border border-primary/45 bg-primary/[0.16] px-3 py-2 text-caption font-medium text-glow transition-colors duration-200 hover:bg-primary/25"
             >
               Continuar de onde parou
@@ -317,7 +330,7 @@ export function Capsula({
           <div className={`${gravacaoAnterior ? 'mt-1.5' : 'mt-3'} flex gap-1.5`}>
             <button
               type="button"
-              onClick={() => callbacks.onResponder('aceito')}
+              onClick={() => aceitar('aceito')}
               className={`flex-1 rounded-full px-3 py-2 text-caption transition-colors duration-200 ${
                 gravacaoAnterior
                   ? 'border border-white/15 text-foreground hover:bg-white/[0.07]'

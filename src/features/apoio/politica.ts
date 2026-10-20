@@ -22,7 +22,7 @@
  * reuniões reais. Por isso vivem num lugar só.
  */
 import type { ModoDeIntervencao } from '@/features/conducao/store';
-import { estaAberta, type Sugestao } from './store';
+import type { Sugestao } from './store';
 
 export interface ConfiguracaoDoModo {
   /** Tempo mínimo entre uma sugestão mostrada e a próxima. */
@@ -221,7 +221,3 @@ export function podeAvaliar(p: {
     p.falasConsolidadas - p.ultimaAvaliacao.falas >= cfg.falasNovasParaAvaliar
   );
 }
-
-/** As abertas (pendentes ou na tela) da reunião. */
-export const abertasDaReuniao = (sugestoes: readonly Sugestao[], reuniaoId: string): Sugestao[] =>
-  sugestoes.filter((s) => s.reuniaoId === reuniaoId && estaAberta(s));

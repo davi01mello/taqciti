@@ -38,7 +38,6 @@ import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange, readLocal, writeLocal } from '@/shared/services/storage';
 import { comTravaLocal } from '@/shared/services/storageLock';
 
-export const VERSAO_DO_ESTADO = 1;
 export const MAX_PONTOS = 10;
 const MAX_HISTORICO_DO_PONTO = 12;
 const MAX_TEXTO = 160;
