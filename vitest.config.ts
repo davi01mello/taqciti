@@ -25,6 +25,7 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
     environment: 'jsdom',
+    setupFiles: ['src/test/semRede.ts'],
     /*
      * Os testes que montam a HOME ou a sidebar inteiras em jsdom levam alguns
      * segundos já numa máquina folgada; com a CPU ocupada o limite padrão de
