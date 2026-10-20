@@ -570,6 +570,14 @@ export function resolverPerfil(id = 'citi'): PerfilDocumental {
   return PERFIL_CITI_PROVISORIO;
 }
 
+/**
+ * A aparência dos documentos personalizados quando o pedido não diz: a da
+ * Apostila Unit Economics. É decisão do compilador, em código — não depende de
+ * qual modelo escreveu o texto (Gemini, Grok ou outro). A Ata continua sendo o
+ * padrão do perfil para quem pede ta explicitamente.
+ */
+export const VARIANTE_DOS_PERSONALIZADOS = 'editorial';
+
 /** A variante pedida; sem pedido, a primeira. Variante inexistente falha. */
 export function resolverVariante(perfil: PerfilDocumental, id?: string): VarianteVisual {
   if (!id) return perfil.variantes[0]!;

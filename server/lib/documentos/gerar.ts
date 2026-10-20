@@ -30,6 +30,7 @@ import {
   type ReferenciaDeFonte,
 } from './contentTree';
 import { compilarPdf, type Compilado } from './compilador';
+import { VARIANTE_DOS_PERSONALIZADOS } from './perfil';
 import type { DocumentBrief, QualityReport, RenderManifest } from './contratos';
 
 export interface FonteDoDocumento {
@@ -482,7 +483,7 @@ export async function gerarDocumentoPersonalizado(
     );
   }
 
-  const compilado = await compilarPdf(arvore, entrada.variante ? { variante: entrada.variante } : {});
+  const compilado = await compilarPdf(arvore, { variante: entrada.variante ?? VARIANTE_DOS_PERSONALIZADOS });
   return {
     arvore,
     pdf: compilado.pdf,
@@ -701,7 +702,7 @@ export async function editarDocumentoPersonalizado(entrada: PedidoDeEdicao): Pro
     .map((l) => ({ campo: l.campo!.trim(), pergunta: l.pergunta!.trim() }));
   const arvoreFinal = { ...nova, lacunas: [...nova.lacunas, ...lacunas] };
 
-  const compilado = await compilarPdf(arvoreFinal, entrada.variante ? { variante: entrada.variante } : {});
+  const compilado = await compilarPdf(arvoreFinal, { variante: entrada.variante ?? VARIANTE_DOS_PERSONALIZADOS });
   return {
     arvore: arvoreFinal,
     pdf: compilado.pdf,

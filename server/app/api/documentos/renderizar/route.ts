@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
 import { compilarDocumento } from '@/lib/documentos/compilador';
 import { contentTreeSchema } from '@/lib/documentos/contentTree';
+import { VARIANTE_DOS_PERSONALIZADOS } from '@/lib/documentos/perfil';
 import { erroConhecido, mensagemDeValidacao } from '@/lib/documentos/requisicao';
 
 /**
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const { arvore, variante, formatos } = validado.data;
     const compilado = await compilarDocumento(arvore, {
-      ...(variante ? { variante } : {}),
+      variante: variante ?? VARIANTE_DOS_PERSONALIZADOS,
       formatos: formatos ?? ['pdf'],
     });
     return NextResponse.json(

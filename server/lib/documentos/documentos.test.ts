@@ -10,6 +10,7 @@ import {
   diagnosticarVariante,
   varianteAplicavel,
   PAPEIS_DE_ESTILO,
+  VARIANTE_DOS_PERSONALIZADOS,
 } from './perfil';
 import {
   aplicarPatch,
@@ -71,6 +72,12 @@ describe('perfil documental', () => {
     expect(editorial.componentes.map((c) => c.id)).toEqual(
       expect.arrayContaining(['capa_gradiente', 'destaque_formula', 'atividade_com_pauta', 'tabela_listrada']),
     );
+  });
+
+  it('documento personalizado sem variante pedida sai no estilo da Apostila, seja qual for o redator', () => {
+    expect(VARIANTE_DOS_PERSONALIZADOS).toBe('editorial');
+    const variante = resolverVariante(PERFIL_CITI_PROVISORIO, VARIANTE_DOS_PERSONALIZADOS);
+    expect(varianteAplicavel(variante)).toBe(true);
   });
 
   it('a variante ata é aplicável sem nenhuma pendência', () => {
