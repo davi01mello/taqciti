@@ -92,12 +92,14 @@ describe('template da Ata', () => {
     expect(silenciosas).toEqual(['topico_geral', 'topicos_discutidos', 'decisoes', 'conclusao']);
   });
 
-  it('só Outcomes e Outputs somem quando vazios', () => {
+  it('só Outcomes, Outputs e Assinatura somem quando vazios', () => {
+    // A Assinatura some sem nome de quem assina: não há fecho a imprimir, e a
+    // pessoa não é perguntada por isso.
     const omitiveis = TEMPLATES.ata.sections
       .filter((section) => section.omitWhenEmpty)
       .map((section) => section.id)
       .sort();
-    expect(omitiveis).toEqual(['outcomes', 'outputs']);
+    expect(omitiveis).toEqual(['assinatura', 'outcomes', 'outputs']);
   });
 });
 

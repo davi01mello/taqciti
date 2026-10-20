@@ -47,6 +47,7 @@ import {
   type Gap,
 } from '../documentData';
 import type { SectionSpec } from '../templates/types';
+import { ehRotuloDeSelf } from '../rotuloDeSelf';
 import { marcaDataUri, MARCA_CAPA_ALTURA_PT, MARCA_CAPA_LARGURA_PT } from './brand';
 import {
   CINZA_LINHA,
@@ -170,8 +171,8 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
     // CAPA (ver `subtituloDaCapa`), e no modelo ele aparece uma vez só, sob o
     // título — repeti-lo aqui era divergência, não redundância inofensiva.
     render(data, gaps) {
-      const quando = data.metadata?.date;
-      return linhaRotulada('DATA', quando ? escapeHtml(quando) : lacunaDe(gaps, 'metadata.date'));
+      const quando = data.metadata?.date ? escapeHtml(data.metadata.date) : lacunaDe(gaps, 'metadata.date');
+      return quando ? linhaRotulada('DATA', quando) : '';
     },
   },
 
@@ -189,12 +190,17 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
   participantes: {
     cabecalho: false,
     render(data, gaps) {
-      const itens = (data.participants ?? []).map((participante) => {
-        const cargo = participante.role
-          ? escapeHtml(participante.role)
-          : lacunaDe(gaps, `participants[${participante.name}].role`);
-        return `${escapeHtml(participante.name)} &ndash; ${cargo}`;
-      });
+      // "Você" não é nome e não entra; sem cargo, sai só o nome.
+      const itens = (data.participants ?? [])
+        .filter((participante) => !ehRotuloDeSelf(participante.name))
+        .map((participante) => {
+          const cargo = participante.role
+            ? escapeHtml(participante.role)
+            : lacunaDe(gaps, `participants[${participante.name}].role`);
+          return cargo
+            ? `${escapeHtml(participante.name)} &ndash; ${cargo}`
+            : escapeHtml(participante.name);
+        });
       return [
         p(`<span style="${S.rotulo}">PARTICIPANTES &ndash; CARGO:</span>`, S.rotuloLinha),
         lista(itens, false, S.itemParticipante),
@@ -242,15 +248,18 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
   assinatura: {
     cabecalho: false,
     render(data, gaps) {
+      // Sem nome de quem assina não há fecho: um "Atenciosamente" sobre um
+      // campo vazio é pior que nenhum.
       const nome = data.signature?.name
         ? escapeHtml(data.signature.name)
         : lacunaDe(gaps, 'signature.name');
+      if (!nome) return '';
       const cargo = data.signature?.role
         ? escapeHtml(data.signature.role)
         : lacunaDe(gaps, 'signature.role');
       return [
         p('Atenciosamente,', `${S.corpo};margin-top:28pt`),
-        p(`${nome} &ndash; ${cargo}`),
+        p(cargo ? `${nome} &ndash; ${cargo}` : nome),
       ].join('\n');
     },
   },
@@ -272,8 +281,8 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
             ? escapeHtml(par.resposta)
             : lacunaDe(gaps, `qa[${index}].resposta`);
           return [
-            linhaRotulada('Gente e gestão', pergunta),
-            linhaRotulada('Entrevistado', resposta),
+            ...(pergunta ? [linhaRotulada('Gente e gestão', pergunta)] : []),
+            ...(resposta ? [linhaRotulada('Entrevistado', resposta)] : []),
           ].join('\n');
         })
         .join(`\n<div style="margin:0 0 14pt 0"></div>\n`);
@@ -311,17 +320,13 @@ const GENERIC_RENDERER: SectionRenderer = {
 };
 
 /**
- * O marcador do campo, ou um marcador genérico quando a lacuna não chegou.
- *
- * O fallback existe porque campo ausente sem lacuna correspondente é possível
- * — `askWhenMissing` vazio faz a seção degradar em silêncio de propósito — e
- * ali o documento ainda precisa mostrar que falta algo. Deixar o campo vazio
- * diria ao leitor que a reunião não tinha aquilo, e não que não se conseguiu
- * determinar.
+ * O marcador do campo — só quando a lacuna é uma dúvida EXTREMA. Qualquer
+ * outro campo ausente simplesmente não entra no documento (`null`): um
+ * "[A preencher: …]" num documento que o cliente lê é defeito, não aviso.
  */
-function lacunaDe(gaps: Lacunas, field: string): string {
+function lacunaDe(gaps: Lacunas, field: string): string | null {
   const gap = doCampo(gaps, field);
-  return gap ? lacuna(gap.question) : `<span style="${S.lacuna}">${escapeHtml(textoDeLacuna(field))}</span>`;
+  return gap?.extrema === true ? lacuna(gap.question) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -488,15 +493,12 @@ function blocoDeAbertura(titulo: string, subtitulo: string): string {
  *  não na página de conteúdo. Devolve '' pros tipos de documento sem o
  *  conceito de projeto/data. */
 function subtituloDaCapa(data: DocumentData, gaps: Lacunas): string {
-  const projeto = data.metadata?.projectName;
-  const quando = data.metadata?.date;
-  return p(
-    [
-      projeto ? escapeHtml(projeto) : lacunaDe(gaps, 'metadata.projectName'),
-      quando ? escapeHtml(quando) : lacunaDe(gaps, 'metadata.date'),
-    ].join(' - '),
-    S.subtitulo,
-  );
+  const projeto = data.metadata?.projectName
+    ? escapeHtml(data.metadata.projectName)
+    : lacunaDe(gaps, 'metadata.projectName');
+  const quando = data.metadata?.date ? escapeHtml(data.metadata.date) : lacunaDe(gaps, 'metadata.date');
+  const partes = [projeto, quando].filter((parte): parte is string => parte !== null);
+  return partes.length > 0 ? p(partes.join(' - '), S.subtitulo) : '';
 }
 
 /** Linha fina cinza, texto preto — no modelo o cinza é só do traço. */
@@ -517,7 +519,9 @@ function rodape(): string {
  * afirmação errada.
  */
 function pendenciasSoltas(gaps: Gap[], jaRenderizado: string): string {
-  const soltas = gaps.filter((gap) => !jaRenderizado.includes(escapeHtml(gap.question)));
+  const soltas = gaps.filter(
+    (gap) => gap.extrema === true && !jaRenderizado.includes(escapeHtml(gap.question)),
+  );
   if (soltas.length === 0) return '';
   return soltas.map((gap) => p(lacuna(gap.question))).join('\n');
 }

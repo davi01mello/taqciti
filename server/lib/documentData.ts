@@ -203,7 +203,17 @@ export interface Gap {
   /** Pergunta objetiva ao usuário. Vem de `askWhenMissing` quando existe. */
   question: string;
   why: string;
+  /**
+   * Só uma dúvida EXTREMA vira pergunta ao usuário e aparece no documento.
+   * Cargo faltando, quem assina, nome do projeto, afirmação que o Auditor
+   * derrubou: nada disso justifica um campo `[A preencher]` no documento que
+   * o cliente lê — o campo simplesmente não entra. Ver `soDuvidasExtremas`.
+   */
+  extrema?: boolean;
 }
+
+/** As lacunas que valem uma pergunta. Nenhuma detecção automática marca `extrema` hoje. */
+export const soDuvidasExtremas = (gaps: Gap[]): Gap[] => gaps.filter((gap) => gap.extrema === true);
 
 /**
  * O texto da lacuna como o leitor do documento a vê.
@@ -293,8 +303,8 @@ function secaoMarkdown(section: SectionSpec, corpo: string[]): string {
 
 /** O marcador de lacuna em markdown. Igual ao de `vazamento.ts`, e pelo
  *  mesmo `textoDeLacuna`, para os dois não divergirem. */
-function marcador(gap: Gap | undefined, campo: string): string {
-  return `**${textoDeLacuna(gap ? gap.question : campo)}**`;
+function marcador(gap: Gap | undefined): string | null {
+  return gap?.extrema === true ? `**${textoDeLacuna(gap.question)}**` : null;
 }
 
 const lacunaDoCampo = (gaps: Gap[], field: string): Gap | undefined =>
@@ -451,14 +461,13 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       ]);
     },
     markdown(data, _section, gaps) {
-      const projeto = data.metadata?.projectName ?? marcador(lacunaDoCampo(gaps, 'metadata.projectName'), 'projeto');
-      const quando = data.metadata?.date ?? marcador(lacunaDoCampo(gaps, 'metadata.date'), 'data');
+      const projeto = data.metadata?.projectName ?? marcador(lacunaDoCampo(gaps, 'metadata.projectName'));
+      const quando = data.metadata?.date ?? marcador(lacunaDoCampo(gaps, 'metadata.date'));
+      const subtitulo = [projeto, quando].filter(Boolean).join(' - ');
       return [
         '## Identificação',
-        '',
-        `${projeto} - ${quando}`,
-        '',
-        `**DATA:** ${quando}`,
+        ...(subtitulo ? ['', subtitulo] : []),
+        ...(quando ? ['', `**DATA:** ${quando}`] : []),
       ].join('\n');
     },
   },
@@ -562,15 +571,14 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
       );
     },
     markdown(data, _section, gaps) {
-      const linhas = (data.participants ?? []).map((p) => {
-        const cargo =
-          p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`), `cargo de ${p.name}`);
-        // "Você" não é nome: sai como lacuna, e a pessoa continua na lista.
-        const nome = ehRotuloDeSelf(p.name)
-          ? marcador(lacunaDoCampo(gaps, `participants[${p.name}].name`), `nome de "${p.name}"`)
-          : p.name;
-        return `- ${nome} – ${cargo}`;
-      });
+      // "Você" não é nome: sem nome real, a linha não entra (e nenhuma pergunta
+      // é feita). Sem cargo, sai só o nome.
+      const linhas = (data.participants ?? [])
+        .filter((p) => !ehRotuloDeSelf(p.name))
+        .map((p) => {
+          const cargo = p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`));
+          return cargo ? `- ${p.name} – ${cargo}` : `- ${p.name}`;
+        });
       return ['## Participantes e cargos', '', '**PARTICIPANTES – CARGO:**', '', ...linhas].join('\n');
     },
   },
@@ -758,17 +766,18 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     claims: () => [],
     drop: () => {},
     serialize(data) {
-      // Nunca `null`: a assinatura é o fechamento da ata e existe mesmo sem
-      // nome — nesse caso ela sai com lacuna, e não sumindo.
+      // Sem nome de quem assina, o fecho não existe: a reunião não diz quem
+      // assina, e um "Atenciosamente" sobre um campo vazio é pior que nenhum.
+      if (!data.signature?.name) return null;
       return bullets([
-        `Nome de quem assina: ${data.signature?.name ?? '(não determinado)'}`,
-        `Cargo de quem assina: ${data.signature?.role ?? '(não determinado)'}`,
+        `Nome de quem assina: ${data.signature.name}`,
+        ...(data.signature.role ? [`Cargo de quem assina: ${data.signature.role}`] : []),
       ]);
     },
-    markdown(data, _section, gaps) {
-      const nome = data.signature?.name ?? marcador(lacunaDoCampo(gaps, 'signature.name'), 'quem assina');
-      const cargo = data.signature?.role ?? marcador(lacunaDoCampo(gaps, 'signature.role'), 'cargo de quem assina');
-      return ['## Assinatura', '', 'Atenciosamente,', '', `${nome} – ${cargo}`].join('\n');
+    markdown(data, section) {
+      if (!data.signature?.name) return secaoMarkdown(section, []);
+      const assina = data.signature.role ? `${data.signature.name} – ${data.signature.role}` : data.signature.name;
+      return ['## Assinatura', '', 'Atenciosamente,', '', assina].join('\n');
     },
   },
 
@@ -887,13 +896,13 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
     markdown(data, _section, gaps) {
       const pares = data.qa ?? [];
       const blocos = pares.map((par, index) => {
-        const pergunta =
-          par.pergunta ??
-          marcador(lacunaDoCampo(gaps, `qa[${index}].pergunta`), `a pergunta ${index + 1}`);
-        const resposta =
-          par.resposta ??
-          marcador(lacunaDoCampo(gaps, `qa[${index}].resposta`), `a resposta ${index + 1}`);
-        return [`**Gente e gestão:** ${pergunta}`, '', `**Entrevistado:** ${resposta}`].join('\n');
+        const pergunta = par.pergunta ?? marcador(lacunaDoCampo(gaps, `qa[${index}].pergunta`));
+        const resposta = par.resposta ?? marcador(lacunaDoCampo(gaps, `qa[${index}].resposta`));
+        return [
+          ...(pergunta ? [`**Gente e gestão:** ${pergunta}`] : []),
+          ...(pergunta && resposta ? [''] : []),
+          ...(resposta ? [`**Entrevistado:** ${resposta}`] : []),
+        ].join('\n');
       });
       return ['## Perguntas e respostas', '', blocos.join('\n\n')].join('\n');
     },

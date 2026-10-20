@@ -31,7 +31,7 @@
 import type { DocumentType } from './documentTypes';
 import { TEMPLATES } from './templates';
 import type { SectionSpec } from './templates/types';
-import { specForSection, type DocumentData, type Gap } from './documentData';
+import { soDuvidasExtremas, specForSection, type DocumentData, type Gap } from './documentData';
 export type { DocumentData, Gap };
 import { detectGaps, ler, type SecaoLida } from './agents/leitor';
 import { auditar, type AuditVerdict } from './agents/auditor';
@@ -237,12 +237,19 @@ export async function apurar(input: ApurarInput): Promise<ApurarResult> {
 
   // Lacuna calculada DEPOIS do descarte: o participante rejeitado não pode
   // deixar para trás uma pergunta sobre o cargo dele.
+  //
+  // E só a dúvida EXTREMA sobrevive: o documento sai sem campo "[A preencher]"
+  // para cargo, assinatura, nome do projeto ou afirmação descartada — o campo
+  // simplesmente não entra, e ninguém recebe pergunta por isso.
   const gapsPorSecao = new Map<string, Gap[]>();
   for (const section of pendentes) {
-    gapsPorSecao.set(section.id, [
-      ...detectGaps(section, data),
-      ...(descartadasPorSecao.get(section.id) ?? []).map(discardedAsGap),
-    ]);
+    gapsPorSecao.set(
+      section.id,
+      soDuvidasExtremas([
+        ...detectGaps(section, data),
+        ...(descartadasPorSecao.get(section.id) ?? []).map(discardedAsGap),
+      ]),
+    );
   }
 
   return {

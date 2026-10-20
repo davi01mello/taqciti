@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { contentTreeSchema, ConflitoDeRevisao } from './contentTree';
 import { ErroDeCompilacao } from './compilador';
+import { DocumentoSemConteudoError } from './doCatalogo';
 import { OverloadedError, RateLimitError } from '../ai/types';
 import { ErroDeGeracao, type ResultadoDaEdicao, type ResultadoDoDocumento } from './gerar';
 
@@ -72,7 +73,11 @@ export function erroConhecido(erro: unknown): { status: number; error: string } 
       error: `${erro.message} O documento mudou desde que você o abriu; recarregue a versão atual.`,
     };
   }
-  if (erro instanceof ErroDeGeracao || erro instanceof ErroDeCompilacao) {
+  if (
+    erro instanceof ErroDeGeracao ||
+    erro instanceof ErroDeCompilacao ||
+    erro instanceof DocumentoSemConteudoError
+  ) {
     return { status: 422, error: erro.message };
   }
   // O provedor de IA, dito como é: cota ou sobrecarga. Quem usa precisa saber que

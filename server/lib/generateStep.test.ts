@@ -145,8 +145,9 @@ describe('montagem da Ata', () => {
       .slice()
       .sort((a, b) => a.order - b.order)
       .map((s) => s.id)
-      // outcomes e outputs somem: `omitWhenEmpty` e sem item.
-      .filter((id) => id !== 'outcomes' && id !== 'outputs');
+      // outcomes, outputs e assinatura somem: `omitWhenEmpty` e sem item (a
+      // assinatura, sem nome de quem assina).
+      .filter((id) => id !== 'outcomes' && id !== 'outputs' && id !== 'assinatura');
 
     expect(sections.map((s) => s.id)).toEqual(esperada);
   });
@@ -170,36 +171,38 @@ describe('montagem da Ata', () => {
     expect(por('conclusao')).toContain('O projeto segue com a entrega remarcada.');
   });
 
-  it('a lacuna do cargo aparece marcada no documento', async () => {
+  /*
+   * Campo ausente não vira "[A preencher]" nem pergunta: o documento do cliente
+   * sai sem ele. Só dúvida EXTREMA (`gap.extrema`) sobreviveria, e nenhuma
+   * detecção automática a marca.
+   */
+  it('cargo ausente: a pessoa continua na lista, sem marcador', async () => {
     mockPipeline();
     const { sections } = await run();
     const participantes = sections.find((s) => s.id === 'participantes')!;
-    expect(participantes.content).toContain('**[A preencher:');
-    expect(participantes.content).toContain('Joao');
+    expect(participantes.content).not.toContain('A preencher');
+    expect(participantes.content).toContain('- Joao');
+    expect(participantes.content).not.toContain('- Joao –');
   });
 
-  it('a Assinatura sai com lacuna e vira as duas perguntas', async () => {
+  it('sem nome de quem assina, a Assinatura some — e ninguém é perguntado', async () => {
     mockPipeline();
     const { sections, questions } = await run();
-    expect(sections.find((s) => s.id === 'assinatura')!.content).toContain('[A preencher:');
-    expect(questions.map((q) => q.id)).toEqual(
-      expect.arrayContaining(['assinatura:signature.name', 'assinatura:signature.role']),
-    );
+    expect(sections.find((s) => s.id === 'assinatura')).toBeUndefined();
+    expect(questions).toEqual([]);
   });
 
-  it('as lacunas voltam como perguntas', async () => {
+  it('nenhuma lacuna comum vira pergunta', async () => {
     mockPipeline();
-    const { questions } = await run();
-    const cargo = questions.find((q) => q.id.includes('participants[Joao].role'));
-    expect(cargo).toBeDefined();
-    expect(cargo!.why).toContain('cargo de Joao');
-    expect(cargo!.optional).toBe(false);
+    const { questions, gaps } = await run();
+    expect(questions).toEqual([]);
+    expect(gaps).toEqual([]);
   });
 
-  it('confidence reflete a seção: partial onde há lacuna, ok onde não há', async () => {
+  it('confidence reflete a seção: sem lacuna a considerar, ok', async () => {
     mockPipeline();
     const { sections } = await run();
-    expect(sections.find((s) => s.id === 'participantes')!.confidence).toBe('partial');
+    expect(sections.find((s) => s.id === 'participantes')!.confidence).toBe('ok');
     expect(sections.find((s) => s.id === 'topicos_discutidos')!.confidence).toBe('ok');
   });
 
@@ -251,13 +254,14 @@ describe('montagem da Ata', () => {
 });
 
 describe('o que o Auditor rejeita', () => {
-  it('sai do documento e vira lacuna — sem segunda leitura', async () => {
+  it('sai do documento, fica no relatório e não vira pergunta — sem segunda leitura', async () => {
     mockPipeline({}, ['Adiar a entrega']);
     const { documentData, sections, gaps, report } = await run();
 
     expect(documentData.decisions).toEqual([]);
     expect(sections.find((s) => s.id === 'decisoes')!.content).not.toContain('- Adiar a entrega');
-    expect(gaps.some((g) => g.field === 'decisions[0]')).toBe(true);
+    // A afirmação derrubada não deixa "[A preencher]" no documento do cliente.
+    expect(gaps.some((g) => g.field === 'decisions[0]')).toBe(false);
     expect(report.discarded).toEqual([
       expect.objectContaining({ sectionId: 'decisoes', path: 'decisions[0]', reason: 'motivo do auditor' }),
     ]);

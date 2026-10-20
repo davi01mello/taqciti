@@ -240,9 +240,11 @@ export const ata: DocumentTemplate = {
       order: 9,
       required: true,
       audit: 'none',
-      omitWhenEmpty: false,
-      // Quem assina é quem gera a ata, e a transcrição não diz isso. Vira
-      // pergunta direto, sem ler a reunião — ver `fromUserOnly`.
+      // Sem nome de quem assina, a seção some: a transcrição não diz quem
+      // assina, e a pessoa não é mais perguntada por isso (só dúvida extrema
+      // vira pergunta). Um "Atenciosamente" sobre um campo vazio é pior que
+      // nenhum fecho.
+      omitWhenEmpty: true,
       fromUserOnly: true,
       needs: ['nome de quem assina', 'cargo de quem assina'],
       guidance: [

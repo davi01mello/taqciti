@@ -25,7 +25,7 @@ import {
 import { assertSemVazamento } from './vazamento';
 import { formatarDataDaReuniao } from './dataDaReuniao';
 import { renderHtml } from './render/html';
-import { renderPdf } from './render/pdf';
+import { DocumentoSemConteudoError, renderPdfDoCatalogo } from './documentos/doCatalogo';
 
 export { DOCUMENT_TYPES, isDocumentType };
 export type { DocumentType };
@@ -132,9 +132,18 @@ export async function generateDocument(
   // sem PDF nesta chamada.
   let pdf: string | undefined;
   try {
-    const pdfBuffer = await renderPdf({ documentType: input.documentType, data: documentData, gaps, title });
+    const pdfBuffer = await renderPdfDoCatalogo({
+      documentType: input.documentType,
+      data: documentData,
+      gaps,
+      ...(input.title ? { tituloDaReuniao: input.title } : {}),
+    });
     pdf = pdfBuffer.toString('base64');
   } catch (error) {
+    // Documento sem conteúdo não é "PDF que falhou": é um pedido que não faz
+    // sentido para esta reunião (X1 numa reunião de equipe), e quem pediu
+    // precisa saber — em vez de receber uma capa e mais nada.
+    if (error instanceof DocumentoSemConteudoError) throw error;
     console.error('[generateDocument] falha ao gerar o PDF — devolvendo sem ele', error);
   }
 

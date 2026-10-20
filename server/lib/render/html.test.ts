@@ -226,33 +226,42 @@ describe('escape', () => {
   });
 });
 
+/*
+ * Campo ausente NÃO vira "[A preencher: …]". Cargo que a reunião não disse,
+ * quem assina, nome do projeto, afirmação que o Auditor derrubou: a linha
+ * simplesmente não entra no documento do cliente. Só uma dúvida marcada
+ * `extrema` aparece (e hoje nenhuma detecção automática a marca).
+ */
 describe('lacunas', () => {
-  it('cargo ausente vira marcador no lugar do cargo, não linha separada', () => {
+  const extrema: Gap = { ...lacunaCargo, extrema: true };
+
+  it('cargo ausente: sai só o nome, sem marcador', () => {
     const html = render();
-    expect(html).toContain(
-      `Ana &ndash; <span style="font-weight:bold;color:#000000">${escapeHtml(
-        textoDeLacuna(lacunaCargo.question),
-      )}</span>`,
-    );
+    expect(html).toContain('Ana</li>');
+    expect(html).not.toContain('A preencher');
+    expect(html).not.toContain(escapeHtml(lacunaCargo.question));
   });
 
-  it('HTML e markdown mostram a MESMA frase de lacuna', () => {
-    // Se divergirem, a ata em HTML e a em markdown discordam sobre o que
-    // falta — e a estrutura é a mesma nas duas.
-    const nu = marcadorDeLacuna(lacunaCargo).replace(/\*\*/g, '');
-    expect(render()).toContain(escapeHtml(nu));
+  it('uma lacuna extrema aparece no lugar do cargo, e é a mesma frase do markdown', () => {
+    // Se divergirem, a ata em HTML e a em markdown discordam sobre o que falta.
+    const html = render(completa, [extrema]);
+    expect(html).toContain(`Ana &ndash; <span style="font-weight:bold;color:#000000">${escapeHtml(textoDeLacuna(extrema.question))}</span>`);
+    expect(html).toContain(escapeHtml(marcadorDeLacuna(extrema).replace(/\*\*/g, '')));
   });
 
-  it('campo sem lacuna correspondente ainda mostra que falta algo', () => {
-    // `askWhenMissing` vazio faz a seção degradar em silêncio de propósito.
-    // Ali o documento ainda precisa dizer que não se determinou — campo em
-    // branco diria que a reunião não tinha aquilo.
-    expect(render({ ...completa, metadata: {} }, [])).toContain('A preencher');
+  it('campo ausente sem lacuna simplesmente não entra', () => {
+    const html = render({ ...completa, metadata: {}, signature: {} }, []);
+    expect(html).not.toContain('A preencher');
+    expect(html).not.toContain('DATA:');
+    expect(html).not.toContain('Atenciosamente');
   });
 
-  it('lacuna sem campo próprio vai para o fim da seção, não some', () => {
-    // É o caso da afirmação descartada pelo Auditor: ela não tem um campo
-    // para ocupar, mas o leitor precisa ver que ali falta algo.
+  it('"Você" não é nome e não entra na lista de participantes', () => {
+    const html = render({ ...completa, participants: [...completa.participants!, { name: 'Você', roleSource: 'unknown', quotes: [] }] }, []);
+    expect(html).not.toContain('Você');
+  });
+
+  it('afirmação descartada pelo Auditor some sem deixar pergunta no documento', () => {
     const descartada: Gap = {
       sectionId: 'decisoes',
       field: 'decisions[0]',
@@ -260,8 +269,12 @@ describe('lacunas', () => {
       why: 'Rejeitada duas vezes.',
     };
     const html = render(completa, [descartada]);
-    const secao = html.slice(html.indexOf('>Decisões tomadas</h2>'));
-    expect(secao).toContain(escapeHtml(textoDeLacuna(descartada.question)));
+    expect(html).not.toContain(escapeHtml(descartada.question));
+    // Já a dúvida extrema, sem campo próprio, vai para o fim da seção.
+    const secao = render(completa, [{ ...descartada, extrema: true }]);
+    expect(secao.slice(secao.indexOf('>Decisões tomadas</h2>'))).toContain(
+      escapeHtml(textoDeLacuna(descartada.question)),
+    );
   });
 });
 
@@ -382,7 +395,7 @@ describe('X1 — perguntas e respostas', () => {
     expect(html).not.toContain('Ata de reunião</h1>');
   });
 
-  it('campo descartado pela auditoria vira lacuna, não some o par inteiro', () => {
+  it('campo descartado pela auditoria: o par sobra sem o lado que caiu, sem marcador', () => {
     const html = renderHtml({
       documentType: 'x1',
       data: {
@@ -399,7 +412,9 @@ describe('X1 — perguntas e respostas', () => {
       title: 'X1',
     });
     expect(html).toContain('Por que você quer essa vaga?');
-    expect(html).toContain('Qual foi a resposta a esta pergunta?');
+    expect(html).not.toContain('Qual foi a resposta a esta pergunta?');
+    expect(html).not.toContain('A preencher');
+    expect(html).not.toContain('Entrevistado');
   });
 });
 

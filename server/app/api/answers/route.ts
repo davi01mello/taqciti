@@ -18,7 +18,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
 import { applyAnswers } from '@/lib/applyAnswers';
 import { renderHtml } from '@/lib/render/html';
-import { renderPdf } from '@/lib/render/pdf';
+import { renderPdfDoCatalogo } from '@/lib/documentos/doCatalogo';
 import { isDocumentType } from '@/lib/documentTypes';
 import { TEMPLATES } from '@/lib/templates';
 import { assertSemVazamento } from '@/lib/vazamento';
@@ -110,11 +110,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // pra quem só respondeu uma lacuna.
   let pdf: string | undefined;
   try {
-    const pdfBuffer = await renderPdf({
+    const pdfBuffer = await renderPdfDoCatalogo({
       documentType: body.documentType,
       data: resultado.data,
       gaps: resultado.gaps,
-      title: titulo,
+      ...(typeof body.title === 'string' && body.title.trim() ? { tituloDaReuniao: body.title } : {}),
     });
     pdf = pdfBuffer.toString('base64');
   } catch (error) {
