@@ -18,9 +18,13 @@ import {
   assinar,
   assinaturaDe,
   esquecerSincronizado,
+  NOME_DO_ALARME,
+  PERIODO_DO_ALARME_MIN,
   fatiar,
+  ligarSincronizacaoAutomatica,
   montarDesejado,
   planejar,
+  resumoDaCota,
   sincronizar,
 } from './sincronizacao';
 import { reuniaoParaOAcervo } from './paraOAcervo';
@@ -151,7 +155,7 @@ describe('montarDesejado', () => {
     expect((await montarDesejado()).size).toBe(0);
   });
 
-  it('junta as quatro coleções com id composto', async () => {
+  it('junta as coleções com id composto (e cada print como item próprio)', async () => {
     await chrome.storage.local.set({
       [STORAGE_KEYS.history]: [reuniao()],
       [STORAGE_KEYS.documents]: [
@@ -176,6 +180,7 @@ describe('montarDesejado', () => {
       'conversa:c1',
       'documento:d1',
       'nota:r1',
+      'print:s1',
       'reuniao:r1',
     ]);
   });
@@ -384,10 +389,12 @@ describe('sincronizar', () => {
       [STORAGE_KEYS.history]: Array.from({ length: 60 }, (_, i) => reuniao({ id: `r${i}` })),
     });
 
-    let chamada = 0;
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      chamada += 1;
-      return chamada === 1
+    // Só as SUBIDAS contam: o primeiro lote passa, o segundo cai.
+    let subida = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      if (init?.method === 'GET') return new Response(JSON.stringify({ itens: [], proximo: 0, fim: true }));
+      subida += 1;
+      return subida === 1
         ? new Response(JSON.stringify({ gravados: 50 }))
         : new Response('erro', { status: 500 });
     });
@@ -436,12 +443,10 @@ describe('sincronizar', () => {
     await sincronizar();
 
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [] });
-    const rede = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ apagados: 1 })));
+    const rede = servidor(() => new Response(JSON.stringify({ apagados: 1 })));
 
     expect(await sincronizar()).toEqual({ estado: 'ok', enviados: 0, apagados: 1 });
-    const corpo = JSON.parse((rede.mock.calls[0]?.[1] as RequestInit).body as string);
+    const corpo = JSON.parse((subidas(rede)[0]?.[1] as RequestInit).body as string);
     expect(corpo.apagados).toEqual([{ tipo: 'reuniao', id: 'r1' }]);
   });
 
@@ -604,4 +609,119 @@ describe('fatiar por bytes', () => {
       expect(tipos.filter((t) => t === 'reuniao')).toHaveLength(tipos.filter((t) => t === 'copia').length);
     }
   });
+});
+
+
+// --------------------------------------------------------- o alarme
+
+describe('a atualização automática (alarme)', () => {
+  /** O `chrome` do background: storage + runtime + alarms, com os listeners capturáveis. */
+  function montarBackground(opcoes: { alarmeJaExiste?: boolean; semAlarms?: boolean } = {}) {
+    const alarmes = {
+      create: vi.fn(),
+      get: vi.fn(async () => (opcoes.alarmeJaExiste ? { name: NOME_DO_ALARME } : undefined)),
+      onAlarm: { addListener: vi.fn() },
+    };
+    const g = globalThis as unknown as { chrome: Record<string, unknown> };
+    g.chrome = {
+      ...g.chrome,
+      runtime: {
+        lastError: undefined,
+        onStartup: { addListener: vi.fn() },
+        onInstalled: { addListener: vi.fn() },
+      },
+      ...(opcoes.semAlarms ? {} : { alarms: alarmes }),
+    };
+    return alarmes;
+  }
+
+  it('cria um alarme periódico de 5 minutos, uma vez', async () => {
+    const alarmes = montarBackground();
+    ligarSincronizacaoAutomatica();
+    await vi.waitFor(() => expect(alarmes.create).toHaveBeenCalledTimes(1));
+    expect(alarmes.create).toHaveBeenCalledWith(NOME_DO_ALARME, {
+      periodInMinutes: PERIODO_DO_ALARME_MIN,
+      delayInMinutes: PERIODO_DO_ALARME_MIN,
+    });
+    expect(PERIODO_DO_ALARME_MIN).toBe(5);
+  });
+
+  it('não recria um alarme que já existe: acordar o worker não reinicia a contagem', async () => {
+    const alarmes = montarBackground({ alarmeJaExiste: true });
+    ligarSincronizacaoAutomatica();
+    await vi.waitFor(() => expect(alarmes.get).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(alarmes.create).not.toHaveBeenCalled();
+  });
+
+  it('o alarme dispara uma passada que PERGUNTA ao servidor, mesmo sem nada local para enviar', async () => {
+    await ligar();
+    const alarmes = montarBackground();
+    const rede = servidor();
+    ligarSincronizacaoAutomatica();
+
+    const aoDisparar = alarmes.onAlarm.addListener.mock.calls[0]![0] as (a: { name: string }) => void;
+    aoDisparar({ name: NOME_DO_ALARME });
+    await vi.waitFor(() => expect(rede.mock.calls.some(([, i]) => (i as RequestInit | undefined)?.method === 'GET')).toBe(true));
+  });
+
+  it('ignora alarmes de outros nomes', async () => {
+    await ligar();
+    const alarmes = montarBackground();
+    const rede = servidor();
+    ligarSincronizacaoAutomatica();
+    const aoDisparar = alarmes.onAlarm.addListener.mock.calls[0]![0] as (a: { name: string }) => void;
+    aoDisparar({ name: 'outro-alarme-qualquer' });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(rede).not.toHaveBeenCalled();
+  });
+
+  it('sem a API de alarmes, os outros gatilhos continuam funcionando', () => {
+    montarBackground({ semAlarms: true });
+    expect(() => ligarSincronizacaoAutomatica()).not.toThrow();
+    const c = (globalThis as unknown as { chrome: { runtime: { onStartup: { addListener: ReturnType<typeof vi.fn> } } } }).chrome;
+    expect(c.runtime.onStartup.addListener).toHaveBeenCalled();
+  });
+
+  it('abrir o navegador e instalar também perguntam ao servidor', async () => {
+    await ligar();
+    montarBackground();
+    const rede = servidor();
+    ligarSincronizacaoAutomatica();
+    const c = (globalThis as unknown as { chrome: { runtime: { onStartup: { addListener: ReturnType<typeof vi.fn> } } } }).chrome;
+    (c.runtime.onStartup.addListener.mock.calls[0]![0] as () => void)();
+    await vi.waitFor(() => expect(rede.mock.calls.some(([, i]) => (i as RequestInit | undefined)?.method === 'GET')).toBe(true));
+  });
+});
+
+describe('o manifesto', () => {
+  it('declara a permissão de alarmes, sem tirar as outras', async () => {
+    // Lido como texto: `manifest.config` usa o plugin do @crxjs, que não carrega em jsdom.
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const fonte = readFileSync(join(process.cwd(), 'manifest.config.ts'), 'utf8');
+    const linha = /permissions:\s*\[([^\]]*)\]/.exec(fonte)?.[1] ?? '';
+    for (const p of ['storage', 'sidePanel', 'scripting', 'identity', 'alarms']) {
+      expect(linha).toContain(`'${p}'`);
+    }
+  });
+});
+
+describe('resumoDaCota (o que a tela Conexões mostra)', () => {
+  it('lê o uso e quantos itens esperam espaço', () => {
+    expect(resumoDaCota({ assinaturas: {}, uso: { bytes: 5, cota: 100, em: 1 }, recusadosPorCota: 2 })).toEqual({
+      usoBytes: 5,
+      cotaBytes: 100,
+      seguradosPorCota: 2,
+    });
+  });
+  it('sem recusas o contador é zero', () => {
+    expect(resumoDaCota({ assinaturas: {}, uso: { bytes: 5, cota: 100, em: 1 } })?.seguradosPorCota).toBe(0);
+  });
+  it.each([[null], [undefined], ['x'], [{}], [{ uso: { bytes: 'a', cota: 1 } }], [{ uso: { bytes: 1, cota: 0 } }]])(
+    'não inventa número quando o servidor ainda não disse nada (%j)',
+    (bruto) => {
+      expect(resumoDaCota(bruto)).toBeNull();
+    },
+  );
 });

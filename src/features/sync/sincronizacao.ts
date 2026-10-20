@@ -57,7 +57,7 @@ import {
   notaParaOAcervo,
   reuniaoParaOAcervo,
 } from './paraOAcervo';
-import { CredencialRecusada, restaurar, type Assinaturas } from './restauracao';
+import { CredencialRecusada, baseDe, restaurar, type Assinaturas } from './restauracao';
 
 /**
  * Espelha MAX_POR_LOTE em `server/app/api/sync/route.ts`. Conta itens NO FIO:
@@ -82,7 +82,43 @@ interface EstadoDoSync {
   cursor?: number;
   /** Quando a volta rodou pela última vez, para não perguntar a cada tecla. */
   restauradoEm?: number;
+  /** O resumo do conteúdo no último acordo com o servidor, por item (ver `restauracao.ts`). */
+  bases?: Assinaturas;
+  /** A versão remota para a qual cada item já teve a sua cópia de conflito. */
+  tratados?: Assinaturas;
+  /** Itens recusados por cota: `chave` → até quando NÃO insistir. */
+  pausados?: Record<string, number>;
+  /** O que o servidor disse da cota na última subida. */
+  uso?: { bytes: number; cota: number; em: number };
+  /** Quantos itens a cota está segurando agora. */
+  recusadosPorCota?: number;
 }
+
+/** O que a tela Conexões mostra da cota do servidor. */
+export interface ResumoDaCota {
+  usoBytes: number;
+  cotaBytes: number;
+  /** Quantos itens a cota está segurando (esperam espaço). */
+  seguradosPorCota: number;
+}
+
+/**
+ * Lê o resumo da cota do estado guardado. `null` enquanto o servidor ainda não
+ * disse nada (nunca subiu nada com cota cobrada): a tela não inventa um número.
+ */
+export function resumoDaCota(bruto: unknown): ResumoDaCota | null {
+  if (!bruto || typeof bruto !== 'object') return null;
+  const e = bruto as Partial<EstadoDoSync>;
+  const uso = e.uso;
+  if (!uso || typeof uso.bytes !== 'number' || typeof uso.cota !== 'number' || uso.cota <= 0) return null;
+  return {
+    usoBytes: Math.max(0, uso.bytes),
+    cotaBytes: uso.cota,
+    seguradosPorCota: typeof e.recusadosPorCota === 'number' ? Math.max(0, e.recusadosPorCota) : 0,
+  };
+}
+/** Quanto esperar antes de reenviar o que a cota recusou. */
+const PAUSA_DA_COTA_MS = 30 * 60_000;
 
 /**
  * A assinatura de um item: a projeção E a cópia fiel, juntas. Se só a
@@ -94,7 +130,18 @@ interface EstadoDoSync {
  * não o reenvia por causa desta funcionalidade.
  */
 export function assinaturaDe(e: ItemParaOAcervo): string {
+  // Um print é imutável (nasce e é apagado, nunca editado): `id` + tamanho
+  // bastam, e evitam percorrer centenas de KB de base64 a cada passada.
+  if (e.tipo === 'print') {
+    const p = e.item as Print;
+    return `p.${p.id}.${p.dataUrl.length}`;
+  }
   return assinar(e.copia ? { item: e.item, copia: e.copia } : e.item);
+}
+
+/** O conteúdo cujo resumo é a BASE do item: a cópia fiel, ou o próprio item. */
+function baseDoItem(e: ItemParaOAcervo): string | undefined {
+  return e.tipo === 'print' ? undefined : baseDe(e.copia?.corpo ?? e.item);
 }
 
 function comporId(tipo: TipoDeItem, id: string): string {
@@ -180,6 +227,12 @@ export async function montarDesejado(): Promise<Map<string, ItemParaOAcervo>> {
   const notas = (await readLocal<Record<string, Nota>>(STORAGE_KEYS.notes)) ?? {};
   const marcas = (await readLocal<Record<string, MarcasDaReuniao>>(STORAGE_KEYS.marks)) ?? {};
   const prints = (await readLocal<Print[]>(STORAGE_KEYS.shots)) ?? [];
+  // Cada print sobe como imagem, para outra máquina da conta restaurá-lo. Só os
+  // de reuniões que existem: print órfão não sobe.
+  for (const p of prints) {
+    if (!titulos.has(p.meetingId)) continue;
+    desejado.set(comporId('print', p.id), { tipo: 'print', item: p });
+  }
   const printsPorReuniao = new Map<string, number>();
   for (const p of prints) {
     printsPorReuniao.set(p.meetingId, (printsPorReuniao.get(p.meetingId) ?? 0) + 1);
@@ -236,6 +289,8 @@ export interface Plano {
     item: unknown;
     copia?: CopiaParaOServidor;
     assinatura: string;
+    /** O resumo do conteúdo enviado: vira a base do item quando o lote é aceito. */
+    base?: string;
   }[];
   apagar: { chave: string; tipo: TipoDeItem; id: string }[];
 }
@@ -255,6 +310,7 @@ export function planejar(
         item: entrada.item,
         ...(entrada.copia ? { copia: entrada.copia } : {}),
         assinatura,
+        ...(baseDoItem(entrada) !== undefined ? { base: baseDoItem(entrada)! } : {}),
       });
     }
   }
@@ -276,7 +332,15 @@ export type ResultadoDoSync =
   | { estado: 'nada-a-fazer' }
   | { estado: 'desligado' }
   | { estado: 'sem-token' }
-  | { estado: 'ok'; enviados: number; apagados: number; restaurados?: number }
+  | {
+      estado: 'ok';
+      enviados: number;
+      apagados: number;
+      /** Itens trazidos de outra máquina (e versões que viraram cópia de conflito). */
+      restaurados?: number;
+      /** Itens que a cota do servidor segurou nesta passada. */
+      recusadosPorCota?: number;
+    }
   | { estado: 'falhou'; enviados: number; apagados: number; motivo: string };
 
 /** Um item como vai no fio: a projeção do conector, a cópia fiel, ou o histórico. */
@@ -285,7 +349,7 @@ type ItemNoFio = { tipo: TipoDeItem | 'copia'; item: unknown };
 interface Lote {
   itens: ItemNoFio[];
   apagados: { tipo: TipoDeItem; id: string }[];
-  chaves: { chave: string; assinatura?: string }[];
+  chaves: { chave: string; assinatura?: string; base?: string }[];
 }
 
 /**
@@ -318,7 +382,11 @@ export function fatiar(plano: Plano, porLote = POR_LOTE): Lote[] {
     }
     bytes += tamanho;
     atual.itens.push(...fios);
-    atual.chaves.push({ chave: e.chave, assinatura: e.assinatura });
+    atual.chaves.push({
+      chave: e.chave,
+      assinatura: e.assinatura,
+      ...(e.base !== undefined ? { base: e.base } : {}),
+    });
     if (cheio(atual) >= porLote) fechar();
   }
   for (const a of plano.apagar) {
@@ -349,9 +417,13 @@ async function salvar(estado: EstadoDoSync): Promise<void> {
 }
 
 /**
- * Uma passada de sincronização: primeiro SOBE o que mudou aqui, depois TRAZ o
- * que mudou nas outras máquinas da conta (`restauracao.ts`). Nessa ordem de
- * propósito — ver o cabeçalho de lá.
+ * Uma passada de sincronização: primeiro TRAZ o que mudou nas outras máquinas
+ * da conta (`restauracao.ts`), depois SOBE o que mudou aqui.
+ *
+ * Nessa ordem de propósito. Trazer primeiro é o que deixa perceber que um item
+ * mudou nas DUAS pontas — e guardar a versão que ia ser sobrescrita, em vez de
+ * perdê-la calado. Subir primeiro só descobriria o conflito depois de o
+ * servidor já ter perdido a outra versão. Ver o cabeçalho de `restauracao.ts`.
  *
  * Nunca lança: é chamada de um listener de evento do service worker, onde uma
  * exceção não tem quem a pegue e só vira ruído no console. Tudo vira um
@@ -365,7 +437,6 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
   if (!token) return { estado: 'sem-token' };
 
   let estado = await lerEstado();
-  const desejadoInicial = await montarDesejado();
 
   /*
    * De quem são estas assinaturas?
@@ -383,7 +454,7 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
       logger.warn('conta do Google trocada nesta máquina; o acervo local não sobe');
       estado = {
         assinaturas: Object.fromEntries(
-          [...desejadoInicial].map(([chave, e]) => [chave, assinaturaDe(e)]),
+          [...(await montarDesejado())].map(([chave, e]) => [chave, assinaturaDe(e)]),
         ),
         conta,
         ...(estado.ultimoMs !== undefined ? { ultimoMs: estado.ultimoMs } : {}),
@@ -394,14 +465,78 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
     await salvar(estado);
   }
 
-  const plano = planejar(desejadoInicial, estado.assinaturas);
+  // ---- a volta
+  let restaurados = 0;
+  /*
+   * Quando perguntar ao servidor o que mudou:
+   *
+   *  - a passada pediu (abrir o navegador, o alarme periódico);
+   *  - nunca perguntou;
+   *  - passou o intervalo;
+   *  - HÁ ALGO A ENVIAR. Esta é a que importa para o conflito: subir sem ter
+   *    olhado o servidor sobrescreveria uma edição feita noutra máquina há
+   *    meio minuto, e a pessoa nunca saberia. Custa uma consulta indexada — e
+   *    nenhuma, quando o servidor acusa que não há novidade (`cabeca.ts`).
+   */
+  const previo = planejar(await montarDesejado(), estado.assinaturas);
+  const haAlgoParaEnviar = previo.enviar.length > 0 || previo.apagar.length > 0;
+  const devida =
+    opcoes.forcarRestauracao === true ||
+    haAlgoParaEnviar ||
+    estado.restauradoEm === undefined ||
+    Date.now() - estado.restauradoEm >= INTERVALO_DA_RESTAURACAO_MS;
+  if (devida) {
+    try {
+      const r = await restaurar({
+        token,
+        desde: estado.cursor ?? 0,
+        assinaturas: estado.assinaturas,
+        bases: estado.bases ?? {},
+        tratados: estado.tratados ?? {},
+        lerDesejado: montarDesejado,
+        assinaturaDe,
+        aoAvancar: async ({ cursor, assinaturas, bases, tratados }) => {
+          estado = { ...estado, cursor, assinaturas, bases, tratados };
+          await salvar(estado);
+        },
+      });
+      restaurados = r.aplicados + r.conflitos;
+      estado = {
+        ...estado,
+        cursor: r.cursor,
+        assinaturas: r.assinaturas,
+        bases: r.bases,
+        tratados: r.tratados,
+        restauradoEm: Date.now(),
+      };
+      await salvar(estado);
+    } catch (erro) {
+      if (erro instanceof CredencialRecusada) await descartarToken();
+      logger.warn('restauracao falhou', {
+        motivo: erro instanceof Error ? erro.message : 'desconhecido',
+      });
+    }
+  }
+
+  // ---- a subida
+  const agora = Date.now();
+  // O que a cota recusou há pouco espera: reenviar centenas de KB de imagem a
+  // cada passada, só para ouvir "cheio" de novo, desperdiçaria rede e banco.
+  const pausados = Object.fromEntries(
+    Object.entries(estado.pausados ?? {}).filter(([, ate]) => ate > agora),
+  );
+  const plano = planejar(await montarDesejado(), estado.assinaturas);
+  plano.enviar = plano.enviar.filter((e) => !(e.chave in pausados));
   const temPlano = plano.enviar.length > 0 || plano.apagar.length > 0;
 
   let enviados = 0;
   let apagados = 0;
+  let recusadosPorCota = 0;
 
   if (temPlano) {
     const assinaturas = { ...estado.assinaturas };
+    const bases = { ...(estado.bases ?? {}) };
+    const tratados = { ...(estado.tratados ?? {}) };
 
     for (const lote of fatiar(plano)) {
       let resposta: Response;
@@ -425,58 +560,73 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
         return { estado: 'falhou', enviados, apagados, motivo: `servidor ${resposta.status}` };
       }
 
-      // Item que o servidor RECUSOU por formato (histórico torto) não derruba o
-      // lote: é registrado como aceito — reenviar o mesmo item só o recusaria
-      // de novo, para sempre — e o motivo vai para o log.
-      const corpo = (await resposta.json().catch(() => null)) as { recusados?: { id: string; motivo: string }[] } | null;
-      for (const r of corpo?.recusados ?? []) logger.warn('item recusado pelo servidor', { id: r.id, motivo: r.motivo });
-
-      // O lote inteiro foi aceito: registra as assinaturas dele ANTES do
-      // próximo. Ver o cabeçalho.
-      for (const { chave, assinatura } of lote.chaves) {
-        if (assinatura) assinaturas[chave] = assinatura;
-        else delete assinaturas[chave];
+      /*
+       * O que o servidor RECUSOU:
+       *
+       *  - por FORMATO (histórico torto): não derruba o lote, e é registrado
+       *    como aceito — reenviar o mesmo item só o recusaria de novo, para
+       *    sempre. O motivo vai para o log.
+       *  - por COTA (`temporario`): NÃO é registrado como enviado. Quando
+       *    houver espaço, volta a ser tentado — e fica em pausa até lá.
+       */
+      const corpo = (await resposta.json().catch(() => null)) as {
+        recusados?: { id: string; motivo: string; chave?: string; temporario?: boolean }[];
+        uso?: { bytes: number; cota: number };
+      } | null;
+      const seguraveis = new Set<string>();
+      for (const r of corpo?.recusados ?? []) {
+        logger.warn('item recusado pelo servidor', { id: r.id, motivo: r.motivo });
+        if (r.temporario && r.chave) seguraveis.add(r.chave);
       }
-      estado = { ...estado, assinaturas: { ...assinaturas }, ultimoMs: Date.now() };
+      if (corpo?.uso) estado = { ...estado, uso: { ...corpo.uso, em: Date.now() } };
+
+      // O lote foi aceito (menos o que a cota segurou): registra as
+      // assinaturas dele ANTES do próximo. Ver o cabeçalho.
+      for (const { chave, assinatura, base } of lote.chaves) {
+        if (seguraveis.has(chave)) {
+          pausados[chave] = Date.now() + PAUSA_DA_COTA_MS;
+          recusadosPorCota += 1;
+          continue;
+        }
+        delete pausados[chave];
+        if (assinatura) {
+          assinaturas[chave] = assinatura;
+          if (base !== undefined) bases[chave] = base;
+        } else {
+          delete assinaturas[chave];
+          delete bases[chave];
+          delete tratados[chave];
+        }
+      }
+      estado = {
+        ...estado,
+        assinaturas: { ...assinaturas },
+        bases: { ...bases },
+        tratados: { ...tratados },
+        pausados: { ...pausados },
+        ultimoMs: Date.now(),
+      };
       await salvar(estado);
 
-      enviados += lote.chaves.filter((c) => c.assinatura).length;
+      enviados += lote.chaves.filter((c) => c.assinatura && !seguraveis.has(c.chave)).length;
       apagados += lote.apagados.length;
     }
   }
 
-  // ---- a volta
-  let restaurados = 0;
-  const devida =
-    opcoes.forcarRestauracao === true ||
-    estado.restauradoEm === undefined ||
-    Date.now() - estado.restauradoEm >= INTERVALO_DA_RESTAURACAO_MS;
-  if (devida) {
-    try {
-      const r = await restaurar({
-        token,
-        desde: estado.cursor ?? 0,
-        assinaturas: estado.assinaturas,
-        lerDesejado: montarDesejado,
-        assinaturaDe,
-        aoAvancar: async ({ cursor, assinaturas }) => {
-          estado = { ...estado, cursor, assinaturas };
-          await salvar(estado);
-        },
-      });
-      restaurados = r.aplicados;
-      estado = { ...estado, cursor: r.cursor, assinaturas: r.assinaturas, restauradoEm: Date.now() };
-      await salvar(estado);
-    } catch (erro) {
-      if (erro instanceof CredencialRecusada) await descartarToken();
-      logger.warn('restauracao falhou', {
-        motivo: erro instanceof Error ? erro.message : 'desconhecido',
-      });
-    }
+  const seguradosAgora = Object.keys(pausados).length;
+  if (seguradosAgora !== (estado.recusadosPorCota ?? 0)) {
+    estado = { ...estado, recusadosPorCota: seguradosAgora };
+    await salvar(estado);
   }
 
   if (!temPlano && restaurados === 0) return { estado: 'nada-a-fazer' };
-  return { estado: 'ok', enviados, apagados, ...(restaurados > 0 ? { restaurados } : {}) };
+  return {
+    estado: 'ok',
+    enviados,
+    apagados,
+    ...(restaurados > 0 ? { restaurados } : {}),
+    ...(recusadosPorCota > 0 ? { recusadosPorCota } : {}),
+  };
 }
 /**
  * Esquece o que já foi enviado, forçando a próxima passada a mandar tudo.
@@ -542,6 +692,10 @@ async function passada(forcarRestauracao = false): Promise<void> {
   }
 }
 
+/** O alarme que faz a volta rodar sozinha, com o navegador parado. */
+export const NOME_DO_ALARME = 'taq:sync-periodico';
+export const PERIODO_DO_ALARME_MIN = 5;
+
 export function agendarSincronizacao(): void {
   if (pendente) clearTimeout(pendente);
   pendente = setTimeout(() => {
@@ -553,11 +707,15 @@ export function agendarSincronizacao(): void {
 /**
  * Liga o gatilho. Chamado uma vez pelo background.
  *
- * Sem `chrome.alarms`: ele exigiria uma permissão nova, e o que ela
- * compraria é a repetição periódica. As duas situações reais já estão
- * cobertas — o acervo muda (evento de storage) ou o navegador reabre
- * (`onStartup`). Uma falha de rede é retentada na próxima das duas. Se isso
- * se mostrar insuficiente na prática, `alarms` é uma linha.
+ * Três gatilhos: o acervo muda (evento de storage), o navegador abre
+ * (`onStartup`/`onInstalled`) e um ALARME periódico. O alarme é o que faz outra
+ * máquina da conta aparecer sozinha, com o navegador parado — sem ele, só abrir
+ * o navegador ou mexer em algo traria o que as outras máquinas fizeram.
+ *
+ * A permissão `alarms` não gera aviso na tela de instalação, então a extensão
+ * não é desativada na atualização esperando consentimento novo. Cinco minutos:
+ * de cada alarme sai UMA pergunta barata ao servidor, que na maioria das vezes
+ * responde "nada de novo" sem tocar no banco (`server/lib/conector/cabeca.ts`).
  */
 export function ligarSincronizacaoAutomatica(): void {
   chrome.storage.onChanged.addListener((mudancas, area) => {
@@ -573,4 +731,23 @@ export function ligarSincronizacaoAutomatica(): void {
   // nenhum evento de storage para acordá-lo, e pode haver pendência da
   // versão anterior.
   chrome.runtime.onInstalled.addListener(() => void passada(true));
+
+  // O listener é registrado já, no topo do worker: um alarme que dispara com o
+  // worker dormindo o ACORDA, mas só se houver quem escute quando ele nascer.
+  if (chrome.alarms) {
+    chrome.alarms.onAlarm.addListener((alarme) => {
+      if (alarme.name === NOME_DO_ALARME) void passada(true);
+    });
+    // Só cria se ainda não existir: recriar a cada vez que o worker acorda
+    // reiniciaria a contagem, e um worker que acorda a cada poucos minutos
+    // nunca deixaria o alarme disparar.
+    void chrome.alarms.get(NOME_DO_ALARME).then((existente) => {
+      if (!existente) {
+        chrome.alarms.create(NOME_DO_ALARME, {
+          periodInMinutes: PERIODO_DO_ALARME_MIN,
+          delayInMinutes: PERIODO_DO_ALARME_MIN,
+        });
+      }
+    });
+  }
 }

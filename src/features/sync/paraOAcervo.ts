@@ -16,12 +16,14 @@
  * ── O que fica de fora, e por quê ────────────────────────────────────────
  *
  * Um `Print` é um `data:image/jpeg;base64,…` — uma captura de tela vira
- * dezenas de milhares de tokens na janela de contexto de quem perguntar, e
- * megabytes trafegados a cada sincronização. Sobe a CONTAGEM, nunca a
- * imagem. Pelo mesmo motivo ficam fora `speakersObserved` (telemetria do
- * parser de legenda) e `providerParticipantId` (id opaco de tile).
+ * dezenas de milhares de tokens na janela de contexto de quem perguntar. Na
+ * projeção do CONECTOR sobe só a CONTAGEM. A imagem em si viaja num item
+ * `print` à parte, que a IA nunca lê e que existe para outra máquina da mesma
+ * conta restaurá-la (server/lib/conector/prints.ts). Pelo mesmo motivo ficam
+ * fora `speakersObserved` (telemetria do parser de legenda) e
+ * `providerParticipantId` (id opaco de tile).
  *
- * `dataUrl` também não serve para nada do outro lado: o conector é texto.
+ * `dataUrl` não serve para nada do lado do CONECTOR: ele é texto.
  */
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { DocumentoGuardado } from '@/features/documents/store';
@@ -29,17 +31,19 @@ import type { Conversation } from '@/home/conversations';
 import type { Nota } from '@/features/annotations/notes';
 import type { MarcasDaReuniao, TipoDeMarca } from '@/features/annotations/marks';
 import type { HistoricoDoDocumento } from '@/features/documents/personalizado/versoes';
+import type { Print } from '@/features/annotations/shots';
 import type {
   ArvoreDoDocumento,
   ManifestoDeRender,
 } from '@/features/documents/personalizado/tipos';
 
 /**
- * historico NÃO é um tipo do acervo do servidor (o conector MCP não o enumera):
- * é o backup do histórico de versões dos documentos personalizados, que o
- * /api/sync recebe por uma via própria (server/lib/conector/historico.ts).
+ * `historico` e `print` NÃO são tipos do acervo do servidor (o conector MCP não
+ * os enumera): o primeiro é o backup do histórico de versões dos documentos
+ * personalizados (server/lib/conector/historico.ts), o segundo é a imagem de um
+ * print — o /api/sync recebe os dois por vias próprias, e nenhum chega à IA.
  */
-export type TipoDeItem = 'reuniao' | 'documento' | 'conversa' | 'nota' | 'historico';
+export type TipoDeItem = 'reuniao' | 'documento' | 'conversa' | 'nota' | 'historico' | 'print';
 
 export interface Fala {
   falante: string | null;
@@ -117,7 +121,8 @@ export interface ItemParaOAcervo {
     | DocumentoDoAcervo
     | ConversaDoAcervo
     | NotaDoAcervo
-    | HistoricoDoAcervo;
+    | HistoricoDoAcervo
+    | Print;
   /**
    * O registro INTEIRO como a extensão o guarda — o que outra máquina da mesma
    * conta usa para reconstruir o storage. Ausente no histórico de versões, que

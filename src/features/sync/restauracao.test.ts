@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { limparCacheDeIdentidadeLocal } from '@/shared/services/identidade';
-import { aplicarPagina, canonico, decidir, type ItemRemoto } from './restauracao';
+import { aplicarPagina, baseDe, canonico, decidir, type ItemRemoto } from './restauracao';
 import { assinaturaDe, montarDesejado, sincronizar } from './sincronizacao';
 
 // ------------------------------------------------------------ as máquinas
@@ -130,7 +130,12 @@ function criarServidor(opcoes: { porPagina?: number } = {}) {
   let seq = 0;
   const posts: { sub: string; corpo: { itens: { tipo: string; item: { id: string } }[]; apagados: { tipo: string; id: string }[] } }[] = [];
   const gets: { sub: string; desde: number }[] = [];
-  const modo = { get: 'normal' as 'normal' | '405' | '401' | 'torto', itensExtras: [] as unknown[] };
+  const modo = {
+    get: 'normal' as 'normal' | '405' | '401' | 'torto',
+    itensExtras: [] as unknown[],
+    /** A cota do servidor: recusa (temporariamente) as chaves para as quais devolver 	rue. */
+    recusar: ((): boolean => false) as (chave: string) => boolean,
+  };
 
   const acervoDe = (sub: string) => {
     if (!contas.has(sub)) contas.set(sub, new Map());
@@ -148,19 +153,41 @@ function criarServidor(opcoes: { porPagina?: number } = {}) {
     if (init?.method === 'POST') {
       const corpo = JSON.parse(init.body as string) as (typeof posts)[number]['corpo'];
       posts.push({ sub, corpo });
+      const recusados: { tipo: string; id: string; motivo: string; chave: string; temporario: boolean }[] = [];
+      let gravados = 0;
       for (const { tipo, item } of corpo.itens) {
         if (tipo === 'copia') {
           const c = item as unknown as { colecao: string; id: string; corpo: unknown };
+          const chave = `${c.colecao}:${c.id}`;
+          if (modo.recusar(chave)) {
+            recusados.push({ tipo, id: c.id, motivo: 'cota', chave, temporario: true });
+            continue;
+          }
           gravar(sub, { colecao: c.colecao, id: c.id, corpo: comoJsonb(c.corpo), apagado: false });
         } else if (tipo === 'historico') {
           gravar(sub, { colecao: 'historico', id: item.id, corpo: comoJsonb(item), apagado: false });
+        } else if (tipo === 'print') {
+          const chave = `print:${item.id}`;
+          if (modo.recusar(chave)) {
+            recusados.push({ tipo, id: item.id, motivo: 'cota', chave, temporario: true });
+            continue;
+          }
+          gravar(sub, { colecao: 'print', id: item.id, corpo: comoJsonb(item), apagado: false });
         }
+        gravados += 1;
       }
       for (const { tipo, id } of corpo.apagados) {
         if (tipo === 'historico') acervoDe(sub).delete(`historico:${id}`);
         else gravar(sub, { colecao: tipo, id, corpo: null, apagado: true });
       }
-      return new Response(JSON.stringify({ gravados: corpo.itens.length, apagados: corpo.apagados.length }));
+      return new Response(
+        JSON.stringify({
+          gravados,
+          apagados: corpo.apagados.length,
+          uso: { bytes: 1000, cota: 25_000_000 },
+          ...(recusados.length ? { recusados } : {}),
+        }),
+      );
     }
 
     // GET
@@ -444,27 +471,130 @@ describe('o que muda depois', () => {
     expect((b.lido(STORAGE_KEYS.documents) as { html: string }[])[0]!.html).toBe('<p>só o html mudou</p>');
   });
 
-  it('trabalho que ainda NÃO subiu não é atropelado pelo remoto', async () => {
-    const { srv, a, b } = await duasMaquinasEmDia();
-    // A edita e sobe.
-    await a.em(async () => {
-      await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da A', updatedAt: 1_790_001_000_000 })] });
-      await sincronizar();
-    });
-    // B edita o MESMO documento, sem ter sincronizado depois.
-    await b.em(async () => {
-      await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da B', updatedAt: 1_790_002_000_000 })] });
-      await sincronizar({ forcarRestauracao: true });
-    });
-    // O que B escreveu continua em B, e foi para o servidor...
-    expect((b.lido(STORAGE_KEYS.documents) as { content: string }[])[0]!.content).toBe('Versão da B');
-    const noServidor = srv.acervoDe('sub-ana').get('documento:d1')!.corpo as { content: string };
-    expect(noServidor.content).toBe('Versão da B');
-    // ...e a A, que não mexeu depois, recebe a da B (vale a última a sincronizar).
-    await a.em(() => sincronizar({ forcarRestauracao: true }));
-    expect((a.lido(STORAGE_KEYS.documents) as { content: string }[])[0]!.content).toBe('Versão da B');
-  });
+  describe('edição simultânea nas duas máquinas', () => {
+    const conteudoDe = (m: Maquina, id: string) =>
+      (m.lido(STORAGE_KEYS.documents) as { id: string; content: string; title: string }[]).find((d) => d.id === id)?.content;
 
+    async function aEditaESobe(a: Maquina, texto: string) {
+      await a.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: texto, updatedAt: 1_790_001_000_000 })] });
+        await sincronizar();
+      });
+    }
+
+    it('o local vence, e a versão da OUTRA máquina vira um documento recuperável', async () => {
+      const { srv, a, b } = await duasMaquinasEmDia();
+      await aEditaESobe(a, 'Versão da A');
+      // B edita o MESMO documento, sem ter visto a edição da A.
+      await b.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da B', updatedAt: 1_790_002_000_000 })] });
+        await sincronizar();
+      });
+
+      // B ficou com a sua, e foi para o servidor...
+      expect(conteudoDe(b, 'd1')).toBe('Versão da B');
+      expect((srv.acervoDe('sub-ana').get('documento:d1')!.corpo as { content: string }).content).toBe('Versão da B');
+      // ...mas a da A NÃO se perdeu: está aqui como outro documento.
+      const docs = b.lido(STORAGE_KEYS.documents) as { id: string; content: string; title: string }[];
+      const copia = docs.find((d) => d.id !== 'd1');
+      expect(copia).toMatchObject({ content: 'Versão da A', title: 'Ata d1 (versão de outra máquina)' });
+      expect(docs).toHaveLength(2);
+
+      // A cópia também sobe, e a A passa a ter as duas.
+      await a.em(() => sincronizar({ forcarRestauracao: true }));
+      expect(conteudoDe(a, 'd1')).toBe('Versão da B');
+      expect((a.lido(STORAGE_KEYS.documents) as { content: string }[]).map((d) => d.content).sort()).toEqual(['Versão da A', 'Versão da B']);
+    });
+
+    it('detecta o conflito mesmo quando a última volta foi há segundos (volta antes de toda subida)', async () => {
+      const { a, b } = await duasMaquinasEmDia();
+      await aEditaESobe(a, 'Versão da A');
+      // SEM forçar a volta: B acabou de sincronizar, mas tem algo a enviar.
+      await b.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da B' })] });
+        await sincronizar();
+      });
+      expect((b.lido(STORAGE_KEYS.documents) as unknown[]).length).toBe(2);
+    });
+
+    it('uma subida que falha e é refeita NÃO duplica a cópia', async () => {
+      const { srv, a, b } = await duasMaquinasEmDia();
+      await aEditaESobe(a, 'Versão da A');
+      await b.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da B' })] });
+        // O servidor cai na hora de subir: a volta já fez a cópia, a subida não completou.
+        const original = srv.rede.getMockImplementation()!;
+        srv.rede.mockImplementation(async (url, init) =>
+          init?.method === 'POST' ? new Response('erro', { status: 500 }) : original(url, init),
+        );
+        expect(await sincronizar()).toMatchObject({ estado: 'falhou' });
+        srv.rede.mockImplementation(original);
+        await sincronizar({ forcarRestauracao: true });
+        await sincronizar({ forcarRestauracao: true });
+      });
+      expect((b.lido(STORAGE_KEYS.documents) as unknown[]).length).toBe(2);
+    });
+
+    it('uma conversa editada nas duas vira "(outra máquina)"', async () => {
+      const { a, b } = await duasMaquinasEmDia();
+      await a.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.conversations]: [conversa('c1', { title: 'Título da A' })] });
+        await sincronizar();
+      });
+      await b.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.conversations]: [conversa('c1', { title: 'Título da B' })] });
+        await sincronizar();
+      });
+      const titulos = (b.lido(STORAGE_KEYS.conversations) as { title: string }[]).map((c) => c.title).sort();
+      expect(titulos).toEqual(['Título da A (outra máquina)', 'Título da B']);
+    });
+
+    it('a nota editada nas duas fica com o texto de cada uma, e as marcações se somam', async () => {
+      const { a, b } = await duasMaquinasEmDia();
+      await a.em(async () => {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.notes]: { r1: { ...nota, texto: 'Texto da A', updatedAt: 1_790_009_000_000 } },
+          [STORAGE_KEYS.marks]: { r1: { ...marcas, 'cap-2': 'duvida' } },
+        });
+        await sincronizar();
+      });
+      await b.em(async () => {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.notes]: { r1: { ...nota, texto: 'Texto da B', updatedAt: 1_790_009_500_000 } },
+          [STORAGE_KEYS.marks]: { r1: { ...marcas, 'cap-0': 'duvida' } },
+        });
+        await sincronizar();
+      });
+      const texto = (b.lido(STORAGE_KEYS.notes) as Record<string, { texto: string }>).r1!.texto;
+      expect(texto).toContain('Texto da B');
+      expect(texto).toContain('--- versão de outra máquina ---');
+      expect(texto).toContain('Texto da A');
+      // Onde as duas marcaram a mesma fala, vale a daqui; o resto se soma.
+      expect(b.lido(STORAGE_KEYS.marks)).toEqual({ r1: { 'cap-0': 'duvida', 'cap-1': 'acao', 'cap-2': 'duvida' } });
+    });
+
+    it('editar duas vezes seguidas na MESMA máquina não gera conflito consigo mesma', async () => {
+      // O servidor devolve o que esta máquina enviou: sem a base atualizada a cada
+      // envio, esse eco pareceria "outra máquina mexeu" e criaria uma cópia falsa.
+      const { b } = await duasMaquinasEmDia();
+      for (const v of ['segunda', 'terceira', 'quarta']) {
+        await b.em(async () => {
+          await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: v })] });
+          await sincronizar();
+        });
+      }
+      const docs = b.lido(STORAGE_KEYS.documents) as { content: string }[];
+      expect(docs).toHaveLength(1);
+      expect(docs[0]!.content).toBe('quarta');
+    });
+    it('mudança só da outra máquina continua chegando sem cópia nenhuma', async () => {
+      const { a, b } = await duasMaquinasEmDia();
+      await aEditaESobe(a, 'Só a A mexeu');
+      await b.em(() => sincronizar({ forcarRestauracao: true }));
+      expect(conteudoDe(b, 'd1')).toBe('Só a A mexeu');
+      expect((b.lido(STORAGE_KEYS.documents) as unknown[]).length).toBe(1);
+    });
+  });
   it('o cursor persiste e a volta seguinte só pede o que é novo', async () => {
     const srv = criarServidor({ porPagina: 2 });
     const a = new Maquina('sub-ana').semear({
@@ -553,6 +683,158 @@ describe('quando o servidor não ajuda', () => {
   });
 });
 
+// ----------------------------------------------------------------- prints
+
+const print = (id: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  meetingId: 'r1',
+  dataUrl: `data:image/jpeg;base64,${'/9j/4AAQ'.repeat(40)}${id}`,
+  at: 1_790_000_000_000,
+  largura: 1440,
+  altura: 900,
+  ...extra,
+});
+
+describe('prints', () => {
+  const comPrints = (...ps: ReturnType<typeof print>[]) => ({
+    ...acervoCompleto(),
+    [STORAGE_KEYS.shots]: ps,
+  });
+
+  it('uma máquina nova traz os prints, como imagem inteira e na mesma ordem', async () => {
+    const srv = criarServidor();
+    const a = new Maquina('sub-ana').semear(comPrints(print('p2', { at: 2000 }), print('p1', { at: 1000 })));
+    const b = new Maquina('sub-ana');
+    await a.em(() => sincronizar());
+    expect(srv.ids('sub-ana').filter((i) => i.startsWith('print:'))).toEqual(['print:p1', 'print:p2']);
+
+    expect(await b.em(() => sincronizar())).toMatchObject({ estado: 'ok', restaurados: 7 });
+    expect(b.lido(STORAGE_KEYS.shots)).toEqual([print('p2', { at: 2000 }), print('p1', { at: 1000 })]);
+  });
+
+  it('é imutável: não reenvia a cada passada, e não há eco', async () => {
+    const srv = criarServidor();
+    const a = new Maquina('sub-ana').semear(comPrints(print('p1')));
+    const b = new Maquina('sub-ana');
+    await a.em(() => sincronizar());
+    await b.em(() => sincronizar());
+    const subidas = srv.posts.length;
+    expect(await a.em(() => sincronizar({ forcarRestauracao: true }))).toEqual({ estado: 'nada-a-fazer' });
+    expect(await b.em(() => sincronizar({ forcarRestauracao: true }))).toEqual({ estado: 'nada-a-fazer' });
+    expect(srv.posts).toHaveLength(subidas);
+  });
+
+  it('apagar um print numa máquina apaga na outra', async () => {
+    criarServidor();
+    const a = new Maquina('sub-ana').semear(comPrints(print('p1'), print('p2', { at: 2 })));
+    const b = new Maquina('sub-ana');
+    await a.em(() => sincronizar());
+    await b.em(() => sincronizar());
+
+    await a.em(async () => {
+      await chrome.storage.local.set({ [STORAGE_KEYS.shots]: [print('p2', { at: 2 })] });
+      await sincronizar();
+    });
+    await b.em(() => sincronizar({ forcarRestauracao: true }));
+    expect((b.lido(STORAGE_KEYS.shots) as { id: string }[]).map((p) => p.id)).toEqual(['p2']);
+  });
+
+  it('print de reunião que não existe mais não sobe', async () => {
+    const srv = criarServidor();
+    const a = new Maquina('sub-ana').semear({ [STORAGE_KEYS.shots]: [print('orfao', { meetingId: 'sumiu' })] });
+    await a.em(() => sincronizar());
+    expect(srv.ids('sub-ana')).toEqual([]);
+  });
+
+  it('respeita o teto de prints da escrita local: ficam os mais recentes', async () => {
+    const srv = criarServidor();
+    const { MAX_TOTAL } = await import('@/features/annotations/shots');
+    for (let i = 0; i < MAX_TOTAL + 5; i++) {
+      const p = print(`p${String(i).padStart(2, '0')}`, { at: 1000 + i });
+      srv.plantar('sub-ana', { colecao: 'print', id: p.id, corpo: p, apagado: false });
+    }
+    srv.plantar('sub-ana', { colecao: 'reuniao', id: 'r1', corpo: reuniao(), apagado: false });
+    const b = new Maquina('sub-ana');
+    await b.em(() => sincronizar());
+    const lista = b.lido(STORAGE_KEYS.shots) as { id: string }[];
+    expect(lista).toHaveLength(MAX_TOTAL);
+    expect(lista[0]!.id).toBe(`p${String(MAX_TOTAL + 4).padStart(2, '0')}`);
+  });
+
+  it('a assinatura de um print não depende do conteúdo da imagem (só id e tamanho)', async () => {
+    const a = new Maquina('sub-ana').semear(comPrints(print('p1')));
+    a.usar();
+    const d = await montarDesejado();
+    expect(assinaturaDe(d.get('print:p1')!)).toBe(`p.p1.${print('p1').dataUrl.length}`);
+  });
+});
+
+// ------------------------------------------------------------ a cota
+
+describe('quando a cota do servidor segura um item', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('o recusado NÃO é dado como enviado, o resto é, e o uso fica registrado', async () => {
+    const srv = criarServidor();
+    srv.modo.recusar = (chave) => chave === 'print:grande';
+    const a = new Maquina('sub-ana').semear({
+      [STORAGE_KEYS.history]: [reuniao()],
+      [STORAGE_KEYS.shots]: [print('pequeno', { at: 1 }), print('grande', { at: 2 })],
+    });
+    const r = await a.em(() => sincronizar());
+    expect(r).toMatchObject({ estado: 'ok', recusadosPorCota: 1 });
+
+    expect(srv.ids('sub-ana')).toContain('print:pequeno');
+    expect(srv.ids('sub-ana')).not.toContain('print:grande');
+    const est = a.sincronizacao() as unknown as { assinaturas: Record<string, string>; pausados: Record<string, number>; uso: { bytes: number }; recusadosPorCota: number };
+    expect(est.assinaturas['print:pequeno']).toBeDefined();
+    expect(est.assinaturas['print:grande']).toBeUndefined();
+    expect(est.pausados['print:grande']).toBeGreaterThan(Date.now());
+    expect(est.recusadosPorCota).toBe(1);
+    expect(est.uso).toMatchObject({ bytes: 1000, cota: 25_000_000 });
+  });
+
+  it('não insiste enquanto está em pausa; volta a tentar depois, e para de contar quando passa', async () => {
+    const srv = criarServidor();
+    srv.modo.recusar = (chave) => chave === 'print:grande';
+    const a = new Maquina('sub-ana').semear({
+      [STORAGE_KEYS.history]: [reuniao()],
+      [STORAGE_KEYS.shots]: [print('grande')],
+    });
+    await a.em(() => sincronizar());
+    const subidas = () => srv.posts.length;
+    const depoisDaPrimeira = subidas();
+
+    // Dentro da pausa: nada é reenviado (500 KB de imagem a cada passada só para ouvir "cheio").
+    await a.em(() => sincronizar({ forcarRestauracao: true }));
+    await a.em(() => sincronizar({ forcarRestauracao: true }));
+    expect(subidas()).toBe(depoisDaPrimeira);
+
+    // Passada a pausa, e com espaço de novo: tenta, o servidor aceita, e o contador zera.
+    srv.modo.recusar = () => false;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 31 * 60_000);
+    const r = await a.em(() => sincronizar({ forcarRestauracao: true }));
+    vi.useRealTimers();
+    expect(r).toMatchObject({ estado: 'ok', enviados: 1 });
+    expect(srv.ids('sub-ana')).toContain('print:grande');
+    const est = a.sincronizacao() as unknown as { pausados: Record<string, number>; recusadosPorCota: number };
+    expect(est.pausados).toEqual({});
+    expect(est.recusadosPorCota).toBe(0);
+  });
+
+  it('recusa por cota de uma CÓPIA não registra a assinatura: o item inteiro volta a ser tentado', async () => {
+    const srv = criarServidor();
+    srv.modo.recusar = (chave) => chave === 'documento:d1';
+    const a = new Maquina('sub-ana').semear({ [STORAGE_KEYS.documents]: [documento()] });
+    await a.em(() => sincronizar());
+    const est = a.sincronizacao() as unknown as { assinaturas: Record<string, string>; bases?: Record<string, string> };
+    expect(est.assinaturas['documento:d1']).toBeUndefined();
+    expect(est.bases?.['documento:d1']).toBeUndefined();
+  });
+});
 // ------------------------------------------------------- as regras, puras
 
 describe('decidir', () => {
@@ -570,7 +852,55 @@ describe('decidir', () => {
     ['lápide, item que nunca subiu: não se perde', { apagado: true }, entrada({ a: 1 }), undefined, 'b', 'nada'],
     ['lápide, item que já não existe aqui', { apagado: true }, undefined, undefined, undefined, 'nada'],
   ])('%s', (_nome, remoto, local, guardada, atual, esperado) => {
-    expect(decidir({ colecao: 'reuniao', corpo: { a: 1 }, ...remoto }, local, guardada, atual)).toBe(esperado);
+    expect(decidir({ colecao: 'reuniao', corpo: { a: 1 }, ...remoto }, local, { guardada, atual })).toBe(esperado);
+  });
+
+  describe('conflito: os dois lados mudaram', () => {
+    const doc = (corpo: unknown) => ({ tipo: 'documento', item: {}, copia: { colecao: 'documento', id: 'd', corpo } }) as never;
+    const remoto = (corpo: unknown, colecao = 'documento' as const) => ({ colecao, corpo, apagado: false });
+    /** O item mudou aqui (atual != guardada) e a base é o acordo anterior. */
+    const mexido = { guardada: 'g', atual: 'outra' };
+
+    it('o remoto mudou por OUTRA máquina e o local também: vira cópia', () => {
+      expect(decidir(remoto({ v: 'da outra' }), doc({ v: 'minha' }), { ...mexido, base: baseDe({ v: 'original' }) })).toBe('conflito');
+    });
+
+    it('só este lado mexeu (o remoto ainda é o da base): o local vence, sem cópia', () => {
+      expect(decidir(remoto({ v: 'original' }), doc({ v: 'minha' }), { ...mexido, base: baseDe({ v: 'original' }) })).toBe('nada');
+    });
+
+    it('remoto igual ao local: ninguém discorda', () => {
+      expect(decidir(remoto({ v: 'x' }), doc({ v: 'x' }), { ...mexido, base: baseDe({ v: 'antes' }) })).toBe('nada');
+    });
+
+    it('já houve cópia para ESTA versão remota: não duplica numa nova tentativa', () => {
+      const versaoRemota = { v: 'da outra' };
+      expect(
+        decidir(remoto(versaoRemota), doc({ v: 'minha' }), { ...mexido, base: baseDe({ v: 'original' }), tratado: baseDe(versaoRemota) }),
+      ).toBe('nada');
+    });
+
+    it('uma versão remota NOVA depois da cópia gera outra cópia', () => {
+      expect(
+        decidir(remoto({ v: 'terceira' }), doc({ v: 'minha' }), { ...mexido, base: baseDe({ v: 'original' }), tratado: baseDe({ v: 'da outra' }) }),
+      ).toBe('conflito');
+    });
+
+    it('sem base (estado de antes desta funcionalidade) não inventa conflito: vale o local', () => {
+      expect(decidir(remoto({ v: 'da outra' }), doc({ v: 'minha' }), mexido)).toBe('nada');
+    });
+
+    it.each(['reuniao', 'historico', 'print'] as const)('%s não vira cópia: o local vence', (colecao) => {
+      const local = { tipo: colecao, item: { v: 'minha' }, copia: { colecao, id: 'x', corpo: { v: 'minha' } } } as never;
+      expect(decidir(remoto({ v: 'da outra' }, colecao as never), local, { ...mexido, base: baseDe({ v: 'original' }) })).toBe('nada');
+    });
+  });
+});
+
+describe('baseDe', () => {
+  it('ignora a ordem das chaves e distingue conteúdos diferentes', () => {
+    expect(baseDe({ a: 1, b: 2 })).toBe(baseDe({ b: 2, a: 1 }));
+    expect(baseDe({ a: 1 })).not.toBe(baseDe({ a: 2 }));
   });
 });
 

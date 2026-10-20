@@ -226,3 +226,42 @@ alter table copia_local enable row level security;
 -- O histórico de versões também volta para a máquina nova, pelo mesmo cursor.
 alter table historico_do_documento add column if not exists seq bigint not null default nextval('copia_seq');
 create index if not exists historico_por_seq on historico_do_documento (pessoa_id, seq);
+-- --------------------------------------------- prints, cotas e orçamento
+
+-- Os PRINTS da aba da reunião, como binário (`bytea`): o base64 da extensão
+-- cresce um terço, e a imagem (JPEG) não comprime. Imutáveis: um print nunca é
+-- editado, só criado e apagado — por isso o upsert não precisa comparar nada.
+-- Lápide (`apagado`, `bytes` nulo) pelo mesmo motivo de `copia_local`. O
+-- conector MCP NÃO lê esta tabela: uma captura de tela é dezenas de milhares de
+-- tokens (ver `tipos.ts`).
+create table if not exists print_local (
+  pessoa_id      uuid    not null references pessoa(id) on delete cascade,
+  id             text    not null,
+  reuniao_id     text    not null default '',
+  mime           text    not null default 'image/jpeg',
+  bytes          bytea,
+  tamanho        integer not null default 0,
+  largura        integer not null default 0,
+  altura         integer not null default 0,
+  em_ms          bigint  not null default 0,
+  apagado        boolean not null default false,
+  seq            bigint  not null default nextval('copia_seq'),
+  atualizado_em  timestamptz not null default now(),
+  primary key (pessoa_id, id)
+);
+
+create index if not exists print_por_seq on print_local (pessoa_id, seq);
+
+alter table print_local enable row level security;
+
+-- `tamanho` é o tamanho LÓGICO (bytes do JSON, ou da imagem). Serve a duas
+-- coisas sem tocar no conteúdo: a cota por pessoa, e cortar a página da volta
+-- sem buscar o corpo de tudo só para medir.
+alter table copia_local add column if not exists tamanho integer not null default 0;
+alter table historico_do_documento add column if not exists tamanho integer not null default 0;
+update copia_local set tamanho = octet_length(corpo::text) where tamanho = 0 and corpo is not null;
+update historico_do_documento set tamanho = octet_length(versoes::text) where tamanho = 0;
+
+-- A limpeza de lápides varre por data; o índice parcial só cobre as lápides.
+create index if not exists copia_lapide on copia_local (atualizado_em) where apagado;
+create index if not exists print_lapide on print_local (atualizado_em) where apagado;

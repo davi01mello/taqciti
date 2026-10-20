@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { contentTreeSchema } from '../documentos/contentTree';
 import { banco, type Consultador } from './banco';
 import { invalidarPessoa } from './cache';
+import { invalidarCabeca } from './cabeca';
 
 /** O `tipo` com que a extensão manda estes itens para `/api/sync`. */
 export const TIPO_HISTORICO = 'historico';
@@ -78,14 +79,15 @@ export async function gravarHistorico(
   const atual = item.versoes[item.versoes.length - 1]!;
   await pool.query(
     `insert into historico_do_documento
-       (pessoa_id, id, variante, fontes_ids, versoes, revisao_atual, atualizado_ms, atualizado_em)
-     values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, now())
+       (pessoa_id, id, variante, fontes_ids, versoes, revisao_atual, atualizado_ms, tamanho, atualizado_em)
+     values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, now())
      on conflict (pessoa_id, id) do update set
        variante = excluded.variante,
        fontes_ids = excluded.fontes_ids,
        versoes = excluded.versoes,
        revisao_atual = excluded.revisao_atual,
        atualizado_ms = excluded.atualizado_ms,
+       tamanho = excluded.tamanho,
        seq = nextval('copia_seq'),
        atualizado_em = now()`,
     [
@@ -96,9 +98,16 @@ export async function gravarHistorico(
       JSON.stringify(item.versoes),
       atual.revisao,
       atual.criadaEm,
+      tamanhoDoHistorico(item),
     ],
   );
   invalidarPessoa(pessoaId);
+  invalidarCabeca(pessoaId);
+}
+
+/** O tamanho lógico que conta para a cota (cota.ts). */
+export function tamanhoDoHistorico(item: HistoricoDoDocumento): number {
+  return JSON.stringify(item.versoes).length;
 }
 
 export async function apagarHistorico(
@@ -108,6 +117,7 @@ export async function apagarHistorico(
 ): Promise<void> {
   await pool.query('delete from historico_do_documento where pessoa_id = $1 and id = $2', [pessoaId, id]);
   invalidarPessoa(pessoaId);
+  invalidarCabeca(pessoaId);
 }
 
 /** Leitura para teste e para um futuro "restaurar do servidor". */

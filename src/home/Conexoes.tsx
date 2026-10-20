@@ -35,6 +35,9 @@ import { useCallback, useEffect, useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { downloadTranscript } from '@/features/history/export';
 import { Icon } from '@/shared/ui/Icon';
+import { STORAGE_KEYS } from '@/shared/config/constants';
+import { onLocalChange, readLocal } from '@/shared/services/storage';
+import { resumoDaCota, type ResumoDaCota } from '@/features/sync/sincronizacao';
 import { formatDate } from '@/shared/ui/format';
 import {
   type EstadoDaSincronizacao,
@@ -257,6 +260,14 @@ function ComoConectar({ so }: { so: 'Claude' | 'ChatGPT' }) {
  * não existe nesta versão não aparece: nem como "Em breve" (18/10/2026) — um
  * item que não inicia fluxo real seria decorativo.
  */
+/** "12,3 de 25 MB no servidor", e o aviso quando algo espera vaga. */
+function textoDaCota(c: ResumoDaCota): string {
+  const mb = (b: number) => (b / (1024 * 1024)).toFixed(1).replace('.', ',');
+  const base = `${mb(c.usoBytes)} de ${mb(c.cotaBytes)} MB no servidor`;
+  if (c.seguradosPorCota === 0) return base;
+  const n = c.seguradosPorCota;
+  return `${base} — ${n} ${n === 1 ? 'item espera' : 'itens esperam'} espaço (apague prints ou reuniões antigas)`;
+}
 export function PaginaConexoes({
   registros,
 }: {
@@ -276,6 +287,8 @@ export function PaginaConexoes({
   const [rotuloNovo, setRotuloNovo] = useState('');
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false);
+  /** Quanto do espaço do servidor esta conta usa — e o que está esperando vaga. */
+  const [cota, setCota] = useState<ResumoDaCota | null>(null);
   /** A conta do CITi: diretório, e-mail e agenda (`features/integracoes`). */
   const conta = useContaDoCiti();
 
@@ -292,6 +305,16 @@ export function PaginaConexoes({
         e instanceof ConectorIndisponivel ? e.message : 'Falha ao falar com o servidor.',
       );
     }
+  }, []);
+
+  useEffect(() => {
+    let vivo = true;
+    void readLocal<unknown>(STORAGE_KEYS.syncEstado).then((e) => vivo && setCota(resumoDaCota(e)));
+    const parar = onLocalChange<unknown>(STORAGE_KEYS.syncEstado, (e) => vivo && setCota(resumoDaCota(e)));
+    return () => {
+      vivo = false;
+      parar();
+    };
   }, []);
 
   useEffect(() => {
@@ -623,6 +646,11 @@ export function PaginaConexoes({
                   <div>
                     <b>Conta Google</b>
                     <small>{email ?? estado.email ?? 'sincronização ligada'}</small>
+                    {cota && (
+                      <small>
+                        {textoDaCota(cota)}
+                      </small>
+                    )}
                   </div>
                   {confirmandoId === 'google' ? (
                     <span className="tq-acoes">

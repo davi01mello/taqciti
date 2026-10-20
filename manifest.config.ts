@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Manifesto MV3 da extensão — fonte única de verdade consumida pelo @crxjs/vite-plugin.
  *
  * Ver `content_scripts` e `host_permissions` abaixo para o porquê de o TaqCITi
@@ -251,7 +251,7 @@ export default defineManifest({
   // do produto, não como uma segunda tela de histórico. Nenhuma destas aparece
   // na tela de instalação: o aviso que o usuário vê vem do `<all_urls>`
   // explicado abaixo.
-  permissions: ['storage', 'sidePanel', 'scripting', 'identity'],
+  permissions: ['storage', 'sidePanel', 'scripting', 'identity', 'alarms'],
 
   /*
    * O preço honesto da persistência.

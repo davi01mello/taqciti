@@ -25,6 +25,7 @@
  * NUNCA aponte isto para a produção: o teste escreve e apaga acervo.
  */
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
@@ -35,7 +36,14 @@ import { esquecerSincronizado, sincronizar } from './sincronizacao';
 const SERVIDOR = process.env.TAQCITI_E2E_SERVER;
 const CONTEINER = process.env.TAQCITI_E2E_PG ?? 'taqciti-e2e-pg';
 const CLIENT_ID = 'e2e-client.apps.googleusercontent.com';
-const rodar = SERVIDOR ? describe : describe.skip;
+/**
+ * Os cenários de cota rodam contra um SEGUNDO servidor, com a cota por pessoa
+ * pequena (`TAQCITI_COTA_MB=0.3`): o cliente fala com um servidor só por
+ * execução, então eles têm a sua própria (`TAQCITI_E2E_COTA=1`).
+ */
+const MODO_COTA = process.env.TAQCITI_E2E_COTA === '1';
+const rodar = SERVIDOR && !MODO_COTA ? describe : describe.skip;
+const rodarCota = SERVIDOR && MODO_COTA ? describe : describe.skip;
 
 // ------------------------------------------------------------- o banco
 
@@ -205,6 +213,18 @@ const acervoCompleto = (): Armazenamento => ({
 
 const FORCAR = { forcarRestauracao: true } as const;
 
+/** Um JPEG "de verdade" para o servidor: começa com os bytes de um JPEG, com miolo aleatório. */
+const jpegBytes = (n: number) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), randomBytes(n)]);
+const printReal = (id: string, n: number, extra: Record<string, unknown> = {}) => ({
+  id,
+  meetingId: 'r1',
+  dataUrl: `data:image/jpeg;base64,${jpegBytes(n).toString('base64')}`,
+  at: 1_790_000_000_000,
+  largura: 1440,
+  altura: 900,
+  ...extra,
+});
+
 beforeAll(() => {
   if (!SERVIDOR) return;
   // A trava que impede isto de escrever no servidor errado.
@@ -348,12 +368,14 @@ rodar('sincronização de ponta a ponta (servidor e Postgres reais)', () => {
     expect(b.lido(STORAGE_KEYS.marks)).toEqual({ r1: { ...marcas, 'cap-0': 'duvida' } });
   });
 
-  it('trabalho que ainda não subiu não é atropelado (vale a última a sincronizar)', async () => {
+  it('trabalho que ainda não subiu não é atropelado: vale a última, e a outra versão não se perde', async () => {
     const sub = conta('ana');
     const a = new Maquina(sub).semear(acervoCompleto());
     const b = new Maquina(sub);
     await a.em(() => sincronizar());
     await b.em(() => sincronizar());
+    const conteudo = (m: Maquina, id: string) =>
+      (m.lido(STORAGE_KEYS.documents) as { id: string; content: string }[]).find((d) => d.id === id)?.content;
 
     await a.em(async () => {
       await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da A' })] });
@@ -363,14 +385,13 @@ rodar('sincronização de ponta a ponta (servidor e Postgres reais)', () => {
       await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da B' })] });
       await sincronizar(FORCAR);
     });
-    expect((b.lido(STORAGE_KEYS.documents) as { content: string }[])[0]!.content).toBe('Versão da B');
+    expect(conteudo(b, 'd1')).toBe('Versão da B');
     expect(
-      sql(`select t.corpo->>'content' from copia_local t join pessoa p on p.id=t.pessoa_id where p.google_sub='${sub}' and t.colecao='documento'`)[0],
+      sql(`select t.corpo->>'content' from copia_local t join pessoa p on p.id=t.pessoa_id where p.google_sub='${sub}' and t.colecao='documento' and t.id='d1'`)[0],
     ).toBe('Versão da B');
     await a.em(() => sincronizar(FORCAR));
-    expect((a.lido(STORAGE_KEYS.documents) as { content: string }[])[0]!.content).toBe('Versão da B');
+    expect(conteudo(a, 'd1')).toBe('Versão da B');
   });
-
   it('trocar a conta Google na mesma máquina não entrega o acervo local à conta nova', async () => {
     const ana = conta('ana');
     const bia = conta('bia');
@@ -462,6 +483,99 @@ rodar('sincronização de ponta a ponta (servidor e Postgres reais)', () => {
     expect(sql(`select count(*) from pessoa where google_sub='${sub}'`)[0]).toBe('0');
   });
 
+  it('prints: a imagem sobe como binário, volta byte a byte, e apagar libera o espaço', async () => {
+    const sub = conta('ana');
+    const [p1, p2, p3] = [printReal('p1', 120_000, { at: 3000 }), printReal('p2', 60_000, { at: 2000 }), printReal('p3', 30_000, { at: 1000 })];
+    const a = new Maquina(sub).semear({ ...acervoCompleto(), [STORAGE_KEYS.shots]: [p1, p2, p3] });
+    const b = new Maquina(sub);
+
+    expect(await a.em(() => sincronizar())).toMatchObject({ estado: 'ok', enviados: 8 });
+    // No banco é imagem de verdade (bytea), do tamanho da imagem — não base64.
+    const tamanhos = sql(`select octet_length(t.bytes) from print_local t join pessoa p on p.id=t.pessoa_id where p.google_sub='${sub}' order by t.em_ms desc`);
+    expect(tamanhos).toEqual(['120004', '60004', '30004']);
+
+    expect(await b.em(() => sincronizar())).toMatchObject({ estado: 'ok', restaurados: 8 });
+    expect(b.lido(STORAGE_KEYS.shots)).toEqual([p1, p2, p3]);
+
+    // Apagar numa máquina: a imagem sai do banco (é o que ocupa), a lápide fica, e a outra apaga.
+    await a.em(async () => {
+      await chrome.storage.local.set({ [STORAGE_KEYS.shots]: [p2, p3] });
+      await sincronizar();
+    });
+    expect(sql(`select count(*) filter (where t.apagado and t.bytes is null and t.tamanho = 0) from print_local t join pessoa p on p.id=t.pessoa_id where p.google_sub='${sub}'`)[0]).toBe('1');
+    await b.em(() => sincronizar(FORCAR));
+    expect((b.lido(STORAGE_KEYS.shots) as { id: string }[]).map((p) => p.id)).toEqual(['p2', 'p3']);
+  });
+
+  it('prints não vazam: nem para a outra conta, nem para o conector (a IA)', async () => {
+    const ana = conta('ana');
+    const bia = conta('bia');
+    await new Maquina(ana).semear({ ...acervoCompleto(), [STORAGE_KEYS.shots]: [printReal('secreto', 5000)] }).em(() => sincronizar());
+    const deBia = new Maquina(bia);
+    await deBia.em(() => sincronizar());
+    expect(deBia.lido(STORAGE_KEYS.shots)).toBeUndefined();
+    expect(contagem('print_local', bia)).toBe(0);
+    // A projeção que a IA lê só tem a CONTAGEM de prints.
+    expect(sql(`select t.prints from nota t join pessoa p on p.id=t.pessoa_id where p.google_sub='${ana}'`)[0]).toBe('1');
+  });
+
+  it('conflito: duas máquinas editam o mesmo documento — vale a última, e a outra versão é guardada', async () => {
+    const sub = conta('ana');
+    const a = new Maquina(sub).semear(acervoCompleto());
+    const b = new Maquina(sub);
+    await a.em(() => sincronizar());
+    await b.em(() => sincronizar());
+
+    await a.em(async () => {
+      await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da A' })] });
+      await sincronizar();
+    });
+    await b.em(async () => {
+      await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: 'Versão da B' })] });
+      await sincronizar();
+    });
+
+    // No servidor, a da B — e a da A sobrevive como documento recuperável, que também subiu.
+    const noBanco = sql(`select t.corpo->>'content' from copia_local t join pessoa p on p.id=t.pessoa_id where p.google_sub='${sub}' and t.colecao='documento' order by 1`);
+    expect(noBanco).toEqual(['Versão da A', 'Versão da B']);
+
+    await a.em(() => sincronizar(FORCAR));
+    const docs = a.lido(STORAGE_KEYS.documents) as { id: string; content: string; title: string }[];
+    expect(docs.map((d) => d.content).sort()).toEqual(['Versão da A', 'Versão da B']);
+    expect(docs.find((d) => d.id !== 'd1')!.title).toBe('Ata d1 (versão de outra máquina)');
+    // Sem laço: nada mais a fazer em nenhuma das duas.
+    expect(await a.em(() => sincronizar(FORCAR))).toEqual({ estado: 'nada-a-fazer' });
+    expect(await b.em(() => sincronizar(FORCAR))).toEqual({ estado: 'nada-a-fazer' });
+  });
+
+  it('editar várias vezes na mesma máquina nunca gera conflito consigo mesma', async () => {
+    const sub = conta('ana');
+    const a = new Maquina(sub).semear(acervoCompleto());
+    await a.em(() => sincronizar());
+    for (const v of ['2', '3', '4']) {
+      await a.em(async () => {
+        await chrome.storage.local.set({ [STORAGE_KEYS.documents]: [documento('d1', { content: `v${v}` })] });
+        await sincronizar();
+      });
+    }
+    expect(a.lido(STORAGE_KEYS.documents)).toHaveLength(1);
+  });
+
+  it('o polling sem novidade é barato e uma escrita de outra máquina aparece', async () => {
+    const sub = conta('ana');
+    const a = new Maquina(sub).semear(acervoCompleto());
+    const b = new Maquina(sub);
+    await a.em(() => sincronizar());
+    await b.em(() => sincronizar());
+    // Vários polls vazios (o que o alarme faz a cada 5 min).
+    for (let i = 0; i < 5; i++) expect(await b.em(() => sincronizar(FORCAR))).toEqual({ estado: 'nada-a-fazer' });
+    await a.em(async () => {
+      await chrome.storage.local.set({ [STORAGE_KEYS.conversations]: [conversa('c1'), conversa('c-nova')] });
+      await sincronizar();
+    });
+    expect(await b.em(() => sincronizar(FORCAR))).toMatchObject({ restaurados: 1 });
+  });
+
   it('um cliente que manda lixo para a rota real é recusado sem derrubar o servidor', async () => {
     const sub = conta('ana');
     const m = new Maquina(sub);
@@ -495,5 +609,64 @@ rodar('sincronização de ponta a ponta (servidor e Postgres reais)', () => {
     // O servidor continua de pé.
     const get = await fetch(`${SERVER_BASE_URL}/api/sync?desde=0`, { headers: { Authorization: `Bearer ${token}` } });
     expect(get.status).toBe(200);
+  });
+});
+
+
+rodarCota('cota por pessoa (servidor com TAQCITI_COTA_MB=0.3)', () => {
+  it('recusa o que passa do teto, mantém o resto, e retoma quando há espaço', async () => {
+    const sub = conta('ana');
+    const [grande1, grande2] = [printReal('g1', 170_000, { at: 2000 }), printReal('g2', 170_000, { at: 1000 })];
+    const a = new Maquina(sub).semear({ [STORAGE_KEYS.history]: [reuniao()], [STORAGE_KEYS.shots]: [grande1, grande2] });
+
+    // 2 × 170 KB = 340 KB: o segundo passa dos 0,3 MB (314 572 B); o primeiro cabe.
+    const r = await a.em(() => sincronizar());
+    expect(r).toMatchObject({ estado: 'ok', recusadosPorCota: 1 });
+    expect(contagem('print_local', sub, 'and not t.apagado')).toBe(1);
+    // A cota é mesmo respeitada no banco.
+    const uso = Number(
+      sql(`select coalesce(sum(t.tamanho),0) from print_local t join pessoa p on p.id=t.pessoa_id where p.google_sub='${sub}'`)[0],
+    );
+    expect(uso).toBeLessThanOrEqual(0.3 * 1024 * 1024);
+
+    const est = a.estado[STORAGE_KEYS.syncEstado] as { assinaturas: Record<string, string>; pausados: Record<string, number>; uso: { bytes: number; cota: number } };
+    expect(est.uso.cota).toBe(Math.floor(0.3 * 1024 * 1024));
+    const recusado = Object.keys(est.pausados);
+    expect(recusado).toHaveLength(1);
+    expect(est.assinaturas[recusado[0]!]).toBeUndefined();
+
+    // Apaga o que cabia: libera espaço. O recusado está em pausa — passada a pausa, entra.
+    const aceito = recusado[0] === 'print:g2' ? 'g1' : 'g2';
+    await a.em(async () => {
+      const guardado = (await chrome.storage.local.get(STORAGE_KEYS.syncEstado))[STORAGE_KEYS.syncEstado] as { pausados: Record<string, number> };
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.shots]: [aceito === 'g1' ? grande2 : grande1],
+        [STORAGE_KEYS.syncEstado]: { ...guardado, pausados: {} }, // "passaram 30 minutos"
+      });
+      // O print recusado entra, junto com a nota da reunião (a contagem de prints dela mudou).
+      expect(await sincronizar()).toMatchObject({ estado: 'ok', enviados: 2 });
+    });
+    expect(contagem('print_local', sub, 'and not t.apagado')).toBe(1);
+    expect(a.estado[STORAGE_KEYS.syncEstado]).toMatchObject({ recusadosPorCota: 0 });
+  });
+
+  it('a cota é por conta: a cheia de uma não barra a outra', async () => {
+    const [ana, bia] = [conta('ana'), conta('bia')];
+    const enche = (sub: string) =>
+      new Maquina(sub).semear({ [STORAGE_KEYS.history]: [reuniao()], [STORAGE_KEYS.shots]: [printReal('x', 200_000)] }).em(() => sincronizar());
+    expect(await enche(ana)).toMatchObject({ estado: 'ok' });
+    expect(await enche(bia)).toMatchObject({ estado: 'ok' });
+    expect(contagem('print_local', ana)).toBe(1);
+    expect(contagem('print_local', bia)).toBe(1);
+  });
+
+  it('um print acima do teto de 1,5 MB é recusado de vez (e não fica tentando para sempre)', async () => {
+    const sub = conta('ana');
+    const enorme = printReal('enorme', 1_600_000);
+    const a = new Maquina(sub).semear({ [STORAGE_KEYS.history]: [reuniao()], [STORAGE_KEYS.shots]: [enorme] });
+    expect(await a.em(() => sincronizar())).toMatchObject({ estado: 'ok' });
+    expect(contagem('print_local', sub)).toBe(0);
+    // Recusa por formato é definitiva: registrado como tratado, e a passada seguinte não reenvia.
+    expect(await a.em(() => sincronizar(FORCAR))).toEqual({ estado: 'nada-a-fazer' });
   });
 });

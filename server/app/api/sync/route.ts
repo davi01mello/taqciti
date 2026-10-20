@@ -33,11 +33,14 @@ import { corsHeaders } from '@/lib/apiGuard';
 import { autenticar } from '@/lib/identidade/rota';
 import { apagarItem, gravarItem } from '@/lib/conector/escrita';
 import { TIPOS_DE_ITEM, type ItemPorTipo, type TipoDeItem } from '@/lib/conector/tipos';
-import { TIPO_COPIA, gravarCopia, lerCopias, validarCopia, type CopiaRecebida } from '@/lib/conector/copia';
+import { TIPO_COPIA, gravarCopia, lerCopias, tamanhoDaCopia, validarCopia, type CopiaRecebida } from '@/lib/conector/copia';
+import { TIPO_PRINT, apagarPrint, gravarPrint, validarPrint, type PrintRecebido } from '@/lib/conector/prints';
+import { bancoCheio, cotaDaPessoaBytes, purgarLapides, tamanhoAtual, usoDaPessoa } from '@/lib/conector/cota';
 import {
   TIPO_HISTORICO,
   apagarHistorico,
   gravarHistorico,
+  tamanhoDoHistorico,
   validarHistorico,
   type HistoricoDoDocumento,
 } from '@/lib/conector/historico';
@@ -68,13 +71,24 @@ function ehTipo(v: unknown): v is TipoDeItem {
 type Entrada =
   | { tipo: TipoDeItem; item: ItemPorTipo[TipoDeItem] }
   | { tipo: typeof TIPO_HISTORICO; item: HistoricoDoDocumento }
-  | { tipo: typeof TIPO_COPIA; item: CopiaRecebida };
+  | { tipo: typeof TIPO_COPIA; item: CopiaRecebida }
+  | { tipo: typeof TIPO_PRINT; item: PrintRecebido };
 
 /** O que a rota recusou sem derrubar o lote: o cliente registra e segue. */
 interface Recusado {
   tipo: string;
   id: string;
   motivo: string;
+  /**
+   * colecao:id, a chave que a extensão usa. Presente nas recusas TEMPORÁRIAS.
+   */
+  chave?: string;
+  /**
+   * 	rue quando recusar não é definitivo (cota cheia): o item volta a ser
+   * tentado quando houver espaço, e a extensão NÃO o dá como enviado. Ausente
+   * é recusa por formato — reenviar o mesmo item só o recusaria de novo.
+   */
+  temporario?: boolean;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -111,7 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const recusados: Recusado[] = [];
   for (const bruto of itensBrutos) {
     const e = bruto as { tipo?: unknown; item?: unknown };
-    if (e.tipo !== TIPO_HISTORICO && e.tipo !== TIPO_COPIA && !ehTipo(e.tipo)) {
+    if (e.tipo !== TIPO_HISTORICO && e.tipo !== TIPO_COPIA && e.tipo !== TIPO_PRINT && !ehTipo(e.tipo)) {
       return NextResponse.json(
         { error: 'Cada item precisa de `tipo` conhecido e `item` objeto.' },
         { status: 400, headers },
@@ -142,19 +156,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       else recusados.push({ tipo: TIPO_COPIA, id: String((e.item as { id?: unknown }).id), motivo: v.motivo });
       continue;
     }
+    if (e.tipo === TIPO_PRINT) {
+      const v = validarPrint(e.item);
+      if (v.ok) entradas.push({ tipo: TIPO_PRINT, item: v.item });
+      else recusados.push({ tipo: TIPO_PRINT, id: String((e.item as { id?: unknown }).id), motivo: v.motivo });
+      continue;
+    }
     entradas.push({ tipo: e.tipo as TipoDeItem, item: e.item as ItemPorTipo[TipoDeItem] });
   }
 
-  const remocoes: { tipo: TipoDeItem | typeof TIPO_HISTORICO; id: string }[] = [];
+  const remocoes: { tipo: TipoDeItem | typeof TIPO_HISTORICO | typeof TIPO_PRINT; id: string }[] = [];
   for (const bruto of apagadosBrutos) {
     const a = bruto as { tipo?: unknown; id?: unknown };
-    if ((a.tipo !== TIPO_HISTORICO && !ehTipo(a.tipo)) || typeof a.id !== 'string') {
+    if ((a.tipo !== TIPO_HISTORICO && a.tipo !== TIPO_PRINT && !ehTipo(a.tipo)) || typeof a.id !== 'string') {
       return NextResponse.json(
         { error: 'Cada apagado precisa de `tipo` e `id`.' },
         { status: 400, headers },
       );
     }
-    remocoes.push({ tipo: a.tipo as TipoDeItem | typeof TIPO_HISTORICO, id: a.id });
+    remocoes.push({ tipo: a.tipo as TipoDeItem | typeof TIPO_HISTORICO | typeof TIPO_PRINT, id: a.id });
   }
 
   /*
@@ -166,17 +186,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
    * onde recomeçar. Em sequência, `gravados` é exatamente quantos entraram, e
    * reenviar a partir dali é seguro porque tudo é upsert.
    */
+  /*
+   * A cota só é cobrada de quem enche o banco: cópias, prints e histórico. As
+   * projeções do conector e as exclusões passam sempre — exclusão LIBERA espaço,
+   * e recusá-la deixaria quem está cheio sem como sair.
+   */
+  const cobrados = entradas.some(
+    (e) => e.tipo === TIPO_COPIA || e.tipo === TIPO_PRINT || e.tipo === TIPO_HISTORICO,
+  );
+  const cota = cotaDaPessoaBytes();
+  let uso = 0;
+  let cheio = false;
+
   let gravados = 0;
   try {
+    /*
+     * As exclusões ANTES das gravações, e o uso medido DEPOIS delas. Quem está
+     * na cota apaga um print e manda outro no mesmo lote: se as gravações viessem
+     * primeiro, o espaço do apagado ainda contaria e o novo seria recusado — para
+     * entrar só meia hora depois, com a pausa da extensão.
+     */
+    for (const { tipo, id } of remocoes) {
+      if (tipo === TIPO_HISTORICO) await apagarHistorico(auth.pessoaId, id);
+      else if (tipo === TIPO_PRINT) await apagarPrint(auth.pessoaId, id);
+      else await apagarItem(auth.pessoaId, tipo, id);
+    }
+    if (cobrados) {
+      [uso, cheio] = await Promise.all([usoDaPessoa(auth.pessoaId), bancoCheio()]);
+    }
     for (const entrada of entradas) {
+      if (entrada.tipo === TIPO_COPIA || entrada.tipo === TIPO_PRINT || entrada.tipo === TIPO_HISTORICO) {
+        const ident =
+          entrada.tipo === TIPO_COPIA
+            ? { tabela: 'copia_local' as const, chave: { colecao: entrada.item.colecao, id: entrada.item.id }, nome: `${entrada.item.colecao}:${entrada.item.id}`, tamanho: tamanhoDaCopia(entrada.item) }
+            : entrada.tipo === TIPO_PRINT
+              ? { tabela: 'print_local' as const, chave: { id: entrada.item.id }, nome: `print:${entrada.item.id}`, tamanho: entrada.item.bytes.length }
+              : { tabela: 'historico_do_documento' as const, chave: { id: entrada.item.id }, nome: `historico:${entrada.item.id}`, tamanho: tamanhoDoHistorico(entrada.item) };
+        // Numa edição só a DIFERENÇA conta: reescrever o mesmo documento não
+        // pode ser barrado por quem está perto do teto.
+        const delta = ident.tamanho - (await tamanhoAtual(ident.tabela, auth.pessoaId, ident.chave));
+        const motivo =
+          delta > 0 && cheio
+            ? 'cota-global: o banco do servidor está cheio; tente de novo mais tarde.'
+            : delta > 0 && uso + delta > cota
+              ? `cota: o acervo desta conta chegou a ${Math.round(cota / 1024 / 1024)} MB; apague algo para liberar espaço.`
+              : null;
+        if (motivo) {
+          recusados.push({ tipo: entrada.tipo, id: entrada.item.id, motivo, chave: ident.nome, temporario: true });
+          continue;
+        }
+        uso += delta;
+      }
       if (entrada.tipo === TIPO_HISTORICO) await gravarHistorico(auth.pessoaId, entrada.item);
       else if (entrada.tipo === TIPO_COPIA) await gravarCopia(auth.pessoaId, entrada.item);
+      else if (entrada.tipo === TIPO_PRINT) await gravarPrint(auth.pessoaId, entrada.item);
       else await gravarItem(auth.pessoaId, entrada.tipo, entrada.item);
       gravados += 1;
     }
-    for (const { tipo, id } of remocoes) {
-      if (tipo === TIPO_HISTORICO) await apagarHistorico(auth.pessoaId, id);
-      else await apagarItem(auth.pessoaId, tipo, id);
+    // As lápides velhas saem aos poucos, de carona nas escritas — sem agendador.
+    if ((gravados > 0 || remocoes.length > 0) && Math.random() < 0.1) {
+      await purgarLapides(auth.pessoaId).catch((erro) => console.error('[api/sync] limpeza de lápides', erro));
     }
   } catch (erro) {
     console.error('[api/sync] falha ao gravar', erro);
@@ -192,11 +261,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json(
-    { gravados, apagados: remocoes.length, ...(recusados.length > 0 ? { recusados } : {}) },
+    {
+      gravados,
+      apagados: remocoes.length,
+      ...(cobrados ? { uso: { bytes: uso, cota } } : {}),
+      ...(recusados.length > 0 ? { recusados } : {}),
+    },
     { status: 200, headers },
   );
 }
-
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'), METODOS);
   const auth = await autenticar(request, headers);

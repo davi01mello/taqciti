@@ -268,29 +268,46 @@ GET /api/sync?desde=<seq>   →   { itens: [{ colecao, id, corpo, apagado, seq }
   contra o Postgres de verdade (`copia.test.ts`) e pelas rotas (`syncRota.test.ts`).
 - O histórico de versões dos documentos sai na mesma leitura (coleção `historico`).
 
-**Fusão** (lado da extensão): só toma o remoto quem NÃO mexeu no item desde o
-último envio; o trabalho local que ainda não subiu nunca é atropelado, e o que
-foi apagado aqui nunca ressuscita. Em edição simultânea nas duas máquinas vale
-a última a sincronizar — não há relógio comparável entre máquinas. Ver o
-cabeçalho de `restauracao.ts`.
+**Fusão** (lado da extensão): a volta roda ANTES da subida. Só toma o remoto quem
+NÃO mexeu no item desde o último envio; o que foi apagado aqui nunca ressuscita.
+Se os DOIS lados mudaram o mesmo item, o local vence e a versão da outra máquina
+vira uma **cópia recuperável** ("(versão de outra máquina)" num documento ou
+conversa; o texto da outra versão ao fim de uma nota, com as marcações somadas).
+Cada item guarda a sua BASE (resumo do último acordo) para distinguir "só eu
+mexi" de "os dois mexemos" — sem ela, o eco do próprio envio pareceria conflito.
+Reunião, histórico de versões e prints não geram cópia. Ver `restauracao.ts`.
 
-**O que NÃO volta**: prints (imagens grandes demais para o acervo), preferências
-e o estado interno do Taq.
-A fusão é por item inteiro: uma nota e as marcações dela chegam e saem juntas.
+**Prints** sobem e voltam: tabela `print_local`, como `bytea` (binário, um terço
+menor que o base64), imutáveis, no máximo 1,5 MB cada, validados pelos bytes (um
+`data:image/jpeg` que não começa como JPEG é recusado). A IA nunca os lê — a
+projeção do conector só tem a contagem.
 
-**Troca de conta na mesma máquina**: o storage é da conta anterior. A extensão
-guarda o `sub` da conta que sincronizou por último; se mudar, o acervo local NÃO
-sobe para a conta nova (seria entregar dados de uma pessoa à outra) e o cursor da
-volta recomeça. O que já estava no storage continua lá — apagar não é decisão
-que uma troca de conta deva tomar sozinha.
+**O que NÃO volta**: preferências e o estado interno do Taq.
 
-**Deploy — a ordem é obrigatória**: (1) aplicar o `esquema.sql` novo no banco
-(cria `copia_local`, a sequência e a coluna `seq` do histórico); (2) publicar o
-servidor; (3) só então distribuir a extensão. Uma extensão nova contra um
-servidor ANTIGO não funciona: o servidor antigo responde 400 a qualquer lote
-com um item `copia` (tipo desconhecido), e como o lote é recusado inteiro, a
-subida para de funcionar — não só a volta. Servidor novo com extensão antiga é
-seguro: a extensão antiga só não manda a cópia nem lê de volta.
+## Orçamento do banco (para não derrubar a Supabase)
+
+O plano gratuito tem 500 MB e, estourado, o banco vira SOMENTE LEITURA — tudo
+para, não só a sincronização. Imagem é o que enche. Duas travas (`cota.ts`):
+
+- **Cota por pessoa**: 25 MB (`TAQCITI_COTA_MB`) de cópias + prints + histórico,
+  medidos em bytes lógicos. Passou, o item é recusado com `temporario: true`; a
+  extensão NÃO o dá como enviado, põe em pausa por 30 min (sem reenviar imagem a
+  cada passada) e mostra "N itens esperam espaço" em Conexões. Edição cobra só a
+  diferença; exclusões passam sempre e valem ANTES das gravações do mesmo lote.
+- **Disjuntor global**: se o banco passar de 400 MB (`TAQCITI_LIMITE_BANCO_MB`,
+  medido com `pg_database_size` no máximo 1×/min), escritas novas são recusadas
+  até voltar abaixo. Falha aberta: não conseguir medir não trava ninguém.
+- **Lápides expiram em 90 dias**, limpas aos poucos de carona nas escritas. Uma
+  máquina offline por mais tempo mantém o item apagado como "zumbi" local, mas
+  nunca o ressuscita no servidor.
+- **Leitura em duas fases**: metadados leves primeiro (tamanho lógico guardado em
+  coluna), corpos só dos itens que cabem na página (3 MB, abaixo dos 4,5 MB da
+  Vercel). A versão anterior lia 25 imagens do banco para devolver duas.
+- **Polling barato**: a extensão pergunta a cada 5 min (alarme). `cabeca.ts` guarda
+  o maior `seq` visto por pessoa por 15 s e responde "nada de novo" sem tocar no
+  banco; toda escrita da mesma instância invalida (com contador de geração contra
+  a corrida consulta/escrita). Por instância, como `cache.ts`: outra instância da
+  Vercel só enxerga a mudança quando o TTL vence — atraso, nunca dado errado.
 ## Três coisas que só um cliente de verdade revelou
 
 Nada aqui apareceu em teste, em `curl` ou em log. Todas as três foram
