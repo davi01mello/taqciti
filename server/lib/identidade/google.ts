@@ -41,6 +41,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { IdentidadeVerificada } from '@/lib/conector/pessoa';
+import { dominioHospedadoDeFora, emailPermitido, mensagemDeRestricao } from './dominio';
 
 /** A porta para a rede, injetada. Ver o cabeçalho de `providers/openai.ts`. */
 export type Transporte = (url: string, init?: RequestInit) => Promise<Response>;
@@ -81,18 +82,6 @@ function clientIdEsperado(): string {
 }
 
 /**
- * O domínio exigido no e-mail, quando houver.
- *
- * `TAQCITI_DOMINIO_PERMITIDO=citi.org.br` restringe o produto ao CITi. Vazio
- * aceita qualquer conta Google verificada — o que é legítimo em
- * desenvolvimento e não é o que se quer em produção, por isso a ausência é
- * registrada e não silenciosa.
- */
-function dominioPermitido(): string | null {
-  return process.env.TAQCITI_DOMINIO_PERMITIDO?.trim().toLowerCase() || null;
-}
-
-/**
  * A forma do que o `tokeninfo` devolve para um `id_token`. Só o que nos
  * interessa.
  *
@@ -106,6 +95,8 @@ interface RespostaDoTokeninfo {
   sub?: string;
   email?: string;
   email_verified?: string | boolean;
+  /** O domínio do Google Workspace da conta, quando ela é de um. */
+  hd?: string;
   exp?: string | number;
   error?: string;
   error_description?: string;
@@ -183,9 +174,10 @@ async function verificar(
     throw new IdentidadeRecusada('E-mail não verificado pelo Google.');
   }
 
-  const dominio = dominioPermitido();
-  if (dominio && !email.endsWith(`@${dominio}`)) {
-    throw new IdentidadeRecusada(`O TaqCiti está restrito a contas @${dominio}.`);
+  // Só contas da organização (dominio.ts): o e-mail é a barreira, e um domínio
+  // hospedado de OUTRA organização nunca passa, mesmo com e-mail parecido.
+  if (!emailPermitido(email) || dominioHospedadoDeFora(dados.hd)) {
+    throw new IdentidadeRecusada(mensagemDeRestricao());
   }
 
   return {

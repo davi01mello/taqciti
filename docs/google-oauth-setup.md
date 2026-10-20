@@ -224,11 +224,12 @@ aceito aqui — e quem operasse aquele aplicativo entraria como ela. Por isso
 a rota **falha fechada** sem a variável: "não sei comparar" não pode virar
 "então deixa passar". Ver o cabeçalho de `server/lib/identidade/google.ts`.
 
-`TAQCITI_DOMINIO_PERMITIDO` existe (opcional, comentado em `.env.example`) mas
-NÃO é usado aqui de propósito: quem usa o Claude/ChatGPT não necessariamente
-paga por eles numa conta @citi.org.br, e a conta do Google só identifica de
-quem é o acervo — não é uma cobrança. Deixado vazio, qualquer conta Google
-verificada cria acervo no servidor.
+O acesso é restrito a contas `@citi.org.br` **por padrão**
+(`server/lib/identidade/dominio.ts`), sem precisar de variável nenhuma: é
+fail-closed. `TAQCITI_DOMINIO_PERMITIDO` só serve para TROCAR o domínio, e `*`
+desliga a restrição (só para desenvolvimento). A extensão manda `hd=citi.org.br`
+ao Google para o seletor oferecer só contas da organização, mas quem IMPÕE a
+regra é o servidor — o `hd` é só uma dica.
 
 ### 7. Conferir
 

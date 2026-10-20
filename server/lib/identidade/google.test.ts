@@ -1,4 +1,4 @@
-﻿/**
+/**
  * A verificação de identidade, sem rede.
  *
  * O `transporte` entra por parâmetro (mesmo padrão de
@@ -139,39 +139,71 @@ describe('verificarTokenDoGoogle', () => {
     expect(id.email).toBe('ana.souza@citi.org.br');
   });
 
-  describe('restrição de domínio', () => {
-    it('barra quem é de fora quando o domínio está configurado', async () => {
-      process.env.TAQCITI_DOMINIO_PERMITIDO = 'citi.org.br';
-      const { transporte } = transporteQueResponde({
-        ...tokeninfoValido,
-        email: 'alguem@gmail.com',
+  describe('restrição ao CITi (padrão, sem configurar nada)', () => {
+    const com = (extra: Record<string, unknown>) => transporteQueResponde({ ...tokeninfoValido, ...extra }).transporte;
+
+    it('aceita conta @citi.org.br', async () => {
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'ana@citi.org.br' }) })).resolves.toMatchObject({
+        email: 'ana@citi.org.br',
       });
-      await expect(verificarTokenDoGoogle('tok', { transporte })).rejects.toThrow(/citi\.org\.br/);
     });
 
-    it('não se deixa enganar por domínio que só termina parecido', async () => {
-      process.env.TAQCITI_DOMINIO_PERMITIDO = 'citi.org.br';
-      const { transporte } = transporteQueResponde({
-        ...tokeninfoValido,
-        email: 'invasor@naoehciti.org.br',
-      });
-      await expect(verificarTokenDoGoogle('tok', { transporte })).rejects.toBeInstanceOf(
+    it.each([
+      ['gmail', 'alguem@gmail.com'],
+      ['domínio que só termina parecido', 'invasor@naoehciti.org.br'],
+      ['subdomínio', 'alguem@mail.citi.org.br'],
+      ['o domínio no lugar errado', 'citi.org.br@gmail.com'],
+      ['outra organização', 'alguem@outra.org'],
+    ])('barra %s, sem configuração nenhuma', async (_nome, email) => {
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email }) })).rejects.toBeInstanceOf(IdentidadeRecusada);
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email }) })).rejects.toThrow(/citi\.org\.br/);
+    });
+
+    it('um domínio hospedado (hd) de OUTRA organização nunca passa, mesmo com e-mail do CITi', async () => {
+      await expect(
+        verificarTokenDoGoogle('tok', { transporte: com({ email: 'ana@citi.org.br', hd: 'outra.org' }) }),
+      ).rejects.toBeInstanceOf(IdentidadeRecusada);
+    });
+
+    it('hd do CITi passa, e a ausência de hd (conta fora do Workspace) também', async () => {
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'ana@citi.org.br', hd: 'citi.org.br' }) })).resolves.toBeDefined();
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'ana@citi.org.br' }) })).resolves.toBeDefined();
+    });
+
+    it('e-mail do CITi em caixa alta passa; o mesmo com e-mail NÃO verificado, não', async () => {
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'ANA@CITI.ORG.BR' }) })).resolves.toBeDefined();
+      await expect(
+        verificarTokenDoGoogle('tok', { transporte: com({ email: 'ana@citi.org.br', email_verified: 'false' }) }),
+      ).rejects.toBeInstanceOf(IdentidadeRecusada);
+    });
+
+    it('esquecer a variável de ambiente NÃO abre o produto (falha fechada)', async () => {
+      delete process.env.TAQCITI_DOMINIO_PERMITIDO;
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'alguem@gmail.com' }) })).rejects.toBeInstanceOf(
+        IdentidadeRecusada,
+      );
+      process.env.TAQCITI_DOMINIO_PERMITIDO = '   ';
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'alguem@gmail.com' }) })).rejects.toBeInstanceOf(
         IdentidadeRecusada,
       );
     });
 
-    it('sem domínio configurado, qualquer conta verificada passa', async () => {
-      const { transporte } = transporteQueResponde({
-        ...tokeninfoValido,
-        email: 'alguem@gmail.com',
-      });
-      await expect(verificarTokenDoGoogle('tok', { transporte })).resolves.toMatchObject({
+    it('a variável serve para TROCAR o domínio', async () => {
+      process.env.TAQCITI_DOMINIO_PERMITIDO = '@outra.org';
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'x@outra.org' }) })).resolves.toBeDefined();
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'x@citi.org.br' }) })).rejects.toBeInstanceOf(
+        IdentidadeRecusada,
+      );
+    });
+
+    it('abrir exige pedir com todas as letras: TAQCITI_DOMINIO_PERMITIDO=*', async () => {
+      process.env.TAQCITI_DOMINIO_PERMITIDO = '*';
+      await expect(verificarTokenDoGoogle('tok', { transporte: com({ email: 'alguem@gmail.com' }) })).resolves.toMatchObject({
         email: 'alguem@gmail.com',
       });
     });
   });
 });
-
 describe('cache de identidade', () => {
   it('não vai ao Google duas vezes pelo mesmo token', async () => {
     const { transporte } = transporteQueResponde(tokeninfoValido);

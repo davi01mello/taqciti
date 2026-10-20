@@ -35,6 +35,7 @@
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { type Consultador, banco } from '@/lib/conector/banco';
+import { emailPermitido } from './dominio';
 
 /**
  * O prefixo existe para o token ser reconhecível fora de contexto — num
@@ -102,8 +103,9 @@ export async function pessoaDoToken(
   const hash = hashDoToken(token);
 
   const { rows } = await pool.query(
-    `select pessoa_id, hash from token_do_conector
-      where hash = $1 and revogado_em is null`,
+    `select t.pessoa_id, t.hash, p.email
+       from token_do_conector t join pessoa p on p.id = t.pessoa_id
+      where t.hash = $1 and t.revogado_em is null`,
     [hash],
   );
   const linha = rows[0];
@@ -113,6 +115,12 @@ export async function pessoaDoToken(
   const a = Buffer.from(hash, 'utf8');
   const b = Buffer.from(guardado, 'utf8');
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
+  // O token é da pessoa, e a pessoa tem que ser da organização AGORA: um token
+  // criado quando a regra era frouxa não pode seguir entregando o acervo de
+  // quem não é do CITI. Recusa como token revogado, sem dizer o motivo a quem
+  // só tem a URL.
+  if (!emailPermitido(String(linha.email))) return null;
 
   // `usado_em` alimenta a página Conexões ("último uso") e é o que permite
   // alguém notar um token que continua sendo usado depois de a pessoa achar

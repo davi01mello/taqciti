@@ -103,6 +103,29 @@ function payloadDoJwt(idToken: string): Record<string, unknown> | null {
 }
 
 /**
+ * O domínio das contas que podem usar o TaqCiti. Espelha `dominio.ts` do
+ * servidor (`server/lib/identidade/`), que é quem IMPÕE a regra — aqui ela existe
+ * para a pessoa ser barrada na hora de logar, com uma mensagem que diz o que
+ * fazer, em vez de descobrir só quando o servidor recusar.
+ */
+export const DOMINIO_DO_CITI = 'citi.org.br';
+
+export const MENSAGEM_DE_CONTA_DE_FORA = `O TaqCiti só aceita contas @${DOMINIO_DO_CITI}. Escolha a conta da organização.`;
+
+/**
+ * A conta do token é da organização? O e-mail é a barreira; um `hd` (domínio
+ * hospedado do Workspace) de OUTRA organização também barra, e a ausência dele
+ * não — contas fora do Workspace não o têm.
+ */
+export function contaEhDoCiti(idToken: string): boolean {
+  const payload = payloadDoJwt(idToken);
+  const email = typeof payload?.email === 'string' ? payload.email.trim().toLowerCase() : '';
+  if (!email.endsWith(`@${DOMINIO_DO_CITI}`)) return false;
+  const hd = payload?.hd;
+  return typeof hd !== 'string' || hd.trim().toLowerCase() === DOMINIO_DO_CITI;
+}
+
+/**
  * O pedido cru ao Google. Sempre LÊ `chrome.runtime.lastError` — obrigatório
  * mesmo para quem descarta o valor, senão o Chrome registra "unchecked
  * runtime.lastError" no console a cada tentativa silenciosa que falha, que é
@@ -144,6 +167,10 @@ function pedirIdentidade(interativo: boolean, dicaDeConta?: string): Promise<Res
     response_type: 'id_token',
     redirect_uri: chrome.identity.getRedirectURL(),
     scope: ESCOPO,
+    // Pede ao Google que ofereça só contas desta organização no seletor. É
+    // conveniência: quem manda de verdade é o servidor, e `contaEhDoCiti` confere
+    // o resultado logo abaixo.
+    hd: DOMINIO_DO_CITI,
     nonce,
     ...(interativo ? { prompt: 'select_account' } : { prompt: 'none' }),
     ...(dicaDeConta ? { login_hint: dicaDeConta } : {}),
@@ -172,6 +199,13 @@ function pedirIdentidade(interativo: boolean, dicaDeConta?: string): Promise<Res
         // Não deveria acontecer nunca — é a checagem de que a resposta é
         // desta chamada, e não uma sobrando de uma anterior.
         resolve({ idToken: null, erro: 'A resposta do Google não confere com o pedido.' });
+        return;
+      }
+
+      // O Google pode devolver uma conta de fora mesmo com o `hd`, que é só uma
+      // dica: quem digita outro e-mail, ou o `login_hint` de um sim antigo.
+      if (!contaEhDoCiti(idToken)) {
+        resolve({ idToken: null, erro: MENSAGEM_DE_CONTA_DE_FORA });
         return;
       }
 

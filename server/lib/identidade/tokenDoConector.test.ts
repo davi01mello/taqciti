@@ -11,7 +11,7 @@
  * - `não dá para revogar o token de outra pessoa` — um `pessoa_id` esquecido
  *   no WHERE deixaria qualquer um derrubar o acesso alheio sabendo só um id.
  */
-import { beforeAll, afterAll, describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, afterEach, describe, expect, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -137,5 +137,45 @@ describe('token do conector', () => {
   it('cada pessoa só vê os seus', async () => {
     const daBia = await listarTokens(bia, pool);
     expect(daBia).toEqual([]);
+  });
+
+  describe('só a organização usa o conector (o token é conferido contra o e-mail da dona)', () => {
+    const guardado = process.env.TAQCITI_DOMINIO_PERMITIDO;
+    afterEach(() => {
+      if (guardado === undefined) delete process.env.TAQCITI_DOMINIO_PERMITIDO;
+      else process.env.TAQCITI_DOMINIO_PERMITIDO = guardado;
+    });
+
+    it('um token de quem NÃO é do CITi deixa de funcionar, mesmo já criado antes da regra', async () => {
+      const gmail = await garantirPessoa({ googleSub: 'sub-gmail', email: 'alguem@gmail.com' }, pool);
+      const { token } = await criarTokenDoConector(gmail, undefined, pool);
+      expect(await pessoaDoToken(token, pool)).toBeNull();
+    });
+
+    it('um e-mail que só termina parecido também não', async () => {
+      const falso = await garantirPessoa({ googleSub: 'sub-falso', email: 'x@naoehciti.org.br' }, pool);
+      const { token } = await criarTokenDoConector(falso, undefined, pool);
+      expect(await pessoaDoToken(token, pool)).toBeNull();
+    });
+
+    it('quem é do CITi continua entrando', async () => {
+      const { token } = await criarTokenDoConector(ana, undefined, pool);
+      expect(await pessoaDoToken(token, pool)).toBe(ana);
+    });
+
+    it('a conta que mudou de e-mail para fora da organização perde o acesso na hora', async () => {
+      const mudou = await garantirPessoa({ googleSub: 'sub-mudou', email: 'mudou@citi.org.br' }, pool);
+      const { token } = await criarTokenDoConector(mudou, undefined, pool);
+      expect(await pessoaDoToken(token, pool)).toBe(mudou);
+      await garantirPessoa({ googleSub: 'sub-mudou', email: 'mudou@gmail.com' }, pool);
+      expect(await pessoaDoToken(token, pool)).toBeNull();
+    });
+
+    it('com a restrição desligada de propósito (*), o token de fora volta a valer', async () => {
+      process.env.TAQCITI_DOMINIO_PERMITIDO = '*';
+      const gmail = await garantirPessoa({ googleSub: 'sub-gmail', email: 'alguem@gmail.com' }, pool);
+      const { token } = await criarTokenDoConector(gmail, undefined, pool);
+      expect(await pessoaDoToken(token, pool)).toBe(gmail);
+    });
   });
 });

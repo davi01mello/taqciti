@@ -396,9 +396,12 @@ ninguém está olhando.
    única peça que não é código. Sem ela a página Conexões mostra `sem-oauth`.
    Ver `docs/google-oauth-setup.md` — inclui o redirect URI exato a cadastrar.
 2. **`GOOGLE_OAUTH_WEB_CLIENT_ID` no servidor** (o mesmo id do `.env` da
-   extensão). `TAQCITI_DOMINIO_PERMITIDO` fica **vazio** de propósito: quem
-   usa a Claude não necessariamente paga por ela numa conta `@citi.org.br`, e
-   restringir por domínio barraria gente legítima.
+   extensão). O acesso é restrito a contas `@citi.org.br` **por padrão**, sem
+   configurar nada (`lib/identidade/dominio.ts`): é fail-closed, e esquecer a
+   variável `TAQCITI_DOMINIO_PERMITIDO` não abre o produto. Ela só serve para
+   TROCAR o domínio; `*` desliga a restrição, para desenvolvimento. Vale para o
+   login da extensão e também para o token do conector (Claude/ChatGPT), que é
+   conferido contra o e-mail da dona a cada uso.
 3. **`DATABASE_URL`** — a do pooler da Supabase, ver "Subir o banco" — e
    aplicar `esquema.sql` uma vez.
 

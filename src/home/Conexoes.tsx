@@ -445,7 +445,8 @@ export function PaginaConexoes({
         <div className="tq-hub-fluxo">
           <p className="tq-hub-nota">
             O {nome} consulta as reuniões pelo servidor do TaqCiti. Primeiro ligue a
-            sincronização com a sua conta Google — a janela do Google abre só com o seu clique.
+            sincronização com a sua conta do CITi (@citi.org.br) — a janela do Google abre só
+            com o seu clique.
           </p>
           <div className="tq-acoes">
             <button

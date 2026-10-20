@@ -1,4 +1,4 @@
-﻿/**
+/**
  * A identidade do lado da extensão.
  *
  * Quatro invariantes carregam o arquivo, e os quatro são sobre ATRITO — que é
@@ -23,6 +23,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import {
+  DOMINIO_DO_CITI,
+  MENSAGEM_DE_CONTA_DE_FORA,
+  contaEhDoCiti,
   desligarSincronizacao,
   estadoDaSincronizacao,
   identidadeConfigurada,
@@ -373,5 +376,87 @@ describe('integração com o mock de storage', () => {
       ligada: true,
       email: 'ana@citi.org.br',
     });
+  });
+});
+
+
+describe('só contas do CITi', () => {
+  /** Um id_token com o e-mail (e, se for o caso, o `hd`) pedidos, para a função pura. */
+  const tokenDe = (payload: Record<string, unknown>) => jwtDeMentira(payload);
+
+  describe('contaEhDoCiti', () => {
+    it.each([
+      ['@citi.org.br', { email: 'ana@citi.org.br' }, true],
+      ['caixa alta', { email: 'ANA@CITI.ORG.BR' }, true],
+      ['com hd do CITi', { email: 'ana@citi.org.br', hd: 'citi.org.br' }, true],
+      ['gmail', { email: 'ana@gmail.com' }, false],
+      ['domínio que só termina parecido', { email: 'ana@naoehciti.org.br' }, false],
+      ['subdomínio', { email: 'ana@mail.citi.org.br' }, false],
+      ['o domínio no lugar errado', { email: 'citi.org.br@gmail.com' }, false],
+      ['e-mail do CITi mas hd de outra organização', { email: 'ana@citi.org.br', hd: 'outra.org' }, false],
+      ['sem e-mail', {}, false],
+      ['e-mail que não é texto', { email: 42 }, false],
+    ])('%s', (_nome, payload, esperado) => {
+      expect(contaEhDoCiti(tokenDe(payload))).toBe(esperado);
+    });
+
+    it('um token que nem é um JWT não é do CITi', () => {
+      expect(contaEhDoCiti('lixo')).toBe(false);
+      expect(contaEhDoCiti('')).toBe(false);
+    });
+  });
+
+  it('o Google é instruído a oferecer só contas da organização (hd)', async () => {
+    const { pedidos } = montarChrome();
+    await ligarSincronizacao();
+    expect(new URL(pedidos[0]!.url).searchParams.get('hd')).toBe(DOMINIO_DO_CITI);
+    expect(DOMINIO_DO_CITI).toBe('citi.org.br');
+  });
+
+  it('o hd também vai no caminho silencioso (e ele nunca abre popup por isso)', async () => {
+    const { pedidos } = montarChrome();
+    await ligarSincronizacao();
+    pedidos.length = 0;
+    limparCacheDeIdentidadeLocal();
+    await tokenDeIdentidade(false);
+    expect(new URL(pedidos[0]!.url).searchParams.get('hd')).toBe(DOMINIO_DO_CITI);
+    expect(pedidos[0]!.interactive).toBe(false);
+  });
+
+  it('logar com conta de fora é recusado na hora, com o motivo, e NADA é ligado', async () => {
+    montarChrome({ payload: { email: 'alguem@gmail.com' } });
+    expect(await ligarSincronizacao()).toEqual({
+      situacao: 'desligada',
+      motivo: MENSAGEM_DE_CONTA_DE_FORA,
+    });
+    expect(MENSAGEM_DE_CONTA_DE_FORA).toContain('@citi.org.br');
+    // O "sim" não foi gravado: a extensão não acha que está ligada.
+    const guardado = (await chrome.storage.local.get(STORAGE_KEYS.sync))[STORAGE_KEYS.sync] as { ligada?: boolean } | undefined;
+    expect(guardado?.ligada).not.toBe(true);
+    expect((await estadoDaSincronizacao()).situacao).toBe('desligada');
+  });
+
+  it('o token de uma conta de fora NÃO fica em cache para uso posterior', async () => {
+    montarChrome({ payload: { email: 'alguem@gmail.com' } });
+    await ligarSincronizacao();
+    // Nem pelo caminho silencioso a identidade de fora é entregue.
+    expect(await tokenDeIdentidade(false)).toBeNull();
+  });
+
+  it('e-mail do CITi com hd de outra organização também é recusado', async () => {
+    montarChrome({ payload: { email: 'ana@citi.org.br', hd: 'outra.org' } });
+    expect(await ligarSincronizacao()).toMatchObject({ situacao: 'desligada', motivo: MENSAGEM_DE_CONTA_DE_FORA });
+  });
+
+  it('um "sim" antigo de conta de fora vira "precisa de permissão", sem identidade nenhuma', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.sync]: { ligada: true, email: 'alguem@gmail.com' } });
+    montarChrome({ payload: { email: 'alguem@gmail.com' } });
+    expect(await tokenDeIdentidade(false)).toBeNull();
+    expect((await estadoDaSincronizacao()).situacao).toBe('precisa-permissao');
+  });
+
+  it('conta do CITi continua ligando normalmente', async () => {
+    montarChrome();
+    expect(await ligarSincronizacao()).toEqual({ situacao: 'ligada', email: 'ana@citi.org.br' });
   });
 });
