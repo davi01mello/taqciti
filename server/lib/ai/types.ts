@@ -23,13 +23,14 @@
  * todo consumidor a saber que existe um modo de teste — e o código exercitado
  * nos testes deixaria de ser o mesmo que roda em produção.
  */
-export type ProviderId = 'anthropic' | 'openai' | 'google' | 'xai' | 'mock';
+export type ProviderId = 'anthropic' | 'openai' | 'google' | 'xai' | 'groq' | 'mock';
 
 export const PROVIDER_IDS: readonly ProviderId[] = [
   'anthropic',
   'openai',
   'google',
   'xai',
+  'groq',
   'mock',
 ];
 

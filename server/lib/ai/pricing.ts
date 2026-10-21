@@ -133,6 +133,13 @@ const XAI_PRICING: Record<string, ModelPrice> = {
  */
 const OPENAI_PRICING: Record<string, ModelPrice> = {};
 
+/**
+ * Groq — tabela VAZIA, como a da OpenAI: o preço não foi conferido na
+ * documentação oficial, e preço inventado é pior que preço ausente. No plano
+ * gratuito (o que o projeto usa) o custo é zero de qualquer forma.
+ */
+const GROQ_PRICING: Record<string, ModelPrice> = {};
+
 /** O mock não custa. Não é "de graça": é que não há chamada nenhuma. */
 const MOCK_PRICING: Record<string, ModelPrice> = {};
 
@@ -141,6 +148,7 @@ export const PRICING: Record<ProviderId, Record<string, ModelPrice>> = {
   openai: OPENAI_PRICING,
   google: GOOGLE_PRICING,
   xai: XAI_PRICING,
+  groq: GROQ_PRICING,
   mock: MOCK_PRICING,
 };
 

@@ -287,7 +287,7 @@ export function parseOverride(raw: string, envVar: string): AgentModelConfig {
   if (!isProviderId(provider)) {
     throw new Error(
       `${envVar}: provedor "${provider}" desconhecido. ` +
-        'Use anthropic, openai, google, xai ou mock.',
+        'Use anthropic, openai, google, xai, groq ou mock.',
     );
   }
   if (!model) {
@@ -317,6 +317,7 @@ const APELIDO_DE_PROVEDOR: Record<string, ProviderId> = {
   google: 'google',
   grok: 'xai',
   xai: 'xai',
+  groq: 'groq',
   mock: 'mock',
   fake: 'mock',
 };
@@ -328,6 +329,7 @@ const MODELO_PADRAO_POR_PROVEDOR: Record<ProviderId, string> = {
   openai: 'gpt-4.1-mini',
   google: 'gemini-3.5-flash',
   xai: 'grok-4.3',
+  groq: 'openai/gpt-oss-120b',
   mock: 'mock-1',
 };
 
@@ -335,7 +337,7 @@ export function parseProviderAlias(raw: string, envVar: string): ProviderId {
   const provedor = APELIDO_DE_PROVEDOR[raw.trim().toLowerCase()];
   if (!provedor) {
     throw new Error(
-      `${envVar}="${raw}" desconhecido. Use claude, openai (ou gpt), google, xai ou mock.`,
+      `${envVar}="${raw}" desconhecido. Use claude, openai (ou gpt), google, xai, groq ou mock.`,
     );
   }
   return provedor;

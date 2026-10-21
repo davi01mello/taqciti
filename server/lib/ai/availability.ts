@@ -28,6 +28,7 @@ export const API_KEY_ENV_VAR: Record<ProviderId, string> = {
   openai: 'OPENAI_API_KEY',
   google: 'GOOGLE_API_KEY',
   xai: 'XAI_API_KEY',
+  groq: 'GROQ_API_KEY',
   mock: '',
 };
 

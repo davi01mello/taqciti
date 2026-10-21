@@ -9,6 +9,7 @@ import { AGENT_CONFIG, type MatrixEntry } from './config';
 import { estimateCost, type CostBreakdown } from './pricing';
 import { anthropicProvider } from './providers/anthropic';
 import { googleProvider } from './providers/google';
+import { groqProvider } from './providers/groq';
 import { mockProvider } from './providers/mock';
 import { openaiProvider } from './providers/openai';
 import { xaiProvider } from './providers/xai';
@@ -28,6 +29,7 @@ const PROVIDERS: Record<ProviderId, Provider> = {
   openai: openaiProvider,
   google: googleProvider,
   xai: xaiProvider,
+  groq: groqProvider,
   mock: mockProvider,
 };
 
