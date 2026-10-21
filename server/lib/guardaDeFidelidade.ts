@@ -189,16 +189,54 @@ export interface Campo {
 }
 
 /**
- * A LINHA da fonte onde uma citação foi ancorada. O Leitor cita o mínimo, e o
- * mínimo raramente carrega a dúvida ("acho", "talvez"): ela está na fala em
- * volta. `null` quando a citação não tem âncora.
+ * Os TURNOS de fala da fonte, com a posição de cada um. Um turno começa numa
+ * linha que abre com um carimbo (`[09:55] Pessoa D: …`) e inclui as linhas de
+ * continuação: a mesma fala, quebrada pela captura. Sem carimbo, cada linha é um
+ * turno.
  */
-export function linhaDaCitacao(fonte: string, anchor: { start: number; end: number }): string {
-  const inicio = fonte.lastIndexOf('\n', anchor.start) + 1;
-  const fim = fonte.indexOf('\n', anchor.end);
-  return fonte.slice(inicio, fim === -1 ? fonte.length : fim);
+function turnos(fonte: string): { texto: string; inicio: number; fim: number }[] {
+  const linhas = fonte.split('\n');
+  const marcado = linhas.some((l) => /^\[\d/.test(l));
+  const saida: { texto: string; inicio: number; fim: number }[] = [];
+  let deslocamento = 0;
+  for (const linha of linhas) {
+    const inicio = deslocamento;
+    deslocamento += linha.length + 1;
+    const ultimo = saida[saida.length - 1];
+    if (!marcado || /^\[\d/.test(linha) || !ultimo) {
+      saida.push({ texto: linha, inicio, fim: inicio + linha.length });
+    } else {
+      ultimo.texto += ` ${linha}`;
+      ultimo.fim = inicio + linha.length;
+    }
+  }
+  return saida;
 }
 
+/**
+ * O turno da citação e os vizinhos (três antes, três depois), cada um separado.
+ *
+ * O Leitor cita as falas que dizem O QUE aconteceu, e a hipótese sobre o porquê
+ * costuma vir de OUTRA pessoa nas falas em volta ("…eu acho que pode ter
+ * ficado no banco"). Olhar só a fala citada deixava a frase "se deve a dados de
+ * teste" passar. Na geração real a hipótese estava três falas ANTES da citada, e
+ * contar LINHAS não alcançava: a fala das 09:55 tem três. Cada vizinho é medido
+ * sozinho: o assunto em comum com a frase é exigido por turno, não pelo bloco todo.
+ */
+export function turnosEmVolta(
+  fonte: string,
+  anchor: { start: number; end: number },
+  antes = 3,
+  depois = 3,
+): string[] {
+  const lista = turnos(fonte);
+  const achado = lista.findIndex((t) => anchor.start >= t.inicio && anchor.start <= t.fim);
+  const indice = achado === -1 ? 0 : achado;
+  return lista
+    .slice(Math.max(0, indice - antes), indice + depois + 1)
+    .map((t) => t.texto)
+    .filter((texto) => texto.trim());
+}
 /** Passa o texto por frases: devolve o que sobra e o que caiu, com o motivo. */
 export function filtrarFrases(
   campo: Campo,
@@ -229,21 +267,22 @@ export function guardarFidelidade(data: DocumentData, transcricao: string): Desc
   const descartes: DescarteDeFidelidade[] = [];
 
   /**
-   * O que sustenta uma afirmação, para medir a certeza: a LINHA da transcrição
-   * onde cada citação foi ancorada, e não só o trecho citado. O "talvez" e as
-   * palavras do assunto costumam estar em citações diferentes da mesma fala; o
-   * Leitor cita o mínimo, e o mínimo raramente carrega a dúvida. Sem âncora, vale
-   * o próprio trecho.
+   * O que sustenta uma afirmação, para medir a certeza: o turno da transcrição
+   * onde cada citação foi ancorada e os vizinhos (`turnosEmVolta`), e não só o
+   * trecho citado. O Leitor cita o mínimo, e o mínimo raramente carrega a
+   * dúvida. Sem âncora, vale o próprio trecho.
    */
   const quotes = (
     lista: readonly { quote: string; anchor?: { start: number; end: number } | null }[] | undefined,
   ): string[] =>
-    (lista ?? [])
-      .map((q) => {
-        if (!q.quote) return '';
-        return q.anchor ? linhaDaCitacao(transcricao, q.anchor) : q.quote;
-      })
-      .filter(Boolean);
+    [
+      ...new Set(
+        (lista ?? []).flatMap((q) => {
+          if (!q.quote) return [];
+          return q.anchor ? turnosEmVolta(transcricao, q.anchor) : [q.quote];
+        }),
+      ),
+    ];
 
   const prosa = (
     sectionId: string,

@@ -10,6 +10,7 @@ import {
   guardarFidelidade,
   normalizar,
   palavrasForaDaFonte,
+  turnosEmVolta,
 } from './guardaDeFidelidade';
 
 const TRANSCRICAO = [
@@ -110,6 +111,44 @@ describe('guardarFidelidade no DocumentData', () => {
     expect(descartes).toHaveLength(1);
     expect(descartes[0]).toMatchObject({ sectionId: 'topicos_discutidos', path: 'topicsDiscussed[0]' });
     expect(descartes[0]!.motivo).toMatch(/hipótese/);
+  });
+
+  it('a dúvida está em outra fala, ANTES da citada, numa transcrição de turnos de várias linhas', () => {
+    // Caso real de 20/10: a citação é a fala das 09:55 (três linhas), e o
+    // "talvez … ficou no banco de dados" está na das 09:40. Contar LINHAS não
+    // alcançava; a janela é por TURNO de fala.
+    const transcricao = [
+      '[09:32] Pessoa A: Inclusive todos estão a oito dias.',
+      '[09:40] Pessoa D: Eu acho que talvez tenha mexido, e ficou no banco de dados.',
+      '[09:50] Pessoa B: Teste né?',
+      '[09:55] Pessoa D: aí.',
+      'ficou guardado.',
+      'Que ele já foi aprovado uma vez.',
+      '[10:45] Pessoa A: Então tem que limpar.',
+    ].join('\n');
+    const citada = 'Que ele já foi aprovado uma vez.';
+    const start = transcricao.indexOf(citada);
+    const data: DocumentData = {
+      topicsDiscussed: [
+        {
+          title: 'Dashboard',
+          summary: 'Constatou-se que a divergência se deve a registros de testes no banco de dados.',
+          quotes: [{ quote: citada, anchor: { start, end: start + citada.length, exact: true } }],
+        },
+      ],
+    };
+    const descartes = guardarFidelidade(data, transcricao);
+    expect(descartes).toHaveLength(1);
+    expect(data.topicsDiscussed).toEqual([]);
+  });
+
+  it('turnos: sem carimbo, cada linha é um turno; com carimbo, a continuação se junta à fala', () => {
+    const start = 'a\n'.length; // o `b`
+    expect(turnosEmVolta('a\nb\nc', { start, end: start + 1 }, 1, 1)).toEqual(['a', 'b', 'c']);
+    const comCarimbo = '[01:00] A: primeira\ncontinua\n[01:05] B: segunda';
+    expect(turnosEmVolta(comCarimbo, { start: comCarimbo.indexOf('continua'), end: 30 }, 0, 0)).toEqual([
+      '[01:00] A: primeira continua',
+    ]);
   });
 
   it('item de lista cai inteiro: "perfil de diretoria" no output', () => {

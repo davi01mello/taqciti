@@ -31,7 +31,7 @@ import {
 } from './contentTree';
 import { compilarPdf, type Compilado } from './compilador';
 import { VARIANTE_DOS_PERSONALIZADOS } from './perfil';
-import { guardarConteudo, linhaDaCitacao } from '../guardaDeFidelidade';
+import { guardarConteudo, turnosEmVolta } from '../guardaDeFidelidade';
 import type { DocumentBrief, QualityReport, RenderManifest } from './contratos';
 
 export interface FonteDoDocumento {
@@ -272,7 +272,7 @@ export function blocoDoModelo(
     const evidencias = (bruto.fontes ?? []).flatMap((ref) => {
       const texto = ref?.fonteId ? ctx.textos!.get(ref.fonteId) : undefined;
       const ancora = ref?.trecho && ref.fonteId ? ctx.locators.get(ref.fonteId)?.locate(ref.trecho) : null;
-      return texto && ancora ? [linhaDaCitacao(texto, ancora)] : [];
+      return texto && ancora ? turnosEmVolta(texto, ancora) : [];
     });
     const guardado = guardarConteudo(bruto, evidencias, [...ctx.textos.values()].join('\n'));
     if (guardado.vazio) {
