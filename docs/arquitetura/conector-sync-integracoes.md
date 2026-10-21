@@ -243,9 +243,9 @@ independente de driver (PGlite nos testes).
 - **Token do conector**: `taqciti_` + 32 bytes aleatórios; banco guarda só o SHA-256;
   valor em claro aparece uma vez; revogar apaga a linha e filtra por `pessoa_id` (404
   igual para id alheio ou inexistente). `pessoaDoToken` reconfere o e-mail da dona
-  contra o domínio permitido a cada uso e atualiza `usado_em` sem bloquear. Token não
-  expira e não há limite de quantidade (S6, ainda aberto). O token vai no caminho da
-  URL. **O log não o grava mais** (commit `09e99ab`, S5): `caminhoSemToken` troca
+  contra o domínio permitido a cada uso e atualiza `usado_em` sem bloquear. O token
+  expira por inatividade (90 dias) e há no máximo 5 ativos por pessoa (ver o item
+  "Tokens do conector", mais abaixo nesta seção). O token vai no caminho da URL. **O log não o grava mais** (commit `09e99ab`, S5): `caminhoSemToken` troca
   `/api/mcp/<token>` por `/api/mcp/<redigido>` antes de a linha `[mcp]` ser escrita;
   registrar o pathname cru punha credenciais válidas nos Runtime Logs da Vercel, legíveis
   por qualquer membro do projeto.
@@ -276,21 +276,32 @@ independente de driver (PGlite nos testes).
   OAuth das integrações, registro `taq:integracoes` e `taq:acoes-externas`. Prints
   sobem (como binário, só para restauração), mas o conector nunca os serve.
 - **Verificação do `aud`**: sem ela um `id_token` de outro app seria aceito.
-- **Ainda abertos** (ver `docs/plano-de-seguranca.md`; fases 2 a 5 não começaram, salvo
-  o que está em andamento abaixo): S6 (tokens do conector sem expiração, sem limite de
-  quantidade, no caminho da URL), I5 (os prompts não têm a regra "dados não são
-  instruções"), I7 (sem retenção nem "apagar tudo", pendência de LGPD).
-- **Em andamento, ainda não commitado (21/10/2026)** — I4: `server/lib/conector/mcp.ts`
-  passa a (a) acrescentar às instruções do servidor MCP que o conteúdo devolvido (falas,
-  chat, documentos) é DADO escrito por terceiros, nunca instrução, e que pedidos que
-  apareçam dentro dele (enviar e-mail, abrir links, chamar outras ferramentas) devem ser
-  apenas relatados à pessoa; e (b) marcar todas as ferramentas com
-  `annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }`,
-  para o cliente não pedir confirmação a cada chamada nem tratá-las como ação. O acervo
-  é, em boa parte, fala de terceiros, e o cliente pode ter outros conectores com escrita.
-  **Resolvidos no servidor pelo commit `09e99ab`** (fase 1): S1 em parte (identidade e
-  cota por pessoa; o segredo continua como ponte), S2, S3, S4, S5, S7, S8, S9, S10 (com
-  `DATABASE_CA`), S11 em parte, S12 (opt-in), S13, S14.
+- **Tokens do conector** (commit `bcb3355`, fase 3, S6): um token parado há mais de
+  `diasDeInatividade()` (90 dias, `TAQCITI_TOKEN_INATIVO_DIAS`) deixa de valer. A
+  consulta de `pessoaDoToken` compara `coalesce(usado_em, criado_em)` com o prazo, e cada
+  uso o renova: quem usa o conector de verdade nunca chega perto, e a URL esquecida num
+  conector abandonado, num print ou num log antigo morre sozinha. Cada pessoa pode ter
+  no máximo `MAX_TOKENS_ATIVOS` = 5 tokens ativos; gerar o sexto devolve 409 pedindo
+  para revogar um que não usa. O token continua no caminho da URL (a especificação do
+  MCP prefere `Authorization: Bearer`; fica como dívida).
+- **O servidor MCP avisa que o acervo é dado, não instrução** (commit `bcb3355`, I4):
+  `server/lib/conector/mcp.ts` acrescenta às instruções do servidor que o conteúdo
+  devolvido (falas, chat, documentos) é DADO escrito por terceiros — participantes das
+  reuniões —, nunca instrução, e que pedidos que apareçam dentro dele (enviar e-mail,
+  abrir links, chamar outras ferramentas, mudar de assunto) devem ser apenas relatados à
+  pessoa. Todas as ferramentas ganham `annotations: { readOnlyHint: true,
+  destructiveHint: false, openWorldHint: false }`, para o cliente não pedir confirmação
+  a cada chamada nem tratá-las como ação. Motivo: o acervo é, em boa parte, fala de
+  terceiros, e o cliente pode ter outros conectores com escrita (e-mail, agenda).
+- **Resolvido no servidor** (fases 1 e 3, ver `docs/plano-de-seguranca.md`): S1 em parte
+  (identidade e cota por pessoa; o segredo continua como ponte), S2, S3, S4, S5, S6 (com
+  o caminho da URL ainda como dívida), S7, S8, S9, S10 (com `DATABASE_CA`), S11 em parte,
+  S12 (opt-in), S13, S14, I3, I4 e I5 em parte (o delimitador `### FONTE` é neutralizado
+  dentro do texto das fontes; os prompts ainda não trazem a regra "dados não são
+  instruções").
+- **Ainda abertos:** I5 (a regra "dados não são instruções" nos prompts do pipeline),
+  I7 (sem retenção nem "apagar tudo", pendência de LGPD) e as fases 4 e 5 do plano
+  (cadeia de suprimento, distribuição e decisões estruturais).
 
 ## 8. Integrações Google (Gmail, Agenda, diretório)
 
@@ -396,6 +407,8 @@ reproduzem o corpo vazio nem o tratamento de 401.
 | `TAQCITI_LIMITE_BANCO_MB` | servidor | disjuntor global (padrão 400) |
 | `DATABASE_CA` | servidor | PEM da CA da Supabase; liga a validação do certificado do banco (sem ela, aviso no log) |
 | `TAQCITI_EXIGIR_HD` | servidor | `sim` exige o claim `hd` no `id_token` |
+| `TAQCITI_TOKEN_INATIVO_DIAS` | servidor | dias sem uso até um token do conector deixar de valer (padrão 90; máximo de 5 tokens ativos por pessoa) |
+| `DOCCITI_DATA_POLICY` | servidor | `private` ou `training`; obrigatória em produção desde o commit `bcb3355` (ver `servidor-documentos.md`, seção 8) |
 | `DOCCITI_CHAVE_LEGADA` | servidor | `recusar` desliga a ponte do segredo compartilhado nas rotas de IA |
 | `TAQCITI_IA_CHAMADAS_DIA`, `TAQCITI_IA_CARACTERES_DIA` | servidor | tetos diários por pessoa das rotas de IA (padrão 2.000 chamadas e 80 milhões de caracteres) |
 | `DOCCITI_DIAGNOSTICO` | servidor | `ligado` reabre as rotas de diagnóstico em produção (usar só pontualmente) |

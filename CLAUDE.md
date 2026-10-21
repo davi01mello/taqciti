@@ -43,13 +43,13 @@ npm run test:live        # testes que falam com servidor/banco de verdade (exige
 Antes de dar uma mudança por pronta: `typecheck` + `lint` + `test` do projeto que você
 tocou. O CI roda os dois projetos a cada push (`.github/workflows/ci.yml`).
 
-> **Trava da build de produção (em andamento, 21/10/2026, ainda não commitada).** O
-> `vite.config.ts` passa a recusar `npm run build` se `VITE_DOCCITI_SERVER_URL` não for
-> `https://` ou se `VITE_DOCCITI_SHARED_KEY` faltar ou for a de desenvolvimento. Sem o
-> `.env`, a build local cairia em `http://localhost:3000` em silêncio. Consequência: os
-> jobs `Extensão (raiz)` e `Instalador Windows` do CI precisam receber valores válidos
-> no `env` do passo de build, ou ficam vermelhos. Detalhe em
-> `docs/arquitetura/build-release-operacao.md`.
+> **Trava da build de produção (desde 21/10/2026, commit `923ea5a`).** O `vite.config.ts`
+> recusa `npm run build` se `VITE_DOCCITI_SERVER_URL` não for `https://` ou se
+> `VITE_DOCCITI_SHARED_KEY` faltar ou for a de desenvolvimento. Sem o `.env`, a build
+> local cairia em `http://localhost:3000` em silêncio. Para testar contra o servidor local,
+> use `npm run build:dev`. O CI passa valores fictícios no `env` dos passos de build
+> (`Extensão (raiz)` e `Instalador Windows`); um novo passo de build de produção precisa
+> repeti-los. Detalhe em `docs/arquitetura/build-release-operacao.md`.
 
 ## Onde mora o quê
 
@@ -112,13 +112,19 @@ tocou. O CI roda os dois projetos a cada push (`.github/workflows/ci.yml`).
 11. **O Taq separa apagar de escrever.** O efeito `exclusao` (apagar, renomear registro
     existente) só é liberado quando o pedido da PESSOA nomeia a operação; `escrita_local`
     não o libera. Texto de transcrição é dado, nunca instrução: uma fala injetada não pode
-    ganhar ferramenta. **Em andamento, ainda não commitado.**
+    ganhar ferramenta. (Commit `923ea5a`.)
 12. **A extensão não confia em quem manda.** O content script é declarado só para
     `https://meet.google.com/*` (não volte a `<all_urls>`); o background confere o
     remetente de cada mensagem (`src/background/remetente.ts`); a cápsula só age com
     clique real (`isTrusted`); link escrito pelo modelo passa por `destinoSeguro` (domínio
-    visível, sem query fora de `google.com` e `citi.org.br`). **Em andamento, ainda não
-    commitado.** O plano completo está em `docs/plano-de-seguranca.md`.
+    visível, sem query fora de `google.com` e `citi.org.br`). (Commit `923ea5a`.) O plano
+    completo está em `docs/plano-de-seguranca.md`.
+13. **Política de dados declarada em produção.** `DOCCITI_DATA_POLICY` é obrigatória
+    (`private` para chave paga, `training` para a que treina) quando `VERCEL_ENV` é
+    `production`: sem ela as rotas de geração respondem 503 e o Taq fica pendente. O
+    `"sintetica": true` do cliente não fura a trava lá (só em desenvolvimento). Texto de
+    fonte que contém `### FONTE` no começo de linha é neutralizado antes de ir ao prompt.
+    (Commit `bcb3355`.)
 
 ## Trabalhar com git neste repositório
 
@@ -147,12 +153,13 @@ Este repositório é **público**.
 - Desenho das melhorias de conteúdo dos documentos (fidelidade, estrutura por tipo,
   layout curto): `docs/redesenho-dos-documentos.md`. A fase de fidelidade está
   implementada; as demais estão desenhadas e não começaram.
-- Plano de segurança: `docs/plano-de-seguranca.md`. A fase 1 (servidor) está commitada
-  (`09e99ab`); as mudanças da extensão (content script só no Meet, barreira de remetente,
-  efeito `exclusao`, link seguro, trava de build) e do servidor (política de dados
-  obrigatória em produção, `sintetica` do cliente ignorada lá, MCP marcado como somente
-  leitura e com aviso de conteúdo de terceiros) estão na árvore de trabalho, ainda não
-  commitadas. As fases seguintes não começaram. Em produção, `DOCCITI_DATA_POLICY` passa
-  a ser obrigatória (`private` ou `training`) quando isso for commitado.
+- Plano de segurança: `docs/plano-de-seguranca.md`. Commitadas: a fase 1 (servidor,
+  `09e99ab`: identidade e cota por pessoa nas rotas de IA, RLS, TLS do banco, tetos), a
+  fase 2 (extensão, `923ea5a`: content script só no Meet, barreira de remetente, efeito
+  `exclusao`, link seguro, trava de build) e a fase 3 (`bcb3355`: política de dados
+  obrigatória em produção, MCP somente leitura, expiração dos tokens do conector,
+  delimitador de fonte). As fases 4 (cadeia de suprimento e distribuição) e 5 (decisões
+  estruturais) não começaram. **Antes de publicar o servidor:** definir
+  `DOCCITI_DATA_POLICY` no host de produção.
 - Documentos personalizados: `docs/documentos-personalizados.md`.
 - Release e instaladores: `docs/publicar-release.md`.

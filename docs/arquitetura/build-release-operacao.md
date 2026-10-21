@@ -70,7 +70,7 @@ Pontos do `vite.config.ts` que importam na manutenção:
   (páginas abertas por URL, sem chave de manifesto). O painel lateral é achado
   pelo `side_panel` do manifesto.
 - Plugin `taqciti:panel-resources-only-on-meet` (antes `panel-resources-everywhere`;
-  **mudança em andamento, 21/10/2026, ainda não commitada**): depois do @crxjs, fixa o
+  **mudança do commit `923ea5a`, 21/10/2026**): depois do @crxjs, fixa o
   `matches` das `web_accessible_resources` em `ONDE_O_PAINEL_VIVE`
   (`https://meet.google.com/*`). Era `<all_urls>`. É uma trava nos dois sentidos: nenhuma
   entrada gerada fica mais larga (qualquer site detectaria a extensão pelo ID fixo) nem
@@ -78,7 +78,7 @@ Pontos do `vite.config.ts` que importam na manutenção:
   parecendo correto). Acompanha o `matches` do content script em
   `manifest.config.ts`, que passou a `https://meet.google.com/*`. Se o
   `manifest.json` não estiver no bundle, o plugin falha alto.
-- Plugin `taqciti:servidor-de-producao-seguro` (**em andamento, ainda não commitado**):
+- Plugin `taqciti:servidor-de-producao-seguro` (commit `923ea5a`):
   uma build `production` é **recusada** se `VITE_DOCCITI_SERVER_URL` não for `https://`
   ou se `VITE_DOCCITI_SHARED_KEY` estiver ausente ou com o valor de desenvolvimento
   (`taqciti-dev-local`). Lê `loadEnv` do `.env` e `process.env` (este vence). O CI de
@@ -87,11 +87,11 @@ Pontos do `vite.config.ts` que importam na manutenção:
   `http://localhost:3000` e na chave pública de dev, em silêncio: sem TLS, a transcrição
   e o token do Google viajariam em claro. Para testar contra o servidor local, use
   `npm run build:dev`.
-  **Atenção ao CI:** os jobs `Extensão (raiz)` e `Instalador Windows` de `ci.yml` rodam
-  `npm run build` **sem** `VITE_DOCCITI_SERVER_URL` nem `VITE_DOCCITI_SHARED_KEY`. Com
-  esta trava commitada, esses dois jobs falham com "Build de produção recusada". Ao
-  commitar a trava, passe valores descartáveis válidos no `env` desses passos (uma URL
-  `https://` fictícia e uma chave qualquer diferente da de dev) — ou o CI fica vermelho.
+  **CI:** os jobs `Extensão (raiz)` e `Instalador Windows` de `ci.yml` passam valores
+  fictícios no `env` do passo de build (`VITE_DOCCITI_SERVER_URL: https://ci.invalid`
+  e `VITE_DOCCITI_SHARED_KEY: ci-build-only`), porque ali só interessa que a build
+  COMPILE. Sem eles a trava recusaria e os dois jobs ficariam vermelhos. Quem acrescentar
+  outro passo `npm run build` de produção no CI precisa repetir esse `env`.
 - O manifesto vem de `manifest.config.ts` (versão, permissões, `client_id`).
   `manifest.config.ts` lê `VITE_*` do `.env` à mão com `loadEnv` (o Vite não
   povoa `process.env`); `process.env` tem precedência (caminho do CI).
@@ -302,8 +302,9 @@ nenhum). Nenhum é assinado: SmartScreen e Gatekeeper avisam, e é esperado. O
 | `DOCCITI_SHARED_KEY` | Segredo do header `x-docciti-key`. Ausente = 500 (falha fechada). Desde o commit `09e99ab` é ponte para as extensões antigas. |
 | `DOCCITI_CHAVE_LEGADA` | `recusar` desliga a ponte do segredo nas rotas de IA (só o `id_token` do Google vale). |
 | `TAQCITI_IA_CHAMADAS_DIA`, `TAQCITI_IA_CARACTERES_DIA` | Tetos diários por pessoa das rotas de IA (padrão 2.000 chamadas e 80 milhões de caracteres). |
+| `TAQCITI_TOKEN_INATIVO_DIAS` | Dias sem uso depois dos quais um token do conector deixa de valer (padrão 90). Cada uso renova o prazo; no máximo 5 tokens ativos por pessoa (409 ao passar). |
 | `DOCCITI_DIAGNOSTICO` | `ligado` reabre as rotas `/api/ai/{secao,smoke,bench}` em produção (404 sem ela); usar só pontualmente. |
-| `DOCCITI_DATA_POLICY` | `private` (chave paga) ou `training`. **Em andamento, ainda não commitado:** em produção passa a ser OBRIGATÓRIA (sem ela as rotas de geração respondem 503 e o Taq fica `configuracao_pendente`), e o `sintetica: true` do cliente deixa de valer em produção. Ver `servidor-documentos.md`, seção 8. |
+| `DOCCITI_DATA_POLICY` | `private` (chave paga) ou `training`. **Desde o commit `bcb3355`:** em produção é OBRIGATÓRIA (sem ela as rotas de geração respondem 503 e o Taq fica `configuracao_pendente`), e o `sintetica: true` do cliente deixa de valer em produção. Ver `servidor-documentos.md`, seção 8. |
 | `DATABASE_CA` | PEM da CA da Supabase; liga a validação do certificado TLS do banco (sem ela, aviso no log a cada instância). |
 | `TAQCITI_EXIGIR_HD` | `sim` exige o claim `hd` no `id_token` do login. |
 | `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`, `GROQ_API_KEY` | Chaves dos provedores de IA. |
@@ -372,11 +373,10 @@ documento.
 - [ ] `DATABASE_CA` definida no host de produção (senão o TLS do banco segue sem
       validar o certificado).
 - [ ] `DOCCITI_DATA_POLICY` declarada no host de produção (`private` só se a chave for
-      paga). Quando a mudança em andamento for commitada, sem ela o servidor de
-      produção recusa gerar.
+      paga). Sem ela o servidor de produção recusa gerar (503).
 - [ ] Nenhuma build de produção da extensão sem `VITE_DOCCITI_SERVER_URL` em `https://`
-      e chave que não seja a de dev (a trava do `vite.config.ts` recusa, e o CI precisa
-      passar valores válidos).
+      e chave que não seja a de dev (a trava do `vite.config.ts` recusa; o CI já passa
+      valores fictícios no `env`, e um novo passo de build precisa repeti-los).
 - [ ] Servidor de produção no ar e a prova de fumaça passa contra ele.
 - [ ] `DOCCITI_SHARED_KEY` idêntica no host e no Secret do GitHub;
       `DOCCITI_SERVER_URL` com `https://`, sem `/` final.

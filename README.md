@@ -56,8 +56,8 @@ lado para lembrar de esvaziar.
 ```bash
 npm install
 npm run dev      # build de desenvolvimento com hot reload
-npm run build    # build de produção em dist/ (exige VITE_DOCCITI_SERVER_URL em https e
-                 # uma chave de produção quando a trava do vite.config.ts estiver ativa;
+npm run build    # build de produção em dist/ (a trava do vite.config.ts exige
+                 # VITE_DOCCITI_SERVER_URL em https e uma chave de produção;
                  # contra o servidor local use `npm run build:dev`)
 npm run typecheck
 npm test

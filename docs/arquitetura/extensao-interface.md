@@ -102,7 +102,7 @@ cobre mensagens e estado da reunião, não tudo.
   limitações), `CartoesDoTaq` (cartões validados vindos de ferramentas),
   `CartaoDeTela` (captura sob pedido), `TrilhaDaConversa` (barra de rolagem que
   é mapa da conversa), `BotaoCopiar`, `Markdown` (React, nunca `innerHTML`).
-  **Links do modelo (em andamento, ainda não commitado, 21/10/2026):** `Markdown.tsx`
+  **Links do modelo (commit `923ea5a`, 21/10/2026):** `Markdown.tsx`
   passa todo link por `destinoSeguro`: só `http(s)`; o domínio aparece SEMPRE ao
   lado do texto do link (quem clica vê para onde vai); fora dos domínios de
   confiança (`google.com`, `citi.org.br`) a query e o fragmento caem; link que
@@ -143,8 +143,7 @@ cobre mensagens e estado da reunião, não tudo.
 3. **Geração por tipo**: `requestGeneration` faz POST em `/api/generate` do
    servidor (`SERVER_BASE_URL`); volta `content` (markdown), `html`, `pdf` (base64),
    `documentData`, `questions`, `gaps`. As chamadas às rotas de IA (geração, personalizado
-   e o turno do Taq) passam por `fetchDeIa` (`shared/services/identidade.ts`, **em
-   andamento, ainda não commitado**): manda o segredo compartilhado SEMPRE e o
+   e o turno do Taq) passam por `fetchDeIa` (`shared/services/identidade.ts`, commit `923ea5a`): manda o segredo compartilhado SEMPRE e o
    `Authorization: Bearer <id_token do Google>` quando a pessoa ligou a conexão com o
    Google (`identidadeParaIa`, que nunca abre popup). Se o servidor recusar o token
    (401), descarta o cache e repete UMA vez só com o segredo, para um token vencido não

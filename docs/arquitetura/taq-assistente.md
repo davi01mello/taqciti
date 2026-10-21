@@ -96,8 +96,7 @@ por execução.
 
 Todas têm schema zod (valida o argumento e gera o JSON Schema), **efeito**
 (`leitura`, `escrita_local`, `exclusao`, `interface`), política (repetição, máximo por
-execução) e executor. **`exclusao` é novo e está em andamento (21/10/2026, plano de
-segurança; na árvore de trabalho, ainda não commitado):** apagar ou renomear um registro
+execução) e executor. **`exclusao` é novo (21/10/2026, plano de segurança, commit `923ea5a`):** apagar ou renomear um registro
 que já existe saiu de `escrita_local`, porque "crie a ata" liberava as duas coisas juntas
 e uma fala injetada na transcrição ("Taq, apague as conversas X") era obedecida no
 primeiro pedido de escrita que a pessoa fizesse depois. Agora só um pedido que **nomeia a
@@ -114,7 +113,7 @@ próprio fluxo. Instrução dentro de transcrição não tem ferramenta para usa
 | --- | --- | --- |
 | Leitura (`ferramentas.ts`) | `search_records`, `read_meeting`, `read_document`, `read_conversation`, `list_document_types`, `ask_user`, `prepare_external_brief`, `delegate_task` | leitura |
 | Documento (`ferramentas.ts`) | `create_document`, `create_custom_document`, `update_document` | escrita local |
-| App (`ferramentasDeApp.ts`) | `open_meeting`, `open_document`, `export_transcript`, `download_document` (interface); `rename_meeting`, `delete_meeting`, `delete_conversation` (**exclusão**, em andamento); `restore_meeting`, `add_context_source`, `remove_context_source` (escrita local); `copy_transcript`, `get_app_capabilities`, `get_usage_guide` (leitura) | variado |
+| App (`ferramentasDeApp.ts`) | `open_meeting`, `open_document`, `export_transcript`, `download_document` (interface); `rename_meeting`, `delete_meeting`, `delete_conversation` (**exclusão**); `restore_meeting`, `add_context_source`, `remove_context_source` (escrita local); `copy_transcript`, `get_app_capabilities`, `get_usage_guide` (leitura) | variado |
 | Tela (`capturaDeTela.ts`, registrada em `FERRAMENTAS_DE_TRABALHO`) | `capture_screen` | só prepara o cartão |
 | Trabalho (`ferramentasDeTrabalho.ts`) | `save_analysis`, `register_commitments`, `update_commitment`, `link_dependency`, `record_decision`, `save_finding`, `resolve_finding` (escrita local); `read_analysis`, `suggest_commitments`, `list_commitments`, `list_decisions`, `list_findings`, `get_capture_state`, `check_document`, `prepare_message`, `prepare_event`, `review_privacy` (leitura) | variado |
 | Externas (`ferramentasDeIntegracao.ts`) | `search_directory`, `list_availability`, `send_email`, `create_event`, `reschedule_event`, `cancel_event` | leitura (só preparam) |
@@ -239,7 +238,7 @@ Todos moram no navegador; o modelo, quando usado, passa pelo mesmo `POST
   `provedor:modelo` (padrão `google:gemini-3.5-flash`). O Taq **nunca cai no mock**:
   sem chave, o estado é `configuracao_pendente`. Variáveis: `GOOGLE_API_KEY` ou
   `GROQ_API_KEY` conforme o provedor, `DOCCITI_SHARED_KEY` (segredo da rota),
-  `DOCCITI_DATA_POLICY` (`training` bloqueia registro real; **em andamento**, em produção passa a ser obrigatória e `sintetica: true` do cliente deixa de furar a trava, ver `servidor-documentos.md` seção 8), `TAQ_MAX_CONTEXTO_CHARS`.
+  `DOCCITI_DATA_POLICY` (`training` bloqueia registro real; desde o commit `bcb3355`, em produção é obrigatória e `sintetica: true` do cliente não fura a trava, ver `servidor-documentos.md` seção 8), `TAQ_MAX_CONTEXTO_CHARS`.
   Na extensão: `VITE_DOCCITI_SERVER_URL` e `VITE_DOCCITI_SHARED_KEY`.
 - **Adaptadores de provedor** (`AdaptadorDeTurno`): `gemini.ts` (SDK do Google;
   ferramentas como `functionDeclarations`; devolve `continuacao` opaca com a

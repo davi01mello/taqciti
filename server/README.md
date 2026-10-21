@@ -40,7 +40,10 @@ dados em prosa); o porquê de cada corte está em `lib/agents/leitor.ts`.
 > free tier do Gemini manda o conteúdo para treinamento em qualquer modelo —
 > trocar de modelo não protege nada. Defina `DOCCITI_DATA_POLICY=training`
 > quando a chave for de free tier: as rotas passam a exigir `"sintetica": true`
-> e todo relatório carrega o aviso.
+> e todo relatório carrega o aviso. **Em produção** (`VERCEL_ENV=production`) a variável
+> é OBRIGATÓRIA — `private` (chave paga) ou `training` — e sem ela as rotas de geração
+> respondem 503; lá o `"sintetica": true` do cliente **não** fura a trava de uma chave
+> `training` (só em desenvolvimento). Ver `docs/arquitetura/servidor-documentos.md`, seção 8.
 
 Sobe em `http://localhost:3000`.
 
@@ -119,11 +122,11 @@ x-docciti-key: <segredo compartilhado>         (ponte para extensões antigas; v
 
 → 200 { "title", "content" (markdown), "documentData", "html", "pdf"? (base64),
         "questions", "gaps" }
-→ 400 { "error": "string" }   payload inválido (ou falta "sintetica": true com DOCCITI_DATA_POLICY=training)
+→ 400 { "error": "string" }   payload inválido (ou falta "sintetica": true com DOCCITI_DATA_POLICY=training; em produção a trava recusa mesmo com ela)
 → 401 { "error": "string" }   token inválido, segredo ausente/errado, ou (com DOCCITI_CHAVE_LEGADA=recusar) falta do Authorization
 → 413 { "error": "string" }   transcrição acima do teto
 → 422 { "error": "string" }   documento sem conteúdo para o tipo (ex.: X1 em reunião de equipe)
-→ 429 / 503                   cota (do provedor OU a diária da pessoa) ou sobrecarga do provedor de IA
+→ 429 / 503                   cota (do provedor OU a diária da pessoa), sobrecarga do provedor de IA, ou (503) produção sem DOCCITI_DATA_POLICY declarada
 → 500 { "error": "string" }   servidor sem DOCCITI_SHARED_KEY configurada
 → 502 { "error": "string" }   falha inesperada na geração
 ```
