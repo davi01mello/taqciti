@@ -24,7 +24,7 @@
  * o pipeline já usa no Pensante.
  */
 import { API_KEY_ENV_VAR } from '@/lib/ai/availability';
-import { parseOverride } from '@/lib/ai/config';
+import { parseOverride, politicaDeDadosNaoDeclarada } from '@/lib/ai/config';
 import type { ProviderId } from '@/lib/ai/types';
 import type { EstadoDoTaq } from './contrato';
 import { VERSAO_DAS_INSTRUCOES } from './instrucoes';
@@ -76,6 +76,8 @@ export function resolverConfiguracao(env: NodeJS.ProcessEnv = process.env): Conf
   }
 
   const pendencias: string[] = [];
+  const naoDeclarada = politicaDeDadosNaoDeclarada(env);
+  if (naoDeclarada) pendencias.push(naoDeclarada);
   const variavel = CHAVE_DO_ADAPTADOR[provedor];
   if (!variavel) {
     pendencias.push(

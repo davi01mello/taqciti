@@ -17,6 +17,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders } from '@/lib/apiGuard';
 import { autenticar } from '@/lib/identidade/rota';
 import {
+  MAX_TOKENS_ATIVOS,
+  contarTokens,
   criarTokenDoConector,
   listarTokens,
   revogarToken,
@@ -62,6 +64,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   } catch {
     // Corpo vazio é legítimo: rótulo é opcional.
+  }
+
+  // Teto de tokens ativos: cada um é uma credencial ao portador para o acervo
+  // inteiro, e um acúmulo de URLs esquecidas é superfície sem dono.
+  if ((await contarTokens(auth.pessoaId)) >= MAX_TOKENS_ATIVOS) {
+    return NextResponse.json(
+      { error: `Você já tem ${MAX_TOKENS_ATIVOS} endereços ativos. Revogue um que não usa antes de gerar outro.` },
+      { status: 409, headers },
+    );
   }
 
   const { token, id } = await criarTokenDoConector(auth.pessoaId, rotulo);

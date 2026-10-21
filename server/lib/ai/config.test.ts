@@ -9,8 +9,10 @@ import {
   matrixEntryForModel,
   matrixFor,
   parseOverride,
+  politicaDeDadosNaoDeclarada,
   productionCandidates,
   providersNaMatriz,
+  recusaPorPoliticaDeDados,
   usesContentForTraining,
 } from './config';
 import { costForEntry } from './index';
@@ -149,6 +151,24 @@ describe('política de dados', () => {
     } finally {
       if (original !== undefined) process.env.DOCCITI_DATA_POLICY = original;
     }
+  });
+
+  it('em produção a política precisa estar declarada, e "sintetica" do cliente não fura a trava', () => {
+    const prod = { VERCEL_ENV: 'production' } as unknown as NodeJS.ProcessEnv;
+    expect(politicaDeDadosNaoDeclarada(prod)).toContain('DOCCITI_DATA_POLICY');
+    expect(recusaPorPoliticaDeDados(false, null, prod)?.status).toBe(503);
+
+    const prodPaga = { ...prod, DOCCITI_DATA_POLICY: 'private' } as NodeJS.ProcessEnv;
+    expect(recusaPorPoliticaDeDados(false, null, prodPaga)).toBeNull();
+
+    const prodTreino = { ...prod, DOCCITI_DATA_POLICY: 'training' } as NodeJS.ProcessEnv;
+    expect(recusaPorPoliticaDeDados(true, 'aviso', prodTreino)?.status).toBe(400);
+
+    // Fora de produção, nada muda: sem variável passa, e `sintetica` vale.
+    const dev = {} as unknown as NodeJS.ProcessEnv;
+    expect(politicaDeDadosNaoDeclarada(dev)).toBeNull();
+    expect(recusaPorPoliticaDeDados(true, 'aviso', dev)).toBeNull();
+    expect(recusaPorPoliticaDeDados(false, 'aviso', dev)?.status).toBe(400);
   });
 
   it('matrixEntryForModel encontra a entrada do modelo ativo do Auditor', () => {

@@ -49,6 +49,24 @@ function sortearToken(): string {
   return PREFIXO + randomBytes(32).toString('base64url');
 }
 
+/** Dias sem uso depois dos quais um token deixa de valer. */
+export function diasDeInatividade(): number {
+  const v = Number(process.env.TAQCITI_TOKEN_INATIVO_DIAS);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 90;
+}
+
+/** Quantos tokens ativos uma pessoa pode ter ao mesmo tempo. */
+export const MAX_TOKENS_ATIVOS = 5;
+
+/** Quantos tokens a pessoa tem agora (revogar apaga a linha). */
+export async function contarTokens(pessoaId: string, pool: Consultador = banco()): Promise<number> {
+  const { rows } = await pool.query(
+    'select count(*) as n from token_do_conector where pessoa_id = $1 and revogado_em is null',
+    [pessoaId],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
 export function hashDoToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -102,11 +120,15 @@ export async function pessoaDoToken(
   if (!token?.startsWith(PREFIXO)) return null;
   const hash = hashDoToken(token);
 
+  // Um token parado há mais de `diasDeInatividade()` não vale mais: é a URL
+  // esquecida num conector abandonado, num print ou num log antigo. Quem usa o
+  // conector de verdade nunca chega perto do prazo, porque cada uso o renova.
   const { rows } = await pool.query(
     `select t.pessoa_id, t.hash, p.email
        from token_do_conector t join pessoa p on p.id = t.pessoa_id
-      where t.hash = $1 and t.revogado_em is null`,
-    [hash],
+      where t.hash = $1 and t.revogado_em is null
+        and coalesce(t.usado_em, t.criado_em) > now() - make_interval(days => $2)`,
+    [hash, diasDeInatividade()],
   );
   const linha = rows[0];
   if (!linha) return null;

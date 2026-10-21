@@ -454,8 +454,19 @@ function nivel(variavel: string, padrao: Raciocinio): Raciocinio {
 export const raciocinioDoRedator = (): Raciocinio => nivel('DOCUMENTOS_RACIOCINIO_GERACAO', 'medium');
 export const raciocinioDaEdicao = (): Raciocinio => nivel('DOCUMENTOS_RACIOCINIO_EDICAO', 'low');
 
+/**
+ * `### FONTE` no começo de uma linha é o delimitador entre fontes. Dentro do
+ * TEXTO de uma fonte ele não pode aparecer como tal: uma fala ou um documento
+ * com essa linha (por acaso ou por injeção) abriria uma "fonte" forjada, com id
+ * e título inventados, que o modelo citaria como se fosse real. Tira-se o `#`
+ * do começo; a palavra continua legível.
+ */
+const neutralizarDelimitador = (texto: string): string => texto.replace(/^[ \t]*#+[ \t]*(FONTE\b)/gim, '$1');
+
 const serializarFontes = (fontes: readonly FonteDoDocumento[]): string =>
-  fontes.map((f) => `### FONTE ${f.id} — ${f.titulo}\n${f.texto}`).join('\n\n');
+  fontes
+    .map((f) => `### FONTE ${f.id} — ${neutralizarDelimitador(f.titulo)}\n${neutralizarDelimitador(f.texto)}`)
+    .join('\n\n');
 
 function validarEntrada(entrada: PedidoDeDocumento): void {
   if (!entrada.pedido?.trim()) throw new ErroDeGeracao('O pedido está vazio.');

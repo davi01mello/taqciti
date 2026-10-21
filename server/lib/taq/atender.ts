@@ -9,6 +9,7 @@
  * (forma do pedido, configuração, política de dados, tamanho), por último a
  * chamada ao provedor, que custa dinheiro.
  */
+import { aceitaSinteticaDoCliente } from '@/lib/ai/config';
 import { OverloadedError, ProviderError, RateLimitError } from '@/lib/ai/types';
 import {
   pedidoDeTurnoSchema,
@@ -81,7 +82,9 @@ export async function atenderTurno(
     return erro(400, 'pedido_invalido', `Versão de instruções desconhecida: ${pedido.instrucoes}.`);
   }
 
-  if (config.politicaDeDados === 'training' && pedido.sintetica !== true) {
+  // `sintetica` é declaração do cliente: em produção não fura a trava (ver
+  // `aceitaSinteticaDoCliente`).
+  if (config.politicaDeDados === 'training' && !(pedido.sintetica === true && aceitaSinteticaDoCliente(env))) {
     return erro(
       403,
       'politica_de_dados',

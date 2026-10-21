@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { DOCUMENT_TYPES, generateDocument, isDocumentType } from '@/lib/generateDocument';
 import { corsHeaders, maxTranscriptChars } from '@/lib/apiGuard';
 import { autorizarIa } from '@/lib/guardaDeIa';
-import { activeDataPolicyWarning } from '@/lib/ai';
+import { activeDataPolicyWarning, recusaPorPoliticaDeDados } from '@/lib/ai';
 import { erroConhecido } from '@/lib/documentos/requisicao';
 
 /**
@@ -129,18 +129,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
    * desenvolvimento, que é exatamente onde uma gravação real de reunião não
    * pode entrar.
    */
-  const aviso = activeDataPolicyWarning();
-  if (aviso && sintetica !== true) {
-    return NextResponse.json(
-      {
-        error:
-          'A configuração ativa envia o conteúdo para treinamento do provedor, com ' +
-          'possível revisão humana. Só transcrição sintética é aceita — declare ' +
-          '"sintetica": true no corpo. Com chave paga esta trava não existe.',
-        aviso,
-      },
-      { status: 400, headers },
-    );
+  const politica = recusaPorPoliticaDeDados(sintetica, activeDataPolicyWarning());
+  if (politica) {
+    const { status, ...corpo } = politica;
+    return NextResponse.json(corpo, { status, headers });
   }
 
   try {

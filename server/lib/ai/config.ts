@@ -475,4 +475,60 @@ export function activeDataPolicyWarning(): string | null {
   return null;
 }
 
+/**
+ * Em produção, a política de dados precisa estar DECLARADA.
+ *
+ * O padrão silencioso era "private": uma chave free tier subida sem
+ * `DOCCITI_DATA_POLICY=training` mandava transcrições reais para treinamento
+ * do provedor sem trava nenhuma. Em produção a variável passa a ser obrigatória
+ * — `private` é quem sobe o servidor afirmando que a chave é paga; `training`,
+ * que não é. Fora de produção nada muda.
+ */
+export function politicaDeDadosNaoDeclarada(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.VERCEL_ENV !== 'production') return null;
+  const valor = env.DOCCITI_DATA_POLICY?.trim();
+  if (valor === 'private' || valor === 'training') return null;
+  return (
+    'Servidor de produção sem DOCCITI_DATA_POLICY declarada. Defina "private" (chave paga, ' +
+    'sem treinamento) ou "training" nas variáveis da Vercel.'
+  );
+}
+
+/**
+ * O `sintetica: true` do corpo vale? Só fora de produção.
+ *
+ * É uma DECLARAÇÃO do cliente, e qualquer um com acesso à rota a faz. Em
+ * desenvolvimento ela serve aos testes ao vivo com reuniões inventadas; em
+ * produção, aceitá-la deixaria qualquer chamador furar a trava da chave de
+ * treinamento com uma linha no JSON.
+ */
+export function aceitaSinteticaDoCliente(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.VERCEL_ENV !== 'production';
+}
+
+/**
+ * A recusa por política de dados das rotas de geração, ou `null`.
+ * Um lugar só para `/api/generate` e `/api/documentos/*` não divergirem.
+ */
+export function recusaPorPoliticaDeDados(
+  sintetica: unknown,
+  /** O `activeDataPolicyWarning()` da rota — recebido, para os testes poderem trocá-lo. */
+  aviso: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+): { status: number; error: string; aviso?: string } | null {
+  const naoDeclarada = politicaDeDadosNaoDeclarada(env);
+  if (naoDeclarada) return { status: 503, error: naoDeclarada };
+  if (aviso && !(sintetica === true && aceitaSinteticaDoCliente(env))) {
+    return {
+      status: 400,
+      error:
+        'A configuração ativa envia o conteúdo para treinamento do provedor, com possível ' +
+        'revisão humana. Só conteúdo sintético é aceito' +
+        (aceitaSinteticaDoCliente(env) ? ' — declare "sintetica": true no corpo.' : ', e não em produção.'),
+      aviso,
+    };
+  }
+  return null;
+}
+
 export { DEFAULT_AGENT_CONFIG };

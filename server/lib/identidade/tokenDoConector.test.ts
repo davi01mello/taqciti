@@ -62,6 +62,21 @@ describe('token do conector', () => {
     expect(await pessoaDoToken(token, pool)).toBe(ana);
   });
 
+  it('token parado além do prazo de inatividade deixa de valer', async () => {
+    const { token, id } = await criarTokenDoConector(ana, 'esquecido', pool);
+    expect(await pessoaDoToken(token, pool)).toBe(ana);
+    // Espera o `usado_em` disparado sem await, para ele não reescrever o envelhecimento abaixo.
+    await ateQue(async () => {
+      const { rows } = await pool.query('select usado_em from token_do_conector where id = $1', [id]);
+      return rows[0]?.usado_em != null;
+    });
+    await pool.query(
+      `update token_do_conector set criado_em = now() - interval '200 days', usado_em = now() - interval '100 days' where id = $1`,
+      [id],
+    );
+    expect(await pessoaDoToken(token, pool)).toBeNull();
+  });
+
   it('o token em claro não fica no banco', async () => {
     const { token } = await criarTokenDoConector(ana, undefined, pool);
     const { rows } = await pool.query('select hash from token_do_conector');

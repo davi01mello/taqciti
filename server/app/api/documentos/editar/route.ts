@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { corsHeaders, maxTranscriptChars } from '@/lib/apiGuard';
 import { autorizarIa } from '@/lib/guardaDeIa';
-import { activeDataPolicyWarning } from '@/lib/ai';
+import { activeDataPolicyWarning, recusaPorPoliticaDeDados } from '@/lib/ai';
 import { editarDocumentoPersonalizado } from '@/lib/documentos/gerar';
 import {
   corpoDeEdicaoSchema,
@@ -48,17 +48,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const aviso = activeDataPolicyWarning();
-  if (aviso && entrada.sintetica !== true) {
-    return NextResponse.json(
-      {
-        error:
-          'A configuração ativa envia o conteúdo para treinamento do provedor. ' +
-          'Só conteúdo sintético é aceito — declare "sintetica": true no corpo.',
-        aviso,
-      },
-      { status: 400, headers },
-    );
+  const politica = recusaPorPoliticaDeDados(entrada.sintetica, activeDataPolicyWarning());
+  if (politica) {
+    const { status, ...corpo } = politica;
+    return NextResponse.json(corpo, { status, headers });
   }
 
   try {
