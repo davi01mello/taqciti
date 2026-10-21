@@ -117,6 +117,8 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
   const [estado, setEstado] = useState<Estado>({ fase: 'parado' });
   /** Quantas perguntas foram para a conversa com o Taq, na última geração. */
   const [perguntasNoTaq, setPerguntasNoTaq] = useState(0);
+  /** O envio ao Google Docs: em curso, ou o motivo de não ter dado certo. */
+  const [envioAoDocs, setEnvioAoDocs] = useState<{ enviando: true } | { erro: string } | null>(null);
   const caixaRef = useRef<HTMLDivElement>(null);
 
   const ocupado =
@@ -195,6 +197,7 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
   const gerar = (tipo: DocumentType) => {
     if (ocupado) return;
     setPerguntasNoTaq(0);
+    setEnvioAoDocs(null);
     setEstado({ fase: 'gerando', tipo });
 
     void requestGeneration(registro, tipo).then(async (geracao) => {
@@ -290,17 +293,18 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
       );
   };
 
+  /*
+   * A falha tem que aparecer: antes só o sucesso era tratado, o clique sem
+   * resposta convidava a clicar de novo — e cada clique que dava certo criava
+   * mais um arquivo no Drive.
+   */
   const enviarAoDocs = async (pendente: Pendente) => {
+    if (envioAoDocs && 'enviando' in envioAoDocs) return;
+    setEnvioAoDocs({ enviando: true });
     const nome = nomeDoDocumento(registro, pendente.tipo, undefined);
-    const entrega = await entregarDocumento(
-      pendente.html,
-      nome,
-      pendente.tipo,
-      pendente.pdf,
-    );
-    if (entrega.via === 'docs') {
-      void chrome.tabs.create({ url: entrega.url });
-    }
+    const entrega = await entregarDocumento(pendente.html, nome, pendente.tipo, pendente.pdf);
+    if (entrega.via === 'docs') void chrome.tabs.create({ url: entrega.url });
+    setEnvioAoDocs(entrega.via === 'falhou' ? { erro: entrega.message } : null);
   };
 
   const emCurso =
@@ -445,19 +449,28 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
               <button
                 type="button"
                 className="tq-acao"
+                disabled={envioAoDocs !== null && 'enviando' in envioAoDocs}
                 onClick={() => void enviarAoDocs(estado.pendente)}
               >
-                Enviar ao Google Docs
+                {envioAoDocs && 'enviando' in envioAoDocs ? 'Enviando ao Google Docs…' : 'Enviar ao Google Docs'}
               </button>
             )}
             <button
               type="button"
               className="tq-acao"
-              onClick={() => setEstado({ fase: 'parado' })}
+              onClick={() => {
+                setEnvioAoDocs(null);
+                setEstado({ fase: 'parado' });
+              }}
             >
               Fechar
             </button>
           </div>
+          {envioAoDocs && 'erro' in envioAoDocs && (
+            <p className="tq-gerar-erro" role="alert">
+              {envioAoDocs.erro}
+            </p>
+          )}
         </div>
       )}
 

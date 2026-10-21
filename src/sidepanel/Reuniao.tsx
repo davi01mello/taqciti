@@ -134,7 +134,6 @@ export function Reuniao({
   onCancelarRapida = () => {},
   onContinuarNaConversa = () => {},
 }: Props) {
-  const platform = usePlatform();
   const sessao = state.session;
   const fase = state.phase;
 
@@ -173,6 +172,7 @@ export function Reuniao({
   }, [fase]);
 
   const print = usePrint(meetingId);
+  const comando = useComandoDaReuniao();
 
   if (!sessao || fase === 'idle') return null;
 
@@ -190,10 +190,16 @@ export function Reuniao({
         <button
           type="button"
           className="tq-acao tq-pilula"
-          onClick={() => void platform.send({ type: 'ui/gravarAgora' })}
+          disabled={comando.religando}
+          onClick={() => void comando.religar()}
         >
-          Tentar de novo
+          {comando.religando ? 'Tentando…' : 'Tentar de novo'}
         </button>
+        {comando.falha && (
+          <p className="tq-aviso-falha" role="alert">
+            {comando.falha}
+          </p>
+        )}
       </div>
     );
   }
@@ -237,7 +243,9 @@ export function Reuniao({
         rapidaAberta={rapidaAberta}
         onPrint={() => void print.tirar()}
         onPausar={() =>
-          void platform.send({ type: fase === 'paused' ? 'ui/resume' : 'ui/pause' })
+          fase === 'paused'
+            ? comando.enviar('ui/resume', 'Não consegui retomar a captura. Tente de novo.')
+            : comando.enviar('ui/pause', 'Não consegui pausar a captura. Tente de novo.')
         }
         onRapida={() => setRapidaAberta((v) => !v)}
       />
@@ -291,6 +299,11 @@ export function Reuniao({
           {print.erro}
         </p>
       )}
+      {comando.falha && (
+        <p className="tq-aviso-falha" role="alert">
+          {comando.falha}
+        </p>
+      )}
 
       {rapidaAberta && (
         <PerguntaRapida
@@ -334,9 +347,10 @@ export function Reuniao({
           <button
             type="button"
             className="tq-acao tq-pilula"
-            onClick={() => void platform.send({ type: 'ui/gravarAgora' })}
+            disabled={comando.religando}
+            onClick={() => void comando.religar()}
           >
-            Religar agora
+            {comando.religando ? 'Religando…' : 'Religar agora'}
           </button>
         </p>
       )}
@@ -359,7 +373,11 @@ export function Reuniao({
           quantosPrints={prints.length}
         />
         {viva && (
-          <FinalizarReuniao onFinalizar={() => void platform.send({ type: 'ui/finish' })} />
+          <FinalizarReuniao
+            onFinalizar={() =>
+              comando.enviar('ui/finish', 'Não consegui finalizar a reunião. Tente de novo.')
+            }
+          />
         )}
       </div>
       <div className="tq-reuniao-alternada">
@@ -407,6 +425,46 @@ export function Reuniao({
 }
 
 // ---------- o print ----------
+
+const FALHA_AO_RELIGAR: Record<string, string> = {
+  sem_meet: 'Não consegui religar. Confira se a aba do Meet ainda está na reunião e tente de novo.',
+  sem_painel: 'A aba do Meet perdeu o TaqCiti. Recarregue a aba da reunião e tente de novo.',
+};
+
+/**
+ * Os comandos da reunião ao vivo (religar, pausar, retomar, finalizar).
+ *
+ * Antes eram `void platform.send(...)`: um "Religar agora" que falhava ficava
+ * igual a um que funcionava, e a pessoa só percebia minutos depois, sem
+ * transcrição. Aqui o resultado é conferido e a falha vira uma frase na tela.
+ * O sucesso não precisa de aviso: ele aparece no próprio estado da reunião.
+ */
+function useComandoDaReuniao() {
+  const platform = usePlatform();
+  const [religando, setReligando] = useState(false);
+  const [falha, setFalha] = useState<string | null>(null);
+
+  const religar = async () => {
+    if (religando) return;
+    setReligando(true);
+    setFalha(null);
+    try {
+      const r = await platform.send<{ ok: boolean; motivo?: string }>({ type: 'ui/gravarAgora' });
+      if (!r?.ok) setFalha(FALHA_AO_RELIGAR[r?.motivo ?? 'sem_meet'] ?? FALHA_AO_RELIGAR.sem_meet!);
+    } catch {
+      setFalha('Não consegui falar com a extensão. Feche e abra o painel e tente de novo.');
+    } finally {
+      setReligando(false);
+    }
+  };
+
+  const enviar = (type: 'ui/pause' | 'ui/resume' | 'ui/finish', mensagemDeFalha: string) => {
+    setFalha(null);
+    platform.send({ type }).catch(() => setFalha(mensagemDeFalha));
+  };
+
+  return { religar, religando, enviar, falha };
+}
 
 /**
  * O print da aba da reunião, num clique.

@@ -237,11 +237,12 @@ describe('cliente da API', () => {
   });
 
   it.each([
-    [401, 'chave', 'recusou a chave'],
+    [401, 'chave', 'Atualize o TaqCiti'],
     [409, 'conflito', 'mudou'],
-    [413, 'longo', 'longas demais'],
+    [413, 'longo', 'longo demais'],
     [422, 'sem_conteudo', 'Não foi possível montar'],
-    [502, 'indisponivel', 'erro (502)'],
+    [502, 'indisponivel', 'Tente de novo em instantes'],
+    [429, 'indisponivel', 'em um minuto'],
   ])('status %i vira o código %s com a mensagem certa', async (status, codigo, trecho) => {
     fetchMock.mockResolvedValue(resposta(status, {}));
     const r = await editarPersonalizado({ arvore: arvore(1), revisaoEsperada: 1, pedido: 'x', fontes: PEDIDO.fontes });
@@ -255,10 +256,21 @@ describe('cliente da API', () => {
     expect(r).toMatchObject({ codigo: 'sem_conteudo', message: 'Nada ficou sustentado pelas fontes.' });
   });
 
-  it('falha de rede diz as duas causas possíveis', async () => {
+  it('falha de rede diz o que fazer, sem o diagnóstico de quem opera o servidor', async () => {
     fetchMock.mockRejectedValue(new TypeError('failed'));
     const r = await renderizarArvore(arvore(1));
     expect(r).toMatchObject({ status: 'erro', codigo: 'rede' });
-    expect((r as { message: string }).message).toContain('bloqueado');
+    expect((r as { message: string }).message).toContain('Confira a internet');
+    expect((r as { message: string }).message).not.toMatch(/F12|console/);
+  });
+
+  it('a trava de política de dados não chega à tela no jargão do servidor', async () => {
+    fetchMock.mockResolvedValue(
+      resposta(400, { error: 'Só transcrição sintética é aceita — declare "sintetica": true no corpo.', aviso: 'x' }),
+    );
+    const r = await gerarPersonalizado({ ...PEDIDO });
+    expect(r).toMatchObject({ codigo: 'invalido' });
+    expect((r as { message: string }).message).toContain('configuração de testes');
+    expect((r as { message: string }).message).not.toContain('sintetica');
   });
 });

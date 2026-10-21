@@ -19,6 +19,7 @@
  * caminho entre o dado conferido e o que o cliente lê.
  */
 import type { DocumentType } from './generateDocument';
+import { logger } from '@/shared/services/log';
 
 /** Só o que a extensão criou. Ver a justificativa no manifesto. */
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
@@ -141,13 +142,15 @@ export async function criarGoogleDoc(input: CriarDocInput): Promise<GoogleDocRes
     // mensagem crua não diz nada sobre a causa. Vale traduzir: é a diferença
     // entre cinco minutos no console e uma tarde procurando bug no código.
     const naoConfigurado = /client\s?id|invalid_client|não configurado|nao configurado/i.test(message);
+    // A causa técnica fica no log (ver docs/google-oauth-setup.md); a tela
+    // diz o que a pessoa pode fazer.
+    logger.warn(`autorização do Google Drive falhou: ${message}`);
     return {
       status: 'error',
       naoConfigurado,
       message: naoConfigurado
-        ? 'O cliente OAuth do Google ainda não foi registrado para esta extensão. ' +
-          'Ver docs/google-oauth-setup.md.'
-        : `O Chrome não conseguiu autorizar o acesso ao Google Drive: ${message}`,
+        ? 'Esta instalação do TaqCiti ainda não está ligada ao Google Docs. Baixe o arquivo e avise quem cuida do TaqCiti.'
+        : 'O Google não autorizou o acesso ao Drive. Tente de novo e aceite o pedido de permissão.',
     };
   }
 
@@ -174,20 +177,21 @@ export async function criarGoogleDoc(input: CriarDocInput): Promise<GoogleDocRes
       await descartarToken(token);
       return {
         status: 'error',
-        message: 'A autorização do Google expirou. Tente gerar de novo.',
+        message: 'A autorização do Google expirou. Tente enviar de novo.',
       };
     }
     if (response.status === 403) {
+      // O 403 mais provável é a Drive API desativada no projeto do Google
+      // Cloud — coisa de quem cuida do TaqCiti, não de quem usa.
+      logger.warn('Google Drive recusou o upload (403): a Drive API está ativada no projeto?');
       return {
         status: 'error',
-        message:
-          'O Google recusou a criação do arquivo (403). Confira se a Drive API está ' +
-          'ativada no projeto do Google Cloud.',
+        message: 'O Google recusou a criação do arquivo. Baixe o documento e avise quem cuida do TaqCiti.',
       };
     }
     return {
       status: 'error',
-      message: `O Google Drive respondeu com erro (${response.status}).`,
+      message: `O Google Drive não conseguiu criar o arquivo agora (${response.status}). Tente de novo em instantes.`,
     };
   }
 

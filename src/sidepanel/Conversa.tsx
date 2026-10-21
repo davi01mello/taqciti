@@ -451,13 +451,11 @@ export function Conversa({
             ) : (
               <>
                 Ainda não há respostas de IA
-                {taq.fase === 'pendente'
-                  ? ` — configuração pendente: ${taq.motivos.join(' ')}`
-                  : ''}
                 {taq.fase === 'inalcancavel'
                   ? ' — o servidor do TaqCiti não respondeu'
                   : ''}
-                . Ao salvar, seu texto e o contexto ficam como rascunho neste computador,
+                . {taq.fase === 'pendente' ? `${taq.motivos.join(' ')} ` : ''}
+                Ao salvar, seu texto e o contexto ficam como rascunho neste computador,
                 disponíveis também na HOME. Nada é enviado para processamento.
               </>
             )}

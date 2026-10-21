@@ -14,6 +14,7 @@ import {
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
 import { fetchDeIa } from '@/shared/services/identidade';
+import { mensagemDeRecusa, semConexao } from '@/shared/services/respostaDoServidor';
 import { transcriptToText } from '@/features/history/export';
 import { criarGoogleDoc, nomeDoArquivo, oauthConfigurado, type GoogleDocResult } from './googleDocs';
 import { baixarComoHtml, baixarComoPdf } from './baixarDocumento';
@@ -161,8 +162,19 @@ export async function requestGeneration(
   source: GenerationSource,
   documentType: DocumentType,
 ): Promise<GenerationResult> {
+  // Sem fala capturada não há do que gerar — e o servidor recusaria com
+  // `"transcript" é obrigatório`, que não diz nada a quem usa.
+  if (!source.segments.some((s) => s.text.trim())) {
+    return {
+      status: 'error',
+      documentType,
+      message: 'Esta reunião não tem fala registrada, então não há de onde tirar o documento.',
+    };
+  }
+
+  let response: Response;
   try {
-    const response = await fetchDeIa(`${SERVER_BASE_URL}/api/generate`, {
+    response = await fetchDeIa(`${SERVER_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,72 +187,35 @@ export async function requestGeneration(
         documentType,
       }),
     });
-
-    if (!response.ok) {
-      // Dizer só "erro 401" manda a pessoa procurar no lugar errado. Cada
-      // status aqui tem uma causa e uma ação diferentes.
-      let message: string;
-      if (response.status === 401) {
-        message = 'O servidor recusou a chave da extensão. Confira DOCCITI_SHARED_KEY no servidor.';
-      } else if (response.status === 413) {
-        message = 'A transcrição é longa demais para o servidor gerar o documento.';
-      } else if (response.status === 400) {
-        // O 400 mais provável é a trava de política de dados: o servidor está
-        // com uma chave de free tier, que manda o conteúdo para treinamento
-        // do provedor, e recusa transcrição que não seja sintética. A
-        // extensão captura reunião de verdade, então ela NÃO pode se declarar
-        // sintética — o caminho é o servidor rodar com chave paga.
-        const corpo = (await response.json().catch(() => ({}))) as { error?: string };
-        message =
-          corpo.error ??
-          'O servidor recusou o pedido (400). Confira a configuração dele.';
-      } else {
-        message = `O servidor respondeu com erro (${response.status}).`;
-      }
-      return { status: 'error', documentType, message };
-    }
-
-    const data = (await response.json()) as {
-      title: string;
-      content: string;
-      html?: string;
-      pdf?: string;
-      documentData?: { metadata?: DocumentMetadata };
-      questions?: Pergunta[];
-      gaps?: Lacuna[];
-    };
-    return {
-      status: 'success',
-      documentType,
-      title: data.title,
-      content: data.content,
-      html: data.html ?? '',
-      pdf: data.pdf,
-      metadata: data.documentData?.metadata ?? {},
-      documentData: data.documentData ?? {},
-      questions: data.questions ?? [],
-      gaps: data.gaps ?? [],
-    };
   } catch {
-    /*
-     * `fetch` lança por DOIS motivos que se parecem daqui e não se parecem em
-     * nada na hora de arrumar: o servidor não respondeu, ou o navegador
-     * bloqueou a chamada antes de sair (preflight de CORS recusado). A causa
-     * exata é deliberadamente opaca para o script — o navegador não conta.
-     *
-     * A mensagem antiga afirmava a primeira ("Ele está no ar?") e custou uma
-     * investigação inteira contra um servidor que estava de pé o tempo todo,
-     * respondendo 401 para quem chamava de fora do navegador. Enquanto não dá
-     * para saber qual dos dois é, dizer os dois é o honesto — e o console é
-     * onde a resposta está.
-     */
-    return {
-      status: 'error',
-      documentType,
-      message:
-        `Não foi possível falar com o servidor (${SERVER_BASE_URL}). ` +
-        'Ele pode estar fora do ar, ou o navegador pode ter bloqueado a chamada — ' +
-        'o console desta página (F12) diz qual dos dois.',
-    };
+    return { status: 'error', documentType, message: semConexao('/api/generate') };
   }
+
+  // Cota do dia, provedor ocupado, transcrição longa: o servidor já escreve a
+  // frase certa, e ela tem que chegar à tela (ver `respostaDoServidor.ts`).
+  if (!response.ok) {
+    return { status: 'error', documentType, message: await mensagemDeRecusa(response, '/api/generate') };
+  }
+
+  const data = (await response.json()) as {
+    title: string;
+    content: string;
+    html?: string;
+    pdf?: string;
+    documentData?: { metadata?: DocumentMetadata };
+    questions?: Pergunta[];
+    gaps?: Lacuna[];
+  };
+  return {
+    status: 'success',
+    documentType,
+    title: data.title,
+    content: data.content,
+    html: data.html ?? '',
+    pdf: data.pdf,
+    metadata: data.documentData?.metadata ?? {},
+    documentData: data.documentData ?? {},
+    questions: data.questions ?? [],
+    gaps: data.gaps ?? [],
+  };
 }

@@ -221,7 +221,7 @@ it('responde com fonte, grava a resposta, e a fonte abre a reunião', async () =
 it('configuração pendente aparece ANTES de escrever, e a mensagem só é salva', async () => {
   servidor({ ...PRONTO, politicaDeDados: 'training' }, []);
   await montar();
-  await ate(() => host.textContent!.includes('configuração pendente'));
+  await ate(() => host.textContent!.includes('IA indisponível'));
   expect(host.textContent).toContain('treinar o provedor');
 
   await enviar('Uma pergunta qualquer');
@@ -241,7 +241,7 @@ it('falha do provedor aparece como falha, sem resposta gravada', async () => {
   await ate(() => host.textContent!.includes('IA conectada'));
 
   await enviar('Oi');
-  await ate(() => host.textContent!.includes('Falha de execução'));
+  await ate(() => host.textContent!.includes('Não consegui responder'));
   expect(conversas()[0]!.messages.map((m) => m.role)).toEqual(['user']);
   // O registro da execução guarda a falha — sem a pergunta.
   const [execucao] = storage.local.values[STORAGE_KEYS.taqExecucoes] as Array<{

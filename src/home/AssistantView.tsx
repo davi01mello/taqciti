@@ -443,13 +443,13 @@ export function AssistantView({
   );
 }
 
-/** O motivo de não haver resposta, dito como o servidor disse. */
+/** O motivo de não haver resposta (os de `verificarTaq` já vêm em frases para a tela). */
 function motivoSemTaq(taq: DisponibilidadeDoTaq): string {
   switch (taq.fase) {
     case 'verificando':
       return 'ainda estava verificando o servidor quando você enviou.';
     case 'pendente':
-      return `a configuração está pendente: ${taq.motivos.join(' ')}`;
+      return `não está disponível agora. ${taq.motivos.join(' ')}`;
     case 'inalcancavel':
       return 'o servidor do TaqCiti não respondeu.';
     default:
@@ -491,7 +491,7 @@ function AvisoDoTaq({
       {taq.fase === 'verificando'
         ? 'Verificando a IA…'
         : taq.fase === 'pendente'
-          ? `IA com configuração pendente: ${taq.motivos.join(' ')}`
+          ? `IA indisponível. ${taq.motivos.join(' ')}`
           : 'IA fora do ar. Sua mensagem fica salva.'}
       {taq.fase !== 'verificando' && (
         <>

@@ -10,6 +10,7 @@ import {
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
 import { fetchDeIa } from '@/shared/services/identidade';
+import { mensagemDeRecusa, semConexao } from '@/shared/services/respostaDoServidor';
 import type {
   ArvoreDoDocumento,
   ManifestoDeRender,
@@ -40,51 +41,25 @@ async function chamar<T>(rota: string, corpo: unknown): Promise<RespostaDoServid
       body: JSON.stringify(corpo),
     });
   } catch {
-    // Mesma ambiguidade de `requestGeneration`: servidor fora do ar ou
-    // chamada bloqueada pelo navegador. Diz os dois.
-    return {
-      status: 'erro',
-      codigo: 'rede',
-      message:
-        `Não foi possível falar com o servidor (${SERVER_BASE_URL}). Ele pode estar fora do ar, ` +
-        'ou o navegador pode ter bloqueado a chamada — o console (F12) diz qual dos dois.',
-    };
+    return { status: 'erro', codigo: 'rede', message: semConexao(`/api/documentos/${rota}`) };
   }
 
   if (resposta.ok) return { status: 'ok', dados: (await resposta.json()) as T };
 
-  const doServidor = ((await resposta.json().catch(() => ({}))) as { error?: string }).error;
-  switch (resposta.status) {
-    case 401:
-      return { status: 'erro', codigo: 'chave', message: 'O servidor recusou a chave da extensão.' };
-    case 400:
-      return { status: 'erro', codigo: 'invalido', message: doServidor ?? 'O servidor recusou o pedido (400).' };
-    case 413:
-      return {
-        status: 'erro',
-        codigo: 'longo',
-        message: doServidor ?? 'As fontes são longas demais. Selecione menos reuniões ou um recorte menor.',
-      };
-    case 409:
-      return {
-        status: 'erro',
-        codigo: 'conflito',
-        message: doServidor ?? 'O documento mudou desde que você o abriu.',
-      };
-    case 422:
-      return {
-        status: 'erro',
-        codigo: 'sem_conteudo',
-        message: doServidor ?? 'Não foi possível montar o documento com as fontes selecionadas.',
-      };
-    default:
-      return {
-        status: 'erro',
-        codigo: 'indisponivel',
-        message: doServidor ?? `O servidor respondeu com erro (${resposta.status}). Tente de novo em instantes.`,
-      };
-  }
+  return {
+    status: 'erro',
+    codigo: CODIGO_POR_STATUS[resposta.status] ?? 'indisponivel',
+    message: await mensagemDeRecusa(resposta, `/api/documentos/${rota}`),
+  };
 }
+
+const CODIGO_POR_STATUS: Partial<Record<number, CodigoDeErro>> = {
+  400: 'invalido',
+  401: 'chave',
+  409: 'conflito',
+  413: 'longo',
+  422: 'sem_conteudo',
+};
 
 export const gerarPersonalizado = (pedido: PedidoDeGeracao) =>
   chamar<ResultadoDoServidor>('gerar', pedido);

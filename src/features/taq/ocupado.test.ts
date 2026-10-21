@@ -74,7 +74,7 @@ describe('perguntarAoTaq ocupado', () => {
       expect(r).not.toBeNull();
       // Um erro do orquestrador vira resultado "falhou" pelo caminho normal (a mensagem diz que não pôde ser produzida).
       expect(r!.estado).toBe('falhou');
-      expect(mensagemDoDesfecho(r!)).toMatch(/Falha de execução/);
+      expect(mensagemDoDesfecho(r!)).toMatch(/Sua mensagem ficou na conversa/);
     } finally {
       _definirTaq({ orquestrador: null });
     }

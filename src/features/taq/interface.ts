@@ -22,6 +22,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { publicarAtividade, publicarEtapa } from '@/features/agent/atividade';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange } from '@/shared/services/storage';
+import { logger } from '@/shared/services/log';
 import {
   acrescentarResposta,
   lembrarRegistros,
@@ -80,11 +81,12 @@ export async function verificarTaq(sinal?: AbortSignal): Promise<Disponibilidade
   try {
     const estado = await obterAdaptador().estado(sinal);
     if (!estado.pronto || !estado.provedor || !estado.modelo) {
+      // As pendências do servidor falam em variável de ambiente e chave de
+      // provedor: são para quem opera o servidor, e vão para o log.
+      logger.warn(`assistente sem configuração no servidor: ${estado.pendencias.join(' ') || 'sem provedor'}`);
       return {
         fase: 'pendente',
-        motivos: estado.pendencias.length
-          ? estado.pendencias
-          : ['Servidor sem provedor configurado.'],
+        motivos: ['O assistente ainda não está configurado no servidor. Se continuar, avise quem cuida do TaqCiti.'],
       };
     }
     // Mesma regra das rotas de geração: chave de treinamento não recebe
@@ -102,7 +104,10 @@ export async function verificarTaq(sinal?: AbortSignal): Promise<Disponibilidade
     return { fase: 'pronto', provedor: estado.provedor, modelo: estado.modelo };
   } catch (e) {
     if (e instanceof ErroDoModelo && e.codigo === 'nao_autorizado') {
-      return { fase: 'pendente', motivos: [e.message] };
+      return {
+        fase: 'pendente',
+        motivos: ['O servidor não reconheceu esta versão da extensão. Atualize o TaqCiti.'],
+      };
     }
     return {
       fase: 'inalcancavel',
@@ -198,35 +203,52 @@ function etapaDo(evento: EventoDeExecucao): string | null {
 
 const MOTIVO_EM_PALAVRAS: Record<string, string> = {
   cancelado: 'Interrompido: você cancelou.',
-  tempo_esgotado: 'Interrompido: a execução passou do tempo máximo.',
-  limite_atingido: 'Interrompido: a execução atingiu o limite de passos.',
+  tempo_esgotado:
+    'Interrompido: a resposta passou do tempo máximo. Tente um pedido mais curto, ou de novo em instantes.',
+  limite_atingido:
+    'Interrompido: o pedido precisou de passos demais. Tente dividi-lo em partes menores.',
 };
 
-/** Uma frase para o desfecho que NÃO gerou resposta. */
+const AVISE = 'Se continuar, avise quem cuida do TaqCiti.';
+
+/**
+ * Uma frase para o desfecho que NÃO gerou resposta.
+ *
+ * Cada uma diz o que a pessoa pode fazer — esperar um minuto, esperar até
+ * amanhã, encurtar o pedido, abrir outra conversa, ou avisar alguém —, porque
+ * "a resposta não pôde ser produzida" não deixava escolher nenhuma dessas.
+ */
 export function mensagemDoDesfecho(r: ExecucaoDoTaq): string {
   if (MOTIVO_EM_PALAVRAS[r.estado]) return MOTIVO_EM_PALAVRAS[r.estado]!;
-  const codigo = r.erros[0]?.codigo;
-  switch (codigo) {
+  const erro = r.erros[0];
+  switch (erro?.codigo) {
     case 'configuracao_pendente':
-      return 'Falha de execução: o Taq não está configurado no servidor.';
+      return `Não consegui responder: o assistente ainda não está configurado no servidor. ${AVISE}`;
     case 'politica_de_dados':
-      return 'Falha de execução: o servidor não aceita registros reais com a chave atual.';
+      return `Não consegui responder: o servidor está numa configuração de testes, que não aceita reuniões e documentos reais. ${AVISE}`;
     case 'servidor_inalcancavel':
-      return 'Falha de execução: o servidor do TaqCiti não respondeu.';
+      return 'Não consegui responder: o servidor do TaqCiti não respondeu. Confira a internet e tente de novo.';
     case 'limite_do_provedor':
-      return 'Falha de execução: o provedor de IA recusou por limite de uso.';
+      // O servidor marca a cota POR MINUTO como transitória; a do dia, não.
+      return erro.transitorio
+        ? 'Não consegui responder: o provedor de IA está com muitas chamadas agora. Tente de novo em um minuto.'
+        : 'Não consegui responder: a cota do dia do provedor de IA acabou. Ela reabre amanhã.';
     case 'provedor_sobrecarregado':
-      return 'Falha de execução: o provedor de IA está sobrecarregado. Tente de novo em instantes.';
+      return 'Não consegui responder: o provedor de IA está sobrecarregado. Tente de novo em instantes.';
     case 'provedor_lento':
-      return 'Falha de execução: o provedor de IA demorou demais para responder. Tente de novo.';
+      return 'Não consegui responder: o provedor de IA demorou demais. Tente de novo.';
+    case 'contexto_grande_demais':
+      return 'Não consegui responder: esta conversa ficou longa demais. Comece uma conversa nova para continuar.';
     case 'nao_autorizado':
-      return 'Falha de execução: o servidor recusou a chave desta extensão.';
+      return `Não consegui responder: o servidor não reconheceu esta versão da extensão. Atualize o TaqCiti. ${AVISE}`;
+    case 'pedido_invalido':
+      return `Não consegui responder: o servidor não aceitou o pedido — a extensão e o servidor podem estar em versões diferentes. ${AVISE}`;
     case 'ocupado':
       return 'O assistente ainda está respondendo a pergunta anterior. Sua mensagem ficou na conversa: envie de novo quando ele terminar.';
     case 'erro_interno':
-      return 'Falha de execução: a resposta não pôde ser gravada. Sua mensagem ficou na conversa.';
+      return 'Não consegui gravar a resposta. Sua mensagem ficou na conversa: envie de novo.';
     default:
-      return 'Falha de execução: a resposta não pôde ser produzida.';
+      return 'Não consegui responder desta vez. Sua mensagem ficou na conversa: tente de novo.';
   }
 }
 
