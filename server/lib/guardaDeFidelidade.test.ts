@@ -85,6 +85,14 @@ describe('certeza indevida', () => {
     ).toBe(false);
   });
 
+  it('"dados residuais que afetavam a taxa" também afirma a causa, mesmo sem "se deve a"', () => {
+    expect(
+      certezaIndevida('A depuração de dados residuais de teste que afetavam a taxa de aprovação é necessária.', [
+        'Que ele já foi aprovado uma vez e pode ter contado isso como uma taxa de aprovação ficou no banco de dados.',
+      ]),
+    ).toBe(true);
+  });
+
   it('frases() preserva o texto inteiro', () => {
     const texto = 'Primeira frase. Segunda frase! Terceira?';
     expect(frases(texto).join('')).toBe(texto);

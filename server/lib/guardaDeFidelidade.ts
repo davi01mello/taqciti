@@ -83,6 +83,8 @@ const AFIRMA_CAUSA = [
   /\bpor causa d[eoa]s?\b/,
   /\bresultante d[eoa]s?\b/,
   /\bderivava?\b/,
+  // "dados residuais que afetavam a taxa": afirma a causa sem dizer "se deve a".
+  /\bque (afetava|afetavam|afeta|afetam|afetou|causava|causavam|causa|causam|gerava|geravam|distorcia|distorciam|impactava|impactavam|provocava|provocavam)\b/,
 ];
 
 /** Marcadores de que quem falou NÃO tinha certeza. */
