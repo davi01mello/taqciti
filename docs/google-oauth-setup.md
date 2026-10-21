@@ -66,7 +66,8 @@ Google, sem lista de usuários de teste, sem fila de revisão. A tela de
 consentimento é **uma só**, compartilhada pelos dois clientes — só a criação
 do cliente em si acontece duas vezes.
 
-**ID desta extensão:** `jalebpaefejnbacgncgkailhemkdpnhm`
+**ID desta extensão:** `<ID_DA_EXTENSAO>` (o Chrome mostra em `chrome://extensions`; é
+derivado da `key` de `manifest.config.ts`)
 
 Ele vem da chave pública em `manifest.config.ts` e **não muda** entre
 máquinas, clones do repo ou reinstalações. É esse valor que o console pede no
@@ -95,17 +96,18 @@ exatamente isso.
 
 [console.cloud.google.com/apis/credentials/consent](https://console.cloud.google.com/apis/credentials/consent)
 
-Tipo **Interno**. Três escopos, e só estes — os DOIS clientes juntos nunca
-pedem mais que isto:
+Tipo **Interno**. O cliente Web (identidade) pede só `openid` e `email`. O cliente
+"Extensão do Chrome" pede os demais, cada capacidade com o seu (fonte única:
+`src/features/integracoes/escopos.ts`; o manifesto repete a lista como teto, 7 no total):
 
 | escopo | para quê | pedido por |
 |---|---|---|
 | `openid` | identificar a conta | cliente Web (identidade) |
 | `.../auth/userinfo.email` | saber de quem é o acervo | cliente Web (identidade) |
 | `.../auth/drive.file` | enviar a ata ao Google Docs | cliente Extensão do Chrome (Docs) |
+| `gmail.send`, `directory.readonly`, `calendar.events`, `calendar.freebusy` | e-mail, colegas e agenda da conta do CITi | cliente Extensão do Chrome (Conexões → Conta do CITi; ver `docs/integracoes-google-workspace.md`) |
 
-Os três dispensam verificação da Google. `openid` e `email` são
-não-sensíveis; `drive.file` dá acesso apenas aos arquivos que a própria
+`drive.file` dá acesso apenas aos arquivos que a própria
 extensão criou — ela não enxerga, não lê e não altera mais nada do Drive de
 quem usa. `drive` ou `drive.readonly` entrariam numa fila de revisão e
 pediriam uma permissão que o produto não precisa.
@@ -113,7 +115,7 @@ pediriam uma permissão que o produto não precisa.
 **Estarem na mesma tela não significa que sejam pedidos juntos.** Cada
 cliente só pede o seu: o cliente Web nunca pede `drive.file` (não teria como —
 não é um escopo que ele declara em lugar nenhum), e o cliente da extensão só é
-acionado ao clicar "enviar para o Docs". Ninguém que só sincroniza vê uma tela
+acionado ao clicar "enviar para o Docs" ou "Conectar conta do CITi". Ninguém que só sincroniza vê uma tela
 pedindo acesso ao Drive.
 
 ### 3A. Criar o cliente do Google Docs — tipo "Extensão do Chrome"
@@ -123,7 +125,7 @@ pedindo acesso ao Drive.
 [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
 
 **+ Criar credenciais → ID do cliente OAuth → Extensão do Chrome**, com o ID
-`jalebpaefejnbacgncgkailhemkdpnhm`. Copie o Client ID gerado — vai em
+`<ID_DA_EXTENSAO>`. Copie o Client ID gerado — vai em
 `VITE_GOOGLE_OAUTH_CLIENT_ID` na etapa 4.
 
 ### 3B. Criar o cliente de identidade — tipo "Aplicativo da Web"
@@ -137,7 +139,7 @@ extensão" — em vez disso, pede um **redirect URI**.
 **URIs de redirecionamento autorizados**, cole exatamente:
 
 ```
-https://jalebpaefejnbacgncgkailhemkdpnhm.chromiumapp.org/
+https://<ID_DA_EXTENSAO>.chromiumapp.org/
 ```
 
 Barra final incluída — é o formato que `chrome.identity.getRedirectURL()`
@@ -197,7 +199,7 @@ a seção Conexões mostra "falta registrar o cliente OAuth".
 `dist/`.
 
 **Confira o ID que o Chrome mostra.** Tem que ser
-`jalebpaefejnbacgncgkailhemkdpnhm`. Se for outro, a `key` não entrou no
+o `<ID_DA_EXTENSAO>` registrado no cliente 3A. Se for outro, a `key` não entrou no
 manifesto e o Docs vai falhar com "bad client id" (isso não afeta Conexões,
 que não depende desse ID).
 

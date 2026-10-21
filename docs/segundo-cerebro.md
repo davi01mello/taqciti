@@ -20,7 +20,8 @@ em código.
 | Tela "Preparar" | `src/home/Preparar.tsx` | Perfil, briefing, retomada, modo por reunião, ajustes sugeridos, custo medido, teste histórico. O resumo também se escreve à mão. |
 | Retomada | `conducao/retomada.ts` | Combinados em aberto e decisões dos encontros que a pessoa **escolheu** (por id), com data, "sem atualização registrada" e nunca "atrasado". |
 | Estado dos pontos | `src/features/estado/`, prompt `estado-v1` | "O que falta fechar": um estado por ponto (a esclarecer, discutido, a confirmar, decidido, adiado) com a fala que o sustenta. Fonte, dono e prazo são conferidos em código. |
-| Fechamento | `estado/sintese.ts`, `estado/registrar.ts` | Síntese sobre o estado validado, frase de fechamento sugerida (rotulada), e **registrar como acompanhamento** por clique, sem dono/prazo inventados. |
+| Fechamento | `estado/sintese.ts`, `estado/registrar.ts` | Síntese sobre o estado validado (sem nova chamada ao modelo), frase de fechamento sugerida (rotulada), e por clique: **registrar como acompanhamento** (ponto decidido ou a confirmar, sem dono/prazo inventados) ou **como decisão** (só ponto decidido, com a fala copiada da transcrição). |
+| Acompanhamentos | `src/features/acompanhamento/juiz.ts`, prompt `acompanhamento-v1`, `trabalho/store.ts` | No máximo 3 por reunião (`LIMITE_DE_ACOMPANHAMENTOS_POR_REUNIAO`; só cancelado libera vaga). Quem ocupa as vagas é escolhido por um juiz de IA entre ids oferecidos; sem julgamento válido, ninguém entra. O teto é reforçado no armazenamento. |
 | Apoio ao vivo | `src/features/apoio/`, prompt `intervencao-v1` | Sugestões privadas, no máximo uma por vez. Política em código (validade, repetição, intervalo, limite por hora, silêncio por padrão). |
 | Cartão de apoio | `src/sidepanel/CartaoDeApoio.tsx` | Sugestão rotulada, "Ver fonte", usar/resolvido/guardar/descartar (com feedback), pausar. |
 | Calibração | `src/features/calibracao/` | Ajustes propostos a partir do feedback (com limiar, antes → depois, aprovação) e teste histórico por cortes de tempo. |
@@ -41,16 +42,19 @@ em código.
 
 ## Como verificar
 
-- Testes: `npx vitest run` (raiz) e `cd server; npx vitest run lib/taq`.
+- Testes: `npm test` (raiz) e `cd server; npx vitest run lib/taq`. Visão geral do Taq:
+  `docs/arquitetura/taq-assistente.md`.
 - Tela "Preparar" no navegador: `node scripts/verify-preparar.cjs <playwright-core> <pasta da build de desenvolvimento>` (resultado em `docs/verification/preparar/`).
-- Contra o provedor real, com reunião **sintética** (chave gratuita só aceita dado inventado): subir o servidor (`cd server; npx next build; npx next start -p 3100`) e rodar os arquivos `*.live.test.ts` com `TAQ_LIVE_URL` e `TAQ_LIVE_KEY` (ver o cabeçalho de cada um). Cobrem: `conducao-v1`, `intervencao-v1` (varredura, laço completo, retirada), `estado-v1`, `copilot-v2`, histórico por cortes.
+- Contra o provedor real, com reunião **sintética** (chave gratuita só aceita dado inventado): subir o servidor (`cd server; npx next build; npx next start -p 3100`) e rodar os arquivos `*.live.test.ts` com `TAQ_LIVE_URL` e `TAQ_LIVE_KEY` (ver o cabeçalho de cada um). Cobrem: `conducao-v1`, `intervencao-v1` (varredura, laço completo, retirada), `estado-v1`, `copilot-v2`, `acompanhamento-v1` (`juiz.live.test.ts`), histórico por cortes.
 
 ## Publicação: servidor antes da extensão
 
 As instruções de sistema moram no servidor, versionadas. A extensão pede pelo nome.
 Servidor sem a versão = falha ("Versão de instruções desconhecida", visto na prática).
-Pendentes de publicar: `conducao-v1`, `copilot-v2`, `communication-v3`, `scheduling-v3`,
-`intervencao-v1`, `estado-v1`. Deploy é manual (Vercel).
+Versões desta família que o servidor precisa ter: `conducao-v1`, `copilot-v2`,
+`communication-v3`, `scheduling-v3`, `intervencao-v1`, `estado-v1`, `acompanhamento-v1`
+(todas mapeadas em `server/lib/taq/instrucoes.ts`). Deploy é manual; quais já foram
+publicadas: não verificado.
 
 ## O que ainda não está feito ou validado
 
@@ -63,7 +67,11 @@ Pendentes de publicar: `conducao-v1`, `copilot-v2`, `communication-v3`, `schedul
   pessoa corrige, e a correção prevalece.
 - **Cliente como entidade** não existe: encontros se ligam por escolha da pessoa, por id.
   Não há "histórico do cliente" nem alcance "cliente" no feedback.
-- **Decisões** não são registradas a partir do fechamento (só acompanhamentos); falta o fluxo.
+- O estado dos pontos só é atualizado por botão (uma chamada ao modelo lendo as
+  últimas 60 falas consolidadas); não há atualização automática.
+- O limite de 3 acompanhamentos por reunião é fixo no código; concluir um item não
+  libera vaga, só cancelar (a mensagem ao usuário fala em "concluir ou cancelar":
+  divergência a conferir).
 - **Sem sincronização entre dispositivos** das sugestões, do estado e do perfil (tudo local).
 - O briefing não volta ao "Desfazer" de uma reunião apagada (é derivado dela).
 - `politica.ts` (escrita local e ações de interface) e `roteamento.ts` ainda decidem por regex.

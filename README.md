@@ -146,11 +146,31 @@ substituída pelo Drive; o Drive é só um destino adicional.
 - `src/background/` — service worker: roteia mensagens, persiste o histórico,
   abre o painel lateral e a aba da HOME, e faz o print da aba da reunião.
 - `src/document/` — a página de geração de documento a partir de uma reunião.
-- `server/` — o servidor Next.js de geração de documento e do conector MCP.
+- `src/features/taq/` — o assistente **Taq**: orquestrador, ferramentas, catálogo e
+  contratos. Os subsistemas ficam ao lado (`acompanhamento`, `apoio`, `calibracao`,
+  `conducao`, `estado`, `trabalho`). Ver [`docs/arquitetura/taq-assistente.md`](docs/arquitetura/taq-assistente.md).
+- `src/features/integracoes/` — as integrações com o Google (Gmail, Agenda, Docs), todas
+  com confirmação por clique.
+- `src/shared/` — o que as superfícies dividem: componentes de interface, plataforma,
+  configuração, serviços de storage e mensageria.
+- `server/` — o servidor Next.js: geração de documento, conector MCP e sincronização.
+- `docs/` — a documentação; o índice está em [`docs/README.md`](docs/README.md).
 
 Duas superfícies de produto — a sidebar e a HOME — e uma cápsula. O popup e o
 histórico em tela cheia foram removidos numa etapa anterior; o painel flutuante
 injetado na página foi removido nesta, quando a sidebar virou o painel nativo.
+
+## Documentação
+
+- [`docs/README.md`](docs/README.md) — o índice de tudo, com os seis documentos de
+  arquitetura (captura, interface, Taq, servidor de documentos, conector e sincronização,
+  build e release).
+- [`CLAUDE.md`](CLAUDE.md) — o guia de quem vai mexer no código: comandos, convenções e as
+  armadilhas que já custaram caro. Serve igualmente a quem usa o Claude Code no projeto.
+- [`INSTALL.md`](INSTALL.md) — como instalar a extensão.
+
+Este repositório é público: a documentação nunca traz chaves, URLs de produção, IDs de
+conta nem conteúdo de reunião real.
 
 **Limitação conhecida:** a cápsula não consegue abrir o painel lateral sozinha.
 `chrome.sidePanel.open()` exige um gesto do usuário medido no contexto da

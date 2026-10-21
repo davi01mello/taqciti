@@ -34,9 +34,9 @@ real do `package.json` (ou de uma tag), passe `/D`:
 
 ## O que o instalador faz
 
-0. Antes de qualquer coisa, procura o **Google Chrome especificamente**
-   (não "o navegador padrão" — a extensão só funciona no Chrome de
-   qualquer forma). Se não encontrar em nenhum dos lugares de sempre
+0. Antes de qualquer coisa, procura o **Google Chrome** e o **Microsoft Edge**. Se achar só um,
+   usa esse; se achar os dois, pergunta qual usar numa página do assistente.
+   Se não encontrar nenhum dos dois nos lugares de sempre
    (registro `App Paths` em HKLM/HKCU, depois `Program Files`,
    `Program Files (x86)` e `%LOCALAPPDATA%`), mostra um aviso com o link
    pra baixar o Chrome e **aborta a instalação inteira** — nada é

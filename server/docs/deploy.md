@@ -7,7 +7,7 @@ troca-se o valor, não o código.
 > ⚠️ **Produção mudou, e o corpo deste runbook ainda não.**
 >
 > Desde **22/09/2026** o servidor roda na **Vercel**, em
-> `https://server-psi-liart-81.vercel.app` — é o endereço que o `.env` da
+> `<URL-DO-SERVIDOR-DE-PRODUCAO>` — é o endereço que o `.env` da
 > extensão aponta —, e **o deploy é manual**: nenhum push publica nada sozinho.
 > As seções abaixo descrevem os cliques do **Railway**, o host anterior, e não
 > foram reescritas. Use-as como referência de *o que* precisa estar
@@ -74,6 +74,18 @@ de host para host.
 | `DOCCITI_MAX_TRANSCRIPT_CHARS` | não | Teto por requisição. Padrão 400000. |
 | `DOCCITI_DATA_POLICY` | **não defina em produção** | Ver a seção 4. |
 | `DOCCITI_LEITOR` / `DOCCITI_AUDITOR` (`DOCCITI_PENSANTE` ainda vale pelo Leitor) | não | `provedor:modelo`, para trocar de modelo sem recompilar. |
+| `DATABASE_URL` | sim, para o conector/sincronização | Postgres do acervo sincronizado (`lib/conector/banco.ts`). Na Supabase, o endereço do _pooler_. |
+| `GOOGLE_OAUTH_WEB_CLIENT_ID` | para a identidade por Google | Cliente OAuth "Aplicativo da Web" que o servidor confere ao validar o token (`lib/identidade/google.ts`). Ver `docs/google-oauth-setup.md`. |
+| `TAQCITI_DOMINIO_PERMITIDO` | não | Restringe o domínio de e-mail aceito na identidade (`lib/identidade/dominio.ts`). |
+| `TAQCITI_COTA_MB` / `TAQCITI_LIMITE_BANCO_MB` | não | Cota por pessoa e limite do banco do acervo sincronizado (`lib/conector/`). |
+| `GROQ_API_KEY` / `GROQ_TPM_LIMIT` | só com o provedor Groq | Chave e limite de tokens por minuto usados pela camada Groq. |
+| `LLM_PROVIDER` | não | Provedor padrão da camada de IA (`lib/ai/config.ts`). |
+| `DOCCITI_RATE_LIMIT_RETRIES` | não | Quantas esperas por 429 do provedor a camada tolera (`lib/ai/providers/shared.ts`). |
+| `DOCCITI_TIMEZONE` | não | Fuso usado para a data da reunião (`lib/dataDaReuniao.ts`). |
+| `MOCK_LLM` | **nunca em produção** | Força o provedor `mock` em todos os agentes; é a tranca dos testes (`vitest.setup.ts`). |
+
+> A lista acima sai de uma busca por `process.env` no código do servidor; o
+> valor padrão e o efeito exato de cada uma estão no arquivo citado.
 
 Gere o `DOCCITI_SHARED_KEY` como um valor aleatório longo, e guarde: ele
 precisa ser **idêntico** no servidor e na build da extensão (seção 3).
@@ -109,7 +121,7 @@ No GitHub, em **Settings → Secrets and variables → Actions**:
 
 | Nome | Onde | Valor |
 | --- | --- | --- |
-| `DOCCITI_SERVER_URL` | **Variables** | `https://taqciti-production.up.railway.app` — sem barra no fim |
+| `DOCCITI_SERVER_URL` | **Variables** | `<URL-DO-SERVIDOR-DE-PRODUCAO>` — sem barra no fim |
 | `DOCCITI_SHARED_KEY` | **Secrets** | o mesmo valor da seção 2 |
 
 A URL vai em *Variables* e não em *Secrets* porque ela não é segredo (está no
@@ -187,7 +199,7 @@ embutida.
 
 ```bash
 cd server
-SMOKE_BASE_URL=https://taqciti-production.up.railway.app \
+SMOKE_BASE_URL=<URL-DO-SERVIDOR-DE-PRODUCAO> \
 DOCCITI_SHARED_KEY=<a mesma chave> \
 node scripts/smokePdf.mjs
 ```
@@ -213,7 +225,7 @@ e distingue "no ar" de "no ar com a versão nova":
 curl -sI -X OPTIONS \
   -H 'Origin: https://meet.google.com' \
   -H 'Access-Control-Request-Method: POST' \
-  https://taqciti-production.up.railway.app/api/generate
+  <URL-DO-SERVIDOR-DE-PRODUCAO>/api/generate
 ```
 
 ---

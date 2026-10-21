@@ -24,8 +24,8 @@ com a v4: por limite de cota, o Taq inventou uma opção “enviar por e-mail”
 - **Fora do app** (`FORA_DO_APP`): planejado, ligado a um especialista `planned`
   do catálogo, ou indisponível. Planejado nunca vira passo de uso.
 
-Assuntos: captura, reuniões, conversas, documentos, exportação, configurações e
-navegação.
+Assuntos (`ASSUNTOS` em `ajuda.ts`): captura, reuniões, conversas, documentos,
+exportação, configurações, navegação e acompanhamento.
 
 ## Como a referência se mantém verdadeira
 
@@ -51,6 +51,11 @@ node scripts/verify-ajuda.cjs <caminho do playwright-core> <pasta>
 ```
 
 ## Estado da verificação (23/09/2026)
+
+Esta seção é o retrato daquela data: `ajuda.ts` cresceu depois (a versão da
+referência é `VERSAO_DA_REFERENCIA`, 2026-10-08 na última leitura) e hoje tem
+bem mais entradas do que as 22 abaixo. A fonte atual do estado de cada entrada
+é o campo `verificacao` em `ajuda.ts`.
 
 **Confirmadas na interface** (os rótulos foram vistos na extensão rodando), 22
 entradas: pausar, marcar trecho, ver e abrir reuniões, renomear, apagar e
@@ -95,7 +100,12 @@ Corrigidas na referência, e não no código (fora do escopo):
 - `Conexoes.tsx` diz que sem o cliente OAuth web "o mesmo vale para o envio ao
   Google Docs", mas o Docs depende de outro cliente (o do manifesto).
 - Os comentários de `homeTab.ts` e `HomePage.tsx` dizem que o ícone abre a
-  HOME; hoje ele abre a sidebar.
+  HOME; hoje ele abre a sidebar. Em 21/10/2026 o comentário de topo de
+  `HomePage.tsx` ainda dizia isso e falava em "quatro seções".
+- A HOME tem seis seções (`SECOES` em `SideNav.tsx`): Assistente, Preparar,
+  Reuniões, Documentos, Acompanhamento e Conexões. O passo de navegação da
+  entrada `abrir_sidebar_e_home` em `ajuda.ts` ainda lista só quatro (sem
+  Preparar e Acompanhamento); correção pendente no código.
 
 ## Verificação com o modelo
 
@@ -138,3 +148,22 @@ na tela):
 | “Tirar uma fonte do contexto da conversa” (`tirar_fonte_do_contexto`) | `remove_context_source` | Só pelo Taq. O registro não é apagado. |
 
 `export_transcript` agora também informa `situacao` (parcial ou final).
+
+## Atualização de 21/10/2026 — nomes da tela de documentos
+
+Conferido nos componentes (`GerarDocumento.tsx`, `Documentos.tsx`,
+`DocumentoPersonalizado.tsx`):
+
+- O botão da reunião se chama **“Criar documento”** (não “Gerar documento”). A
+  caixa oferece “Ata de Reunião”, “Doc Conversa (X1)” e “Resumo completo”, e o
+  campo “Ou descreva o que precisa…” com “Gerar com o padrão CITi”.
+- Depois de gerar, o quadro mostra “Salvo em Documentos”, “Abrir documento”,
+  “Baixar” (PDF quando há, senão HTML) e, só com o acesso ao Google configurado,
+  “Enviar ao Google Docs”. Se o salvamento falha: “Tentar salvar de novo” e
+  “Descartar resultado”.
+- Documento personalizado (aberto em “Documentos”): prévia do PDF, “Onde
+  alterar”, “Pedir alteração”, “Baixar PDF”, **“Baixar Word”** (alterações feitas
+  no Word não voltam ao TaqCiti), “Apagar documento” e a lista “Versões” com
+  “Ver” e “Restaurar” (restaurar cria uma versão nova; o histórico guarda no
+  máximo 30). O editor de texto dos documentos por tipo continua com “Salvar”,
+  “Baixar .md”/“Baixar .txt” e “Apagar documento” no menu “Mais ações”.

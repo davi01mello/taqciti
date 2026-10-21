@@ -46,7 +46,7 @@ on:
 # mão de quem instalou.
 #
 # Configurar em Settings → Secrets and variables → Actions:
-#   Variables → DOCCITI_SERVER_URL   (https://server-psi-liart-81.vercel.app, sem "/" no fim)
+#   Variables → DOCCITI_SERVER_URL   (a URL base do servidor em produção, sem "/" no fim)
 #   Secrets   → DOCCITI_SHARED_KEY   (o mesmo valor da variável no servidor)
 #
 # Ver docs/publicar-release.md. O deploy do servidor é MANUAL: nada aqui o

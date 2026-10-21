@@ -78,8 +78,13 @@ o `MeetingRecord` do storage: a projeção magra é o orçamento.
 | `esquema.sql` | as tabelas, aplicáveis por cima de si mesmas |
 | `banco.ts` | o pool e a interface `Consultador` (independente de driver) |
 | `acervoPostgres.ts` | `Acervo` sobre Postgres, atrás da mesma interface |
-| `cache.ts` | cache em memória por instância, com TTL — não compartilhado entre instâncias da Vercel |
+| `cache.ts` | cache em memória por instância, com TTL de 30 s — não compartilhado entre instâncias da Vercel |
 | `escrita.ts` | os upserts — é por aqui que a sincronização entra, e invalida o cache da pessoa |
+| `copia.ts` | a cópia fiel (`copia_local`) e a leitura incremental por `seq` (`GET /api/sync`) |
+| `prints.ts` | prints como `bytea` (`print_local`), validados pelos bytes |
+| `historico.ts` | histórico de versões dos documentos (`historico_do_documento`) |
+| `cota.ts` | cota por pessoa, disjuntor global do banco e limpeza de lápides |
+| `cabeca.ts` | o maior `seq` visto por pessoa (15 s), para o polling não tocar o banco |
 | `pessoa.ts` | achar/criar a pessoa a partir de uma identidade já verificada |
 
 ### A interface `Acervo`, e por que ela tem três métodos
@@ -149,8 +154,9 @@ lê, só quebra.
 cd server && npx vitest run lib/conector
 ```
 
-90 testes, **sem precisar de banco nenhum** — e mesmo assim o SQL é de
-verdade. Dois blocos carregam o peso:
+**Sem precisar de banco nenhum** (a contagem de testes muda; rode para ver) — e
+mesmo assim o SQL é de verdade. Há ainda `syncRota.test.ts`, `cota.test.ts`,
+`copia.test.ts`, `prints.test.ts` e `historico.test.ts`, também sobre PGlite. Dois blocos carregam o peso:
 
 `describe('o teto é real')` constrói doze reuniões de seis horas, um documento
 de 1,6 MB e uma conversa de 900 mensagens, e **mede em caracteres** o que cada
@@ -236,7 +242,8 @@ POST /api/conector/token ──────►  token_do_conector
 ```
 
 `/api/mcp` é sem sessão (`sessionIdGenerator: undefined`): cada requisição
-monta um servidor, responde e morre. As quatro ferramentas são de leitura e
+monta um servidor, responde e morre. As ferramentas (as quatro nomeadas mais
+`search` e `fetch`, do ChatGPT; seis no catálogo) são de leitura e
 não guardam nada entre chamadas, então não há estado que uma sessão
 preservasse — e um mapa de sessões na memória do processo mandaria o cliente
 para a instância errada assim que houvesse mais de uma, que na Vercel é o
@@ -278,8 +285,8 @@ mexi" de "os dois mexemos" — sem ela, o eco do próprio envio pareceria confli
 Reunião, histórico de versões e prints não geram cópia. Ver `restauracao.ts`.
 
 **Prints** sobem e voltam: tabela `print_local`, como `bytea` (binário, um terço
-menor que o base64), imutáveis, no máximo 1,5 MB cada, validados pelos bytes (um
-`data:image/jpeg` que não começa como JPEG é recusado). A IA nunca os lê — a
+menor que o base64), imutáveis, no máximo 1,5 MB cada, validados pelos bytes (jpeg,
+png ou webp; um `data:image/jpeg` que não começa como JPEG é recusado). A IA nunca os lê — a
 projeção do conector só tem a contagem.
 
 **O que NÃO volta**: preferências e o estado interno do Taq.
@@ -294,6 +301,9 @@ para, não só a sincronização. Imagem é o que enche. Duas travas (`cota.ts`)
   extensão NÃO o dá como enviado, põe em pausa por 30 min (sem reenviar imagem a
   cada passada) e mostra "N itens esperam espaço" em Conexões. Edição cobra só a
   diferença; exclusões passam sempre e valem ANTES das gravações do mesmo lote.
+- **O que a cota NÃO cobra hoje**: as projeções do conector (`reuniao`, `documento`,
+  `conversa`, `nota`) e as exclusões. Só cópias, prints e histórico entram na conta
+  (`app/api/sync/route.ts`). A subida aceita no máximo 100 itens e 8 MB por lote.
 - **Disjuntor global**: se o banco passar de 400 MB (`TAQCITI_LIMITE_BANCO_MB`,
   medido com `pg_database_size` no máximo 1×/min), escritas novas são recusadas
   até voltar abaixo. Falha aberta: não conseguir medir não trava ninguém.
@@ -428,6 +438,9 @@ ambiente serverless. É a proteção possível, e basta, porque a corrida só vo
 se alguém voltar ao modo SSE — e aí os testes ficam vermelhos.
 
 ### Subir o banco
+
+A conexão usa TLS com `rejectUnauthorized: false` (cifra, não valida a cadeia;
+ver `docs/plano-de-seguranca.md`, S10).
 
 Produção: **Supabase**, e a `DATABASE_URL` precisa ser a do **pooler**
 (Supavisor, porta 6543), não a "Direct connection".

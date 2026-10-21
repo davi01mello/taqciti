@@ -25,8 +25,14 @@ Um documento custa **duas chamadas de modelo** (ver `lib/generateStep.ts`):
 | `leitor` | `gemini-3.5-flash` | lê a transcrição UMA vez e devolve os dados de todas as seções num JSON só, com `thinkingLevel: HIGH` |
 | `auditor` | `gemini-3.5-flash-lite` | confere numa chamada todas as afirmações das seções `strict` (participantes, decisões), cada uma contra o próprio trecho |
 
-Todo o resto é código: âncora das citações, lacunas, descarte do que o Auditor
-rejeita, e o markdown, o HTML e o PDF, montados do mesmo `DocumentData`. Antes
+Todo o resto é código: âncora das citações, guardas de fidelidade (cargo,
+gravidade e certeza indevida, em `lib/guardaDeFidelidade.ts`, antes do Auditor),
+lacunas, descarte do que o Auditor rejeita, e o markdown, o HTML e o PDF,
+montados do mesmo `DocumentData`. O PDF do catálogo passa por `ContentTree` e
+pelo compilador, na variante `editorial`. Só dúvida `extrema` vira pergunta, e
+hoje nenhuma detecção a marca: o documento sai sem `[A preencher]`. Documentos
+personalizados (`/api/documentos/*`) usam o papel `redator` com a configuração
+do `leitor`, uma chamada por geração ou edição. Antes
 eram 20 a 30 chamadas (um Pensante por seção e um Escritor que reescrevia os
 dados em prosa); o porquê de cada corte está em `lib/agents/leitor.ts`.
 
@@ -50,7 +56,7 @@ API como dinâmicas (confirmado: `next build` gera `/api/generate` e as
 outras como `ƒ`, não `○`), então qualquer host Node/Next serve.
 
 **Produção hoje roda na Vercel**, em
-`https://server-psi-liart-81.vercel.app`, e **o deploy é manual** — nenhum push
+`<URL-DE-PRODUCAO>` (a URL base do projeto na Vercel), e **o deploy é manual** — nenhum push
 publica sozinho. Seja qual for o host, aponte o **Root Directory para
 `server/`** (é um projeto Next.js à parte dentro do monorepo) e configure as
 variáveis abaixo no painel dele.
@@ -71,7 +77,8 @@ deploy em vez de arquivo:
   `DOCCITI_DATA_POLICY=training` também (aí as rotas só aceitam transcrição
   que se declare `"sintetica": true`); tire a linha quando a chave virar
   paga.
-- `ANTHROPIC_API_KEY` / `XAI_API_KEY` — só entram em cena se algum agente for
+- `ANTHROPIC_API_KEY` / `XAI_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` — só
+  entram em cena se algum agente for
   apontado pra esses provedores via `DOCCITI_LEITOR`/`DOCCITI_AUDITOR`
   (`DOCCITI_PENSANTE` ainda vale pelo Leitor; `DOCCITI_ESCRITOR` não faz mais
   nada). A configuração ativa em `lib/ai/config.ts` usa só `google` nos dois
@@ -86,7 +93,7 @@ deployado, defina as duas variáveis **na build da extensão** (raiz do repo,
 não aqui):
 
 ```powershell
-$env:VITE_DOCCITI_SERVER_URL = 'https://server-psi-liart-81.vercel.app'
+$env:VITE_DOCCITI_SERVER_URL = '<URL-DE-PRODUCAO>'
 $env:VITE_DOCCITI_SHARED_KEY = '<o mesmo valor de DOCCITI_SHARED_KEY no host>'
 npm run build
 ```
@@ -106,14 +113,22 @@ Content-Type: application/json
 x-docciti-key: <segredo compartilhado>
 
 { "transcript": "string", "title"?: "string", "date"?: "string",
-  "documentType": "ata" | "x1" | "daily" | "planning" | "review" }
+  "documentType": "ata" | "x1" | "resumo" | "daily" | "planning" | "review",
+  "sintetica"?: boolean }
 
-→ 200 { "title": "string", "content": "string" }
-→ 400 { "error": "string" }   payload inválido
+→ 200 { "title", "content" (markdown), "documentData", "html", "pdf"? (base64),
+        "questions", "gaps" }
+→ 400 { "error": "string" }   payload inválido (ou falta "sintetica": true com DOCCITI_DATA_POLICY=training)
 → 401 { "error": "string" }   header ausente ou errado
 → 413 { "error": "string" }   transcrição acima do teto
+→ 422 { "error": "string" }   documento sem conteúdo para o tipo (ex.: X1 em reunião de equipe)
+→ 429 / 503                   cota ou sobrecarga do provedor de IA
 → 500 { "error": "string" }   servidor sem DOCCITI_SHARED_KEY configurada
+→ 502 { "error": "string" }   falha inesperada na geração
 ```
+
+As demais rotas (`/api/answers`, `/api/documentos/gerar|editar|renderizar`,
+`/api/ai/secao`) estão em `docs/arquitetura/servidor-documentos.md`, seção 11.
 
 ```
 POST /api/ai/smoke
@@ -500,7 +515,9 @@ perguntas, respostas) usa `generateStep` ou `/api/ai/secao` direto. Ver
 `docs/HANDOFF.md` para o estado detalhado e o que falta (harness da Fase 8).
 
 `/api/generate` e `/api/answers` também devolvem `pdf` (base64) — irmão do
-`html`, saído do mesmo `documentData` via `lib/render/pdf.ts` (`pdfkit`
-nativo, sem navegador headless). É o formato que a extensão baixa por
+`html`, saído do mesmo `documentData`. O PDF do catálogo sai de
+`lib/documentos/doCatalogo.ts` (`ContentTree` + compilador, variante
+`editorial`, `pdfkit` nativo, sem navegador headless); `lib/render/pdf.ts` só
+alimenta a variante `ata` do compilador. É o formato que a extensão baixa por
 padrão; `html` continua existindo como fallback e para o caminho OAuth
 direto ao Google Docs, que precisa de HTML.

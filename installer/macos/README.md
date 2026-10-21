@@ -107,7 +107,7 @@ seguinte:
 | | Situação |
 | --- | --- |
 | Runner configurado | ✅ `build-macos` roda em `macos-latest` e chama `pkgbuild` |
-| Build desta revisão executado | ✅ run [35456225457](https://github.com/davi01mello/taqciti/actions/runs/35456225457), commit `6c863e1`, artefato `macos-installer` (3,2 MB, assinatura `xar!`) |
+| Build desta revisão executado | ✅ run do GitHub Actions (id registrado fora do repositório), commit `6c863e1`, artefato `macos-installer` (3,2 MB, assinatura `xar!`) |
 | `.pkg` instalado num Mac | ❌ **não executado** |
 
 **Build verde não é instalação testada.** O `.pkg` desta revisão existe e é um

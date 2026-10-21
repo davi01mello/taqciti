@@ -1,5 +1,7 @@
 ﻿# Handoff — continuar o pipeline de geração de documento
 
+> **Parcialmente superado: ver docs/arquitetura/servidor-documentos.md** (na raiz do repositório). Este arquivo é histórico: o pipeline atual é Leitor + Auditor, o PDF do catálogo sai do compilador editorial e não há mais lacuna `[A preencher]` no documento.
+
 > Cole este arquivo inteiro como primeira mensagem numa sessão nova, na raiz
 > do repositório (`C:\Users\edisi\taqciti`).
 

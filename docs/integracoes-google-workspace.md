@@ -69,7 +69,7 @@ teto, e um teste (`integracoes.test.ts`) falha se os dois divergirem.
 
 **Nenhum cliente novo.** O `chrome.identity.getAuthToken` usa o cliente do tipo
 **"Extensão do Chrome"** do manifesto (`VITE_GOOGLE_OAUTH_CLIENT_ID`, ID da
-extensão `jalebpaefejnbacgncgkailhemkdpnhm`). Cada capacidade pede só os escopos
+extensão `<ID_DA_EXTENSAO>`). Cada capacidade pede só os escopos
 dela; a tela **Conexões** pede todos de uma vez, **no clique** de "Conectar conta
 do CITi" — nunca ao abrir a página.
 

@@ -82,7 +82,7 @@ No guia, escolha **Mac** e avance até **"Localize a pasta preparada"**.
 - [ ] **Carregar sem compactação** → na janela, **Cmd+Shift+G**, cole o caminho,
       Enter, e selecione **a pasta** (não um arquivo).
 - [ ] Apareceu o cartão **TaqCiti**, versão igual à do nome do
-      arquivo `.pkg`, com o ID `jalebpaefejnbacgncgkailhemkdpnhm`?
+      arquivo `.pkg`, com o ID da extensão (o mesmo do `.crx`/loja, em `chrome://extensions`)?
 - [ ] O cartão está **sem** o botão vermelho "Erros"?
 
 ## 6. Captura no Meet

@@ -21,7 +21,7 @@ cobertura: `docs/taq-progresso.md`.
        ├ PolicyService   politica.ts (escopo e efeitos, em código)
        ├ StorageAdapter  armazenamento.ts ─► chrome.storage.local (registros)
        └ ModelAdapter    modelo.ts ── POST /api/taq/turno ──► lib/taq/atender.ts
-                                     GET  /api/taq/estado      └ gemini.ts ─► provedor
+                                     GET  /api/taq/estado      └ gemini.ts | groq.ts ─► provedor
 ```
 
 - **Os registros ficam na extensão.** O servidor não acessa o
@@ -58,10 +58,14 @@ cobertura: `docs/taq-progresso.md`.
 | `ask_user` | leitura | pergunta à pessoa e encerra o turno; opções clicáveis vindas do catálogo ou dos registros |
 | `prepare_external_brief` | leitura | texto para copiar e levar ao Claude (nada é enviado) |
 | `create_document` | escrita local | aplica o modelo do catálogo; idempotente; vinculado à reunião e à conversa |
+| `create_custom_document` | escrita local | documento personalizado (padrão CITi) para pedido fora do catálogo, só com o que a reunião sustenta |
 | `update_document` | escrita local | edição com verificação de versão (`updatedAt`) |
-| `delegate_task` | leitura | só existe quando há especialista **disponível** |
+| `delegate_task` | leitura | só existe quando há especialista **disponível**; no máximo 4 usos por execução |
 
-Não há ferramenta de arquivo, SQL, rede ou código.
+As ferramentas de app, de trabalho e de integração (diretório, e-mail, agenda)
+estão nas seções dos especialistas abaixo. Não há ferramenta de arquivo, SQL ou
+código. A rede só é alcançada pelas ferramentas de integração, e só para
+**preparar**: quem executa e-mail e agenda é o botão do cartão.
 
 ## Memória e contexto (`features/taq/memoria.ts`)
 
@@ -96,7 +100,8 @@ silêncio.
 
 **Respostas antigas do Taq não são fonte.** Nas outras conversas, os trechos
 dizem quem escreveu e não têm `ref`: o que se afirma precisa vir da reunião ou
-do documento, citado. Instruções: `taq-v6`.
+do documento, citado. Instruções do orquestrador: `taq-v7` (a v6 introduziu a
+memória).
 
 ## Apagar conversas
 
@@ -109,7 +114,7 @@ A tela e o Taq usam a mesma operação, `apagarConversas`
 | o registro das execuções que rodaram nela (`taq:execucoes`) | os documentos: o gerado nela perde só o `conversationId` (`desvincularDaConversa`) |
 
 É definitivo, sem lixeira. O Taq apaga pelo `delete_conversation`
-(`app_assistant`, `app-assistant-v4`):
+(`app_assistant`, `app-assistant-v5`, que manteve esta regra da v4):
 
 - **Resolução:** o id, `"atual"` para esta conversa, ou o nome, sempre para um
   id real.
@@ -187,7 +192,7 @@ O Taq faz e diz o que assumiu:
 | Formato que o TaqCiti não gera (apresentação, planilha, e-mail, Word) | entrega o texto para copiar e levar ao Claude (`prepare_external_brief`) |
 
 Os especialistas não têm `ask_user`: quem pergunta, quando precisa, é o Taq, na
-conversa. As instruções são `taq-v6`, `documents-v2` e `app-assistant-v4`.
+conversa. As instruções atuais são `taq-v7`, `documents-v4` e `app-assistant-v5`.
 
 **Lixeira** (`features/taq/lixeira.ts`): antes do `ui/history/delete`, guarda o
 registro, a nota, as marcações, os prints e quais documentos perdem o vínculo.
@@ -198,9 +203,9 @@ pelo background (`ui/history/restore`) e o resto sob as mesmas travas. Pela
 ## Especialistas ativos
 
 Os dois usam o mesmo ciclo do runtime, com instruções próprias no servidor
-(`documents-v2` e `app-assistant-v4`, em `server/lib/prompts/taq/`) e as
+(`documents-v4` e `app-assistant-v5`, em `server/lib/prompts/taq/`) e as
 ferramentas que o catálogo declara para eles (`features/taq/especialistas.ts`).
-O Taq (`taq-v6`) responde sozinho sobre o **conteúdo** dos registros e delega o
+O Taq (`taq-v7`) responde sozinho sobre o **conteúdo** dos registros e delega o
 resto. Quando o especialista já deu a resposta, ela vai direto para a pessoa,
 sem outra chamada ao modelo. Documentos, operações, perguntas e textos copiáveis
 do especialista viram resultado da execução inteira.
@@ -220,6 +225,10 @@ dependem do que a pessoa pediu leem `tarefa.pedidoOriginal`, nunca o
 | `delete_meeting` / `restore_meeting` | escrita local | `ui/history/delete` com a lixeira do Taq; `ui/history/restore` para desfazer |
 | `delete_conversation` | escrita local | `apagarConversas`, a mesma exclusão da tela (ver "Apagar conversas") |
 | `export_transcript` | interface | `downloadTranscript` ("Baixar .txt") |
+| `copy_transcript` | leitura | prepara a transcrição para a pessoa copiar (nada é copiado nem enviado) |
+| `download_document` | interface | baixa um documento salvo |
+| `add_context_source` / `remove_context_source` | escrita local | fontes do contexto da conversa (até 6) |
+| `capture_screen` | interface (só prepara o cartão) | um quadro de tela sob pedido; o clique no cartão captura (`capturaDeTela.ts`) |
 | `get_app_capabilities` | leitura | a referência `ajuda.ts`, cruzada com o registro de ferramentas |
 | `get_usage_guide` | leitura | os passos verificados de `ajuda.ts` |
 
@@ -311,18 +320,23 @@ especialista. Um agente `planned` chamado por id devolve
 
 ## Configurar e rodar
 
-Servidor (`server/.env.local`): `GOOGLE_API_KEY`, `DOCCITI_SHARED_KEY` e,
-opcionalmente, `TAQ_ORQUESTRADOR=google:<modelo>` (padrão `gemini-3.5-flash`,
-disponível na chave do projeto em 22/09/2026). Extensão: `VITE_DOCCITI_SERVER_URL`
-e `VITE_DOCCITI_SHARED_KEY` apontando para o mesmo servidor.
+Servidor (`server/.env.local` ou variáveis da hospedagem): a chave do provedor
+(`GOOGLE_API_KEY` para Google, `GROQ_API_KEY` para Groq), `DOCCITI_SHARED_KEY` e,
+opcionalmente, `TAQ_ORQUESTRADOR=<provedor>:<modelo>` (padrão
+`google:gemini-3.5-flash`; `groq:<modelo>` também tem adaptador, temporário).
+`TAQ_MAX_CONTEXTO_CHARS` muda o teto de contexto por turno (padrão 300 mil).
+Extensão: `VITE_DOCCITI_SERVER_URL` e `VITE_DOCCITI_SHARED_KEY` apontando para o
+mesmo servidor.
 
-> **Estado atual da chave:** `DOCCITI_DATA_POLICY=training` (free tier). Com
-> ela, o Taq aparece como **configuração pendente** para registros reais, pela
-> mesma regra das rotas de geração. Para usar de verdade: chave com política
-> privada, removendo a linha `DOCCITI_DATA_POLICY`.
+> **Política de dados:** com `DOCCITI_DATA_POLICY=training` (chave gratuita), o
+> Taq aparece como **configuração pendente** para registros reais, e o servidor
+> recusa pedido que não se declare sintético (403). Para usar de verdade: chave
+> com política privada, sem essa variável. Qual é a configuração atual do
+> servidor publicado: não verificado.
 
 Testes: `npm test` (extensão) e `cd server; npx vitest run`. O modelo
-roteirizado só existe nos testes. Teste ao vivo, com reuniões **sintéticas**:
+roteirizado só existe nos testes. Visão geral e todos os testes `.live`:
+`docs/arquitetura/taq-assistente.md`. Teste ao vivo, com reuniões **sintéticas**:
 
 ```powershell
 cd server; npx next build; npx next start -p 3100   # outro terminal
@@ -334,6 +348,8 @@ npx vitest run src/features/taq/taq.live.test.ts
 
 - A execução pertence à página que a iniciou: fechar a HOME cancela, e a outra
   superfície não vê o progresso (só o resultado gravado).
+- Uma execução por vez por página: pergunta feita enquanto outra roda volta como
+  `ocupado` (a mensagem fica na conversa, sem resposta).
 - A detecção de pedido de escrita é por palavras e conservadora. Na dúvida,
   não oferece escrita.
 - O free tier do Gemini variou de 12 s a mais de 50 s por chamada nas rodadas

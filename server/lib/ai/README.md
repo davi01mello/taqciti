@@ -52,8 +52,8 @@ LLM_PROVIDER=claude DOCCITI_AUDITOR=mock:mock-1 npm run dev
 MOCK_LLM=true npm run dev
 ```
 
-`LLM_PROVIDER` aceita o nome comercial (`claude`, `gpt`, `gemini`, `grok`) ou o
-id interno (`anthropic`, `openai`, `google`, `xai`, `mock`). O modelo, nesse
+`LLM_PROVIDER` aceita o nome comercial (`claude`, `gpt`, `gemini`, `grok`,
+`groq`) ou o id interno (`anthropic`, `openai`, `google`, `xai`, `groq`, `mock`). O modelo, nesse
 caso, é o padrão do provedor em `MODELO_PADRAO_POR_PROVEDOR`; para escolher o
 modelo, use o override por agente.
 
@@ -65,9 +65,23 @@ quem tem chave configurada continua com o que configurou — a regra ingênua
 ("mock sempre em dev") faria o segundo caso receber documentos `[mock]` sem ter
 pedido. Ver `mockPadrao` em `config.ts`.
 
+Atenção: a lista de chaves que `mockPadrao` consulta é Anthropic, OpenAI, Google
+e xAI. `GROQ_API_KEY` não conta: só com chave da Groq, sem `LLM_PROVIDER`, o
+servidor ainda cai no mock.
+
 Em teste, o mock é o provedor de todos os casos: nenhum teste desta pasta toca a
 rede, e o adaptador da OpenAI recebe o `fetch` por parâmetro justamente para
 isso (`criarOpenAIProvider({ transporte })`).
+
+## Groq (plano gratuito)
+
+`providers/groq.ts` fala com o endpoint compatível com OpenAI via `fetch`. O
+plano gratuito limita TOKENS POR MINUTO (padrão 8000, `GROQ_TPM_LIMIT` para
+subir) contando entrada mais `max_tokens` pedido, então o adaptador reduz o
+`max_tokens` para caber, recusa com a conta na mensagem o pedido cuja entrada
+não deixa espaço para a resposta, e usa `reasoning_effort: 'low'` em `gpt-oss`
+quando o orçamento aperta. Modelo padrão: `openai/gpt-oss-120b`. A tabela de
+preços da Groq está vazia (custo `undefined`), como a da OpenAI.
 
 ## Adicionar um provedor
 

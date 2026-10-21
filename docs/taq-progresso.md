@@ -1,7 +1,9 @@
 # Taq — relatório de progresso e matriz de cobertura
 
-Atualizado em 01/10/2026. Arquitetura e contratos: `docs/taq-agentes.md`.
-Ajuda: `docs/ajuda-do-taqciti.md`.
+Rodadas ao vivo registradas até 03/10/2026; capacidades e bloqueios revisados
+contra o código em 21/10/2026 (as rodadas ao vivo não foram refeitas).
+Arquitetura e contratos: `docs/taq-agentes.md`; visão geral:
+`docs/arquitetura/taq-assistente.md`. Ajuda: `docs/ajuda-do-taqciti.md`.
 
 ## Onde estamos
 
@@ -12,8 +14,8 @@ Ajuda: `docs/ajuda-do-taqciti.md`.
 | 3. Memória e contexto | feito (antes) + `organizational_memory` e `context` ativos | `memoria.test.ts`, `trabalho.test.ts` |
 | 4. Análise e documentos | feito | `meeting_analyst`, `quality_review`, `evidence_verifier`, `documents-v3` |
 | 5. Continuidade do trabalho | feito | `taq:trabalho`, `commitments`, `continuity`, `handoff_analysis` |
-| 6. Comunicação e agenda | feito **sem integração** (ver bloqueios) | rascunho + mailto; sugestão + link do Google Agenda |
-| 7. Reunião ao vivo | parcial | `capture_monitor` e `meeting_copilot` sob pedido; sem sugestão automática |
+| 6. Comunicação e agenda | feito; com a conta do CITi conectada o Taq **prepara** e-mail e eventos e só o botão do cartão executa (`ferramentasDeIntegracao.ts`); sem a conta, só rascunho e link | `communication-v3`, `scheduling-v3`; `docs/integracoes-google-workspace.md` |
+| 7. Reunião ao vivo | `capture_monitor` e `meeting_copilot` sob pedido; apoio automático e estado dos pontos existem em `features/apoio` e `features/estado` (ver `docs/segundo-cerebro.md`) | validação no navegador com reunião real: não verificada |
 | 8. Integração final | parcial | verificação visual feita; validação ao vivo limitada pela cota |
 
 ## Matriz por capacidade
@@ -34,10 +36,10 @@ o provedor de verdade (dados sintéticos).
 | commitments | sim | sim | sim | ver abaixo | — |
 | continuity | sim | sim | via roteiro | ver abaixo | — |
 | handoff_analysis | sim | sim | via roteiro | ver abaixo | — |
-| communication | sim (rascunho) | sim | sim | **sim** (rascunho, nada enviado) | envio: sem integração (decisão de produto + OAuth) |
-| scheduling | sim (sugestão) | sim | sim | ver abaixo | calendário: sem integração |
+| communication | sim (rascunho; prévia de envio com a conta do CITi, executada só pelo botão) | sim | sim | **sim** (rascunho, nada enviado; envio real não validado aqui) | — |
+| scheduling | sim (sugestão; prévia de evento com a conta do CITi, executada só pelo botão) | sim | sim | ver abaixo | — |
 | quality_review | sim (determinístico) | sim | sim | n/a | — |
-| meeting_copilot | sim (sob pedido) | sim | só catálogo | não | sugestões proativas não implementadas |
+| meeting_copilot | sim (sob pedido, `copilot-v2`) | sim | só catálogo | há `copiloto.live.test.ts` | as sugestões proativas são do apoio ao vivo (`features/apoio`), não deste especialista |
 | capture_monitor | sim (determinístico) | sim | sim | n/a | — |
 | privacy_review | sim (determinístico) | sim | sim | n/a | detecção por formato, não por contexto |
 
@@ -152,16 +154,19 @@ de agenda sem convidados, nenhum botão "Enviar"/"Agendar".
 1. **Cota do provedor.** A chave atual é free tier e de treinamento: registros
    reais não vão ao modelo, e as jornadas longas batem na cota. Para usar de
    verdade: chave com política privada (remover `DOCCITI_DATA_POLICY`).
-2. **Deploy.** A extensão desta build pede `taq-v7`; o servidor da Vercel
-   ainda tem `taq-v6` até o próximo deploy manual. Até lá, o Taq em produção
-   responde com as instruções antigas (e sem as novas versões, os especialistas
-   novos recebem erro de versão desconhecida).
-3. **Envio de e-mail e calendário.** Não implementados de propósito: exigem
-   OAuth com escopos de Gmail/Calendar e decisão sobre autorização por envio.
-   O que existe é rascunho copiável/mailto e link do formulário do Google
-   Agenda, sem convidados. O painel diz "Não disponível nesta versão".
-4. **Copiloto proativo.** Só sob pedido. Sugestão automática exigiria debounce
-   sobre os segmentos ao vivo e orçamento próprio.
+2. **Deploy.** A extensão desta build pede `taq-v7`, `documents-v4`,
+   `app-assistant-v5`, `communication-v3`, `scheduling-v3`, `copilot-v2`,
+   `intervencao-v1`, `estado-v1`, `acompanhamento-v1` e `conducao-v1`. O deploy é
+   manual e o servidor precisa ser publicado ANTES da extensão: versão que ele não
+   conhece volta como "Versão de instruções desconhecida". Qual versão está
+   publicada agora: não verificado.
+3. **Envio de e-mail e calendário.** Implementados atrás de confirmação por
+   clique (o modelo só prepara; ver `docs/arquitetura/taq-assistente.md`). Sem a
+   conta do CITi conectada ou sem os escopos, o Taq cai no rascunho copiável e no
+   link do Google Agenda sem convidados.
+4. **Copiloto sob pedido.** O `meeting_copilot` só responde quando chamado. A
+   sugestão automática existe no apoio ao vivo (`features/apoio`), com política e
+   orçamento próprios.
 5. **Verificador semântico.** O `evidence_verifier` confere existência e
    trecho; "a frase interpreta bem o trecho" não é avaliado.
 6. **Backup.** Não há backup/restauração nesta extensão; `taq:trabalho` segue a

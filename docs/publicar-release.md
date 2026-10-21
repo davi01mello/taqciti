@@ -23,8 +23,8 @@ são lidos em runtime:
 
 | Variável da build | Padrão sem configuração | Onde |
 | --- | --- | --- |
-| `VITE_DOCCITI_SERVER_URL` | `http://localhost:3000` | `src/shared/config/serverConfig.ts:13` |
-| `VITE_DOCCITI_SHARED_KEY` | `taqciti-dev-local` | `src/shared/config/serverConfig.ts:30` |
+| `VITE_DOCCITI_SERVER_URL` | `http://localhost:3000` | `src/shared/config/serverConfig.ts` (`SERVER_BASE_URL`) |
+| `VITE_DOCCITI_SHARED_KEY` | `taqciti-dev-local` | `src/shared/config/serverConfig.ts` (`SERVER_SHARED_KEY`) |
 
 Consequência que manda no resto deste documento: **um instalador publicado com
 o valor errado não tem conserto.** Não é configuração que o usuário ajusta
@@ -43,11 +43,12 @@ errado.
 ### 1. Servidor no ar, e respondendo
 
 > ⚠️ **Produção mudou de host, e o runbook ainda não.** Desde 22/09/2026 o
-> servidor roda na **Vercel**, em `https://server-psi-liart-81.vercel.app` — é
+> servidor roda na **Vercel**, em `<URL-DO-SERVIDOR-DE-PRODUCAO>` — é
 > o que o `.env` deste repositório aponta —, e **o deploy é manual**: nenhum
 > push redeploya nada sozinho. `server/docs/deploy.md` ainda descreve o
-> Railway passo a passo, e não foi reescrito. Use o endereço e a regra de
-> deploy manual daqui; trate os cliques do runbook como histórico até alguém
+> Railway passo a passo, e não foi reescrito. O endereço real de produção
+> não é registrado neste arquivo (público): peça ao time ou leia o painel do
+> host. Vale a regra de deploy manual daqui; trate os cliques do runbook como histórico até alguém
 > refazê-lo contra o painel da Vercel.
 
 O runbook do deploy é `server/docs/deploy.md`. O mínimo, em qualquer host:
@@ -60,7 +61,7 @@ consome cota de modelo nenhum:
 
 ```bash
 cd server
-SMOKE_BASE_URL=https://server-psi-liart-81.vercel.app \
+SMOKE_BASE_URL=<URL-DO-SERVIDOR-DE-PRODUCAO> \
 DOCCITI_SHARED_KEY=<a mesma chave> \
 node scripts/smokePdf.mjs
 ```
@@ -71,7 +72,7 @@ node scripts/smokePdf.mjs
 
 | Nome | Onde | Valor |
 | --- | --- | --- |
-| `DOCCITI_SERVER_URL` | **Variables** | `https://server-psi-liart-81.vercel.app` — `https://`, sem barra no fim |
+| `DOCCITI_SERVER_URL` | **Variables** | `<URL-DO-SERVIDOR-DE-PRODUCAO>` — `https://`, sem barra no fim |
 | `DOCCITI_SHARED_KEY` | **Secrets** | **idêntico** ao valor que está no host do servidor |
 
 > **O check não testa o servidor.** Ele confere só que as duas existem, que a
@@ -125,6 +126,7 @@ nenhuma run, só silêncio. Tem que ser `v2.1.0`.
 | `build-windows` / `build-linux` / `build-macos` | `npm ci` → **check-release-env** → build → compila o instalador nativo → sobe como artefato |
 | `release` | espera os três, baixa os artefatos, **monta e confere o pacote** (`TaqCiti.zip`) e publica a **GitHub Release** da tag |
 | `distribute-gdrive` | espera a Release, **reconfere o pacote** e sobe só ele na **pasta do Drive do time** |
+| `distribuir-teste` | só com `publicar=teste` num disparo manual: monta o pacote por conta própria e sobe ao Drive como `TaqCiti-teste.zip`, sem GitHub Release (ver abaixo) |
 
 Os três builds rodam o check em paralelo: se a configuração estiver errada, os
 três morrem juntos em ~35s e `release`/`distribute-gdrive` são pulados. Nada
@@ -135,7 +137,7 @@ sai pela metade.
 **Actions → Release → Run workflow**, com **`publicar` desmarcado** (o padrão):
 os três instaladores são compilados e ficam como artefatos da run — e nada é
 publicado. `release` e `distribute-gdrive` são pulados pela condição
-`github.event_name == 'push' || inputs.publicar`, que os dois carregam.
+uma condição que os dois carregam: push **de tag** começando com `v`, ou `inputs.publicar == 'oficial'`.
 
 É o caminho para pôr a mão num instalador de verdade sem gastar uma release nem
 tocar no arquivo que o time tem no Drive. Serve principalmente para o
@@ -334,7 +336,7 @@ Release verde não prova instalador bom — a `v2.0.0` ficou verde.
    ```
 
    Sem resultado = certo. Para confirmar o outro lado, procure o endereço de
-   produção (`server-psi-liart-81.vercel.app`) no mesmo lugar — ele **tem** que
+   produção (o host de `<URL-DO-SERVIDOR-DE-PRODUCAO>`) no mesmo lugar — ele **tem** que
    aparecer.
 
 3. **Rode uma reunião de verdade** — carregue a pasta em `chrome://extensions`

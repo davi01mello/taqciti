@@ -97,7 +97,7 @@ endereço da página de extensões.
 
 ### 1. Baixe e descompacte
 
-Salve o `TaqCiti-vX.X.X.zip` numa pasta fixa do computador (ex.: área de
+Salve o `taqciti-vX.X.X.zip` (gerado por `npm run package`) numa pasta fixa do computador (ex.: área de
 trabalho) e extraia. **Não apague nem mova essa pasta depois** — é dela
 que o navegador vai ler os arquivos direto; movê-la ou apagá-la quebra a
 extensão.
