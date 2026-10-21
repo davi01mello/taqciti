@@ -153,7 +153,8 @@ describe('montagem da Ata', () => {
   });
 
   it('outcomes com item permanece', async () => {
-    mockPipeline({ outcomes: { items: [{ text: 'Prioridades alinhadas.', quotes: [] }] } });
+    // Outcomes agora são conferidos: o item precisa de citação que exista.
+    mockPipeline({ outcomes: { items: [{ text: 'Prioridades alinhadas.', quotes: ['Joao explicou o pipeline.'] }] } });
     const { sections } = await run();
     expect(sections.find((s) => s.id === 'outcomes')!.content).toContain('- Prioridades alinhadas.');
   });
@@ -308,7 +309,12 @@ describe('guarda contra vazamento', () => {
 describe('templates placeholder', () => {
   it('daily gera seção única e genérica, sem quebrar', async () => {
     const id = TEMPLATES.daily.sections[0]!.id;
-    complete.mockResolvedValue(reply({ [id]: { items: [{ text: 'algo discutido', quotes: [] }] } }));
+    // Cada ponto é conferido: precisa de citação que exista, e o Auditor aprova.
+    complete.mockImplementation(async (agent: string) =>
+      agent === 'auditor'
+        ? reply({ verdicts: [{ id: 'a1', supported: true, reason: 'ok' }] })
+        : reply({ [id]: { items: [{ text: 'algo discutido', quotes: ['Joao explicou o pipeline.'] }] } }),
+    );
 
     const { sections } = await generateStep({
       transcript,

@@ -220,6 +220,106 @@ describe('blocoDoModelo', () => {
   });
 });
 
+/*
+ * Uma citação localizada sustenta o bloco inteiro, e foi assim que "falhas
+ * críticas" e uma coluna de "Causa" chegaram a um documento de cliente. Com as
+ * fontes à mão, cada frase passa pela guarda de fidelidade.
+ */
+describe('blocoDoModelo — guarda de fidelidade', () => {
+  const ctx = {
+    locators: localizadoresDe([FONTE_A]),
+    textos: new Map([[FONTE_A.id, FONTE_A.texto]]),
+    origem: 'agente' as const,
+  };
+  const CITACAO = 'O maior gargalo está na integração com o sistema legado.';
+
+  it('parágrafo com gravidade que a fonte não traz perde a frase, e o resto fica', () => {
+    const r = blocoDoModelo(
+      fato('O gargalo está na integração com o legado. A situação é crítica para a diretoria.', 'm-aurora', CITACAO),
+      'b1',
+      ctx,
+    );
+    expect(r).toHaveProperty('bloco.texto', 'O gargalo está na integração com o legado.');
+  });
+
+  it('parágrafo inteiro com cargo inventado é removido, com o motivo', () => {
+    const r = blocoDoModelo(fato('A diretoria aprovou o piloto.', 'm-aurora', CITACAO), 'b1', ctx);
+    expect(r).toMatchObject({ problema: { tipo: 'sustentacao' } });
+    expect((r as { problema: { descricao: string } }).problema.descricao).toMatch(/diretor/);
+  });
+
+  it('tabela: a linha com gravidade inventada cai e as outras ficam', () => {
+    const r = blocoDoModelo(
+      {
+        tipo: 'tabela',
+        texto: '',
+        classificacao: 'fato',
+        cabecalho: ['Item', 'Situação'],
+        linhas: [
+          ['Integração', 'Gargalo no sistema legado'],
+          ['Piloto', 'Falha crítica no financeiro'],
+        ],
+        fontes: [{ fonteId: 'm-aurora', trecho: CITACAO }],
+      },
+      'b1',
+      ctx,
+    );
+    expect(r).toHaveProperty('bloco.linhas', [['Integração', 'Gargalo no sistema legado']]);
+  });
+
+  it('recomendação não passa pela guarda: é ideia do redator, e o prompt a rotula', () => {
+    const r = blocoDoModelo(
+      { tipo: 'paragrafo', texto: 'Recomenda-se envolver a diretoria.', classificacao: 'recomendacao', fontes: [] },
+      'b1',
+      ctx,
+    );
+    expect('bloco' in r).toBe(true);
+  });
+
+  it('sem os textos das fontes, só a checagem de citação (compatível com quem não os passa)', () => {
+    const r = blocoDoModelo(fato('A diretoria aprovou.', 'm-aurora', CITACAO), 'b1', {
+      locators: localizadoresDe([FONTE_A]),
+      origem: 'agente',
+    });
+    expect('bloco' in r).toBe(true);
+  });
+});
+
+describe('"Fonte:" nunca vai depois de uma recomendação', () => {
+  it('referência colada numa seção de recomendações é removida; a de fatos fica', async () => {
+    complete.mockResolvedValue(
+      reply({
+        ...geracaoValida,
+        secoes: [
+          {
+            titulo: 'Diagnóstico',
+            blocos: [
+              fato('O gargalo está na integração com o legado.', 'm-aurora', 'O maior gargalo está na integração com o sistema legado.'),
+              { tipo: 'referencia', texto: 'Fonte: reunião Aurora.', classificacao: 'fato', fontes: [] },
+            ],
+          },
+          {
+            titulo: 'Recomendações',
+            blocos: [
+              { tipo: 'paragrafo', texto: 'Recomenda-se uma camada de API.', classificacao: 'recomendacao', fontes: [] },
+              { tipo: 'referencia', texto: 'Fonte: reunião Aurora.', classificacao: 'fato', fontes: [] },
+            ],
+          },
+        ],
+      }),
+    );
+    const r = await gerarDocumentoPersonalizado({
+      pedido: 'Um diagnóstico.',
+      fontes: [FONTE_A],
+      capa: {},
+    });
+    const referencias = r.arvore.blocos.filter((b) => b.tipo === 'referencia');
+    expect(referencias).toHaveLength(1);
+    const posicao = r.arvore.blocos.findIndex((b) => b.tipo === 'referencia');
+    expect(r.arvore.blocos[posicao - 1]).toMatchObject({ tipo: 'paragrafo', classificacao: 'fato' });
+  });
+});
+
 describe('editarDocumentoPersonalizado', () => {
   async function documentoBase() {
     complete.mockResolvedValueOnce(reply(geracaoValida));

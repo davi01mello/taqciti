@@ -101,6 +101,61 @@ describe('prompt do Leitor', () => {
   });
 });
 
+describe('prompts de fidelidade (v2 do Leitor, v4 do Auditor, v3 e v4 do redator)', () => {
+  const NOVOS = [
+    ['leitor', 'v2'],
+    ['auditor', 'v4'],
+    ['redator', 'v3'],
+    ['redator', 'v4'],
+  ] as const;
+
+  it.each(NOVOS)('%s/%s é neutro quanto ao provedor e não tem marcador', (agente, versao) => {
+    const texto = renderPrompt(agente, versao).toLowerCase();
+    for (const marca of MARCAS) expect(texto, marca).not.toContain(marca);
+    expect(loadPromptTemplate(agente, versao)).not.toMatch(/\{\{/);
+  });
+
+  it('os arquivos antigos continuam como estavam: versão nova é arquivo novo', () => {
+    expect(renderPrompt('leitor', 'v1')).not.toMatch(/Gravidade, causa e impacto/);
+    expect(renderPrompt('auditor', 'v3')).not.toMatch(/grau de certeza/i);
+  });
+
+  it('Leitor v2 mantém tudo do v1 e acrescenta cargo, gravidade, certeza, responsável e palavra duvidosa', () => {
+    const v2 = renderPrompt('leitor', 'v2');
+    expect(v2).toMatch(/proposta\s+não\s+é\s+decisão/i);
+    expect(v2).toMatch(/literal/i);
+    expect(v2).toMatch(/Gravidade, causa e impacto/);
+    expect(v2).toMatch(/certeza que a reunião tinha/i);
+    expect(v2).toMatch(/constatou-se/);
+    expect(v2).toMatch(/## Responsável/);
+    expect(v2).toMatch(/Palavra duvidosa/i);
+    // A regra de cargo vale fora da lista de participantes.
+    expect(v2).toMatch(/em qualquer campo/i);
+  });
+
+  it('Auditor v4 julga o grau de certeza, e dá o par de exemplos', () => {
+    const v4 = renderPrompt('auditor', 'v4');
+    expect(v4).toMatch(/MESMO grau de certeza/);
+    expect(v4).toMatch(/hipótese/i);
+    expect(v4).toMatch(/julgada\s+sozinha/i);
+    expect(v4).toContain('⟦');
+  });
+
+  it('redator v3: referência só depois de fato, sem causa nem gravidade inventadas', () => {
+    const v3 = renderPrompt('redator', 'v3');
+    expect(v3).toMatch(/nunca vai depois de uma seção de recomendações/);
+    expect(v3).toMatch(/Gravidade, impacto e causa não se acrescentam/);
+    expect(v3).toMatch(/Causa/);
+    expect(v3).toMatch(/Responsável e prazo só entram/);
+  });
+
+  it('redator v4 (edição) leva as mesmas regras de fidelidade', () => {
+    const v4 = renderPrompt('redator', 'v4');
+    expect(v4).toMatch(/Gravidade, impacto e causa não se acrescentam/);
+    expect(v4).toMatch(/nunca vai depois de uma recomendação/);
+  });
+});
+
 describe('prompt do Auditor', () => {
   it('é neutro quanto ao provedor', () => {
     const texto = renderPrompt('auditor', 'v3').toLowerCase();

@@ -21,7 +21,7 @@ export const planning: DocumentTemplate = {
       required: true,
       needs: [],
       guidance: '',
-      audit: 'none',
+      audit: 'strict',
       askWhenMissing: [],
       omitWhenEmpty: false,
     },

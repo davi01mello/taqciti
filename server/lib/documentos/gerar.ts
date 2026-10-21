@@ -31,6 +31,7 @@ import {
 } from './contentTree';
 import { compilarPdf, type Compilado } from './compilador';
 import { VARIANTE_DOS_PERSONALIZADOS } from './perfil';
+import { guardarConteudo, linhaDaCitacao } from '../guardaDeFidelidade';
 import type { DocumentBrief, QualityReport, RenderManifest } from './contratos';
 
 export interface FonteDoDocumento {
@@ -203,6 +204,12 @@ const resumo = (texto: string): string => (texto.length > 80 ? `${texto.slice(0,
 
 interface ContextoDeBloco {
   locators: Map<string, Locator>;
+  /**
+   * O texto de cada fonte, por id. Com ele, o bloco de fato passa pelas guardas
+   * de fidelidade (cargo/gravidade que a fonte não traz, hipótese dita como
+   * fato). Ausente = só a checagem de citação.
+   */
+  textos?: ReadonlyMap<string, string>;
   /** Origem gravada no bloco: o agente cria; uma pessoa só edita à mão. */
   origem: 'agente' | 'pessoa';
 }
@@ -256,6 +263,28 @@ export function blocoDoModelo(
         descricao: `Afirmação sem sustentação nas fontes selecionadas foi removida: "${resumo(conteudo)}"`,
       },
     };
+  }
+
+  // Citação localizada não basta: uma citação sustenta o bloco inteiro, e foi
+  // assim que "falhas críticas" e uma coluna de "Causa" passaram. Cada frase
+  // (item, linha) ainda passa pela guarda de fidelidade.
+  if (classificacao === 'fato' && ctx.textos) {
+    const evidencias = (bruto.fontes ?? []).flatMap((ref) => {
+      const texto = ref?.fonteId ? ctx.textos!.get(ref.fonteId) : undefined;
+      const ancora = ref?.trecho && ref.fonteId ? ctx.locators.get(ref.fonteId)?.locate(ref.trecho) : null;
+      return texto && ancora ? [linhaDaCitacao(texto, ancora)] : [];
+    });
+    const guardado = guardarConteudo(bruto, evidencias, [...ctx.textos.values()].join('\n'));
+    if (guardado.vazio) {
+      return {
+        problema: {
+          tipo: 'sustentacao',
+          blockId,
+          descricao: `Removido por usar o que a fonte não traz (${guardado.caiu[0]?.motivo ?? 'sem apoio'}): "${resumo(guardado.caiu[0]?.texto ?? conteudo)}"`,
+        },
+      };
+    }
+    bruto = guardado.bruto;
   }
 
   const comum = { blockId, classificacao, fontes, origem: ctx.origem } as const;
@@ -326,13 +355,21 @@ export function construirArvore(
     }),
   );
 
+  const textos = new Map(fontes.map((f) => [f.id, f.texto]));
   (saida.secoes ?? []).forEach((secao, indice) => {
     const id = `s${indice + 1}`;
     const doCorpo: Bloco[] = [];
     (secao.blocos ?? []).forEach((bruto, j) => {
-      const r = blocoDoModelo(bruto, `${id}-b${j + 1}`, { locators, origem: 'agente' });
-      if ('bloco' in r) doCorpo.push(r.bloco);
-      else problemas.push(r.problema);
+      const r = blocoDoModelo(bruto, `${id}-b${j + 1}`, { locators, textos, origem: 'agente' });
+      if (!('bloco' in r)) {
+        problemas.push(r.problema);
+        return;
+      }
+      // "Fonte: reunião…" depois de uma recomendação diria ao leitor que a
+      // reunião a sugeriu. Referência só acompanha fato.
+      const anterior = doCorpo[doCorpo.length - 1];
+      if (r.bloco.tipo === 'referencia' && anterior?.classificacao === 'recomendacao') return;
+      doCorpo.push(r.bloco);
     });
     // Seção que perdeu todo o conteúdo some inteira, com o título.
     if (doCorpo.length === 0 || !secao.titulo?.trim()) return;
@@ -463,7 +500,7 @@ export async function gerarDocumentoPersonalizado(
   let construido!: ReturnType<typeof construirArvore>;
   for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
     resposta = await complete('leitor', {
-      system: renderPrompt('redator', 'v1'),
+      system: renderPrompt('redator', 'v3'),
       messages: [{ role: 'user', content: orientacoesEPedido(entrada) }],
       maxTokens: 12000,
       jsonSchema: SCHEMA_DE_GERACAO,
@@ -596,7 +633,7 @@ export async function editarDocumentoPersonalizado(entrada: PedidoDeEdicao): Pro
   }
 
   const resposta = await complete('leitor', {
-    system: renderPrompt('redator', 'v2'),
+    system: renderPrompt('redator', 'v4'),
     messages: [
       {
         role: 'user',
@@ -663,7 +700,11 @@ export async function editarDocumentoPersonalizado(entrada: PedidoDeEdicao): Pro
     }
 
     const id = op.op === 'substituir' ? op.blockId! : novoId();
-    const r = blocoDoModelo(op.bloco, id, { locators, origem: 'agente' });
+    const r = blocoDoModelo(op.bloco, id, {
+      locators,
+      textos: new Map(entrada.fontes.map((f) => [f.id, f.texto])),
+      origem: 'agente',
+    });
     if (!('bloco' in r)) {
       problemas.push(r.problema);
       continue;

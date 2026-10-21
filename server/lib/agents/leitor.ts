@@ -189,7 +189,7 @@ export async function ler(input: LerInput): Promise<LerResult> {
   }
 
   const result = await complete('leitor', {
-    system: renderPrompt('leitor', input.promptVersion ?? 'v1'),
+    system: renderPrompt('leitor', input.promptVersion ?? 'v2'),
     messages: [{ role: 'user', content: pedidoDoDocumento(input, sections) }],
     maxTokens: input.maxTokens ?? LEITOR_MAX_TOKENS,
     jsonSchema: schemaDoDocumento(sections),

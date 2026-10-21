@@ -73,14 +73,22 @@ describe('template da Ata', () => {
     expect(orders).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
-  it('Participantes e Decisões são as seções de auditoria estrita', () => {
-    // O Auditor da Fase 4 roda somente em `audit: 'strict'`. Se esta lista
-    // mudar sem querer, o Auditor deixa de rodar onde inventar custa caro.
+  it('Participantes, Decisões, Outcomes e Outputs são as seções de auditoria estrita', () => {
+    // O Auditor roda somente em `audit: 'strict'`. Se esta lista mudar sem
+    // querer, ele deixa de rodar onde inventar custa caro. Outcomes e Outputs
+    // entraram depois de uma geração real escrever "painel da diretoria" num
+    // output — cada item é uma afirmação única, e conferi-lo é barato.
     const strict = TEMPLATES.ata.sections
       .filter((section) => section.audit === 'strict')
       .map((section) => section.id)
       .sort();
-    expect(strict).toEqual(['decisoes', 'participantes']);
+    expect(strict).toEqual(['decisoes', 'outcomes', 'outputs', 'participantes']);
+  });
+
+  it('Daily, Planning e Review também são conferidos', () => {
+    for (const tipo of ['daily', 'planning', 'review'] as const) {
+      expect(TEMPLATES[tipo].sections.map((s) => s.audit), tipo).toEqual(['strict']);
+    }
   });
 
   it('toda seção obrigatória sem askWhenMissing degrada em silêncio de propósito', () => {

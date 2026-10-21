@@ -188,7 +188,7 @@ export async function auditar(input: AuditarInput): Promise<AuditarResult> {
 
   if (aJulgar.length > 0) {
     const result = await complete('auditor', {
-      system: renderPrompt('auditor', input.promptVersion ?? 'v3'),
+      system: renderPrompt('auditor', input.promptVersion ?? 'v4'),
       messages: [
         {
           role: 'user',

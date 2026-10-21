@@ -78,10 +78,22 @@ describe('cobertura do registro', () => {
           quotes: [],
         },
       ],
+      outcomes: [{ text: 'O', quotes: [] }],
+      outputs: [{ text: 'P', quotes: [] }],
+      generic: { documento: [{ text: 'G', quotes: [] }] },
+      qa: [{ pergunta: 'P', quotesPergunta: [], resposta: 'R', quotesResposta: [] }],
+      periods: [{ title: 'T', summary: 'S', quotes: [] }],
     };
 
-    for (const section of TEMPLATES.ata.sections.filter((s) => s.audit === 'strict')) {
-      expect(specForSection(section).claims(data, section.id).length, section.id).toBeGreaterThan(0);
+    // Todos os templates, não só a Ata: Daily, Planning e Review também são
+    // conferidos, e cada item deles é uma afirmação.
+    for (const template of Object.values(TEMPLATES)) {
+      for (const section of template.sections.filter((s) => s.audit === 'strict')) {
+        expect(
+          specForSection(section).claims(data, section.id).length,
+          `${template.documentType}/${section.id}`,
+        ).toBeGreaterThan(0);
+      }
     }
   });
 });

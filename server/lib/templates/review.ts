@@ -20,7 +20,7 @@ export const review: DocumentTemplate = {
       required: true,
       needs: [],
       guidance: '',
-      audit: 'none',
+      audit: 'strict',
       askWhenMissing: [],
       omitWhenEmpty: false,
     },

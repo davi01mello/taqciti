@@ -177,7 +177,7 @@ export const ata: DocumentTemplate = {
       title: 'Outcomes da reunião',
       order: 6,
       required: false,
-      audit: 'light',
+      audit: 'strict',
       omitWhenEmpty: true,
       needs: ['alinhamentos e entendimentos compartilhados produzidos pela conversa'],
       guidance: [
@@ -199,7 +199,7 @@ export const ata: DocumentTemplate = {
       title: 'Outputs da reunião',
       order: 7,
       required: false,
-      audit: 'light',
+      audit: 'strict',
       omitWhenEmpty: true,
       needs: ['artefatos e resultados concretos produzidos ou estabelecidos na reunião'],
       guidance: [

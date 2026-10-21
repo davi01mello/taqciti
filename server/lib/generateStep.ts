@@ -32,6 +32,7 @@ import type { DocumentType } from './documentTypes';
 import { TEMPLATES } from './templates';
 import type { SectionSpec } from './templates/types';
 import { soDuvidasExtremas, specForSection, type DocumentData, type Gap } from './documentData';
+import { guardarFidelidade } from './guardaDeFidelidade';
 export type { DocumentData, Gap };
 import { detectGaps, ler, type SecaoLida } from './agents/leitor';
 import { auditar, type AuditVerdict } from './agents/auditor';
@@ -198,6 +199,11 @@ export async function apurar(input: ApurarInput): Promise<ApurarResult> {
   if (lido.meta) calls += 1;
   const data = lido.data;
 
+  // Antes do Auditor e sem chamar modelo: frase com cargo ou gravidade que a
+  // reunião não traz, ou que afirma como certo o que foi hipótese, sai daqui.
+  // Ver `guardaDeFidelidade.ts` para o porquê de cada regra.
+  const descartesDeFidelidade = guardarFidelidade(data, input.transcript);
+
   // 2–3. Uma conferência das afirmações que custam caro errar.
   const strict = pendentes.filter((section) => section.audit === 'strict');
   const afirmacoes = strict.flatMap((section) =>
@@ -220,7 +226,12 @@ export async function apurar(input: ApurarInput): Promise<ApurarResult> {
 
   // 4. Rejeitada sai do documento e vira lacuna.
   const rejeitadas = new Set(audit.rejected.map((v) => v.path));
-  const discarded: DiscardedClaim[] = [];
+  const discarded: DiscardedClaim[] = descartesDeFidelidade.map((d) => ({
+    sectionId: d.sectionId,
+    path: d.path,
+    text: d.texto,
+    reason: d.motivo,
+  }));
   const descartadasPorSecao = new Map<string, DiscardedClaim[]>();
 
   for (const { section, claim } of afirmacoes) {

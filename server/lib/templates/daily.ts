@@ -22,7 +22,7 @@ export const daily: DocumentTemplate = {
       required: true,
       needs: [],
       guidance: 'Formato ontem/hoje/bloqueios.',
-      audit: 'none',
+      audit: 'strict',
       askWhenMissing: [],
       omitWhenEmpty: false,
     },
