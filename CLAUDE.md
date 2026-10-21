@@ -23,8 +23,8 @@ Raiz (extensão):
 
 ```
 npm run dev          # vite
-npm run build        # build de produção → dist/
-npm run build:dev    # build de desenvolvimento → dist-dev/
+npm run build        # build de produção → dist/ (ver a trava abaixo)
+npm run build:dev    # build de desenvolvimento → dist-dev/ (use este contra o servidor local)
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src
 npm test             # vitest run (jsdom)
@@ -42,6 +42,14 @@ npm run test:live        # testes que falam com servidor/banco de verdade (exige
 
 Antes de dar uma mudança por pronta: `typecheck` + `lint` + `test` do projeto que você
 tocou. O CI roda os dois projetos a cada push (`.github/workflows/ci.yml`).
+
+> **Trava da build de produção (em andamento, 21/10/2026, ainda não commitada).** O
+> `vite.config.ts` passa a recusar `npm run build` se `VITE_DOCCITI_SERVER_URL` não for
+> `https://` ou se `VITE_DOCCITI_SHARED_KEY` faltar ou for a de desenvolvimento. Sem o
+> `.env`, a build local cairia em `http://localhost:3000` em silêncio. Consequência: os
+> jobs `Extensão (raiz)` e `Instalador Windows` do CI precisam receber valores válidos
+> no `env` do passo de build, ou ficam vermelhos. Detalhe em
+> `docs/arquitetura/build-release-operacao.md`.
 
 ## Onde mora o quê
 
@@ -95,6 +103,22 @@ tocou. O CI roda os dois projetos a cada push (`.github/workflows/ci.yml`).
 9. **Cota de IA.** Os provedores têm cota diária por MODELO. O plano gratuito da Groq
    (8000 tokens/min) só comporta documentos de uma seção. Para iterar sem gastar cota,
    salve o `documentData` de uma geração real e re-renderize a partir dele.
+10. **Rota nova que gasta modelo passa por `autorizarIa`** (`server/lib/guardaDeIa.ts`),
+    nunca só pelo segredo compartilhado: o segredo está dentro do bundle da extensão.
+    `autorizarIa` identifica pelo `id_token` do Google e conta a cota diária por pessoa;
+    `{ cobrar: false }` para rota que exige identidade mas não chama modelo. O segredo é
+    só uma ponte (`DOCCITI_CHAVE_LEGADA=recusar` a desliga). Rota de diagnóstico não
+    pode existir em produção (`diagnosticoForaDoAr`).
+11. **O Taq separa apagar de escrever.** O efeito `exclusao` (apagar, renomear registro
+    existente) só é liberado quando o pedido da PESSOA nomeia a operação; `escrita_local`
+    não o libera. Texto de transcrição é dado, nunca instrução: uma fala injetada não pode
+    ganhar ferramenta. **Em andamento, ainda não commitado.**
+12. **A extensão não confia em quem manda.** O content script é declarado só para
+    `https://meet.google.com/*` (não volte a `<all_urls>`); o background confere o
+    remetente de cada mensagem (`src/background/remetente.ts`); a cápsula só age com
+    clique real (`isTrusted`); link escrito pelo modelo passa por `destinoSeguro` (domínio
+    visível, sem query fora de `google.com` e `citi.org.br`). **Em andamento, ainda não
+    commitado.** O plano completo está em `docs/plano-de-seguranca.md`.
 
 ## Trabalhar com git neste repositório
 
@@ -123,5 +147,12 @@ Este repositório é **público**.
 - Desenho das melhorias de conteúdo dos documentos (fidelidade, estrutura por tipo,
   layout curto): `docs/redesenho-dos-documentos.md`. A fase de fidelidade está
   implementada; as demais estão desenhadas e não começaram.
+- Plano de segurança: `docs/plano-de-seguranca.md`. A fase 1 (servidor) está commitada
+  (`09e99ab`); as mudanças da extensão (content script só no Meet, barreira de remetente,
+  efeito `exclusao`, link seguro, trava de build) e do servidor (política de dados
+  obrigatória em produção, `sintetica` do cliente ignorada lá, MCP marcado como somente
+  leitura e com aviso de conteúdo de terceiros) estão na árvore de trabalho, ainda não
+  commitadas. As fases seguintes não começaram. Em produção, `DOCCITI_DATA_POLICY` passa
+  a ser obrigatória (`private` ou `training`) quando isso for commitado.
 - Documentos personalizados: `docs/documentos-personalizados.md`.
 - Release e instaladores: `docs/publicar-release.md`.

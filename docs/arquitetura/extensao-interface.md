@@ -102,6 +102,13 @@ cobre mensagens e estado da reunião, não tudo.
   limitações), `CartoesDoTaq` (cartões validados vindos de ferramentas),
   `CartaoDeTela` (captura sob pedido), `TrilhaDaConversa` (barra de rolagem que
   é mapa da conversa), `BotaoCopiar`, `Markdown` (React, nunca `innerHTML`).
+  **Links do modelo (em andamento, ainda não commitado, 21/10/2026):** `Markdown.tsx`
+  passa todo link por `destinoSeguro`: só `http(s)`; o domínio aparece SEMPRE ao
+  lado do texto do link (quem clica vê para onde vai); fora dos domínios de
+  confiança (`google.com`, `citi.org.br`) a query e o fragmento caem; link que
+  não é URL válida vira texto puro. Motivo: o texto do modelo pode ter sido
+  conduzido por uma fala injetada na transcrição, e um link é o canal clássico
+  de exfiltração (o conteúdo da conversa na query string).
 - Utilitários: `Icon` (SVG por nome), `format.ts`, `estadoDaCaptura.ts` (traduz o
   estado da reunião UMA vez para cápsula, sidebar e Home), `useColegasDoCiti`.
 
@@ -135,11 +142,21 @@ cobre mensagens e estado da reunião, não tudo.
    fora do escopo).
 3. **Geração por tipo**: `requestGeneration` faz POST em `/api/generate` do
    servidor (`SERVER_BASE_URL`); volta `content` (markdown), `html`, `pdf` (base64),
-   `documentData`, `questions`, `gaps`.
+   `documentData`, `questions`, `gaps`. As chamadas às rotas de IA (geração, personalizado
+   e o turno do Taq) passam por `fetchDeIa` (`shared/services/identidade.ts`, **em
+   andamento, ainda não commitado**): manda o segredo compartilhado SEMPRE e o
+   `Authorization: Bearer <id_token do Google>` quando a pessoa ligou a conexão com o
+   Google (`identidadeParaIa`, que nunca abre popup). Se o servidor recusar o token
+   (401), descarta o cache e repete UMA vez só com o segredo, para um token vencido não
+   derrubar a geração enquanto a ponte do segredo estiver de pé. O servidor conta a cota
+   diária por pessoa (ver `servidor-documentos.md`).
 4. **Salvar antes de dizer "Salvo"**: `guardarDocumento` (`features/documents/store.ts`,
    `taq:documents`). Se falhar, o resultado fica na tela com "Tentar salvar de novo",
    "Baixar" e "Descartar resultado". As perguntas da geração viram uma conversa nova
-   com o Taq ("Pendências de ..."); o documento sai com marcações "A preencher".
+   com o Taq ("Pendências de ..."). **Esse fluxo ficou praticamente ocioso:** o servidor
+   só devolve pergunta para uma lacuna marcada `extrema` (nenhuma detecção automática a
+   marca hoje) e o documento NÃO sai mais com marcações "A preencher" — campo ausente
+   simplesmente não entra. O código do cliente continua pronto para receber perguntas.
 5. **Personalizado**: "Gerar com o padrão CITi" chama `gerarPersonalizado`
    (`personalizado/cliente.ts`, `/api/documentos/<rota>`), usando só a reunião aberta
    como fonte. Guardado por `guardarGeracao` com `tipo: 'personalizado'`; o histórico

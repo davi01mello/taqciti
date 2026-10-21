@@ -41,6 +41,7 @@ armadilhas que os comentários do código guardam, e diz como testar a área.
 
 | Documento | Para quê |
 |---|---|
+| [`plano-de-seguranca.md`](plano-de-seguranca.md) | Mapa das fragilidades e plano de correção em fases (a fase 1, do servidor, está commitada; as mudanças da extensão estão em andamento) |
 | [`google-oauth-setup.md`](google-oauth-setup.md) | Configuração do cliente OAuth do Google e dos escopos |
 | [`integracoes-google-workspace.md`](integracoes-google-workspace.md) | O que o Taq faz em Gmail, Agenda e Docs, e como |
 

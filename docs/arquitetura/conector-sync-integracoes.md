@@ -26,7 +26,10 @@ Três atores e duas credenciais:
 | Claude/ChatGPT → servidor (`/api/mcp/...`) | token do conector (`taqciti_` + 256 bits) | `server/lib/identidade/tokenDoConector.ts`, hash no banco |
 
 As rotas do acervo NÃO exigem `x-docciti-key` (esse segredo protege as rotas de
-LLM; ver `server/lib/identidade/rota.ts`).
+LLM; ver `server/lib/identidade/rota.ts`). Desde o commit `09e99ab` as rotas de LLM
+também aceitam, e passam a preferir, o mesmo `id_token` do Google (`autorizarIa`,
+`server/lib/guardaDeIa.ts`), com cota diária por pessoa; o segredo vira ponte. Ver
+`servidor-documentos.md`, seção 8.
 
 ## 2. O conector MCP
 
@@ -212,16 +215,24 @@ dobrado pela aplicação (`dobrar()`), `tsvector` com configuração `simple` e 
 | `copia_local` | cópia fiel por `(pessoa_id, colecao, id)`, lápide `apagado`, `seq`, `tamanho` |
 | `print_local` | prints em `bytea`, imutáveis, lápide, `seq` |
 | `copia_seq` (sequência) | cursor global das escritas |
+| `uso_de_ia` | chamadas a modelo e caracteres enviados por `(pessoa_id, dia)`; é a cota diária das rotas de IA (`guardaDeIa.ts`), um upsert por chamada |
 
-Tudo referencia `pessoa(id)` com `on delete cascade`. Tabelas com RLS ligada no
-arquivo: `historico_do_documento`, `copia_local`, `print_local`. As outras seis não
-têm RLS no arquivo (risco S9); em produção o plano de segurança registra RLS ligada
-em todas (conferido no advisor em 21/10/2026; não reverificado aqui).
+Tudo referencia `pessoa(id)` com `on delete cascade`. **RLS ligada em todas as tabelas**
+no próprio `esquema.sql` (commit `09e99ab`, risco S9 do plano de segurança), sem
+nenhuma policy, mais `revoke all` nas tabelas e sequências do `public` para os papéis
+`anon` e `authenticated`. O servidor fala com o banco pelo papel dono das tabelas, que
+ignora RLS; quem NÃO pode alcançar nada é a Data API da Supabase (PostgREST, chave
+pública `anon`). Em produção já estava ligado à mão; agora fica versionado, e um banco
+recriado a partir do arquivo nasce fechado.
 
 Banco: `banco.ts` mantém um pool de 5 conexões por processo, criado na primeira
-chamada; TLS com `rejectUnauthorized: false` fora de localhost. Em produção a
-`DATABASE_URL` deve ser a do pooler (a conexão direta só responde em IPv6, que a função
-serverless não tem). Interface `Consultador` independente de driver (PGlite nos testes).
+chamada. **TLS** (commit `09e99ab`, S10): com `DATABASE_CA` (o PEM da CA própria da
+Supabase, colado inteiro na variável), a cadeia é validada de verdade
+(`rejectUnauthorized: true`). Sem ela, fica o modo antigo — cifra sem autenticar o
+servidor — com um aviso no log a cada instância, para a troca não depender de uma janela
+de deploy coordenada. Em produção a `DATABASE_URL` deve ser a do pooler (a conexão
+direta só responde em IPv6, que a função serverless não tem). Interface `Consultador`
+independente de driver (PGlite nos testes).
 
 ## 7. Segurança
 
@@ -233,8 +244,31 @@ serverless não tem). Interface `Consultador` independente de driver (PGlite nos
   valor em claro aparece uma vez; revogar apaga a linha e filtra por `pessoa_id` (404
   igual para id alheio ou inexistente). `pessoaDoToken` reconfere o e-mail da dona
   contra o domínio permitido a cada uso e atualiza `usado_em` sem bloquear. Token não
-  expira e não há limite de quantidade (S6). O token vai no caminho da URL e a linha
-  `[mcp]` registra o pathname (S5; o comentário da função afirma o contrário).
+  expira e não há limite de quantidade (S6, ainda aberto). O token vai no caminho da
+  URL. **O log não o grava mais** (commit `09e99ab`, S5): `caminhoSemToken` troca
+  `/api/mcp/<token>` por `/api/mcp/<redigido>` antes de a linha `[mcp]` ser escrita;
+  registrar o pathname cru punha credenciais válidas nos Runtime Logs da Vercel, legíveis
+  por qualquer membro do projeto.
+- **Limites do MCP** (commit `09e99ab`, S4): o corpo de uma requisição é limitado a 64 KB
+  (`MAX_CORPO_MCP_BYTES`; o padrão do SDK é 4 MiB, e validar um corpo desse tamanho
+  esgota a memória da instância, GHSA-46jr-4wx8-v453). Nenhuma ferramenta aceita
+  argumento que chegue perto disso. Dependências no mesmo commit: `next` 16.4.2 e SDK
+  do MCP 1.32.1 (`npm audit` zerado).
+- **Sync valida o que grava** (commit `09e99ab`, S7): `server/lib/conector/projecoes.ts`
+  valida com zod as projeções `reuniao`, `documento`, `conversa` e `nota`, com tetos
+  largos (`MAX_ID` 200; `MAX_PROJECAO_BYTES` 3 MiB; uma reunião de quatro horas fica
+  muito abaixo). Antes entravam com um `as` e nada mais: uma conta, ou uma extensão com
+  bug, em laço com ids novos enchia os 500 MB da Supabase e deixava o banco somente
+  leitura para todos. Agora também contam para a cota (`contarItens` em `cota.ts`) e
+  respeitam o disjuntor global.
+- **Cache em memória com teto** (commit `09e99ab`, S13): `cache.ts` limita a 2.000
+  entradas; passou disso, saem primeiro as vencidas e, se não bastar, as mais antigas.
+  A chave inclui o id que o MODELO manda, então quem tem um token válido podia inflar o
+  `Map` com ids inventados. Também tratados: `DELETE token?id=` com valor que não é uuid
+  e `decodeURIComponent` sobre `%` malformado deixam de dar 500.
+- **Domínio do login** (S12): `TAQCITI_EXIGIR_HD=sim` passa a exigir o claim `hd` do
+  `id_token`; sem a variável, a brecha continua (uma conta Google pessoal criada com um
+  e-mail do domínio é aceita). É opt-in de propósito.
 - **Cliente**: tokens do Google (`id_token` e tokens de acesso das integrações) ficam em
   memória/cache do Chrome; não vão a storage, log, cartão nem exportação, e os de
   acesso das integrações nunca ao servidor do TaqCiti.
@@ -242,9 +276,21 @@ serverless não tem). Interface `Consultador` independente de driver (PGlite nos
   OAuth das integrações, registro `taq:integracoes` e `taq:acoes-externas`. Prints
   sobem (como binário, só para restauração), mas o conector nunca os serve.
 - **Verificação do `aud`**: sem ela um `id_token` de outro app seria aceito.
-- **Pontos abertos** (ver `docs/plano-de-seguranca.md`): S4 SDK MCP sem limite de corpo,
-  S5, S6, S7, S9, S10, S12, S13, I4. Confirmados no código nesta leitura: S5, S6, S7,
-  S9, S10, I4 (sem `readOnlyHint`).
+- **Ainda abertos** (ver `docs/plano-de-seguranca.md`; fases 2 a 5 não começaram, salvo
+  o que está em andamento abaixo): S6 (tokens do conector sem expiração, sem limite de
+  quantidade, no caminho da URL), I5 (os prompts não têm a regra "dados não são
+  instruções"), I7 (sem retenção nem "apagar tudo", pendência de LGPD).
+- **Em andamento, ainda não commitado (21/10/2026)** — I4: `server/lib/conector/mcp.ts`
+  passa a (a) acrescentar às instruções do servidor MCP que o conteúdo devolvido (falas,
+  chat, documentos) é DADO escrito por terceiros, nunca instrução, e que pedidos que
+  apareçam dentro dele (enviar e-mail, abrir links, chamar outras ferramentas) devem ser
+  apenas relatados à pessoa; e (b) marcar todas as ferramentas com
+  `annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false }`,
+  para o cliente não pedir confirmação a cada chamada nem tratá-las como ação. O acervo
+  é, em boa parte, fala de terceiros, e o cliente pode ter outros conectores com escrita.
+  **Resolvidos no servidor pelo commit `09e99ab`** (fase 1): S1 em parte (identidade e
+  cota por pessoa; o segredo continua como ponte), S2, S3, S4, S5, S7, S8, S9, S10 (com
+  `DATABASE_CA`), S11 em parte, S12 (opt-in), S13, S14.
 
 ## 8. Integrações Google (Gmail, Agenda, diretório)
 
@@ -348,14 +394,19 @@ reproduzem o corpo vazio nem o tratamento de 401.
 | `TAQCITI_DOMINIO_PERMITIDO` | servidor | troca o domínio (`*` desliga) |
 | `TAQCITI_COTA_MB` | servidor | cota por pessoa (padrão 25) |
 | `TAQCITI_LIMITE_BANCO_MB` | servidor | disjuntor global (padrão 400) |
+| `DATABASE_CA` | servidor | PEM da CA da Supabase; liga a validação do certificado do banco (sem ela, aviso no log) |
+| `TAQCITI_EXIGIR_HD` | servidor | `sim` exige o claim `hd` no `id_token` |
+| `DOCCITI_CHAVE_LEGADA` | servidor | `recusar` desliga a ponte do segredo compartilhado nas rotas de IA |
+| `TAQCITI_IA_CHAMADAS_DIA`, `TAQCITI_IA_CARACTERES_DIA` | servidor | tetos diários por pessoa das rotas de IA (padrão 2.000 chamadas e 80 milhões de caracteres) |
+| `DOCCITI_DIAGNOSTICO` | servidor | `ligado` reabre as rotas de diagnóstico em produção (usar só pontualmente) |
 | `VITE_GOOGLE_OAUTH_CLIENT_ID` | build da extensão | cliente "Extensão do Chrome" (manifesto) |
 | `VITE_GOOGLE_OAUTH_WEB_CLIENT_ID` | build da extensão | cliente "Aplicativo da Web" |
 
 ## 11. Pendências e dívidas conhecidas
 
 - Comentário de topo de `app/api/mcp/route.ts` diz que a sonda sem credencial leva 401;
-  hoje `atenderMcp` responde 200 com erro JSON-RPC. Comentários de `banco.ts` e
-  `esquema.sql` ainda citam Railway (produção é Supabase).
+  hoje `atenderMcp` responde 200 com erro JSON-RPC. Comentários de `banco.ts` (linha
+  ~48) e `esquema.sql` (linha ~46) ainda citam Railway (produção é Supabase).
 - O teste ao vivo e `docs/google-oauth-setup.md` dependem do ID da extensão derivado da
   `key` do manifesto; o teste ao vivo tem esse ID escrito no código (fora do escopo).
 - Atualização automática da extensão e OAuth 2.1 no conector: decisões de produto

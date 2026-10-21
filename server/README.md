@@ -110,7 +110,8 @@ bloco de `corsHeaders`.
 ```
 POST /api/generate
 Content-Type: application/json
-x-docciti-key: <segredo compartilhado>
+Authorization: Bearer <id_token do Google>     (preferido: identifica a pessoa e conta a cota diária)
+x-docciti-key: <segredo compartilhado>         (ponte para extensões antigas; ver "A tranca do endpoint")
 
 { "transcript": "string", "title"?: "string", "date"?: "string",
   "documentType": "ata" | "x1" | "resumo" | "daily" | "planning" | "review",
@@ -119,10 +120,10 @@ x-docciti-key: <segredo compartilhado>
 → 200 { "title", "content" (markdown), "documentData", "html", "pdf"? (base64),
         "questions", "gaps" }
 → 400 { "error": "string" }   payload inválido (ou falta "sintetica": true com DOCCITI_DATA_POLICY=training)
-→ 401 { "error": "string" }   header ausente ou errado
+→ 401 { "error": "string" }   token inválido, segredo ausente/errado, ou (com DOCCITI_CHAVE_LEGADA=recusar) falta do Authorization
 → 413 { "error": "string" }   transcrição acima do teto
 → 422 { "error": "string" }   documento sem conteúdo para o tipo (ex.: X1 em reunião de equipe)
-→ 429 / 503                   cota ou sobrecarga do provedor de IA
+→ 429 / 503                   cota (do provedor OU a diária da pessoa) ou sobrecarga do provedor de IA
 → 500 { "error": "string" }   servidor sem DOCCITI_SHARED_KEY configurada
 → 502 { "error": "string" }   falha inesperada na geração
 ```
@@ -185,11 +186,17 @@ A resposta traz um campo `naoVerificado` com o que o smoke **não** prova:
 
 ## A tranca do endpoint
 
-A rota exige o segredo compartilhado `DOCCITI_SHARED_KEY` no header
-`x-docciti-key`. **Não é autenticação de verdade** — o segredo viaja dentro
-do bundle da extensão, então quem abrir o pacote acha. Serve pra barrar uso
-acidental e varredura agora que existe uma chave de API paga atrás da rota;
-não serve pra tratar o chamador como confiável. Motivação e limites em
+**Desde o plano de segurança (commit `09e99ab`)** as rotas que gastam modelo passam por
+`autorizarIa` ([`lib/guardaDeIa.ts`](lib/guardaDeIa.ts)): com `Authorization: Bearer
+<id_token do Google>` a pessoa é identificada (domínio do CITi) e a chamada entra na cota
+diária dela (`uso_de_ia`, 429 ao passar); sem o cabeçalho, vale o segredo abaixo,
+**enquanto `DOCCITI_CHAVE_LEGADA` não for `recusar`**. Detalhe em
+`docs/arquitetura/servidor-documentos.md`, seção 8.
+
+O segredo compartilhado `DOCCITI_SHARED_KEY`, no header `x-docciti-key`, **não é
+autenticação de verdade** — o segredo viaja dentro do bundle da extensão, então quem
+abrir o pacote acha. Por isso virou ponte: serve pra barrar uso acidental e varredura,
+não pra tratar o chamador como confiável. Motivação e limites em
 [`lib/apiGuard.ts`](lib/apiGuard.ts).
 
 Falha **fechada**: sem `DOCCITI_SHARED_KEY` definida a rota devolve 500. Com
