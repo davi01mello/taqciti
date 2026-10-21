@@ -61,6 +61,14 @@ export function fusoDoDocumento(): string {
 export function formatarDataDaReuniao(iso: string | undefined): string | undefined {
   if (!iso?.trim()) return undefined;
 
+  // "2026-10-20", sem horário, é um DIA DO CALENDÁRIO e não um instante: o
+  // `Date` o lê como meia-noite UTC, e no fuso do Brasil isso é o dia anterior.
+  const soData = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (soData) {
+    const conferido = new Date(`${soData[0]}T12:00:00Z`);
+    return Number.isNaN(conferido.getTime()) ? undefined : `${soData[3]}/${soData[2]}/${soData[1]}`;
+  }
+
   const quando = new Date(iso);
   if (Number.isNaN(quando.getTime())) return undefined;
 

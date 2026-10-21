@@ -53,6 +53,9 @@ export interface EntradaDoCatalogo {
 
 type SemId<T> = T extends unknown ? Omit<T, 'blockId'> : never;
 
+/** O modelo costuma numerar os títulos ("1. Instalação"); a numeração é nossa, e não pode dobrar. */
+const semNumeracao = (titulo: string): string => titulo.replace(/^\s*\d+\s*[.)\-–—:]\s*/, '').trim();
+
 const linhas = (texto: string): string[] =>
   texto
     .split(/\n+/)
@@ -92,7 +95,7 @@ function corpoDe(documentType: DocumentType, data: DocumentData): SemId<Bloco>[]
   if (topicos.length > 0) {
     titulo(secao('topicos_discutidos'));
     topicos.forEach((t, i) => {
-      paragrafo(`**${i + 1}. ${t.title}**`);
+      paragrafo(`**${i + 1}. ${semNumeracao(t.title)}**`);
       linhas(t.summary).forEach(paragrafo);
     });
   }
@@ -131,7 +134,10 @@ function corpoDe(documentType: DocumentType, data: DocumentData): SemId<Bloco>[]
   // --- Resumo ----------------------------------------------------------
   (data.periods ?? []).forEach((periodo, i) => {
     const intervalo = rotuloDoPeriodo(periodo);
-    titulo(`${i + 1}. ${periodo.title}${intervalo ? ` (${intervalo})` : ''}`);
+    // O horário vai numa linha própria: dentro do título ele quebrava no meio
+    // ("(08:28 –" / "11:17)").
+    titulo(`${i + 1}. ${semNumeracao(periodo.title)}`);
+    if (intervalo) paragrafo(`**${intervalo}**`);
     linhas(periodo.summary).forEach(paragrafo);
   });
 

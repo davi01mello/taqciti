@@ -86,6 +86,28 @@ describe('tipos do catálogo no estilo da Apostila', () => {
     expect(texto).not.toContain('Você');
   });
 
+  it('a numeração é uma só: título que o modelo já numerou não dobra', () => {
+    const data: DocumentData = {
+      topicsDiscussed: [
+        { title: '1. Instalação da extensão', summary: 'x', quotes: [] },
+        { title: '2- Dashboard', summary: 'y', quotes: [] },
+      ],
+      periods: [{ title: '1) Abertura', summary: 'z', quotes: [] }],
+    };
+    const topicos = textoDe(arvoreDoCatalogo({ documentType: 'ata', data }));
+    expect(topicos).toContain('1. Instalação da extensão');
+    expect(topicos).toContain('2. Dashboard');
+    expect(topicos).not.toMatch(/\d\.\s+\d[.\-]/);
+    expect(textoDe(arvoreDoCatalogo({ documentType: 'resumo', data }))).toContain('1. Abertura');
+  });
+
+  it('resumo: o horário do trecho fica numa linha própria, não dentro do título', () => {
+    const blocos = arvoreDoCatalogo({ documentType: 'resumo', data: casos.resumo! }).blocos;
+    const titulo = blocos.find((b) => b.tipo === 'titulo') as { texto: string };
+    expect(titulo.texto).toBe('1. Abertura');
+    expect(textoDe(arvoreDoCatalogo({ documentType: 'resumo', data: casos.resumo! }))).toContain('**00:00:59 – 00:05:14**');
+  });
+
   it('sem nome de quem assina não há fecho', () => {
     expect(textoDe(arvoreDoCatalogo({ documentType: 'ata', data: ata }))).not.toContain('Atenciosamente');
     const assinada = { ...ata, signature: { name: 'Pessoa A', role: 'Desenvolvedora' } };

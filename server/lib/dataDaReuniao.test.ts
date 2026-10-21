@@ -10,6 +10,13 @@ describe('formatarDataDaReuniao', () => {
     expect(formatarDataDaReuniao('2026-08-22T14:30:00.000Z')).toBe('22/08/2026');
   });
 
+  it('data sem horário é um dia do calendário: não recua um dia por causa do fuso', () => {
+    // "2026-10-20" lido como meia-noite UTC virava 19/10 no fuso do Brasil.
+    expect(formatarDataDaReuniao('2026-10-20')).toBe('20/10/2026');
+    // E um dia que não existe continua sem data, em vez de um palpite.
+    expect(formatarDataDaReuniao('2026-13-45')).toBeUndefined();
+  });
+
   /*
    * O BUG QUE ISTO EXISTE PARA PEGAR.
    *
