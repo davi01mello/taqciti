@@ -415,4 +415,15 @@ describe('política: escolher contexto é escrita; copiar é leitura', () => {
     expect(efeitosDoPedido('Copie a transcrição da reunião')).not.toContain('escrita_local');
     expect(efeitosDoPedido('Baixe o documento X')).toContain('interface');
   });
+
+  it('apagar e renomear só com o pedido da pessoa nomeando a operação', async () => {
+    const { efeitosDoPedido } = await import('./politica');
+    // O caso da injeção: a fala na transcrição pediu para apagar, a pessoa só
+    // pediu a ata. A escrita sai; a exclusão, não.
+    expect(efeitosDoPedido('Crie a ata desta reunião')).toContain('escrita_local');
+    expect(efeitosDoPedido('Crie a ata desta reunião')).not.toContain('exclusao');
+    expect(efeitosDoPedido('Apague a conversa sobre o projeto X')).toContain('exclusao');
+    expect(efeitosDoPedido('Renomeie a reunião de ontem')).toContain('exclusao');
+    expect(efeitosDoPedido('x1', 'tipo_de_documento')).not.toContain('exclusao');
+  });
 });

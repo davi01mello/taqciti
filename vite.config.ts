@@ -1,11 +1,11 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { crx } from '@crxjs/vite-plugin';
 import { fileURLToPath, URL } from 'node:url';
 import manifest from './manifest.config';
 
 /**
- * Trava: os chunks do painel precisam ser legíveis em QUALQUER página.
+ * Trava: os chunks do painel são legíveis SÓ no Meet — e em todo o Meet.
  *
  * ── A armadilha ────────────────────────────────────────────────────────────
  *
@@ -15,26 +15,25 @@ import manifest from './manifest.config';
  * `web_accessible_resources` que lista o chunk.
  *
  * Essa entrada o @crxjs monta sozinho, no build, copiando o `matches` do
- * content script declarado. Hoje isso já é `<all_urls>` e este plugin não muda
- * nada — ele existe como TRAVA, não como correção. Estreitar o `matches` do
- * content script um dia (voltar a restringi-lo ao Meet, por exemplo) levaria
- * junto a permissão de leitura dos chunks, e o sintoma seria o painel morrendo
- * no import em toda página fora daquele domínio, com o build passando e o
- * `dist/` parecendo correto. Só apareceria carregando no Chrome.
+ * content script declarado. Este plugin fixa o resultado em um valor só, para
+ * que nenhuma entrada gerada fique mais larga (expondo a extensão a
+ * fingerprinting por qualquer site) nem mais estreita (o painel morrendo no
+ * import, com o build passando e o `dist/` parecendo correto — só apareceria
+ * carregando no Chrome).
+ *
+ * Até 21/10/2026 o valor era `<all_urls>`, porque o painel existia em toda
+ * página. Ele hoje só existe no Meet (ver `src/content/index.ts`), e expor os
+ * arquivos a todo site só servia para qualquer página detectar a extensão pelo
+ * ID fixo.
  *
  * Não dá para escrever isto em `manifest.config.ts`: a entrada não existe lá,
  * nasce depois, com os nomes de chunk já hasheados. Daí o retoque ser aqui.
- *
- * ── E não, isto não amplia permissão ───────────────────────────────────────
- *
- * `web_accessible_resources` responde "quem pode LER estes arquivos meus",
- * nunca "onde eu posso agir". Quem responde a segunda pergunta é
- * `host_permissions`, no manifesto, e é lá que a decisão está tomada e
- * explicada.
  */
-function panelResourcesEverywhere(): Plugin {
+const ONDE_O_PAINEL_VIVE = ['https://meet.google.com/*'];
+
+function panelResourcesOnlyOnMeet(): Plugin {
   return {
-    name: 'taqciti:panel-resources-everywhere',
+    name: 'taqciti:panel-resources-only-on-meet',
     generateBundle: {
       // Depois do @crxjs: antes dele a entrada gerada ainda nem existe.
       order: 'post',
@@ -53,7 +52,7 @@ function panelResourcesEverywhere(): Plugin {
           web_accessible_resources?: Array<{ matches: string[] }>;
         };
         for (const entry of parsed.web_accessible_resources ?? []) {
-          entry.matches = ['<all_urls>'];
+          entry.matches = [...ONDE_O_PAINEL_VIVE];
         }
         asset.source = JSON.stringify(parsed, null, 2);
       },
@@ -61,8 +60,39 @@ function panelResourcesEverywhere(): Plugin {
   };
 }
 
+/**
+ * Trava: uma build de PRODUÇÃO não sai apontando para `http://` nem com a chave
+ * de desenvolvimento.
+ *
+ * O CI já recusa isso (`.github/scripts/check-release-env.sh`), mas a build
+ * local — a que vai por robocopy para o Chrome de quem desenvolve — não passava
+ * por ele: sem o `.env`, ela caía em `http://localhost:3000` e na chave pública
+ * de dev, em silêncio. Sem TLS, a transcrição e o token do Google viajariam em
+ * claro; com a chave de dev, nada funcionaria e nada diria por quê.
+ */
+function servidorDeProducaoSeguro(mode: string): Plugin {
+  return {
+    name: 'taqciti:servidor-de-producao-seguro',
+    config() {
+      if (mode !== 'production') return;
+      const env = { ...loadEnv(mode, process.cwd(), 'VITE_'), ...process.env };
+      const url = env.VITE_DOCCITI_SERVER_URL ?? '';
+      const chave = env.VITE_DOCCITI_SHARED_KEY ?? '';
+      const problemas: string[] = [];
+      if (!/^https:\/\//.test(url)) problemas.push(`VITE_DOCCITI_SERVER_URL precisa ser https (está "${url || 'vazia'}")`);
+      if (!chave || chave === 'taqciti-dev-local') problemas.push('VITE_DOCCITI_SHARED_KEY ausente ou com o valor de desenvolvimento');
+      if (problemas.length > 0) {
+        throw new Error(
+          `Build de produção recusada: ${problemas.join('; ')}. ` +
+            'Para testar contra o servidor local, use `npm run build:dev`.',
+        );
+      }
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), crx({ manifest }), panelResourcesEverywhere()],
+  plugins: [react(), crx({ manifest }), panelResourcesOnlyOnMeet(), servidorDeProducaoSeguro(mode)],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

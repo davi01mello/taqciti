@@ -36,11 +36,7 @@ beforeEach(() => {
 });
 
 describe('canInject — onde o painel cabe', () => {
-  it.each([
-    'https://github.com/anthropics',
-    'http://localhost:3000/',
-    'https://meet.google.com/abc-defg-hij',
-  ])('aceita página comum: %s', async (url) => {
+  it.each(['https://meet.google.com/abc-defg-hij', 'https://meet.google.com/'])('aceita o Meet: %s', async (url) => {
     installMocks();
     const { canInject } = await import('./injectPanel');
     expect(canInject(url)).toBe(true);
@@ -57,6 +53,10 @@ describe('canInject — onde o painel cabe', () => {
     // A Web Store é fechada para extensão, mesmo com host permission.
     'https://chromewebstore.google.com/detail/algo',
     'https://chrome.google.com/webstore',
+    // O content script só é declarado para o Meet (plano de segurança, 21/10/2026).
+    'https://github.com/anthropics',
+    'http://localhost:3000/',
+    'http://meet.google.com/abc-defg-hij',
   ])('recusa página fechada à injeção: %s', async (url) => {
     installMocks();
     const { canInject } = await import('./injectPanel');
@@ -92,7 +92,7 @@ describe('panelScriptFiles — o caminho vem do manifesto, nunca escrito à mão
 describe('backfillOpenTabs — alcançar as abas já abertas na instalação', () => {
   it('injeta o loader do manifesto em cada aba alcançável', async () => {
     const { executeScript } = installMocks({
-      tabs: [tab('https://github.com', { id: 7 }), tab('https://meet.google.com/x', { id: 9 })],
+      tabs: [tab('https://meet.google.com/a', { id: 7 }), tab('https://meet.google.com/x', { id: 9 })],
     });
     const { backfillOpenTabs } = await import('./injectPanel');
 
@@ -102,7 +102,7 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
   });
 
   it('anota as abas, para o estado ao vivo saber onde entregar', async () => {
-    installMocks({ tabs: [tab('https://github.com', { id: 7 })] });
+    installMocks({ tabs: [tab('https://meet.google.com/a', { id: 7 })] });
     const { backfillOpenTabs } = await import('./injectPanel');
     const { panelTabs } = await import('./panelTabs');
 
@@ -113,7 +113,7 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
 
   it('injeção que falhou não deixa a aba anotada', async () => {
     installMocks({
-      tabs: [tab('https://github.com')],
+      tabs: [tab('https://meet.google.com/a')],
       executeScript: vi.fn(async () => {
         throw new Error('Cannot access contents of the page');
       }),
@@ -146,7 +146,7 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
     ['ainda carregando', { status: 'loading' }],
     ['sem id', { id: undefined }],
   ])('pula aba %s, sem tentar injetar', async (_label, broken) => {
-    const { executeScript } = installMocks({ tabs: [tab('https://github.com', broken)] });
+    const { executeScript } = installMocks({ tabs: [tab('https://meet.google.com/a', broken)] });
     const { backfillOpenTabs } = await import('./injectPanel');
 
     await expect(backfillOpenTabs()).resolves.toBe(0);
@@ -156,7 +156,7 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
   it('manifesto sem content script não injeta — nome de arquivo não se adivinha', async () => {
     const { executeScript } = installMocks({
       contentScripts: [],
-      tabs: [tab('https://github.com')],
+      tabs: [tab('https://meet.google.com/a')],
     });
     const { backfillOpenTabs } = await import('./injectPanel');
 
@@ -165,13 +165,13 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
   });
 
   it('a aba anotada não é reinjetada pelo clique no ícone', async () => {
-    const { executeScript } = installMocks({ tabs: [tab('https://github.com', { id: 7 })] });
+    const { executeScript } = installMocks({ tabs: [tab('https://meet.google.com/a', { id: 7 })] });
     const { backfillOpenTabs, ensurePanelInTab } = await import('./injectPanel');
 
     await backfillOpenTabs();
     executeScript.mockClear();
 
-    await ensurePanelInTab(tab('https://github.com', { id: 7 }));
+    await ensurePanelInTab(tab('https://meet.google.com/a', { id: 7 }));
     expect(executeScript).not.toHaveBeenCalled();
   });
 
@@ -183,14 +183,14 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
    */
   it('a aba que escapou da instalação recebe o painel no clique no ícone', async () => {
     const { executeScript } = installMocks({
-      tabs: [tab('https://github.com', { id: 7, status: 'loading' })],
+      tabs: [tab('https://meet.google.com/a', { id: 7, status: 'loading' })],
     });
     const { backfillOpenTabs, ensurePanelInTab } = await import('./injectPanel');
 
     await backfillOpenTabs();
     expect(executeScript).not.toHaveBeenCalled();
 
-    await ensurePanelInTab(tab('https://github.com', { id: 7 }));
+    await ensurePanelInTab(tab('https://meet.google.com/a', { id: 7 }));
     expect(executeScript).toHaveBeenCalledWith({ target: { tabId: 7 }, files: [LOADER] });
   });
 
@@ -200,7 +200,7 @@ describe('backfillOpenTabs — alcançar as abas já abertas na instalação', (
       return [];
     });
     installMocks({
-      tabs: [tab('https://a.com', { id: 7 }), tab('https://b.com', { id: 8 })],
+      tabs: [tab('https://meet.google.com/a', { id: 7 }), tab('https://meet.google.com/b', { id: 8 })],
       executeScript: executeScript as unknown as ReturnType<typeof vi.fn>,
     });
     const { backfillOpenTabs } = await import('./injectPanel');

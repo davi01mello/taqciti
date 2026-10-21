@@ -132,6 +132,35 @@ export function blocosDoMarkdown(texto: string): Bloco[] {
 const EM_LINHA =
   /(`[^`\n]+`)|(\*\*[^*\n]+?\*\*|__[^_\n]+?__)|(\[r\d+(?:\s*[,;]\s*r\d+)*\])|(\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))|((?<![\p{L}\p{N}])\*[^*\s][^*\n]*?\*(?![\p{L}\p{N}])|(?<![\p{L}\p{N}])_[^_\s][^_\n]*?_(?![\p{L}\p{N}]))/gu;
 
+/** Domínios cujos links chegam inteiros: os do próprio trabalho (Docs, Drive, Agenda, CITi). */
+const DOMINIOS_DE_CONFIANCA = ['google.com', 'citi.org.br'];
+
+/**
+ * O link que o modelo escreveu, pronto para clicar — ou `null`.
+ *
+ * O texto do modelo pode ter sido conduzido por uma fala injetada na
+ * transcrição, e um link é o canal clássico de exfiltração: "clique para ver a
+ * fonte" com o conteúdo da conversa na query string. Por isso o domínio aparece
+ * SEMPRE ao lado do texto (quem clica vê para onde vai), e fora dos domínios de
+ * confiança a query e o fragmento caem — o destino continua, o que viajaria
+ * nele não.
+ */
+export function destinoSeguro(bruto: string): { href: string; dominio: string } | null {
+  let url: URL;
+  try {
+    url = new URL(bruto);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  const dominio = url.hostname.toLowerCase();
+  const deConfianca = DOMINIOS_DE_CONFIANCA.some((d) => dominio === d || dominio.endsWith(`.${d}`));
+  if (deConfianca) return { href: bruto, dominio };
+  url.search = '';
+  url.hash = '';
+  return { href: url.toString(), dominio };
+}
+
 function emLinha(texto: string, onCitar: Props['onCitar'], chave: string): ReactNode[] {
   const saida: ReactNode[] = [];
   let desde = 0;
@@ -170,10 +199,15 @@ function emLinha(texto: string, onCitar: Props['onCitar'], chave: string): React
       );
     } else if (link) {
       const fim = link.indexOf('](');
+      const destino = destinoSeguro(link.slice(fim + 2, -1));
       saida.push(
-        <a key={k} href={link.slice(fim + 2, -1)} target="_blank" rel="noopener noreferrer">
-          {link.slice(1, fim)}
-        </a>,
+        destino ? (
+          <a key={k} href={destino.href} title={destino.href} target="_blank" rel="noopener noreferrer">
+            {link.slice(1, fim)} <span className="tq-md-dominio">({destino.dominio})</span>
+          </a>
+        ) : (
+          link.slice(1, fim)
+        ),
       );
     } else if (italico) {
       saida.push(<em key={k}>{emLinha(italico.slice(1, -1), onCitar, k)}</em>);

@@ -13,6 +13,7 @@ import {
   SERVER_SHARED_KEY,
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
+import { fetchDeIa } from '@/shared/services/identidade';
 import { transcriptToText } from '@/features/history/export';
 import { criarGoogleDoc, nomeDoArquivo, oauthConfigurado, type GoogleDocResult } from './googleDocs';
 import { baixarComoHtml, baixarComoPdf } from './baixarDocumento';
@@ -161,7 +162,7 @@ export async function requestGeneration(
   documentType: DocumentType,
 ): Promise<GenerationResult> {
   try {
-    const response = await fetch(`${SERVER_BASE_URL}/api/generate`, {
+    const response = await fetchDeIa(`${SERVER_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

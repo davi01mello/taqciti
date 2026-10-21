@@ -19,6 +19,7 @@ import {
   SERVER_SHARED_KEY,
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
+import { fetchDeIa } from '@/shared/services/identidade';
 
 // ------------------------------------------------------------- contrato
 
@@ -143,14 +144,20 @@ export function criarAdaptadorHttp(
   async function pedir(caminho: string, init: RequestInit): Promise<unknown> {
     let resposta: Response;
     try {
-      resposta = await transporte(`${baseUrl}${caminho}`, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          [SERVER_SHARED_KEY_HEADER]: chave,
-          ...(init.headers ?? {}),
+      // `fetchDeIa` acrescenta a identidade do Google quando a pessoa a ligou
+      // (o servidor conta o uso por pessoa); o segredo vai sempre, como ponte.
+      resposta = await fetchDeIa(
+        `${baseUrl}${caminho}`,
+        {
+          ...init,
+          headers: {
+            'Content-Type': 'application/json',
+            [SERVER_SHARED_KEY_HEADER]: chave,
+            ...((init.headers as Record<string, string> | undefined) ?? {}),
+          },
         },
-      });
+        transporte,
+      );
     } catch {
       if (init.signal?.aborted) throw new ErroDoModelo('cancelado', 'Cancelado.');
       throw new ErroDoModelo(

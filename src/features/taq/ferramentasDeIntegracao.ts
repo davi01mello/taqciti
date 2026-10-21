@@ -780,7 +780,14 @@ const criarEventoSchema = z.object({
   hora: horaLocal.optional(),
   duracao_min: z.number().int().min(5).max(480).default(30),
   participantes: z.array(alvoSchema).max(20).default([]),
-  descricao: z.string().trim().max(1_000).optional(),
+  descricao: z
+    .string()
+    .trim()
+    .max(1_000)
+    // Link numa descrição escrita pelo modelo é o formato exato de um phishing
+    // injetado pela transcrição: o convite sai com o nome de quem usa.
+    .refine((s) => !/https?:\/\/|www\./i.test(s), 'A descrição não pode conter links.')
+    .optional(),
   chave_do_rascunho: z.string().max(80).optional().describe(RESERVADO_AO_BOTAO),
 });
 
@@ -799,6 +806,9 @@ const linhasDoEvento = (p: PayloadDeEvento, extra: readonly string[] = []): stri
   p.participantes.length
     ? `Convidados: ${p.participantes.map((x) => `${x.nome} <${x.email}>`).join(', ')}`
     : 'Sem convidados (só na sua agenda)',
+  // A descrição vai para todos os convidados: quem clica em Marcar precisa ver
+  // o texto inteiro que está confirmando, não só horário e nomes.
+  ...(p.descricao ? [`Descrição: ${p.descricao}`] : []),
   ...extra,
 ];
 
@@ -953,6 +963,9 @@ export const createEvent: DefinicaoDeFerramenta<z.infer<typeof criarEventoSchema
         payload.inicio,
         payload.fim,
         payload.participantes.map((p) => p.email).sort().join(','),
+        // Na chave também: sem ela, uma nova preparação com outra descrição
+        // regravava o rascunho por baixo de um cartão que mostrava a antiga.
+        payload.descricao ?? '',
       );
       const alertas = await conflitos(payload);
       const feito = jaRegistrada(await obterAcao(chave));

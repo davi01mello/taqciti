@@ -33,7 +33,12 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      # A build de produção recusa servidor sem https e a chave de dev
+      # (`vite.config.ts`). Aqui só interessa que COMPILE: valores fictícios.
       - run: npm run build
+        env:
+          VITE_DOCCITI_SERVER_URL: https://ci.invalid
+          VITE_DOCCITI_SHARED_KEY: ci-build-only
 
   # O instalador Windows só era compilado DURANTE uma release — e por isso um
   # erro de sintaxe nele só aparecia na hora de publicar. Foi o que aconteceu
@@ -59,6 +64,9 @@ jobs:
       # O .iss empacota `dist/*`; sem o build ele falha por arquivo ausente,
       # que esconderia um erro de sintaxe de verdade.
       - run: npm run build
+        env:
+          VITE_DOCCITI_SERVER_URL: https://ci.invalid
+          VITE_DOCCITI_SHARED_KEY: ci-build-only
       - name: Instalar Inno Setup
         run: choco install innosetup --no-progress -y
       # Versão fictícia: aqui só interessa se COMPILA. A de verdade sai do

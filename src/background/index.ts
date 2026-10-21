@@ -25,6 +25,7 @@ import { backfillOpenTabs, ensurePanelInTab } from './injectPanel';
 import { openHome } from './homeTab';
 import { abrirPainel, abrirPainelNaJanela, ligarAberturaPeloIcone } from './sidePanel';
 import { capturarAbaDaReuniao } from './captura';
+import { remetentePermitido } from './remetente';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
 import { liberarSessionParaContentScripts } from './sessionAccess';
 import { limparVinculosDaReuniao } from '@/features/annotations/vinculos';
@@ -264,6 +265,12 @@ function defaultTitle(now: Date): string {
 }
 
 onMessage((message, sender) => {
+  // Quem mandou importa tanto quanto o que mandou. Ver `remetente.ts`.
+  if (!remetentePermitido(message, sender, chrome.runtime.id, chrome.runtime.getURL(''))) {
+    logger.warn('mensagem de remetente não permitido descartada', { type: message.type });
+    return undefined;
+  }
+
   /*
    * ANTES do `await ready`, e isso é o ponto inteiro deste bloco.
    *

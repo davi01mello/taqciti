@@ -33,8 +33,11 @@ export const extensionPlatform: Platform = {
      */
     let sawBroadcast = false;
 
-    const unsubscribe = onMessage((message) => {
-      if (message.type === 'state/updated') {
+    const unsubscribe = onMessage((message, sender) => {
+      // O estado ao vivo só vem do background, que não tem aba. Um content
+      // script também alcança esta página por `runtime.sendMessage`, e não
+      // pode desenhar um estado inventado nela.
+      if (message.type === 'state/updated' && !sender.tab) {
         sawBroadcast = true;
         if (live) onState(message.state as MeetingState);
       }

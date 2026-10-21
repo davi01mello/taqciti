@@ -213,7 +213,15 @@ export default defineManifest({
    */
   content_scripts: [
     {
-      matches: ['<all_urls>'],
+      /*
+       * Só o Meet (21/10/2026, plano de segurança). O painel deixou de existir
+       * fora do Meet — `content/index.ts` já saía cedo em qualquer outro host —
+       * e manter o script em `<all_urls>` só servia para pôr código da
+       * extensão, com acesso ao storage e ao background, dentro do processo de
+       * todo site aberto. O `matches` dos chunks em `web_accessible_resources`
+       * acompanha (ver `vite.config.ts`).
+       */
+      matches: ['https://meet.google.com/*'],
       js: ['src/content/index.ts'],
       run_at: 'document_end',
       // Só o quadro de topo: o painel é uma janela da aba, e um iframe de
@@ -286,7 +294,9 @@ export default defineManifest({
   web_accessible_resources: [
     {
       resources: ['brand/*'],
-      matches: ['<all_urls>'],
+      // Só quem usa: o painel no Meet. Em `<all_urls>`, qualquer site detectava
+      // a extensão buscando um destes arquivos pelo ID fixo.
+      matches: ['https://meet.google.com/*'],
     },
   ],
 

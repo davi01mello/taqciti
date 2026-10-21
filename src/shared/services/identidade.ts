@@ -290,6 +290,48 @@ export async function tokenDeIdentidade(interativo: boolean): Promise<string | n
 }
 
 /**
+ * O `id_token` para as rotas de IA do servidor, ou `null` — NUNCA abre popup.
+ *
+ * Desde o plano de segurança (21/10/2026) o servidor identifica quem chama a
+ * IA pela conta do Google e conta o uso por pessoa; o segredo compartilhado
+ * vira ponte para as instalações antigas. Só tenta quando a pessoa já ligou a
+ * conexão com o Google (o "sim" guardado): para quem nunca ligou, um
+ * `launchWebAuthFlow` silencioso a cada geração seria espera à toa.
+ */
+export async function identidadeParaIa(): Promise<string | null> {
+  try {
+    if (!identidadeConfigurada()) return null;
+    if (!(await lerSim()).ligada) return null;
+    return await tokenDeIdentidade(false);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cabeçalhos de uma chamada às rotas de IA, e o `fetch` que os usa.
+ *
+ * Manda o segredo antigo SEMPRE e o `Authorization` quando houver identidade.
+ * Se o servidor recusar o token (401 — vencido, revogado), descarta o cache e
+ * repete UMA vez só com o segredo: um token velho não pode derrubar a geração
+ * de uma ata enquanto a ponte do segredo estiver de pé no servidor.
+ */
+export async function fetchDeIa(
+  url: string,
+  init: RequestInit & { headers?: Record<string, string> },
+  transporte: typeof fetch = fetch,
+): Promise<Response> {
+  const token = await identidadeParaIa();
+  const resposta = await transporte(url, {
+    ...init,
+    headers: { ...(init.headers ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+  if (resposta.status !== 401 || !token) return resposta;
+  await descartarToken();
+  return transporte(url, init);
+}
+
+/**
  * Descarta a identidade em cache — chamado quando o SERVIDOR recusa um
  * token (401): o cache local pode estar desatualizado em relação ao que o
  * servidor aceita, e insistir com o mesmo valor só repetiria a recusa.

@@ -41,6 +41,19 @@ import { derivarEstadoDaCaptura, LEITURA_DO_ESTADO } from '@/shared/ui/estadoDaC
 import { useFloating } from './useFloating';
 import { PANEL_OPEN_EVENT } from './mount';
 
+/**
+ * O clique veio de uma pessoa?
+ *
+ * O shadow root da cápsula é `open` (ver `mount.ts`), então o script da página
+ * do Meet alcança estes botões e pode disparar `.click()` neles — começando uma
+ * captura que ninguém autorizou. Um evento sintético desses chega com
+ * `isTrusted: false`; o clique de verdade, com `true`. Nos testes (jsdom) todo
+ * evento é sintético, daí a exceção do modo `test`.
+ */
+function gestoReal(e: { nativeEvent: Event }): boolean {
+  return e.nativeEvent.isTrusted || import.meta.env.MODE === 'test';
+}
+
 export interface CapsulaCallbacks {
   /** Pede o painel lateral. Resolve com `false` se o Chrome recusar. */
   onAbrirSidebar(): Promise<boolean>;
@@ -321,7 +334,7 @@ export function Capsula({
           {gravacaoAnterior && (
             <button
               type="button"
-              onClick={() => aceitar(`continuar:${gravacaoAnterior.id}`)}
+              onClick={(e) => gestoReal(e) && aceitar(`continuar:${gravacaoAnterior.id}`)}
               className="mt-3 w-full rounded-full border border-primary/45 bg-primary/[0.16] px-3 py-2 text-caption font-medium text-glow transition-colors duration-200 hover:bg-primary/25"
             >
               Continuar de onde parou
@@ -330,7 +343,7 @@ export function Capsula({
           <div className={`${gravacaoAnterior ? 'mt-1.5' : 'mt-3'} flex gap-1.5`}>
             <button
               type="button"
-              onClick={() => aceitar('aceito')}
+              onClick={(e) => gestoReal(e) && aceitar('aceito')}
               className={`flex-1 rounded-full px-3 py-2 text-caption transition-colors duration-200 ${
                 gravacaoAnterior
                   ? 'border border-white/15 text-foreground hover:bg-white/[0.07]'

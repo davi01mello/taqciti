@@ -43,7 +43,10 @@ export function canInject(url: string | undefined): boolean {
     return false;
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-  return !STORE_HOSTS.includes(parsed.hostname);
+  if (STORE_HOSTS.includes(parsed.hostname)) return false;
+  // O content script só é declarado para o Meet (manifesto), e os chunks dele
+  // só são legíveis lá: injetar noutra aba falharia no import do loader.
+  return parsed.protocol === 'https:' && parsed.hostname === 'meet.google.com';
 }
 
 /** Os arquivos que o manifesto declara como content script, na ordem. */

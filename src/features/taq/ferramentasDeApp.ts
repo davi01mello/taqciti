@@ -291,7 +291,7 @@ export const renameMeeting: DefinicaoDeFerramenta<z.infer<typeof renomearSchema>
   descricao:
     'Renomeia uma reunião. Nota, marcações, prints e documentos continuam ligados a ela.',
   schemaDeEntrada: renomearSchema,
-  efeito: 'escrita_local',
+  efeito: 'exclusao',
   requisitos: ['reunioes'],
   politica: { repeticao: 'idempotente', maxPorExecucao: 2 },
   etapa: 'Renomeando a reunião',
@@ -335,7 +335,7 @@ export const deleteMeeting: DefinicaoDeFerramenta<z.infer<typeof reuniaoSchema>>
     'nota, marcações e prints, e os documentos dela ficam sem o vínculo até uma restauração. ' +
     'Diga à pessoa o que foi apagado e que dá para desfazer (restore_meeting ou o botão Desfazer).',
   schemaDeEntrada: reuniaoSchema,
-  efeito: 'escrita_local',
+  efeito: 'exclusao',
   requisitos: ['reunioes'],
   politica: { repeticao: 'idempotente', maxPorExecucao: 2 },
   etapa: 'Apagando a reunião',
@@ -473,7 +473,7 @@ export const deleteConversation: DefinicaoDeFerramenta<z.infer<typeof apagarConv
     'É definitivo, sem lixeira. Resolve cada nome para um id real: se um nome casar com mais de ' +
     'uma conversa, NÃO apaga nada e pergunta à pessoa qual. Diga só o que a ferramenta confirmar.',
   schemaDeEntrada: apagarConversaSchema,
-  efeito: 'escrita_local',
+  efeito: 'exclusao',
   requisitos: [],
   politica: { repeticao: 'idempotente', maxPorExecucao: 1 },
   etapa: 'Apagando a conversa',

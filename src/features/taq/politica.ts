@@ -126,6 +126,9 @@ export function efeitosDoPedido(texto: string, continua?: MotivoDePergunta): Efe
   ) {
     efeitos.push('escrita_local');
   }
+  // Apagar e renomear só com o verbo E o objeto no texto DA PESSOA — nunca por
+  // "continua" nem por um pedido de escrita qualquer. Ver `contratos.ts`.
+  if (VERBOS_DE_OPERACAO.test(t) && OBJETOS_DE_OPERACAO.test(t)) efeitos.push('exclusao');
   if (pedeAcaoNaInterface(texto) || PEDIDO_DE_TELA.test(t) || continua === 'escolha_de_registro')
     efeitos.push('interface');
   return efeitos;

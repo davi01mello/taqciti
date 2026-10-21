@@ -483,7 +483,7 @@ export async function executarCiclo(
           duracaoMs: Date.now() - t0,
           resumo: r.ok && def ? def.resumir(r.conteudo) : `erro: ${r.codigoDeErro}`,
         });
-        if (r.ok && def?.efeito === 'escrita_local') escritasConfirmadas += 1;
+        if (r.ok && (def?.efeito === 'escrita_local' || def?.efeito === 'exclusao')) escritasConfirmadas += 1;
         if (r.ok) usadasComSucesso.add(chamada.nome);
         if (!r.ok && r.codigoDeErro) {
           erros.push({

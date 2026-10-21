@@ -9,6 +9,7 @@ import {
   SERVER_SHARED_KEY,
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
+import { fetchDeIa } from '@/shared/services/identidade';
 import type {
   ArvoreDoDocumento,
   ManifestoDeRender,
@@ -33,7 +34,7 @@ export type RespostaDoServidor<T> =
 async function chamar<T>(rota: string, corpo: unknown): Promise<RespostaDoServidor<T>> {
   let resposta: Response;
   try {
-    resposta = await fetch(`${SERVER_BASE_URL}/api/documentos/${rota}`, {
+    resposta = await fetchDeIa(`${SERVER_BASE_URL}/api/documentos/${rota}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', [SERVER_SHARED_KEY_HEADER]: SERVER_SHARED_KEY },
       body: JSON.stringify(corpo),
