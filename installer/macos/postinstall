@@ -32,7 +32,8 @@
 set -u
 
 FOLDER_NAME="TaqCITi (não apagar)"
-PAYLOAD_ROOT="/private/tmp/taqciti-installer-payload"
+# Pasta só de root (ver o comentário do --install-location no build-installer.sh).
+PAYLOAD_ROOT="/Library/Application Support/TaqCiti/payload"
 PAYLOAD_DIST="$PAYLOAD_ROOT/dist"
 PAYLOAD_GUIDE="$PAYLOAD_ROOT/guide/COMECE_AQUI.html"
 
@@ -78,6 +79,14 @@ if [ ! -d "$PAYLOAD_DIST" ]; then
   exit 1
 fi
 
+# O que vai para dentro da extensão precisa ter vindo do pacote, e só root
+# escreve onde o pacote o deixou. Dono diferente de root é sinal de que alguém
+# preparou a pasta antes da instalação: recusa em vez de copiar.
+if [ "$(stat -f "%Su" "$PAYLOAD_ROOT")" != "root" ] || [ "$(stat -f "%Su" "$PAYLOAD_DIST")" != "root" ]; then
+  log "Erro: a pasta do pacote em $PAYLOAD_ROOT não pertence a root. Instalação recusada."
+  exit 1
+fi
+
 if [ -d "$CONSOLE_HOME/Desktop" ]; then
   INSTALL_DIR="$CONSOLE_HOME/Desktop/$FOLDER_NAME"
 else
@@ -92,7 +101,9 @@ if ! mkdir -p "$INSTALL_DIR"; then
   exit 1
 fi
 
-if ! cp -R "$PAYLOAD_DIST"/. "$INSTALL_DIR"/; then
+# -P: link simbólico é copiado como link, nunca seguido — root não sai lendo
+# um arquivo arbitrário do sistema para dentro da pasta do usuário.
+if ! cp -RP "$PAYLOAD_DIST"/. "$INSTALL_DIR"/; then
   log "Erro: falha ao copiar os arquivos para $INSTALL_DIR"
   exit 1
 fi
@@ -175,7 +186,7 @@ if [ -n "$GUIDE_DEST" ] && [ -f "$GUIDE_DEST" ]; then
 fi
 
 # Limpa o payload temporário — já foi copiado pro destino final, não tem
-# motivo pra sobrar em /private/tmp.
+# motivo pra sobrar em /Library/Application Support.
 rm -rf "$PAYLOAD_ROOT" 2>/dev/null || true
 
 log "Pronto. Siga as instruções na aba do guia que acabou de abrir."

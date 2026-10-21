@@ -51,8 +51,11 @@ mkdir -p "$RELEASE_DIR"
 OUTPUT_FILE="$RELEASE_DIR/taqciti-instalador-mac-${VERSION}.pkg"
 rm -f "$OUTPUT_FILE"
 
-# --install-location é só um ponto de staging temporário (/private/tmp),
-# NÃO o destino final visto pelo usuário: o postinstall (que roda como
+# --install-location é só um ponto de staging temporário, NÃO o destino final
+# visto pelo usuário. Fica em /Library/Application Support, que só root
+# escreve: em /private/tmp, com nome fixo, outro usuário do mesmo Mac podia
+# criar a pasta ANTES e plantar arquivos que o postinstall (como root) levaria
+# para dentro da extensão da vítima. O postinstall (que roda como
 # root — ver comentário no topo de installer/macos/postinstall) lê os
 # arquivos daqui, copia de verdade para a Área de Trabalho do usuário
 # logado, ajusta o dono, e depois apaga esta pasta de staging. O pkgbuild
@@ -64,7 +67,7 @@ pkgbuild \
   --scripts "$SCRIPTS_DIR" \
   --identifier com.taqciti.desktopinstaller \
   --version "$VERSION" \
-  --install-location /private/tmp/taqciti-installer-payload \
+  --install-location "/Library/Application Support/TaqCiti/payload" \
   "$OUTPUT_FILE"
 
 echo "[build-installer] Instalador gerado em:"

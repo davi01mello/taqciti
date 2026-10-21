@@ -1,0 +1,11 @@
+# As actions dos workflows estão fixadas por SHA (plano de segurança,
+# 21/10/2026): uma tag reescrita num repositório de terceiro não muda mais o que
+# roda aqui. O preço é a atualização deixar de ser automática — é isto que a
+# devolve, em PR revisável, com o SHA novo e a versão no comentário.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

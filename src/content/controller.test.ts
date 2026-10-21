@@ -253,7 +253,9 @@ describe('o portão não morre na primeira falha do storage de sessão', () => {
     await assentar(1_400);
 
     const { STORAGE_KEYS } = await import('@/shared/config/constants');
-    const anunciada = (await sessao.get(STORAGE_KEYS.pendingMeeting)) as Record<string, { meetingCode?: string }>;
+    const anunciada = (await (sessao.get as unknown as (k: string) => Promise<unknown>)(
+      STORAGE_KEYS.pendingMeeting,
+    )) as Record<string, { meetingCode?: string }>;
     expect(anunciada[STORAGE_KEYS.pendingMeeting]?.meetingCode).toBe(SALA.meetingCode);
     // E continua sem captura: a pergunta apareceu, ninguém respondeu.
     expect(enviadas(sendMessage)).not.toContain('meet/detected');

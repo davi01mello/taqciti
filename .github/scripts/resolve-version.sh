@@ -36,6 +36,14 @@ if [ -z "$versao" ]; then
   exit 1
 fi
 
+# A versão vira texto de comando nos passos seguintes (o ISCC no `cmd`, nomes
+# de arquivo nos scripts). Qualquer coisa fora de semver — aspas, `&`, `$(` —
+# seria injeção de comando no runner que guarda os segredos de publicação.
+if ! [[ "$versao" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+  echo "Versão \"${versao}\" fora do formato X.Y.Z (ou X.Y.Z-sufixo). Nada foi compilado." >&2
+  exit 1
+fi
+
 # stderr para aparecer no log sem sujar a saída do step.
 echo "Versão dos instaladores: ${versao} (origem: ${origem})" >&2
 echo "version=${versao}"

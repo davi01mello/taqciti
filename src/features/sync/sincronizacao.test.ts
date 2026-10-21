@@ -443,6 +443,10 @@ describe('sincronizar', () => {
     await sincronizar();
 
     await chrome.storage.local.set({ [STORAGE_KEYS.history]: [] });
+    // No vitest 4, `spyOn` sobre um método já espionado devolve o MESMO spy, com
+    // as chamadas da primeira sincronização ainda dentro. Restaurar antes deixa
+    // `subidas(rede)` contar só o que esta segunda passada mandou.
+    vi.restoreAllMocks();
     const rede = servidor(() => new Response(JSON.stringify({ apagados: 1 })));
 
     expect(await sincronizar()).toEqual({ estado: 'ok', enviados: 0, apagados: 1 });

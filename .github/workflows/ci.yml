@@ -18,13 +18,18 @@ on:
   pull_request:
   workflow_dispatch: {}
 
+# Só leitura: nenhum job daqui publica nada. Sem isto, o token herda o padrão
+# do repositório, que pode ser escrita.
+permissions:
+  contents: read
+
 jobs:
   extensao:
     name: Extensão (raiz)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20
           cache: npm
@@ -54,8 +59,8 @@ jobs:
     name: Instalador Windows
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20
           cache: npm
@@ -82,8 +87,8 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20
           cache: npm
@@ -116,5 +121,5 @@ jobs:
           DOCCITI_SHARED_KEY: ci-build-only
         run: |
           npm run start &
-          npx --yes wait-on http://localhost:3000 --timeout 90000
+          npx --yes wait-on@9.5.1 http://localhost:3000 --timeout 90000
           node scripts/smokePdf.mjs
