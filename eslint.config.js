@@ -18,4 +18,9 @@ export default tseslint.config(
     files: ['src/shared/services/log.ts'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // Os testes ao vivo são relatórios rodados à mão: imprimir é o propósito.
+    files: ['src/**/*.live.test.ts'],
+    rules: { 'no-console': 'off' },
+  },
 );
