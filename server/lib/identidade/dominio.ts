@@ -51,11 +51,24 @@ export function emailPermitido(email: string | null | undefined): boolean {
   return typeof email === 'string' && email.trim().toLowerCase().endsWith(`@${dominio}`);
 }
 
-/** O `hd` que o Google informou é de OUTRA organização? (Ausente não é.) */
+/**
+ * O `hd` que o Google informou é de OUTRA organização?
+ *
+ * Ausente passa, a menos que `TAQCITI_EXIGIR_HD=sim`. A brecha que isso deixa:
+ * uma conta Google PESSOAL criada com um e-mail @citi.org.br (dá para fazer
+ * com quem recebe e-mail nessa caixa) entra sem `hd`, e continua entrando
+ * depois de a conta do Workspace ser desativada. Quando todas as contas do
+ * CITi forem do Workspace, ligar a variável fecha isso.
+ */
 export function dominioHospedadoDeFora(hd: string | null | undefined): boolean {
   const dominio = dominioPermitido();
-  if (dominio === null || !hd) return false;
+  if (dominio === null) return false;
+  if (!hd) return exigeHd();
   return hd.trim().toLowerCase() !== dominio;
+}
+
+function exigeHd(): boolean {
+  return process.env.TAQCITI_EXIGIR_HD?.trim().toLowerCase() === 'sim';
 }
 
 export function mensagemDeRestricao(): string {

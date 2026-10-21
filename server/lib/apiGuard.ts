@@ -107,6 +107,27 @@ export function corsHeaders(
 }
 
 /**
+ * As rotas de diagnóstico (`/api/ai/bench`, `/smoke`, `/secao`) não existem em
+ * produção.
+ *
+ * Elas servem a quem desenvolve: escolhem modelo e provedor pelo corpo, rodam
+ * a apuração completa ou todos os provedores de uma vez. Atrás do segredo
+ * compartilhado — que está no bundle — eram um jeito de qualquer um escolher o
+ * modelo mais caro e multiplicar a conta. A extensão não chama nenhuma delas.
+ *
+ * `DOCCITI_DIAGNOSTICO=ligado` reabre, para uma verificação pontual pós-deploy;
+ * a variável deve voltar a sair logo depois.
+ */
+export function diagnosticoForaDoAr(headers: Record<string, string>): NextResponse | null {
+  const producao = process.env.VERCEL_ENV === 'production';
+  const liberado = process.env.DOCCITI_DIAGNOSTICO?.trim().toLowerCase() === 'ligado';
+  if (producao && !liberado) {
+    return NextResponse.json({ error: 'Não encontrado.' }, { status: 404, headers });
+  }
+  return null;
+}
+
+/**
  * Devolve uma resposta de erro quando a requisição não passa, e `null`
  * quando passa. Falha FECHADA se o segredo não estiver configurado: com
  * chave de API atrás da rota, "sem segredo definido" não pode significar

@@ -98,6 +98,11 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
   if (!id) {
     return NextResponse.json({ error: 'Informe `?id=` do token a revogar.' }, { status: 400, headers });
   }
+  // A coluna é uuid: qualquer outra coisa faria o Postgres lançar e a rota
+  // responder 500. Um id que não é uuid é só um id que não existe.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return NextResponse.json({ revogou: false }, { status: 404, headers });
+  }
 
   // `revogarToken` filtra por pessoa: um id de outra pessoa simplesmente não
   // casa, e a resposta é a mesma de um id inexistente. De propósito —

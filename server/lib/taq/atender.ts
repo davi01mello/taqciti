@@ -132,6 +132,8 @@ export async function atenderTurno(
     }
     if (e instanceof ErroDeChamadaDoModelo) return erro(502, 'falha_do_provedor', e.message, true);
     if (e instanceof ProviderError) return erro(502, 'falha_do_provedor', e.message);
-    return erro(502, 'falha_do_provedor', (e as Error)?.message ?? 'Falha desconhecida.');
+    // Erro inesperado: o detalhe fica no log do servidor, não na resposta.
+    console.error('[taq/turno] falha inesperada', e);
+    return erro(502, 'falha_do_provedor', 'Falha inesperada ao chamar o modelo.');
   }
 }

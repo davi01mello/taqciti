@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders } from '@/lib/apiGuard';
+import { autorizarIa } from '@/lib/guardaDeIa';
 import { compilarDocumento } from '@/lib/documentos/compilador';
 import { contentTreeSchema } from '@/lib/documentos/contentTree';
 import { VARIANTE_DOS_PERSONALIZADOS } from '@/lib/documentos/perfil';
@@ -26,8 +27,8 @@ export function OPTIONS(request: NextRequest): NextResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'));
-  const unauthorized = rejectIfUnauthorized(request, headers);
-  if (unauthorized) return unauthorized;
+  const autorizacao = await autorizarIa(request, headers, { cobrar: false });
+  if (!autorizacao.ok) return autorizacao.resposta;
 
   let corpo: unknown;
   try {

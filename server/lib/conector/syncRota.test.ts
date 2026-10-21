@@ -96,6 +96,25 @@ describe('/api/sync — ida e volta entre máquinas', () => {
     await pglite.close();
   });
 
+  it('projeção fora do formato é recusada sem derrubar o lote, e id gigante em apagado é 400', async () => {
+    const r = await enviar(ana, {
+      itens: [
+        { tipo: 'reuniao', item: { ...reuniaoDoConector('ok1') } },
+        { tipo: 'reuniao', item: { ...reuniaoDoConector('ruim1'), falas: 'não é lista' } },
+        { tipo: 'nota', item: { id: 'x'.repeat(500), reuniaoId: 'r', reuniaoTitulo: 't', texto: '', atualizadaMs: 1, marcacoes: {}, prints: 0 } },
+      ],
+      apagados: [],
+    });
+    expect(r.status).toBe(200);
+    const corpo = (await r.json()) as { gravados: number; recusados: { tipo: string; motivo: string }[] };
+    expect(corpo.gravados).toBe(1);
+    expect(corpo.recusados).toHaveLength(2);
+    expect(corpo.recusados.every((x) => x.motivo.startsWith('formato'))).toBe(true);
+
+    const apagado = await enviar(ana, { itens: [], apagados: [{ tipo: 'reuniao', id: 'y'.repeat(500) }] });
+    expect(apagado.status).toBe(400);
+  });
+
   it('a máquina B recebe o que a máquina A mandou, com o registro inteiro', async () => {
     const r = await enviar(ana, {
       itens: [

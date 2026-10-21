@@ -83,6 +83,17 @@ export async function tamanhoAtual(
   return Number(r.rows[0]?.tamanho ?? 0);
 }
 
+/** Quantas linhas de um tipo de projeção a pessoa tem. Ver `projecoes.ts`. */
+export async function contarItens(
+  pessoaId: string,
+  tipo: 'reuniao' | 'documento' | 'conversa' | 'nota',
+  pool: Consultador = banco(),
+): Promise<number> {
+  // `tipo` é uma união fechada de literais, como em `escrita.ts`.
+  const r = await pool.query(`select count(*) as n from ${tipo} where pessoa_id = $1`, [pessoaId]);
+  return Number(r.rows[0]?.n ?? 0);
+}
+
 // ----------------------------------------------------- o disjuntor global
 
 const VALIDADE_DO_DISJUNTOR_MS = 60_000;

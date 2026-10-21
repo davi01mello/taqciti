@@ -38,7 +38,14 @@ type Contexto = { params: Promise<{ token: string }> };
 
 async function atender(request: NextRequest, { params }: Contexto): Promise<Response> {
   const { token } = await params;
-  const limpo = decodeURIComponent(token ?? '').trim();
+  // `%` malformado faz `decodeURIComponent` lançar; um token assim não existe,
+  // então vira credencial recusada em vez de 500.
+  let limpo = '';
+  try {
+    limpo = decodeURIComponent(token ?? '').trim();
+  } catch {
+    limpo = '';
+  }
   if (!limpo) {
     return credencialRecusada(
       request,

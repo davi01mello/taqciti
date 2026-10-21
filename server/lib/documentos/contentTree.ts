@@ -13,6 +13,23 @@
 import { z } from 'zod';
 import { PAPEIS_DE_ESTILO } from './perfil';
 
+/**
+ * Tetos da árvore. Folgados para qualquer documento real (uma apostila longa
+ * fica muito abaixo) e baixos o bastante para uma árvore forjada não prender a
+ * CPU do pdfkit/docx: /api/documentos/renderizar compila o que chegar, sem
+ * modelo no meio, e sem teto uma tabela de milhões de células era um DoS barato.
+ */
+const LIMITE = {
+  blocos: 3_000,
+  fontes: 200,
+  itens: 1_000,
+  colunas: 40,
+  linhas: 3_000,
+  celula: 5_000,
+  texto: 60_000,
+  lacunas: 500,
+} as const;
+
 /** Fato sustentado, recomendação do agente, ou pendência. Recomendação nunca
  *  é decisão aprovada. */
 export const CLASSIFICACOES = ['fato', 'recomendacao', 'pendencia'] as const;
@@ -28,7 +45,7 @@ export type ReferenciaDeFonte = z.infer<typeof referenciaDeFonteSchema>;
 const base = {
   blockId: z.string().min(1),
   papel: z.enum(PAPEIS_DE_ESTILO).optional(),
-  fontes: z.array(referenciaDeFonteSchema).default([]),
+  fontes: z.array(referenciaDeFonteSchema).max(LIMITE.fontes).default([]),
   classificacao: z.enum(CLASSIFICACOES).optional(),
   /** Origem da última edição: o agente ou uma pessoa. Edição humana sobrevive
    *  a uma nova solicitação. */
@@ -56,18 +73,18 @@ export const blocoSchema = z.discriminatedUnion('tipo', [
     texto: z.string().min(1),
     layout: layoutHint,
   }),
-  z.object({ ...base, tipo: z.literal('paragrafo'), texto: z.string().min(1), layout: layoutHint }),
+  z.object({ ...base, tipo: z.literal('paragrafo'), texto: z.string().min(1).max(LIMITE.texto), layout: layoutHint }),
   z.object({
     ...base,
     tipo: z.literal('lista'),
     ordenada: z.boolean().default(false),
-    itens: z.array(z.string().min(1)).min(1),
+    itens: z.array(z.string().min(1).max(LIMITE.texto)).min(1).max(LIMITE.itens),
   }),
   z.object({
     ...base,
     tipo: z.literal('tabela'),
-    cabecalho: z.array(z.string().min(1)).min(1),
-    linhas: z.array(z.array(z.string())).min(1),
+    cabecalho: z.array(z.string().min(1).max(LIMITE.celula)).min(1).max(LIMITE.colunas),
+    linhas: z.array(z.array(z.string().max(LIMITE.celula)).max(LIMITE.colunas)).min(1).max(LIMITE.linhas),
     legenda: z.string().optional(),
     layout: layoutHint,
   }),
@@ -98,8 +115,8 @@ export const contentTreeSchema = z.object({
   /** Revisão esperada na gravação — controle de concorrência. */
   revisao: z.number().int().min(0),
   titulo: z.string().min(1),
-  blocos: z.array(blocoSchema),
-  lacunas: z.array(lacunaSchema).default([]),
+  blocos: z.array(blocoSchema).max(LIMITE.blocos),
+  lacunas: z.array(lacunaSchema).max(LIMITE.lacunas).default([]),
 });
 export type ContentTree = z.infer<typeof contentTreeSchema>;
 

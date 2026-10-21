@@ -43,7 +43,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
-import { atenderMcp } from './atenderMcp';
+import { atenderMcp, caminhoSemToken } from './atenderMcp';
 import type { Consultador } from './banco';
 import { gravarReuniao } from './escrita';
 import { garantirPessoa } from './pessoa';
@@ -274,5 +274,13 @@ describe('atenderMcp', () => {
       );
       expect(await r.text()).not.toContain('Planejamento do trimestre');
     });
+  });
+});
+
+describe('caminhoSemToken', () => {
+  it('troca o token do caminho por <redigido> e deixa o resto igual', () => {
+    expect(caminhoSemToken('/api/mcp/taqciti_abc123')).toBe('/api/mcp/<redigido>');
+    expect(caminhoSemToken('/api/mcp')).toBe('/api/mcp');
+    expect(caminhoSemToken('/api/sync')).toBe('/api/sync');
   });
 });

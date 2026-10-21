@@ -35,7 +35,8 @@ import { apagarItem, gravarItem } from '@/lib/conector/escrita';
 import { TIPOS_DE_ITEM, type ItemPorTipo, type TipoDeItem } from '@/lib/conector/tipos';
 import { TIPO_COPIA, gravarCopia, lerCopias, tamanhoDaCopia, validarCopia, type CopiaRecebida } from '@/lib/conector/copia';
 import { TIPO_PRINT, apagarPrint, gravarPrint, validarPrint, type PrintRecebido } from '@/lib/conector/prints';
-import { bancoCheio, cotaDaPessoaBytes, purgarLapides, tamanhoAtual, usoDaPessoa } from '@/lib/conector/cota';
+import { bancoCheio, contarItens, cotaDaPessoaBytes, purgarLapides, tamanhoAtual, usoDaPessoa } from '@/lib/conector/cota';
+import { MAX_ID, maxItensPorTipo, validarProjecao } from '@/lib/conector/projecoes';
 import {
   TIPO_HISTORICO,
   apagarHistorico,
@@ -162,13 +163,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       else recusados.push({ tipo: TIPO_PRINT, id: String((e.item as { id?: unknown }).id), motivo: v.motivo });
       continue;
     }
-    entradas.push({ tipo: e.tipo as TipoDeItem, item: e.item as ItemPorTipo[TipoDeItem] });
+    // As projeções do conector também passam por schema e teto (projecoes.ts):
+    // antes entravam com um `as` e nada mais.
+    const v = validarProjecao(e.tipo as TipoDeItem, e.item);
+    if (v.ok) entradas.push({ tipo: e.tipo as TipoDeItem, item: v.item });
+    else recusados.push({ tipo: String(e.tipo), id: String((e.item as { id?: unknown }).id).slice(0, MAX_ID), motivo: v.motivo });
   }
 
   const remocoes: { tipo: TipoDeItem | typeof TIPO_HISTORICO | typeof TIPO_PRINT; id: string }[] = [];
   for (const bruto of apagadosBrutos) {
     const a = bruto as { tipo?: unknown; id?: unknown };
-    if ((a.tipo !== TIPO_HISTORICO && a.tipo !== TIPO_PRINT && !ehTipo(a.tipo)) || typeof a.id !== 'string') {
+    if (
+      (a.tipo !== TIPO_HISTORICO && a.tipo !== TIPO_PRINT && !ehTipo(a.tipo)) ||
+      typeof a.id !== 'string' ||
+      a.id.length > MAX_ID
+    ) {
       return NextResponse.json(
         { error: 'Cada apagado precisa de `tipo` e `id`.' },
         { status: 400, headers },
@@ -194,9 +203,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const cobrados = entradas.some(
     (e) => e.tipo === TIPO_COPIA || e.tipo === TIPO_PRINT || e.tipo === TIPO_HISTORICO,
   );
+  const projecoes = entradas.some((e) => ehTipo(e.tipo));
   const cota = cotaDaPessoaBytes();
   let uso = 0;
   let cheio = false;
+  /** Por tipo de projeção: a pessoa já chegou ao teto de linhas? Medido uma vez por lote. */
+  const tipoCheio = new Map<TipoDeItem, boolean>();
 
   let gravados = 0;
   try {
@@ -213,8 +225,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     if (cobrados) {
       [uso, cheio] = await Promise.all([usoDaPessoa(auth.pessoaId), bancoCheio()]);
+    } else if (projecoes) {
+      cheio = await bancoCheio();
     }
     for (const entrada of entradas) {
+      if (ehTipo(entrada.tipo)) {
+        // Projeções não têm cota em bytes (a cópia fiel do mesmo item já é
+        // cobrada), mas respeitam o disjuntor global e um teto de linhas por tipo.
+        if (!tipoCheio.has(entrada.tipo)) {
+          tipoCheio.set(entrada.tipo, (await contarItens(auth.pessoaId, entrada.tipo)) >= maxItensPorTipo());
+        }
+        const motivo = cheio
+          ? 'cota-global: o banco do servidor está cheio; tente de novo mais tarde.'
+          : tipoCheio.get(entrada.tipo)
+            ? `cota: esta conta chegou a ${maxItensPorTipo()} itens do tipo ${entrada.tipo}.`
+            : null;
+        if (motivo) {
+          recusados.push({ tipo: entrada.tipo, id: entrada.item.id, motivo, chave: `${entrada.tipo}:${entrada.item.id}`, temporario: true });
+          continue;
+        }
+      }
       if (entrada.tipo === TIPO_COPIA || entrada.tipo === TIPO_PRINT || entrada.tipo === TIPO_HISTORICO) {
         const ident =
           entrada.tipo === TIPO_COPIA

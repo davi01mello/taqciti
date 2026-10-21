@@ -143,7 +143,17 @@ describe('validarHistorico', () => {
 
     const enorme = {
       ...(historico() as object),
-      versoes: [{ ...versao(1), arvore: { ...arvore(1), blocos: [{ tipo: 'paragrafo', blockId: 'p', texto: 'x'.repeat(3.2 * 1024 * 1024) }] } }],
+      // Muitos parágrafos dentro do teto de cada um (contentTree.ts), somando
+      // mais que o teto do histórico inteiro.
+      versoes: [
+        {
+          ...versao(1),
+          arvore: {
+            ...arvore(1),
+            blocos: Array.from({ length: 62 }, (_, i) => ({ tipo: 'paragrafo', blockId: `p${i}`, texto: 'x'.repeat(55_000) })),
+          },
+        },
+      ],
     };
     const r = validarHistorico(enorme);
     expect(r.ok).toBe(false);

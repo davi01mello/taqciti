@@ -140,6 +140,14 @@ export function tokenDaRequisicao(request: NextRequest): TokenRecebido {
   return { token: null, origem: 'ausente' };
 }
 
+/** `/api/mcp/<qualquer coisa>` vira `/api/mcp/<redigido>`; o resto passa igual. */
+export function caminhoSemToken(caminho: string): string {
+  return caminho.replace(/^(\/api\/mcp\/)[^/]+/, '$1<redigido>');
+}
+
+/** Teto do corpo de uma requisição MCP. As chamadas legítimas cabem em poucos KB. */
+const MAX_CORPO_MCP_BYTES = 64 * 1024;
+
 /**
  * Uma linha por requisição, e nenhum segredo nela.
  *
@@ -148,7 +156,10 @@ export function tokenDaRequisicao(request: NextRequest): TokenRecebido {
  * sonda o endereço SEM a query string antes de usá-lo — comportamento que
  * nenhum teste local reproduziria, porque nenhum teste local é a Claude.
  *
- * O token nunca entra aqui. `origem` diz por onde ele veio, não qual é.
+ * O token nunca entra aqui. `origem` diz por onde ele veio, não qual é — e o
+ * caminho passa por `caminhoSemToken`, porque em `/api/mcp/<token>` o
+ * caminho É o token. Registrar o pathname cru punha credenciais válidas nos
+ * Runtime Logs da Vercel, legíveis por qualquer membro do projeto.
  */
 function registrar(request: NextRequest, origem: OrigemDoToken, resultado: string): void {
   const cabecalhos = request.headers;
@@ -156,7 +167,7 @@ function registrar(request: NextRequest, origem: OrigemDoToken, resultado: strin
     '[mcp]',
     JSON.stringify({
       metodo: request.method,
-      caminho: new URL(request.url).pathname,
+      caminho: caminhoSemToken(new URL(request.url).pathname),
       origemDoToken: origem,
       resultado,
       accept: cabecalhos.get('accept') ?? null,
@@ -325,6 +336,10 @@ export async function atenderMcp(
      * a função terminar.
      */
     enableJsonResponse: true,
+    // O padrão do SDK é 4 MiB, e a validação de um corpo desse tamanho
+    // esgota a memória da instância (GHSA-46jr-4wx8-v453). Nenhuma das
+    // ferramentas aceita argumento que chegue perto de 64 KB.
+    maxRequestBodySize: MAX_CORPO_MCP_BYTES,
   });
 
   try {

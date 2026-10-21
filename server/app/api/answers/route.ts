@@ -15,7 +15,8 @@
  *     -d '{"documentType":"ata","documentData":{...},"gaps":[...],"answers":[...]}'
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders } from '@/lib/apiGuard';
+import { autorizarIa } from '@/lib/guardaDeIa';
 import { applyAnswers } from '@/lib/applyAnswers';
 import { renderHtml } from '@/lib/render/html';
 import { renderPdfDoCatalogo } from '@/lib/documentos/doCatalogo';
@@ -35,8 +36,8 @@ export function OPTIONS(request: NextRequest): NextResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'));
 
-  const unauthorized = rejectIfUnauthorized(request, headers);
-  if (unauthorized) return unauthorized;
+  const autorizacao = await autorizarIa(request, headers, { cobrar: false });
+  if (!autorizacao.ok) return autorizacao.resposta;
 
   let body: {
     documentType?: unknown;

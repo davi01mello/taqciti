@@ -18,7 +18,7 @@
  *     -d '{"models":["gemini-2.5-flash"],"sintetica":true,"transcript":"..."}'
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders, diagnosticoForaDoAr, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
 import {
   activeDataPolicyWarning,
   estimateCost,
@@ -42,6 +42,8 @@ export const maxDuration = 300;
 
 /** Pausa entre modelos, para não empilhar requisições numa chave free tier. */
 const PAUSA_ENTRE_MODELOS_MS = 2_000;
+
+const MAX_MODELOS = 3;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -76,6 +78,8 @@ export function OPTIONS(request: NextRequest): NextResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'));
 
+  const foraDoAr = diagnosticoForaDoAr(headers);
+  if (foraDoAr) return foraDoAr;
   const unauthorized = rejectIfUnauthorized(request, headers);
   if (unauthorized) return unauthorized;
 
@@ -120,6 +124,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!Array.isArray(body.models) || body.models.length === 0) {
     return NextResponse.json(
       { error: '"models" é obrigatório: uma lista de modelos a comparar.' },
+      { status: 400, headers },
+    );
+  }
+  // Cada modelo é uma chamada realista, com 16 mil tokens de saída: sem teto,
+  // um único POST multiplicava a conta pelo tamanho da lista.
+  if (body.models.length > MAX_MODELOS) {
+    return NextResponse.json(
+      { error: `No máximo ${MAX_MODELOS} modelos por rodada.` },
       { status: 400, headers },
     );
   }

@@ -21,7 +21,7 @@
  *     -d '{"providers":["anthropic"]}'
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders, diagnosticoForaDoAr, rejectIfUnauthorized } from '@/lib/apiGuard';
 import {
   activeDataPolicyWarning,
   AGENT_CONFIG,
@@ -181,6 +181,8 @@ export function OPTIONS(request: NextRequest): NextResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'));
 
+  const foraDoAr = diagnosticoForaDoAr(headers);
+  if (foraDoAr) return foraDoAr;
   const unauthorized = rejectIfUnauthorized(request, headers);
   if (unauthorized) return unauthorized;
 

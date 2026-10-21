@@ -174,7 +174,7 @@ create index if not exists nota_por_data      on nota      (pessoa_id, atualizad
 -- na mesma sincronização, e apagar um é decisão separada do outro.
 --
 -- O conector MCP não lê esta tabela, e o histórico não é exposto à
--- IA. RLS ligada como nas demais — o servidor acessa pelo papel que a ignora,
+-- IA. RLS ligada como nas demais (ver o fim do arquivo) — o servidor acessa pelo papel que a ignora,
 -- e a chave pública do Supabase não alcança nada aqui.
 create table if not exists historico_do_documento (
   pessoa_id      uuid    not null references pessoa(id) on delete cascade,
@@ -265,3 +265,49 @@ update historico_do_documento set tamanho = octet_length(versoes::text) where ta
 -- A limpeza de lápides varre por data; o índice parcial só cobre as lápides.
 create index if not exists copia_lapide on copia_local (atualizado_em) where apagado;
 create index if not exists print_lapide on print_local (atualizado_em) where apagado;
+
+-- ------------------------------------------------------- uso das rotas de IA
+
+-- Quantas chamadas a modelo cada pessoa fez no dia, e quantos caracteres
+-- mandou. É a cota de `lib/cotaDeIa.ts`: sem ela, uma conta (ou um script com o
+-- token de alguém) chama o modelo pago em laço até a conta do provedor secar.
+-- Uma linha por (pessoa, dia), incrementada por upsert; não precisa de limpeza
+-- frequente — são poucas dezenas de bytes por pessoa por dia.
+create table if not exists uso_de_ia (
+  pessoa_id   uuid    not null references pessoa(id) on delete cascade,
+  dia         date    not null,
+  chamadas    integer not null default 0,
+  caracteres  bigint  not null default 0,
+  primary key (pessoa_id, dia)
+);
+
+-- ----------------------------------------------------------- RLS em todas
+
+-- O servidor fala com o banco pelo papel dono das tabelas, que ignora RLS. Quem
+-- NÃO pode alcançar nada é a Data API da Supabase (PostgREST), que atende a
+-- chave pública `anon` — e com RLS ligada e nenhuma policy, ela não lê nem
+-- escreve linha nenhuma. Em produção isto já estava ligado à mão; aqui fica
+-- versionado, para um banco recriado a partir deste arquivo nascer fechado.
+alter table pessoa            enable row level security;
+alter table token_do_conector enable row level security;
+alter table reuniao           enable row level security;
+alter table documento         enable row level security;
+alter table conversa          enable row level security;
+alter table nota              enable row level security;
+alter table uso_de_ia         enable row level security;
+
+-- E, por cima, nenhum privilégio para os papéis da Data API. Os papéis só
+-- existem na Supabase: no PGlite dos testes e num Postgres local o bloco não faz
+-- nada.
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'revoke all on all tables in schema public from anon';
+    execute 'revoke all on all sequences in schema public from anon';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'revoke all on all tables in schema public from authenticated';
+    execute 'revoke all on all sequences in schema public from authenticated';
+  end if;
+end
+$$;

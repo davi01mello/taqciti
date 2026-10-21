@@ -12,7 +12,7 @@
  *     -d '{"sintetica":true,"sections":["participantes","decisoes"],"transcript":"..."}'
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { corsHeaders, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders, diagnosticoForaDoAr, maxTranscriptChars, rejectIfUnauthorized } from '@/lib/apiGuard';
 import { activeDataPolicyWarning, AGENT_CONFIG, estimateCost } from '@/lib/ai';
 import { apurar } from '@/lib/generateStep';
 import { TEMPLATES } from '@/lib/templates';
@@ -35,6 +35,8 @@ export function OPTIONS(request: NextRequest): NextResponse {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'));
 
+  const foraDoAr = diagnosticoForaDoAr(headers);
+  if (foraDoAr) return foraDoAr;
   const unauthorized = rejectIfUnauthorized(request, headers);
   if (unauthorized) return unauthorized;
 

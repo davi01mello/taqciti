@@ -35,7 +35,13 @@ export default async function ItemDoAcervo({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const legivel = decodeURIComponent(id);
+  // `%` malformado faz `decodeURIComponent` lançar; mostrar o id cru é melhor que um 500.
+  let legivel = id;
+  try {
+    legivel = decodeURIComponent(id);
+  } catch {
+    // fica o cru
+  }
   const [tipo] = legivel.split(':');
 
   const nomeDoTipo =

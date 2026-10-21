@@ -60,15 +60,31 @@ export function banco(): Pool {
   if (pool) return pool;
   pool = new Pool({
     connectionString: urlDoBanco(),
-    // O Postgres gerenciado do Railway fala TLS com certificado que a cadeia
-    // padrão do Node não valida. `rejectUnauthorized: false` mantém a
-    // conexão CIFRADA e dispensa a validação da cadeia — que é o que a
-    // string de conexão do próprio Railway pressupõe. Em local (sem TLS)
-    // isto é ignorado.
     ...(urlDoBanco().includes('localhost') || urlDoBanco().includes('127.0.0.1')
       ? {}
-      : { ssl: { rejectUnauthorized: false } }),
+      : { ssl: opcoesDeTls() }),
     max: 5,
   });
   return pool;
+}
+
+/**
+ * TLS com o banco gerenciado.
+ *
+ * O certificado da Supabase é assinado pela CA PRÓPRIA dela, que a cadeia
+ * padrão do Node não conhece. Sem essa CA, a única forma de conectar é
+ * `rejectUnauthorized: false`: a conexão continua CIFRADA, mas não AUTENTICA o
+ * servidor — alguém no meio do caminho pode se passar pelo banco e colher a
+ * senha da `DATABASE_URL` e o acervo inteiro.
+ *
+ * Com `DATABASE_CA` (o PEM de "SSL Configuration → Download certificate" no
+ * painel da Supabase, colado inteiro na variável), a cadeia é validada de
+ * verdade. Sem ela, fica o modo antigo, com um aviso no log a cada instância
+ * — para a troca não depender de uma janela de deploy coordenada.
+ */
+function opcoesDeTls(): { ca?: string; rejectUnauthorized: boolean } {
+  const ca = process.env.DATABASE_CA?.trim();
+  if (ca) return { ca: ca.replace(/\\n/g, '\n'), rejectUnauthorized: true };
+  console.warn('[banco] DATABASE_CA ausente: TLS sem validação do certificado do servidor.');
+  return { rejectUnauthorized: false };
 }

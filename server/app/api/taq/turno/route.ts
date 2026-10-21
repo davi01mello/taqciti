@@ -11,7 +11,8 @@
  * `request.signal`, que chega ao SDK do provedor como `abortSignal`.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders } from '@/lib/apiGuard';
+import { autorizarIa } from '@/lib/guardaDeIa';
 import { atenderTurno } from '@/lib/taq/atender';
 import { adaptadorGemini } from '@/lib/taq/gemini';
 import { adaptadorGroq } from '@/lib/taq/groq';
@@ -25,8 +26,8 @@ export function OPTIONS(request: NextRequest): NextResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'));
-  const recusa = rejectIfUnauthorized(request, headers);
-  if (recusa) return recusa;
+  const autorizacao = await autorizarIa(request, headers);
+  if (!autorizacao.ok) return autorizacao.resposta;
 
   let corpo: unknown;
   try {

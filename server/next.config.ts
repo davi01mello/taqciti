@@ -25,6 +25,29 @@ const nextConfig: NextConfig = {
    * teste unitário pegaria, porque nenhum deles passa pelo bundler.
    */
   serverExternalPackages: ['pdfkit'],
+
+  /**
+   * Cabeçalhos de segurança em toda resposta.
+   *
+   * `Referrer-Policy: no-referrer` é o que importa de verdade aqui: existem
+   * URLs com credencial (`/api/mcp/<token>`), e um link clicado a partir de
+   * uma delas não pode carregar o endereço inteiro para o site de destino. Os
+   * outros são o mínimo para as duas páginas HTML (`/` e `/item/[id]`): nada
+   * de ser posto em iframe, nada de o navegador adivinhar tipo de conteúdo.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

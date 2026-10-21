@@ -39,6 +39,25 @@ interface Entrada<T> {
 const cache = new Map<string, Entrada<unknown>>();
 
 /**
+ * Teto de entradas. A chave inclui o id que o MODELO manda (`acervoPostgres`),
+ * então quem tem um token válido podia inflar o `Map` com ids inventados até a
+ * instância ficar sem memória. Passou do teto, saem primeiro as vencidas e, se
+ * não bastar, as mais antigas (o `Map` guarda a ordem de inserção).
+ */
+const MAX_ENTRADAS = 2_000;
+
+function abrirEspaco(agora: number): void {
+  if (cache.size < MAX_ENTRADAS) return;
+  for (const [chave, entrada] of cache) {
+    if (entrada.expiraEm <= agora) cache.delete(chave);
+  }
+  for (const chave of cache.keys()) {
+    if (cache.size < MAX_ENTRADAS) break;
+    cache.delete(chave);
+  }
+}
+
+/**
  * Memoiza `buscar` sob `chave`, por `TTL_MS`.
  *
  * Chamadas concorrentes para a mesma chave ainda não cacheada podem disparar
@@ -52,6 +71,7 @@ export async function comCache<T>(chave: string, buscar: () => Promise<T>): Prom
   if (achada && achada.expiraEm > agora) return achada.valor as T;
 
   const valor = await buscar();
+  abrirEspaco(agora);
   cache.set(chave, { valor, expiraEm: agora + TTL_MS });
   return valor;
 }

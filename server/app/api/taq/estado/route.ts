@@ -7,7 +7,8 @@
  * só se ela existe.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { corsHeaders, rejectIfUnauthorized } from '@/lib/apiGuard';
+import { corsHeaders } from '@/lib/apiGuard';
+import { autorizarIa } from '@/lib/guardaDeIa';
 import { estadoPublico, resolverConfiguracao } from '@/lib/taq/config';
 
 const METODOS = 'GET, OPTIONS';
@@ -19,9 +20,9 @@ export function OPTIONS(request: NextRequest): NextResponse {
   });
 }
 
-export function GET(request: NextRequest): NextResponse {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const headers = corsHeaders(request.headers.get('origin'), METODOS);
-  const recusa = rejectIfUnauthorized(request, headers);
-  if (recusa) return recusa;
+  const autorizacao = await autorizarIa(request, headers, { cobrar: false });
+  if (!autorizacao.ok) return autorizacao.resposta;
   return NextResponse.json(estadoPublico(resolverConfiguracao()), { status: 200, headers });
 }
