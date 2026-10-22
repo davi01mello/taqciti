@@ -26,6 +26,7 @@ import {
   planejar,
   resumoDaCota,
   sincronizar,
+  situacaoDoSync,
 } from './sincronizacao';
 import { reuniaoParaOAcervo } from './paraOAcervo';
 
@@ -728,4 +729,48 @@ describe('resumoDaCota (o que a tela Conexões mostra)', () => {
       expect(resumoDaCota(bruto)).toBeNull();
     },
   );
+});
+
+describe('situacaoDoSync (a falha deixa de morrer no log)', () => {
+  const situacaoAgora = async () =>
+    situacaoDoSync((await chrome.storage.local.get(STORAGE_KEYS.syncEstado))[STORAGE_KEYS.syncEstado]);
+
+  it('passada que deu certo registra quando, e sem falha', async () => {
+    await ligar();
+    servidor();
+    await sincronizar();
+    const s = await situacaoAgora();
+    expect(s.falha).toBeNull();
+    expect(s.ultimoSucessoEm).toEqual(expect.any(Number));
+  });
+
+  it('servidor fora fica registrado como falha de rede, e o último sucesso continua', async () => {
+    await ligar();
+    servidor();
+    await sincronizar();
+    const antes = (await situacaoAgora()).ultimoSucessoEm;
+
+    await chrome.storage.local.set({ [STORAGE_KEYS.history]: [reuniao()] });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    await sincronizar();
+    const s = await situacaoAgora();
+    expect(s.falha?.tipo).toBe('rede');
+    expect(s.ultimoSucessoEm).toBe(antes);
+  });
+
+  it('sessão do Google vencida fica registrada como falha de sessão', async () => {
+    await ligar();
+    montarChromeComToken(null);
+    await sincronizar();
+    expect((await situacaoAgora()).falha?.tipo).toBe('sessao');
+  });
+
+  it('desligar apaga a falha: quem desligou de propósito não vê "parou"', async () => {
+    await ligar();
+    montarChromeComToken(null);
+    await sincronizar();
+    await chrome.storage.local.set({ [STORAGE_KEYS.sync]: { ligada: false } });
+    await sincronizar();
+    expect((await situacaoAgora()).falha).toBeNull();
+  });
 });

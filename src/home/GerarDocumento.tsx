@@ -57,6 +57,20 @@ import { guardarGeracao } from '@/features/documents/personalizado/documento';
 import type { ResultadoDoServidor } from '@/features/documents/personalizado/tipos';
 import { abrirConversaDoTaq } from '@/home/conversations';
 import { CATALOGO_DE_DOCUMENTOS } from '@/features/documents/catalogo';
+import { formatElapsedClock } from '@/shared/ui/format';
+
+/** Segundos desde que `ativo` virou verdadeiro; zera quando desliga. */
+function useSegundosDesde(ativo: boolean): number {
+  const [segundos, setSegundos] = useState(0);
+  useEffect(() => {
+    setSegundos(0);
+    if (!ativo) return;
+    const inicio = Date.now();
+    const t = setInterval(() => setSegundos(Math.floor((Date.now() - inicio) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [ativo]);
+  return segundos;
+}
 
 /**
  * Os tipos vêm do CATÁLOGO — o mesmo que o Taq oferece (ver
@@ -120,9 +134,21 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
   /** O envio ao Google Docs: em curso, ou o motivo de não ter dado certo. */
   const [envioAoDocs, setEnvioAoDocs] = useState<{ enviando: true } | { erro: string } | null>(null);
   const caixaRef = useRef<HTMLDivElement>(null);
+  /** O "Cancelar" da geração em curso. */
+  const controleRef = useRef<AbortController | null>(null);
+  useEffect(() => () => controleRef.current?.abort(), []);
 
   const ocupado =
     estado.fase === 'gerando' || estado.fase === 'salvando' || estado.fase === 'gerandoPersonalizado';
+  const gerandoAgora = estado.fase === 'gerando' || estado.fase === 'gerandoPersonalizado';
+  const decorrido = useSegundosDesde(gerandoAgora);
+
+  const novoControle = () => {
+    controleRef.current?.abort();
+    controleRef.current = new AbortController();
+    return controleRef.current.signal;
+  };
+  const cancelar = () => controleRef.current?.abort();
 
   useEffect(
     () =>
@@ -200,7 +226,11 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
     setEnvioAoDocs(null);
     setEstado({ fase: 'gerando', tipo });
 
-    void requestGeneration(registro, tipo).then(async (geracao) => {
+    void requestGeneration(registro, tipo, novoControle()).then(async (geracao) => {
+      if (geracao.status === 'canceled') {
+        setEstado({ fase: 'parado' });
+        return;
+      }
       if (geracao.status !== 'success') {
         setEstado({ fase: 'erroNaGeracao', mensagem: geracao.message });
         return;
@@ -247,7 +277,11 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
       capa: { data: new Date().toLocaleDateString('pt-BR') },
       variante: 'editorial',
     };
-    const resposta = await gerarPersonalizado(pedidoDeGeracao);
+    const resposta = await gerarPersonalizado(pedidoDeGeracao, novoControle());
+    if (resposta.status !== 'ok' && resposta.codigo === 'cancelado') {
+      setEstado({ fase: 'parado' });
+      return;
+    }
     if (resposta.status !== 'ok') {
       setEstado({ fase: 'erroNaGeracao', mensagem: resposta.message });
       return;
@@ -342,9 +376,29 @@ export function GerarDocumento({ registro, onAbrirDocumento, onPedirLivre }: Pro
           />
           <div className="tq-caixa-ia-corpo">
             {emCurso ? (
-              <p className="tq-caixa-ia-pergunta" role="status">
-                {estado.fase === 'salvando' ? 'Salvando…' : `Gerando ${emCurso}…`}
-              </p>
+              <>
+                <p className="tq-caixa-ia-pergunta" role="status">
+                  {estado.fase === 'salvando' ? 'Salvando…' : `Gerando ${emCurso}…`}
+                  {gerandoAgora && <span className="tq-fino"> {formatElapsedClock(decorrido * 1000)}</span>}
+                </p>
+                {/* Sem previsão de verdade, o que dá para dizer é o normal — e
+                    que a espera é escolha de quem pediu, não prisão. */}
+                {gerandoAgora && (
+                  <>
+                    {decorrido >= 45 && (
+                      <p className="tq-fino">
+                        Reuniões longas podem levar alguns minutos. Não feche esta página enquanto
+                        isso; se demorar mais de 5 minutos, a geração é interrompida.
+                      </p>
+                    )}
+                    <div className="tq-acoes">
+                      <button type="button" className="tq-acao" onClick={cancelar}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
             ) : (
               <>
                 <p className="tq-caixa-ia-pergunta">Qual documento você quer criar?</p>

@@ -111,6 +111,8 @@ export class ContentController {
   private salaAnunciada: string | null = null;
   private decisao: DecisaoDeRegistro | null = null;
   private reuniaoPendente: MeetingSession | null = null;
+  /** A pergunta "registrar?" esgotou as tentativas e não vai aparecer. */
+  private portaoFalhou = false;
   /** A participação atual — a chave da autorização. Ver consent.ts. */
   private participacaoId: string | null = null;
   /** A sala em que se está agora, para o "sim" que chega num re-render. */
@@ -249,6 +251,7 @@ export class ContentController {
       await guardarDecisao(participacao.id, 'aceito');
       this.decisao = 'aceito';
       this.reuniaoPendente = null;
+      this.portaoFalhou = false;
       void esquecerReuniao();
       this.provider.forceMeeting?.(sala);
       this.iniciarCaptura(sala);
@@ -476,6 +479,10 @@ export class ContentController {
       if (this.salaAnunciada === session.meetingCode) this.salaAnunciada = null;
       if (tentativa >= TENTATIVAS_DO_PORTAO) {
         logger.error('portão da captura falhou: a pergunta não vai aparecer', error);
+        // Sem pergunta, a cápsula diz isso e destaca o "Gravar" à mão — antes
+        // a reunião simplesmente passava sem registro e sem aviso.
+        this.portaoFalhou = true;
+        this.rerender();
         return;
       }
       logger.warn('portão da captura falhou; tentando de novo', { tentativa: tentativa + 1 });
@@ -512,6 +519,7 @@ export class ContentController {
     if (this.salaAnunciada === session.meetingCode) return;
     this.salaAnunciada = session.meetingCode;
     this.salaAtual = session;
+    this.portaoFalhou = false;
 
     /*
      * Qual PARTICIPAÇÃO é esta? A mesma de antes se o Meet só re-renderizou ou
@@ -763,6 +771,7 @@ export class ContentController {
           perguntandoSobre: this.reuniaoPendente?.title ?? null,
           gravacaoAnterior: this.reuniaoPendente ? this.gravacaoAnterior : null,
           recusado: this.decisao === 'recusado',
+          portaoFalhou: this.portaoFalhou,
           // Só esta aba enxerga a saúde da captura (é o DOM do Meet que a
           // revela), então é a cápsula que a mostra — e é aqui que a pessoa
           // está olhando quando a legenda para de chegar.

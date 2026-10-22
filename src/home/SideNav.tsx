@@ -96,9 +96,11 @@ interface Props {
   aberta: boolean;
   onAbrir: (aberta: boolean) => void;
   onIr: (secao: Secao) => void;
+  /** Seções que pedem atenção, com o porquê (vira o rótulo acessível do ponto). */
+  atencao?: Partial<Record<Secao, string>>;
 }
 
-export function SideNav({ ativa, aberta, onAbrir, onIr }: Props) {
+export function SideNav({ ativa, aberta, onAbrir, onIr, atencao = {} }: Props) {
   const navRef = useRef<HTMLElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const abertaRef = useRef(aberta);
@@ -188,6 +190,9 @@ export function SideNav({ ativa, aberta, onAbrir, onIr }: Props) {
             >
               <Icon name={secao.icone} size={16} />
               {secao.rotulo}
+              {atencao[secao.id] && (
+                <span className="tq-nav-atencao" role="img" aria-label={atencao[secao.id]} title={atencao[secao.id]} />
+              )}
             </button>
           ))}
         </div>

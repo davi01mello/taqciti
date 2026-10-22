@@ -92,6 +92,41 @@ interface EstadoDoSync {
   uso?: { bytes: number; cota: number; em: number };
   /** Quantos itens a cota está segurando agora. */
   recusadosPorCota?: number;
+  /** Como terminou a última passada (ver `anotar`). */
+  ultimaPassada?: { em: number; ok: true } | { em: number; ok: false; falha: FalhaDoSync };
+  /** Quando a última passada que DEU CERTO terminou. */
+  ultimoSucessoEm?: number;
+  /** A última volta que achou itens editados nas duas máquinas (viraram cópia). */
+  conflitos?: { quantos: number; em: number };
+}
+
+/**
+ * Por que uma passada não terminou: `sessao` — o Google não deu token (a
+ * sessão venceu ou foi revogada); `rede` — o servidor não respondeu;
+ * `servidor` — respondeu com erro.
+ */
+export type FalhaDoSync = 'sessao' | 'rede' | 'servidor';
+
+/**
+ * O que a tela Conexões mostra da sincronização. Antes, toda falha ia só para
+ * o log do service worker: a sincronização podia parar por dias sem ninguém
+ * saber, e as cópias "(outra máquina)" apareciam sem explicação.
+ */
+export interface SituacaoDoSync {
+  ultimoSucessoEm: number | null;
+  /** A falha da ÚLTIMA passada; `null` quando ela deu certo. */
+  falha: { tipo: FalhaDoSync; em: number } | null;
+  conflitos: { quantos: number; em: number } | null;
+}
+
+export function situacaoDoSync(bruto: unknown): SituacaoDoSync {
+  const e = (bruto && typeof bruto === 'object' ? bruto : {}) as Partial<EstadoDoSync>;
+  const u = e.ultimaPassada;
+  return {
+    ultimoSucessoEm: typeof e.ultimoSucessoEm === 'number' ? e.ultimoSucessoEm : null,
+    falha: u && u.ok === false ? { tipo: u.falha, em: u.em } : null,
+    conflitos: e.conflitos && e.conflitos.quantos > 0 ? e.conflitos : null,
+  };
 }
 
 /** O que a tela Conexões mostra da cota do servidor. */
@@ -416,6 +451,18 @@ async function salvar(estado: EstadoDoSync): Promise<void> {
   await writeLocal(STORAGE_KEYS.syncEstado, estado);
 }
 
+/** Registra como a passada terminou, para a tela (ver `situacaoDoSync`). */
+async function anotar(resultado: true | FalhaDoSync, conflitos = 0): Promise<void> {
+  const em = Date.now();
+  const estado = await lerEstado();
+  await salvar({
+    ...estado,
+    ultimaPassada: resultado === true ? { em, ok: true } : { em, ok: false, falha: resultado },
+    ...(resultado === true ? { ultimoSucessoEm: em } : {}),
+    ...(conflitos > 0 ? { conflitos: { quantos: conflitos, em } } : {}),
+  });
+}
+
 /**
  * Uma passada de sincronização: primeiro TRAZ o que mudou nas outras máquinas
  * da conta (`restauracao.ts`), depois SOBE o que mudou aqui.
@@ -431,10 +478,23 @@ async function salvar(estado: EstadoDoSync): Promise<void> {
  * falha não derruba a subida: vai para o log e é tentada de novo na próxima.
  */
 export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoDoSync> {
-  if (!(await ligada())) return { estado: 'desligado' };
+  if (!(await ligada())) {
+    // Desligada, uma falha antiga não é mais notícia: sem isto, o aviso de
+    // "sincronização parou" seguiria na tela de quem desligou de propósito.
+    const anterior = await lerEstado();
+    if (anterior.ultimaPassada?.ok === false) {
+      const semFalha = { ...anterior };
+      delete semFalha.ultimaPassada;
+      await salvar(semFalha);
+    }
+    return { estado: 'desligado' };
+  }
 
   const token = await tokenDeIdentidade(false);
-  if (!token) return { estado: 'sem-token' };
+  if (!token) {
+    await anotar('sessao');
+    return { estado: 'sem-token' };
+  }
 
   let estado = await lerEstado();
 
@@ -467,6 +527,9 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
 
   // ---- a volta
   let restaurados = 0;
+  let conflitos = 0;
+  /** A volta falhou: a subida ainda roda, mas a passada não conta como sucesso. */
+  let falhaDaVolta: FalhaDoSync | null = null;
   /*
    * Quando perguntar ao servidor o que mudou:
    *
@@ -501,6 +564,7 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
         },
       });
       restaurados = r.aplicados + r.conflitos;
+      conflitos = r.conflitos;
       estado = {
         ...estado,
         cursor: r.cursor,
@@ -512,6 +576,7 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
       await salvar(estado);
     } catch (erro) {
       if (erro instanceof CredencialRecusada) await descartarToken();
+      falhaDaVolta = erro instanceof CredencialRecusada ? 'sessao' : 'rede';
       logger.warn('restauracao falhou', {
         motivo: erro instanceof Error ? erro.message : 'desconhecido',
       });
@@ -547,6 +612,7 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
           body: JSON.stringify({ itens: lote.itens, apagados: lote.apagados }),
         });
       } catch {
+        await anotar('rede', conflitos);
         return { estado: 'falhou', enviados, apagados, motivo: 'servidor inalcançável' };
       }
 
@@ -554,9 +620,11 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
         // Token vencido. Descartar o cache local é o que permite a próxima
         // passada pegar um novo — sem isso, vira recusa permanente.
         await descartarToken();
+        await anotar('sessao', conflitos);
         return { estado: 'falhou', enviados, apagados, motivo: 'credencial recusada' };
       }
       if (!resposta.ok) {
+        await anotar('servidor', conflitos);
         return { estado: 'falhou', enviados, apagados, motivo: `servidor ${resposta.status}` };
       }
 
@@ -619,6 +687,7 @@ export async function sincronizar(opcoes: OpcoesDoSync = {}): Promise<ResultadoD
     await salvar(estado);
   }
 
+  await anotar(falhaDaVolta ?? true, conflitos);
   if (!temPlano && restaurados === 0) return { estado: 'nada-a-fazer' };
   return {
     estado: 'ok',

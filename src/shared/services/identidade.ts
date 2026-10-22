@@ -56,6 +56,7 @@
  */
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { readLocal, writeLocal } from '@/shared/services/storage';
+import { logger } from '@/shared/services/log';
 
 /** Só o necessário para dizer quem é. `drive.file` NÃO entra aqui — ver o cabeçalho. */
 const ESCOPO = 'openid email';
@@ -152,6 +153,18 @@ export function contaEhDoCiti(idToken: string): boolean {
  * ele, o Google poderia tentar abrir tela dentro de um fluxo que já se
  * comprometeu a não abrir nenhuma, e a falha viria mais lenta e mais confusa.
  */
+/**
+ * O erro do Chrome no login ("The user did not approve access.", "OAuth2 not
+ * granted or revoked.") é em inglês e fala do mecanismo. A tela recebe o que
+ * fazer; o texto bruto vai para o log.
+ */
+function motivoDoChrome(bruto: string): string {
+  logger.warn(`login do Google não concluído: ${bruto}`);
+  return /approve|cancel|closed|not granted|revoked/i.test(bruto)
+    ? 'A janela do Google foi fechada ou o acesso não foi permitido. Tente de novo e escolha a sua conta do CITi.'
+    : 'O Google não concluiu o login. Tente de novo em instantes.';
+}
+
 function pedirIdentidade(interativo: boolean, dicaDeConta?: string): Promise<ResultadoDeLogin> {
   const clientId = webClientId();
   if (!clientId) {
@@ -181,7 +194,7 @@ function pedirIdentidade(interativo: boolean, dicaDeConta?: string): Promise<Res
     chrome.identity.launchWebAuthFlow({ url, interactive: interativo }, (redirecionadoPara) => {
       const erroDoChrome = chrome.runtime.lastError?.message;
       if (!redirecionadoPara) {
-        resolve({ idToken: null, ...(erroDoChrome ? { erro: erroDoChrome } : {}) });
+        resolve({ idToken: null, ...(erroDoChrome ? { erro: motivoDoChrome(erroDoChrome) } : {}) });
         return;
       }
 

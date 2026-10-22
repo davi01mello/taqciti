@@ -47,6 +47,20 @@ describe('requestGeneration', () => {
     expect((r as { message: string }).message).not.toMatch(/F12|console/);
   });
 
+  it('cancelar não é falha: volta "canceled", sem mensagem', async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_, rejeitar) =>
+          init.signal!.addEventListener('abort', () => rejeitar(new DOMException('abortado', 'AbortError'))),
+        ),
+    );
+    const controle = new AbortController();
+    const pedido = requestGeneration(REUNIAO, 'ata', controle.signal);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    controle.abort();
+    expect(await pedido).toEqual({ status: 'canceled', documentType: 'ata' });
+  });
+
   it('reunião sem fala nem chega ao servidor', async () => {
     const r = await requestGeneration({ ...REUNIAO, segments: [] }, 'ata');
     expect(fetchMock).not.toHaveBeenCalled();

@@ -69,6 +69,7 @@ import { PaginaAcompanhamento } from './Acompanhamento';
 import { PointerLayer } from './PointerLayer';
 import { lerPedidoDaHome, type Secao } from './rota';
 import { SideNav } from './SideNav';
+import { useSituacaoDoSync } from '@/features/sync/useSituacao';
 import { useAnimacao } from './useAnimacao';
 import { WaveField, type EstadoDaOnda } from './WaveField';
 import { MarcaDaEscuta } from '@/shared/ui/MarcaDaEscuta';
@@ -167,6 +168,8 @@ export function HomePage() {
   const { records, loaded } = useHistoryState();
   const platform = usePlatform();
   const [taq, verificarTaqDeNovo] = useDisponibilidadeDoTaq();
+  /** A sincronização falhou na última passada: o menu marca Conexões. */
+  const falhaDoSync = useSituacaoDoSync().situacao.falha !== null;
   const [agente, setAgente] = useState<EstadoDoAgente>(agenteAgora);
   /** Como a última execução terminou quando não deixou resposta. */
   const [desfecho, setDesfecho] = useState<string | null>(null);
@@ -537,7 +540,13 @@ export function HomePage() {
         </div>
       </header>
 
-      <SideNav ativa={secao} aberta={navAberta} onAbrir={setNavAberta} onIr={setSecao} />
+      <SideNav
+        ativa={secao}
+        aberta={navAberta}
+        onAbrir={setNavAberta}
+        onIr={setSecao}
+        atencao={falhaDoSync ? { conexoes: 'A sincronização parou' } : {}}
+      />
 
       <main
         className={`tq-main${secao === 'reunioes' && reuniaoAberta ? ' tq-main-reuniao' : ''}`}

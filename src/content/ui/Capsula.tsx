@@ -77,6 +77,8 @@ interface Props {
   gravacaoAnterior?: GravacaoAnterior | null;
   /** A pessoa disse "agora não" para esta participação. */
   recusado: boolean;
+  /** A pergunta "registrar?" falhou de vez: o "Gravar" à mão vira o caminho, e diz por quê. */
+  portaoFalhou?: boolean;
   /** `false` = há legenda na tela que a captura não está conseguindo ler. */
   saudavel: boolean;
   /** Instante do último trecho recebido; 
@@ -107,6 +109,7 @@ export function Capsula({
   perguntandoSobre,
   gravacaoAnterior = null,
   recusado,
+  portaoFalhou = false,
   saudavel,
   ultimoTrechoEm = null,
   falas = 0,
@@ -381,13 +384,15 @@ export function Capsula({
           style={{
             left: Math.max(
               MARGEM_DA_PERGUNTA,
-              Math.min(floating.geometry.capsule.left, window.innerWidth - 170),
+              Math.min(floating.geometry.capsule.left, window.innerWidth - (portaoFalhou ? 360 : 170)),
             ),
             top: floating.geometry.capsule.top + 44,
           }}
-          className="glass fixed z-[2147483000] rounded-full border border-white/10 px-3 py-1 text-micro text-muted opacity-70 transition-[opacity,color] duration-200 hover:text-foreground hover:opacity-100 focus-visible:opacity-100 animate-dock-in"
+          className={`glass fixed z-[2147483000] rounded-full border px-3 py-1 text-micro transition-[opacity,color] duration-200 hover:text-foreground hover:opacity-100 focus-visible:opacity-100 animate-dock-in ${
+            portaoFalhou ? 'border-primary/45 text-glow' : 'border-white/10 text-muted opacity-70'
+          }`}
         >
-          Gravar esta reunião
+          {portaoFalhou ? 'Não consegui perguntar se devo registrar. Gravar esta reunião?' : 'Gravar esta reunião'}
         </button>
       )}
 

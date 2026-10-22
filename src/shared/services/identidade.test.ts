@@ -232,9 +232,11 @@ describe('ligar e desligar', () => {
     // Este é o bug que "clicar e não acontecer nada" era: `motivo` ausente
     // faz esta falha parecer IDÊNTICA a nunca ter clicado.
     montarChrome({ idToken: null, erro: 'OAuth2 not granted or revoked.' });
+    // O motivo vem dito para quem usa: o texto bruto do Chrome é inglês e fala
+    // do mecanismo, e vai para o log.
     expect(await ligarSincronizacao()).toEqual({
       situacao: 'desligada',
-      motivo: 'OAuth2 not granted or revoked.',
+      motivo: expect.stringMatching(/acesso não foi permitido/),
     });
   });
 

@@ -565,6 +565,16 @@ html {
   color: rgb(var(--c-glow));
 }
 
+/* A seção pede atenção (ex.: a sincronização parou): um ponto, na ponta. */
+.tq-nav-atencao {
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--e-atencao);
+  flex: none;
+}
+
 @keyframes tq-selecao {
   0%,
   100% {
@@ -3141,7 +3151,8 @@ body .tq-home [role='dialog'] button {
   text-wrap: pretty;
 }
 
-.tq-hub-nota.tq-hub-falha {
+.tq-hub-nota.tq-hub-falha,
+.tq-hub-lista small.tq-hub-falha {
   color: var(--e-atencao);
 }
 

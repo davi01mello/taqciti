@@ -14,7 +14,12 @@ import {
   SERVER_SHARED_KEY_HEADER,
 } from '@/shared/config/serverConfig';
 import { fetchDeIa } from '@/shared/services/identidade';
-import { mensagemDeRecusa, semConexao } from '@/shared/services/respostaDoServidor';
+import {
+  comPrazo,
+  mensagemDeRecusa,
+  PRAZO_ESGOTADO,
+  semConexao,
+} from '@/shared/services/respostaDoServidor';
 import { transcriptToText } from '@/features/history/export';
 import { criarGoogleDoc, nomeDoArquivo, oauthConfigurado, type GoogleDocResult } from './googleDocs';
 import { baixarComoHtml, baixarComoPdf } from './baixarDocumento';
@@ -64,7 +69,9 @@ export type GenerationResult =
       questions: Pergunta[];
       gaps: Lacuna[];
     }
-  | { status: 'error'; documentType: DocumentType; message: string };
+  | { status: 'error'; documentType: DocumentType; message: string }
+  /** A pessoa cancelou: não é falha, e não tem mensagem. */
+  | { status: 'canceled'; documentType: DocumentType };
 
 /**
  * Como o documento chega até a pessoa.
@@ -158,9 +165,15 @@ export async function entregarDocumento(
     : { via: 'falhou', message: upload.message };
 }
 
+/**
+ * `sinal`: o "Cancelar" de quem pediu. Cancelada, a geração devolve
+ * `canceled` (sem mensagem: não é falha). O prazo (`PRAZO_DE_GERACAO_MS`)
+ * vale sempre, com ou sem sinal.
+ */
 export async function requestGeneration(
   source: GenerationSource,
   documentType: DocumentType,
+  sinal?: AbortSignal,
 ): Promise<GenerationResult> {
   // Sem fala capturada não há do que gerar — e o servidor recusaria com
   // `"transcript" é obrigatório`, que não diz nada a quem usa.
@@ -172,9 +185,18 @@ export async function requestGeneration(
     };
   }
 
-  let response: Response;
+  const corte = comPrazo(sinal);
+  let data: {
+    title: string;
+    content: string;
+    html?: string;
+    pdf?: string;
+    documentData?: { metadata?: DocumentMetadata };
+    questions?: Pergunta[];
+    gaps?: Lacuna[];
+  };
   try {
-    response = await fetchDeIa(`${SERVER_BASE_URL}/api/generate`, {
+    const response = await fetchDeIa(`${SERVER_BASE_URL}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -186,26 +208,20 @@ export async function requestGeneration(
         date: new Date(source.startedAt).toISOString(),
         documentType,
       }),
+      signal: corte.signal,
     });
+    // Cota do dia, provedor ocupado, transcrição longa: o servidor já escreve a
+    // frase certa, e ela tem que chegar à tela (ver `respostaDoServidor.ts`).
+    if (!response.ok) {
+      return { status: 'error', documentType, message: await mensagemDeRecusa(response, '/api/generate') };
+    }
+    data = await response.json();
   } catch {
+    if (corte.cancelado()) return { status: 'canceled', documentType };
+    if (corte.esgotado()) return { status: 'error', documentType, message: PRAZO_ESGOTADO };
     return { status: 'error', documentType, message: semConexao('/api/generate') };
   }
 
-  // Cota do dia, provedor ocupado, transcrição longa: o servidor já escreve a
-  // frase certa, e ela tem que chegar à tela (ver `respostaDoServidor.ts`).
-  if (!response.ok) {
-    return { status: 'error', documentType, message: await mensagemDeRecusa(response, '/api/generate') };
-  }
-
-  const data = (await response.json()) as {
-    title: string;
-    content: string;
-    html?: string;
-    pdf?: string;
-    documentData?: { metadata?: DocumentMetadata };
-    questions?: Pergunta[];
-    gaps?: Lacuna[];
-  };
   return {
     status: 'success',
     documentType,

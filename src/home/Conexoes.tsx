@@ -35,10 +35,9 @@ import { useCallback, useEffect, useState } from 'react';
 import type { MeetingRecord } from '@/shared/types/domain';
 import { downloadTranscript } from '@/features/history/export';
 import { Icon } from '@/shared/ui/Icon';
-import { STORAGE_KEYS } from '@/shared/config/constants';
-import { onLocalChange, readLocal } from '@/shared/services/storage';
-import { resumoDaCota, type ResumoDaCota } from '@/features/sync/sincronizacao';
-import { formatDate } from '@/shared/ui/format';
+import type { FalhaDoSync, ResumoDaCota, SituacaoDoSync } from '@/features/sync/sincronizacao';
+import { useSituacaoDoSync } from '@/features/sync/useSituacao';
+import { formatDate, formatTime } from '@/shared/ui/format';
 import {
   type EstadoDaSincronizacao,
   desligarSincronizacao,
@@ -268,6 +267,49 @@ function textoDaCota(c: ResumoDaCota): string {
   const n = c.seguradosPorCota;
   return `${base} — ${n} ${n === 1 ? 'item espera' : 'itens esperam'} espaço (apague prints ou reuniões antigas)`;
 }
+
+/** "hoje às 14:05" / "em 12/10/2026 às 09:30". */
+function quando(ms: number): string {
+  const hoje = new Date().toDateString() === new Date(ms).toDateString();
+  return `${hoje ? 'hoje' : `em ${formatDate(ms)}`} às ${formatTime(ms)}`;
+}
+
+const FALHA_DO_SYNC: Record<FalhaDoSync, string> = {
+  sessao: 'A sessão do Google venceu e a sincronização parou. Reconecte para voltar a sincronizar — nada foi perdido.',
+  rede: 'A última sincronização não alcançou o servidor. O TaqCiti tenta de novo sozinho a cada 5 minutos.',
+  servidor: 'O servidor recusou a última sincronização. O TaqCiti tenta de novo sozinho a cada 5 minutos.',
+};
+
+/** Conflitos mais velhos que isto já não são notícia. */
+const CONFLITO_RECENTE_MS = 7 * 24 * 60 * 60_000;
+
+/**
+ * Como a sincronização está, dito embaixo da conta. A falha vem primeiro,
+ * porque é ela que pede algo de quem lê; sem falha, quando foi a última vez.
+ */
+function LinhasDoSync({ sync }: { sync: SituacaoDoSync }) {
+  const { falha, ultimoSucessoEm, conflitos } = sync;
+  return (
+    <>
+      {falha ? (
+        <small className="tq-hub-falha" role="status">
+          {FALHA_DO_SYNC[falha.tipo]}
+          {ultimoSucessoEm ? ` Última vez que deu certo: ${quando(ultimoSucessoEm)}.` : ''}
+        </small>
+      ) : (
+        ultimoSucessoEm && <small>sincronizado {quando(ultimoSucessoEm)}</small>
+      )}
+      {conflitos && Date.now() - conflitos.em < CONFLITO_RECENTE_MS && (
+        <small>
+          {conflitos.quantos === 1
+            ? 'Um item foi editado em dois computadores ao mesmo tempo: a outra versão'
+            : `${conflitos.quantos} itens foram editados em dois computadores ao mesmo tempo: as outras versões`}{' '}
+          ficaram como cópia, com “outra máquina” no título. Confira e apague a que sobrar.
+        </small>
+      )}
+    </>
+  );
+}
 export function PaginaConexoes({
   registros,
 }: {
@@ -287,8 +329,8 @@ export function PaginaConexoes({
   const [rotuloNovo, setRotuloNovo] = useState('');
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false);
-  /** Quanto do espaço do servidor esta conta usa — e o que está esperando vaga. */
-  const [cota, setCota] = useState<ResumoDaCota | null>(null);
+  /** Quanto do espaço do servidor esta conta usa, e como foi a última passada. */
+  const { situacao: sync, cota } = useSituacaoDoSync();
   /** A conta do CITi: diretório, e-mail e agenda (`features/integracoes`). */
   const conta = useContaDoCiti();
 
@@ -305,16 +347,6 @@ export function PaginaConexoes({
         e instanceof ConectorIndisponivel ? e.message : 'Falha ao falar com o servidor.',
       );
     }
-  }, []);
-
-  useEffect(() => {
-    let vivo = true;
-    void readLocal<unknown>(STORAGE_KEYS.syncEstado).then((e) => vivo && setCota(resumoDaCota(e)));
-    const parar = onLocalChange<unknown>(STORAGE_KEYS.syncEstado, (e) => vivo && setCota(resumoDaCota(e)));
-    return () => {
-      vivo = false;
-      parar();
-    };
   }, []);
 
   useEffect(() => {
@@ -507,7 +539,12 @@ export function PaginaConexoes({
           {
             id: 'google',
             nome: 'Conta Google',
-            faz: 'Sincroniza o acervo: os assistentes consultam, e a sua conta traz tudo em outro computador.',
+            // Sessão vencida não é "nunca ligou": a sincronização PAROU, e
+            // é isso que o tile tem que dizer antes de alguém clicar nele.
+            faz:
+              estado?.situacao === 'precisa-permissao'
+                ? 'A sessão do Google venceu e a sincronização parou. Reconecte — nada foi perdido.'
+                : 'Sincroniza o acervo: os assistentes consultam, e a sua conta traz tudo em outro computador.',
             icone: <span>G</span>,
             fluxo: fluxoDoGoogle(),
           },
@@ -549,7 +586,7 @@ export function PaginaConexoes({
         ) : (
           <>
             {estado?.situacao === 'desligada' && estado.motivo && (
-              <p className="tq-hub-nota tq-hub-falha">O Google recusou: {estado.motivo}</p>
+              <p className="tq-hub-nota tq-hub-falha">{estado.motivo}</p>
             )}
             <p className="tq-hub-nota">
               Abre o login do Google — escolha a sua conta do CITi. Enquanto estiver desligado,
@@ -652,6 +689,7 @@ export function PaginaConexoes({
                         {textoDaCota(cota)}
                       </small>
                     )}
+                    <LinhasDoSync sync={sync} />
                   </div>
                   {confirmandoId === 'google' ? (
                     <span className="tq-acoes">

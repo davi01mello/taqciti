@@ -28,6 +28,31 @@ export function semConexao(rota: string): string {
   return SEM_CONEXAO;
 }
 
+/**
+ * Quanto a extensão espera por um documento. O servidor na Vercel corta a
+ * função em 300 s (`maxDuration` das rotas de geração); passado isso, a
+ * resposta não vem mais — esperar além só deixava a pessoa olhando "Gerando…"
+ * sem fim. A folga cobre a ida e a volta pela rede.
+ */
+export const PRAZO_DE_GERACAO_MS = 310_000;
+
+export const PRAZO_ESGOTADO =
+  'A geração passou de 5 minutos e foi interrompida. O provedor de IA pode estar lento: tente de novo em alguns minutos.';
+
+/**
+ * O cancelar de quem pediu, junto do prazo. Depois que a chamada é cortada,
+ * diz qual dos dois cortou: cancelar não é falha e não ganha mensagem; o
+ * prazo, sim.
+ */
+export function comPrazo(sinal: AbortSignal | undefined, ms = PRAZO_DE_GERACAO_MS) {
+  const prazo = AbortSignal.timeout(ms);
+  return {
+    signal: sinal ? AbortSignal.any([sinal, prazo]) : prazo,
+    cancelado: () => sinal?.aborted === true,
+    esgotado: () => prazo.aborted && sinal?.aborted !== true,
+  };
+}
+
 const AVISE = 'Se continuar, avise quem cuida do TaqCiti.';
 
 /** Lê o corpo da resposta recusada e devolve a frase para a tela. */
