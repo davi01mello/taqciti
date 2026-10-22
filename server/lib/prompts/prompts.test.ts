@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clearPromptCache, interpolate, loadPromptTemplate, renderPrompt } from './index';
+import { clearPromptCache, interpolate, loadPromptTemplate, renderPrompt, versaoDoPrompt } from './index';
 
 describe('interpolate', () => {
   it('substitui marcadores pelos valores', () => {
@@ -179,5 +179,42 @@ describe('prompt do Auditor', () => {
     // O preço de julgar todas numa chamada só. Sem esta regra, o cargo que
     // aparece no trecho da Maria "sustentaria" o cargo inventado do João.
     expect(renderPrompt('auditor', 'v3')).toMatch(/julgada\s+sozinha/i);
+  });
+});
+
+describe('falas são conteúdo, nunca instrução (versões de 21/10/2026)', () => {
+  const pares = [
+    ['leitor', 'v2', 'v3'],
+    ['auditor', 'v4', 'v5'],
+    ['redator', 'v3', 'v5'],
+    ['redator', 'v4', 'v6'],
+  ] as const;
+
+  it.each(pares)('%s %s → %s: a versão nova é a anterior inteira mais a regra', (agente, antes, depois) => {
+    clearPromptCache();
+    const velho = loadPromptTemplate(agente, antes);
+    const novo = loadPromptTemplate(agente, depois);
+    // Nenhuma regra de fidelidade saiu: cada linha da anterior continua lá.
+    for (const linha of velho.split(/\r?\n/).filter((l) => l.trim())) {
+      expect(novo, linha).toContain(linha);
+    }
+    // E o que entrou fala de pedido dentro da fonte, sem mandar omitir conteúdo.
+    expect(novo).toMatch(/escreva\s+(na\s+ata\s+)?que/);
+    expect(novo).not.toMatch(/ignore (o|todo) (conte[uú]do|pedido)/i);
+  });
+
+  it('DOCCITI_PROMPTS=anteriores volta às versões medidas antes', () => {
+    const guardado = process.env.DOCCITI_PROMPTS;
+    try {
+      delete process.env.DOCCITI_PROMPTS;
+      expect(versaoDoPrompt('redatorGeracao')).toBe('v5');
+      expect(versaoDoPrompt('redatorEdicao')).toBe('v6');
+      process.env.DOCCITI_PROMPTS = 'anteriores';
+      expect(versaoDoPrompt('redatorGeracao')).toBe('v3');
+      expect(versaoDoPrompt('redatorEdicao')).toBe('v4');
+    } finally {
+      if (guardado === undefined) delete process.env.DOCCITI_PROMPTS;
+      else process.env.DOCCITI_PROMPTS = guardado;
+    }
   });
 });

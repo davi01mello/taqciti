@@ -24,7 +24,7 @@
  * - lacuna é decidida por `detectGaps`, não pelo modelo.
  */
 import { complete, type CompletionResult, type JsonSchema } from '../ai';
-import { renderPrompt } from '../prompts';
+import { renderPrompt, versaoDoPrompt } from '../prompts';
 import type { SectionSpec } from '../templates/types';
 import { specForSection, type DocumentData, type Gap, type Locate } from '../documentData';
 import type { Answer } from '../generateStep';
@@ -189,7 +189,7 @@ export async function ler(input: LerInput): Promise<LerResult> {
   }
 
   const result = await complete('leitor', {
-    system: renderPrompt('leitor', input.promptVersion ?? 'v2'),
+    system: renderPrompt('leitor', input.promptVersion ?? versaoDoPrompt('leitor')),
     messages: [{ role: 'user', content: pedidoDoDocumento(input, sections) }],
     maxTokens: input.maxTokens ?? LEITOR_MAX_TOKENS,
     jsonSchema: schemaDoDocumento(sections),

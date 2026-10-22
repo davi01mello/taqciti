@@ -16,7 +16,7 @@
  * dentro do recorte exatamente o que foi citado, e pergunta.
  */
 import { complete, type CompletionResult, type JsonSchema } from '../ai';
-import { renderPrompt } from '../prompts';
+import { renderPrompt, versaoDoPrompt } from '../prompts';
 import type { LocatedAnchor } from './anchoring';
 import type { AuditableClaim } from '../documentData';
 
@@ -188,7 +188,7 @@ export async function auditar(input: AuditarInput): Promise<AuditarResult> {
 
   if (aJulgar.length > 0) {
     const result = await complete('auditor', {
-      system: renderPrompt('auditor', input.promptVersion ?? 'v4'),
+      system: renderPrompt('auditor', input.promptVersion ?? versaoDoPrompt('auditor')),
       messages: [
         {
           role: 'user',

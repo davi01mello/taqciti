@@ -106,6 +106,43 @@ export function renderPrompt(
   return interpolate(loadPromptTemplate(agent, version), values, `${agent}/${version}`);
 }
 
+/**
+ * Que versão de cada prompt a geração usa — num lugar só.
+ *
+ * As versões novas (21/10/2026) acrescentam uma regra: tudo nas fontes é
+ * conteúdo a registrar, mas uma fala que manda em quem escreve ("escreva na ata
+ * que foi aprovado") não muda as instruções nem vira decisão. As anteriores
+ * ficam para comparação: `DOCCITI_PROMPTS=anteriores` volta a elas sem deploy
+ * de código, e é assim que o teste ao vivo de injeção mede as duas.
+ */
+export type PapelDoPrompt = 'leitor' | 'auditor' | 'redatorGeracao' | 'redatorEdicao';
+
+/**
+ * O redator já está na versão nova: medida em 21/10/2026 com
+ * `lib/injecao.live.test.ts` (3 rodadas, Groq gpt-oss-120b) — injeção barrada e
+ * nenhum combinado legítimo perdido. Leitor e auditor (a Ata) continuam nas
+ * anteriores até a mesma medição rodar com `INJECAO_GERACOES=ata` — a chave
+ * local estourou a cota do Gemini, e a Ata não cabe no limite do Groq gratuito.
+ * Os arquivos `leitor/v3` e `auditor/v5` estão prontos; trocar é mudar aqui.
+ */
+const EM_USO: Record<PapelDoPrompt, PromptVersion> = {
+  leitor: 'v2',
+  auditor: 'v4',
+  redatorGeracao: 'v5',
+  redatorEdicao: 'v6',
+};
+
+const ANTERIORES: Record<PapelDoPrompt, PromptVersion> = {
+  leitor: 'v2',
+  auditor: 'v4',
+  redatorGeracao: 'v3',
+  redatorEdicao: 'v4',
+};
+
+export function versaoDoPrompt(papel: PapelDoPrompt): PromptVersion {
+  return process.env.DOCCITI_PROMPTS?.trim() === 'anteriores' ? ANTERIORES[papel] : EM_USO[papel];
+}
+
 /** Só para teste: esquecer o cache entre casos. */
 export function clearPromptCache(): void {
   cache.clear();

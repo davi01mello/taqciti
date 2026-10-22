@@ -17,7 +17,7 @@
 import { complete } from '../ai';
 import type { JsonSchema, CompletionUsage } from '../ai';
 import { createLocator, type Locator } from '../agents/anchoring';
-import { renderPrompt } from '../prompts';
+import { renderPrompt, versaoDoPrompt } from '../prompts';
 import {
   aplicarPatch,
   blocoSchema,
@@ -511,7 +511,7 @@ export async function gerarDocumentoPersonalizado(
   let construido!: ReturnType<typeof construirArvore>;
   for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
     resposta = await complete('leitor', {
-      system: renderPrompt('redator', 'v3'),
+      system: renderPrompt('redator', versaoDoPrompt('redatorGeracao')),
       messages: [{ role: 'user', content: orientacoesEPedido(entrada) }],
       maxTokens: 12000,
       jsonSchema: SCHEMA_DE_GERACAO,
@@ -644,7 +644,7 @@ export async function editarDocumentoPersonalizado(entrada: PedidoDeEdicao): Pro
   }
 
   const resposta = await complete('leitor', {
-    system: renderPrompt('redator', 'v4'),
+    system: renderPrompt('redator', versaoDoPrompt('redatorEdicao')),
     messages: [
       {
         role: 'user',
