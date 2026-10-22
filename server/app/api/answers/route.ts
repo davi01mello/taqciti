@@ -15,6 +15,7 @@
  *     -d '{"documentType":"ata","documentData":{...},"gaps":[...],"answers":[...]}'
  */
 import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
 import { corsHeaders } from '@/lib/apiGuard';
 import { autorizarIa } from '@/lib/guardaDeIa';
 import { applyAnswers } from '@/lib/applyAnswers';
@@ -25,6 +26,23 @@ import { TEMPLATES } from '@/lib/templates';
 import { assertSemVazamento } from '@/lib/vazamento';
 import type { DocumentData, Gap } from '@/lib/documentData';
 import type { Answer, Question } from '@/lib/generateStep';
+
+const respostasSchema = z
+  .array(z.object({ questionId: z.string().max(300), answer: z.string().max(5_000) }))
+  .max(200);
+
+const lacunasSchema = z
+  .array(
+    z
+      .object({
+        sectionId: z.string().max(200),
+        field: z.string().max(300),
+        question: z.string().max(2_000),
+        why: z.string().max(2_000),
+      })
+      .passthrough(),
+  )
+  .max(500);
 
 export function OPTIONS(request: NextRequest): NextResponse {
   return new NextResponse(null, {
@@ -64,16 +82,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 400, headers },
     );
   }
-  if (!Array.isArray(body.answers)) {
-    return NextResponse.json({ error: '"answers" precisa ser uma lista.' }, { status: 400, headers });
+  // Forma e teto das listas antes de qualquer uso: com `as`, um item torto
+  // virava TypeError (500) dentro do render, e uma lista enorme, trabalho à toa.
+  const respostas = respostasSchema.safeParse(body.answers);
+  if (!respostas.success) {
+    return NextResponse.json(
+      { error: '"answers" precisa ser uma lista de { questionId, answer } (até 200).' },
+      { status: 400, headers },
+    );
   }
-
-  const gapsRecebidas = Array.isArray(body.gaps) ? (body.gaps as Gap[]) : [];
+  const lacunas = lacunasSchema.safeParse(body.gaps ?? []);
+  if (!lacunas.success) {
+    return NextResponse.json(
+      { error: '"gaps", quando enviado, precisa ser uma lista de lacunas (até 500).' },
+      { status: 400, headers },
+    );
+  }
 
   const resultado = applyAnswers(
     body.documentData as DocumentData,
-    body.answers as Answer[],
-    gapsRecebidas,
+    respostas.data as Answer[],
+    lacunas.data as Gap[],
   );
 
   const template = TEMPLATES[body.documentType];
