@@ -107,6 +107,13 @@ export const STORAGE_KEYS = {
   sync: 'taq:sync',
 
   /**
+   * A conta do CITi com que a pessoa entrou para usar a IA — só o e-mail, como
+   * `login_hint` do caminho silencioso. Separado de `sync` de propósito: entrar
+   * para usar a IA não pode ligar a sincronização do acervo.
+   */
+  contaDaIa: 'taq:contaDaIa',
+
+  /**
    * chrome.storage.local — o que JÁ foi aceito pelo servidor.
    *
    * Um resumo curto por item (`tipo:id` → assinatura), e não um "sincronizei

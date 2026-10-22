@@ -48,6 +48,33 @@ const mapa = mapaGuardado<AvisoEnviado>(STORAGE_KEYS.chatNotice, ehAviso);
 
 export const observarAvisos = mapa.observar;
 
+export async function avisoJaEnviado(meetingId: string): Promise<boolean> {
+  return (await mapa.lerDe(meetingId)) !== null;
+}
+
+/**
+ * O aviso AUTOMÁTICO, uma vez por reunião, quando a captura começa (plano de
+ * segurança / LGPD, 21/10/2026).
+ *
+ * Quem grava já disse "sim" na cápsula; os OUTROS participantes não sabiam de
+ * nada. A transcrição é dado pessoal deles também, e o mínimo é saberem. O
+ * botão da sidebar continua existindo para o caso de o envio automático falhar
+ * (chat fechado para participantes, Meet mudou o DOM): ele só aparece enquanto
+ * o aviso não foi registrado.
+ *
+ * `enviar` é injetado (o background passa o `tabs.sendMessage` para a aba da
+ * reunião), para isto ser testável sem Chrome.
+ */
+export async function avisarParticipantes(
+  meetingId: string,
+  enviar: (texto: string) => Promise<boolean>,
+): Promise<boolean> {
+  if (await avisoJaEnviado(meetingId)) return true;
+  const ok = await enviar(TEXTO_DO_AVISO).catch(() => false);
+  if (ok) await registrarAvisoEnviado(meetingId);
+  return ok;
+}
+
 export async function registrarAvisoEnviado(meetingId: string): Promise<void> {
   await mapa.atualizar(meetingId, (atual) => atual ?? { meetingId, at: Date.now() });
 }

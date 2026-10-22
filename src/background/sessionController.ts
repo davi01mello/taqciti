@@ -21,6 +21,7 @@ import {
 } from '@/shared/config/constants';
 import { readLocal, readSession, writeSession } from '@/shared/services/storage';
 import { limparVinculosDaReuniao } from '@/features/annotations/vinculos';
+import { avisarParticipantes } from '@/features/annotations/chatNotice';
 import { logger } from '@/shared/services/log';
 import { finalizeStaleRecordings, upsertRecord } from './history';
 import { bumpMetrics } from './metrics';
@@ -203,6 +204,21 @@ async function runSideEffects(
     if (isLive(state) && state.session) {
       lastLiveSaveAt = now;
       await upsertRecord(buildMeetingRecord(state.session, 'recording', now));
+    }
+  }
+
+  // A captura acabou de começar: avisa os participantes no chat, uma vez por
+  // reunião. Sem `await` — o Meet pode levar segundos para abrir o chat, e a
+  // transição de estado não pode esperar por isso. Ver `chatNotice.ts`.
+  if (state.phase === 'recording' && prev.phase !== 'recording' && prev.phase !== 'paused' && state.session) {
+    const { meetingId, tabId } = state.session;
+    if (tabId !== null && tabId !== undefined) {
+      void avisarParticipantes(meetingId, async (text) => {
+        const r = (await chrome.tabs.sendMessage(tabId, { type: 'meet/sendChatNotice', text })) as
+          | { ok?: boolean }
+          | undefined;
+        return r?.ok === true;
+      }).catch((error) => logger.error('aviso automático no chat falhou', error));
     }
   }
 

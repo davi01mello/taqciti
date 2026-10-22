@@ -269,7 +269,7 @@ create index if not exists print_lapide on print_local (atualizado_em) where apa
 -- ------------------------------------------------------- uso das rotas de IA
 
 -- Quantas chamadas a modelo cada pessoa fez no dia, e quantos caracteres
--- mandou. É a cota de `lib/cotaDeIa.ts`: sem ela, uma conta (ou um script com o
+-- mandou. É a cota de `lib/guardaDeIa.ts`: sem ela, uma conta (ou um script com o
 -- token de alguém) chama o modelo pago em laço até a conta do provedor secar.
 -- Uma linha por (pessoa, dia), incrementada por upsert; não precisa de limpeza
 -- frequente — são poucas dezenas de bytes por pessoa por dia.

@@ -274,6 +274,7 @@ function guardarNoCache(idToken: string): void {
 /** Só os testes precisam limpar entre casos; em produção o cache expira sozinho. */
 export function limparCacheDeIdentidadeLocal(): void {
   emCache = null;
+  loginRecusadoEm = 0;
 }
 
 /**
@@ -303,19 +304,64 @@ export async function tokenDeIdentidade(interativo: boolean): Promise<string | n
 }
 
 /**
- * O `id_token` para as rotas de IA do servidor, ou `null` — NUNCA abre popup.
+ * O `id_token` para as rotas de IA do servidor, ou `null`.
  *
  * Desde o plano de segurança (21/10/2026) o servidor identifica quem chama a
- * IA pela conta do Google e conta o uso por pessoa; o segredo compartilhado
- * vira ponte para as instalações antigas. Só tenta quando a pessoa já ligou a
- * conexão com o Google (o "sim" guardado): para quem nunca ligou, um
- * `launchWebAuthFlow` silencioso a cada geração seria espera à toa.
+ * IA pela conta do Google e conta o uso por pessoa; o segredo compartilhado é
+ * só a ponte para as instalações antigas, e vai cair. Por isso a IA EXIGE a
+ * conta do CITi, com ou sem sincronização ligada:
+ *
+ *  1. o cache em memória, quando houver;
+ *  2. o caminho silencioso, com a conta já escolhida como dica (a da
+ *     sincronização, ou a guardada em `contaDaIa` no primeiro login para a IA);
+ *  3. sem dica, ou com o silencioso recusado: a janela do Google, UMA vez. Se a
+ *     pessoa fechar, não reabre a cada chamada — espera `PAUSA_DO_LOGIN_MS`.
+ *
+ * Entrar para usar a IA NÃO liga a sincronização: o e-mail vai para
+ * `contaDaIa`, não para o "sim" de `sync`.
  */
-export async function identidadeParaIa(): Promise<string | null> {
+const PAUSA_DO_LOGIN_MS = 10 * 60_000;
+let loginRecusadoEm = 0;
+let loginEmCurso: Promise<string | null> | null = null;
+
+export function identidadeParaIa(): Promise<string | null> {
+  // Várias chamadas ao mesmo tempo (o Taq e uma geração) dividem o mesmo
+  // login: duas janelas do Google para a mesma pergunta seria confuso.
+  if (!loginEmCurso) {
+    loginEmCurso = obterIdentidadeParaIa().finally(() => {
+      loginEmCurso = null;
+    });
+  }
+  return loginEmCurso;
+}
+
+async function obterIdentidadeParaIa(): Promise<string | null> {
   try {
     if (!identidadeConfigurada()) return null;
-    if (!(await lerSim()).ligada) return null;
-    return await tokenDeIdentidade(false);
+    const guardado = doCache();
+    if (guardado) return guardado;
+
+    const sim = await lerSim();
+    const conta = await readLocal<{ email?: string }>(STORAGE_KEYS.contaDaIa);
+    const dica = (sim.ligada ? sim.email : undefined) ?? conta?.email;
+    if (dica) {
+      const { idToken } = await pedirIdentidade(false, dica);
+      if (idToken) {
+        guardarNoCache(idToken);
+        return idToken;
+      }
+    }
+
+    if (Date.now() - loginRecusadoEm < PAUSA_DO_LOGIN_MS) return null;
+    const { idToken } = await pedirIdentidade(true);
+    if (!idToken) {
+      loginRecusadoEm = Date.now();
+      return null;
+    }
+    guardarNoCache(idToken);
+    const email = payloadDoJwt(idToken)?.email;
+    if (typeof email === 'string') await writeLocal(STORAGE_KEYS.contaDaIa, { email });
+    return idToken;
   } catch {
     return null;
   }

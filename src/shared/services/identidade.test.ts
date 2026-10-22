@@ -29,6 +29,7 @@ import {
   desligarSincronizacao,
   estadoDaSincronizacao,
   identidadeConfigurada,
+  identidadeParaIa,
   ligarSincronizacao,
   tokenDeIdentidade,
   limparCacheDeIdentidadeLocal,
@@ -460,5 +461,43 @@ describe('só contas do CITi', () => {
   it('conta do CITi continua ligando normalmente', async () => {
     montarChrome();
     expect(await ligarSincronizacao()).toEqual({ situacao: 'ligada', email: 'ana@citi.org.br' });
+  });
+});
+describe('identidadeParaIa — a IA exige a conta do CITi', () => {
+  it('sem sincronização nem conta guardada, abre o login UMA vez e guarda só a dica', async () => {
+    const { pedidos } = montarChrome();
+    expect(await identidadeParaIa()).toBeTruthy();
+    expect(pedidos).toHaveLength(1);
+    expect(pedidos[0]!.interactive).toBe(true);
+    const guardado = await chrome.storage.local.get([STORAGE_KEYS.contaDaIa, STORAGE_KEYS.sync]);
+    expect(guardado[STORAGE_KEYS.contaDaIa]).toEqual({ email: 'ana@citi.org.br' });
+    // Entrar para a IA não liga a sincronização.
+    expect(guardado[STORAGE_KEYS.sync]).toBeUndefined();
+
+    // A segunda chamada sai do cache, sem janela nenhuma.
+    await identidadeParaIa();
+    expect(pedidos).toHaveLength(1);
+  });
+
+  it('com a conta guardada, vai pelo silencioso com a dica', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.contaDaIa]: { email: 'ana@citi.org.br' } });
+    const { pedidos } = montarChrome();
+    expect(await identidadeParaIa()).toBeTruthy();
+    expect(pedidos[0]!.interactive).toBe(false);
+    expect(new URL(pedidos[0]!.url).searchParams.get('login_hint')).toBe('ana@citi.org.br');
+  });
+
+  it('janela fechada não reabre a cada chamada', async () => {
+    const { pedidos } = montarChrome({ idToken: null });
+    expect(await identidadeParaIa()).toBeNull();
+    expect(await identidadeParaIa()).toBeNull();
+    expect(pedidos).toHaveLength(1);
+  });
+
+  it('chamadas simultâneas dividem o mesmo login', async () => {
+    const { pedidos } = montarChrome();
+    const [a, b] = await Promise.all([identidadeParaIa(), identidadeParaIa()]);
+    expect(a).toBe(b);
+    expect(pedidos).toHaveLength(1);
   });
 });
