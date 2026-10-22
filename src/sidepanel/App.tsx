@@ -124,6 +124,8 @@ export function App() {
     atividade: 'repouso',
     parcial: '',
     etapa: null,
+    passos: [],
+    desde: null,
   });
   /** Preenchida apenas pelos controles de desenvolvimento. `null` em produção. */
   const [sobreposicao, setSobreposicao] = useState<Sobreposicao | null>(null);
@@ -287,7 +289,7 @@ export function App() {
       (execucaoEm === null || execucaoEm !== conversa?.id)) ||
     (agenteTrabalhando && rapidaEm !== null && rapidaEm !== conversa?.id);
   const agenteVisivel: EstadoDoAgente = daOutraConversa
-    ? { atividade: 'repouso', parcial: '', etapa: null }
+    ? { atividade: 'repouso', parcial: '', etapa: null, passos: [], desde: null }
     : agente;
   const respondendoRapida = agenteTrabalhando && rapidaEm !== null;
 

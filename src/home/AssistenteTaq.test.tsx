@@ -91,9 +91,9 @@ function servidor(
   );
 }
 
-async function montar() {
+async function montar(historico: MeetingRecord[] = [SPRINT]) {
   storage = installChromeStorageMock({
-    local: { [STORAGE_KEYS.history]: [SPRINT] },
+    local: { [STORAGE_KEYS.history]: historico },
     extra: {
       runtime: {
         getURL: (p: string) => `chrome-extension://taqciti/${p}`,
@@ -169,6 +169,26 @@ afterEach(() => {
   host.remove();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+it('sem reunião guardada, a abertura sugere por onde começar, e a sugestão vira pergunta', async () => {
+  servidor(PRONTO, [{ corpo: turno({ texto: 'O TaqCiti registra reuniões do Meet.' }) }]);
+  await montar([]);
+  await ate(() => host.textContent!.includes('IA conectada'));
+  const sugestao = Array.from(host.querySelectorAll<HTMLButtonElement>('.tq-sugestoes button')).find(
+    (b) => b.textContent === 'O que o TaqCiti faz?',
+  );
+  expect(sugestao).toBeDefined();
+
+  await act(async () => sugestao!.click());
+  await ate(() => conversas()?.[0]?.messages[0]?.text === 'O que o TaqCiti faz?');
+});
+
+it('com reunião guardada, a abertura é só a marca e o slogan', async () => {
+  servidor(PRONTO, []);
+  await montar();
+  await ate(() => host.textContent!.includes('IA conectada'));
+  expect(host.querySelector('.tq-primeiro-uso')).toBeNull();
 });
 
 it('responde com fonte, grava a resposta, e a fonte abre a reunião', async () => {

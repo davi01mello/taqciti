@@ -2306,6 +2306,45 @@ body .tq-home [role='dialog'] button {
   color: var(--e-cinza);
 }
 
+/* Primeiro uso (sem reunião guardada): discreto, abaixo do slogan, e some
+   assim que existir a primeira reunião. */
+.tq-primeiro-uso {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.tq-primeiro-uso p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgb(140 143 147);
+}
+
+.tq-sugestoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tq-sugestoes button {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  color: rgb(196 199 203);
+  cursor: pointer;
+  transition:
+    border-color 0.3s,
+    color 0.3s;
+}
+
+.tq-sugestoes button:hover,
+.tq-sugestoes button:focus-visible {
+  border-color: rgb(255 255 255 / 0.26);
+  color: rgb(240 242 244);
+}
+
 /* Quem fala, no chat: a sua mensagem em branco, texto solto à direita — sem
    placa, sem cor e sem borda; a resposta em lilás, também solta. */
 .tq-turno-voce .tq-bolha {

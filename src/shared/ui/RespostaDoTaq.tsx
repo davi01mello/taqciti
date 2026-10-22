@@ -17,8 +17,9 @@
  */
 import type { ConversationMessage, FonteDaResposta } from '@/home/conversations';
 import type { EstadoDoAgente } from '@/features/agent/atividade';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
+import { formatElapsedClock } from './format';
 import { Markdown } from './Markdown';
 import { BotaoCopiar } from './BotaoCopiar';
 import type { ResultadoDaConfirmacao } from '@/features/taq/orquestrador';
@@ -281,6 +282,22 @@ export function RespostaDoTaq({
  * O que o Taq está fazendo agora, ou como a última execução terminou quando
  * ela não deixou resposta. Com o botão de cancelar enquanto trabalha.
  */
+/** "0:42" desde o início da execução; some nos primeiros segundos, quando ainda é ruído. */
+function Decorrido({ desde }: { desde: number | null }) {
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    if (desde === null) return;
+    const t = setInterval(() => setAgora(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [desde]);
+  if (desde === null || agora - desde < 3000) return null;
+  return (
+    <span className="tq-exec-tempo" aria-hidden="true">
+      {formatElapsedClock(agora - desde)}
+    </span>
+  );
+}
+
 export function EstadoDaExecucao({
   agente,
   desfecho,
@@ -292,12 +309,33 @@ export function EstadoDaExecucao({
   onCancelar: () => void;
 }) {
   if (agente.atividade === 'preparando' || agente.atividade === 'escrevendo') {
+    /*
+     * O que já foi feito fica à vista, um passo por linha, com o relógio ao
+     * lado da etapa. Sem isso, um minuto de espera era uma linha só, parada —
+     * e parecia travado. Só a ETAPA é anunciada ao leitor de tela; o relógio,
+     * que muda a cada segundo, não.
+     */
     return (
-      <div className="tq-exec" role="status">
-        <span className="tq-exec-etapa">{agente.etapa ?? 'Preparando'}…</span>
-        <button type="button" className="tq-exec-cancelar" onClick={onCancelar}>
-          Cancelar
-        </button>
+      <div className="tq-exec-bloco">
+        {agente.passos.length > 0 && (
+          <ul className="tq-exec-passos" aria-label="O que já foi feito">
+            {agente.passos.map((passo, i) => (
+              <li key={`${i}-${passo}`}>
+                <Icon name="check" size={11} />
+                {passo}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="tq-exec">
+          <span className="tq-exec-etapa" role="status">
+            {agente.etapa ?? 'Preparando'}…
+          </span>
+          <Decorrido desde={agente.desde} />
+          <button type="button" className="tq-exec-cancelar" onClick={onCancelar}>
+            Cancelar
+          </button>
+        </div>
       </div>
     );
   }

@@ -595,6 +595,7 @@ export function HomePage() {
             onAbrirDocumento={abrirDocumento}
             onDesfazer={desfazer}
             onConfirmarAcao={confirmarAcao}
+            primeiroUso={loaded && records.length === 0}
           />
         )}
 

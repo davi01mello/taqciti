@@ -61,7 +61,19 @@ export interface EstadoDoAgente {
    * Vale durante `preparando`; `null` no resto.
    */
   etapa: string | null;
+  /**
+   * O que JÁ foi feito nesta execução, uma linha por ferramenta concluída
+   * ("Buscando nas reuniões · 3 resultados"). Sem conteúdo dos registros: é o
+   * `resumo` da ferramenta, que já nasce sem ele. Antes a pessoa via só a etapa
+   * corrente, e uma espera de um minuto parecia uma tela parada.
+   */
+  passos: string[];
+  /** Quando a execução em curso começou; `null` fora dela. */
+  desde: number | null;
 }
+
+/** Quantos passos ficam na tela: os mais recentes. */
+const MAX_PASSOS = 6;
 
 /**
  * Quanto tempo `concluido` dura antes de virar `repouso`.
@@ -71,7 +83,7 @@ export interface EstadoDoAgente {
  */
 export const ACOMODAR_MS = 1400;
 
-const INICIAL: EstadoDoAgente = { atividade: 'repouso', parcial: '', etapa: null };
+const INICIAL: EstadoDoAgente = { atividade: 'repouso', parcial: '', etapa: null, passos: [], desde: null };
 
 let atual: EstadoDoAgente = INICIAL;
 const ouvintes = new Set<(estado: EstadoDoAgente) => void>();
@@ -104,7 +116,17 @@ export function publicarAtividade(atividade: AtividadeDoAgente): void {
   // continuação dela o descarta. Mantê-lo em `concluido` é o que deixa o texto
   // na tela durante a acomodação.
   const parcial = atividade === 'escrevendo' || atividade === 'concluido' ? atual.parcial : '';
-  atual = { atividade, parcial, etapa: null };
+  // Os passos e o relógio pertencem à execução: seguem de `preparando` para
+  // `escrevendo`, e recomeçam quando uma execução nova começa.
+  const continua = estaTrabalhando(atual.atividade) && estaTrabalhando(atividade);
+  const comeca = atividade === 'preparando' && !continua;
+  atual = {
+    atividade,
+    parcial,
+    etapa: null,
+    passos: continua ? atual.passos : [],
+    desde: continua ? atual.desde : comeca ? Date.now() : null,
+  };
   emitir();
 
   if (atividade === 'concluido') {
@@ -121,6 +143,13 @@ export function publicarAtividade(atividade: AtividadeDoAgente): void {
 export function publicarEtapa(etapa: string): void {
   if (atual.atividade !== 'preparando' || atual.etapa === etapa) return;
   atual = { ...atual, etapa };
+  emitir();
+}
+
+/** Um passo concluído. Só vale com execução em curso. */
+export function publicarPasso(passo: string): void {
+  if (!estaTrabalhando(atual.atividade)) return;
+  atual = { ...atual, passos: [...atual.passos, passo].slice(-MAX_PASSOS) };
   emitir();
 }
 

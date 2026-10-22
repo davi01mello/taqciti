@@ -15,6 +15,7 @@ import {
   publicarAtividade,
   publicarEtapa,
   publicarParcial,
+  publicarPasso,
 } from './atividade';
 
 beforeEach(() => {
@@ -29,14 +30,14 @@ afterEach(() => {
 
 describe('o estado do agente', () => {
   it('nasce em repouso — que é o estado de produção hoje', () => {
-    expect(agenteAgora()).toEqual({ atividade: 'repouso', parcial: '', etapa: null });
+    expect(agenteAgora()).toEqual({ atividade: 'repouso', parcial: '', etapa: null, passos: [], desde: null });
     expect(estaTrabalhando('repouso')).toBe(false);
   });
 
   it('emite o valor atual ao assinar, como os demais observadores', () => {
     const visto = vi.fn();
     observarAgente(visto);
-    expect(visto).toHaveBeenCalledWith({ atividade: 'repouso', parcial: '', etapa: null });
+    expect(visto).toHaveBeenCalledWith({ atividade: 'repouso', parcial: '', etapa: null, passos: [], desde: null });
   });
 
   it('avisa quem assinou a cada mudança, e só nas mudanças', () => {
@@ -146,6 +147,42 @@ describe('o texto que chega em progressão', () => {
     publicarAtividade('falhou');
 
     expect(agenteAgora().parcial).toBe('');
+  });
+});
+
+describe('os passos já feitos e o relógio', () => {
+  it('acumulam durante a execução e seguem de "preparando" para "escrevendo"', () => {
+    publicarAtividade('preparando');
+    expect(agenteAgora().desde).toEqual(expect.any(Number));
+    publicarPasso('Buscando nas reuniões · 3 resultado(s)');
+    publicarAtividade('escrevendo');
+    publicarPasso('Lendo a reunião · 40 segmento(s)');
+    expect(agenteAgora().passos).toEqual([
+      'Buscando nas reuniões · 3 resultado(s)',
+      'Lendo a reunião · 40 segmento(s)',
+    ]);
+  });
+
+  it('uma execução nova não herda os passos da anterior', () => {
+    publicarAtividade('preparando');
+    publicarPasso('passo antigo');
+    publicarAtividade('concluido');
+    expect(agenteAgora().passos).toEqual([]);
+    expect(agenteAgora().desde).toBeNull();
+
+    publicarAtividade('preparando');
+    expect(agenteAgora().passos).toEqual([]);
+  });
+
+  it('fora de execução, passo não entra', () => {
+    publicarPasso('solto');
+    expect(agenteAgora().passos).toEqual([]);
+  });
+
+  it('guarda só os mais recentes', () => {
+    publicarAtividade('preparando');
+    for (let i = 1; i <= 9; i++) publicarPasso(`passo ${i}`);
+    expect(agenteAgora().passos).toEqual(['passo 4', 'passo 5', 'passo 6', 'passo 7', 'passo 8', 'passo 9']);
   });
 });
 

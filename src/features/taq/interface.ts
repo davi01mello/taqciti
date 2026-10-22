@@ -19,7 +19,7 @@
  * no histórico.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { publicarAtividade, publicarEtapa } from '@/features/agent/atividade';
+import { publicarAtividade, publicarEtapa, publicarPasso } from '@/features/agent/atividade';
 import { STORAGE_KEYS } from '@/shared/config/constants';
 import { onLocalChange } from '@/shared/services/storage';
 import { logger } from '@/shared/services/log';
@@ -201,6 +201,22 @@ function etapaDo(evento: EventoDeExecucao): string | null {
   }
 }
 
+/**
+ * O passo concluído, numa linha: a etapa da ferramenta e o resumo dela
+ * ("Buscando nas reuniões · 3 resultados"). O resumo já nasce sem conteúdo dos
+ * registros (ver `EventoDeExecucao`). Exportado para teste.
+ */
+export function passoDo(evento: EventoDeExecucao, etapas: Map<string, string>): string | null {
+  if (evento.tipo === 'ferramenta_inicio') {
+    etapas.set(evento.nome, evento.etapa);
+    return null;
+  }
+  if (evento.tipo !== 'ferramenta_fim') return null;
+  const etapa = etapas.get(evento.nome) ?? evento.nome;
+  if (!evento.ok) return `${etapa} · não deu certo`;
+  return evento.resumo.trim() ? `${etapa} · ${evento.resumo.trim()}` : etapa;
+}
+
 const MOTIVO_EM_PALAVRAS: Record<string, string> = {
   cancelado: 'Interrompido: você cancelou.',
   tempo_esgotado:
@@ -337,6 +353,8 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
     const ultimaDoTaq = anteriores.at(-1)?.role === 'assistant' ? anteriores.at(-1) : undefined;
     for (const d of ultimaDoTaq?.documentos ?? []) selecionados.push({ tipo: 'documento', id: d.id });
 
+    /** A etapa com que cada ferramenta começou: é ela que nomeia o passo quando a ferramenta termina. */
+    const etapasDasFerramentas = new Map<string, string>();
     const r = await obterOrquestrador().executar({
       conversaId: p.conversaId,
       ...(conversa?.meetingId ? { meetingId: conversa.meetingId } : {}),
@@ -349,6 +367,8 @@ export async function perguntarAoTaq(p: PerguntaAoTaq): Promise<ExecucaoDoTaq | 
       aoEvento: (e) => {
         const etapa = etapaDo(e);
         if (etapa) publicarEtapa(etapa);
+        const passo = passoDo(e, etapasDasFerramentas);
+        if (passo) publicarPasso(passo);
       },
     });
 

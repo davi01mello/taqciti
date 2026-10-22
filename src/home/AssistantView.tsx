@@ -79,7 +79,21 @@ interface Props {
   onDesfazer?: (id: string) => Promise<boolean>;
   /** Confirma, pelo botão do cartão, uma ação externa preparada. */
   onConfirmarAcao?: (conversaId: string, chave: string, repetir?: boolean) => Promise<ResultadoDaConfirmacao>;
+  /** Nenhuma reunião guardada ainda: a abertura sugere por onde começar. */
+  primeiroUso?: boolean;
 }
+
+/**
+ * Por onde começar, quando ainda não há reunião nenhuma. São perguntas que a
+ * ajuda do produto responde (`features/taq/ajuda.ts`), então funcionam sem
+ * acervo. Com reuniões guardadas, a abertura volta a ser só a marca e o
+ * slogan — a direção visual aprovada (exceção decidida em 21/10/2026).
+ */
+const SUGESTOES_DO_PRIMEIRO_USO = [
+  'O que o TaqCiti faz?',
+  'Como registro uma reunião do Meet?',
+  'Que documentos dá para criar?',
+] as const;
 
 export function AssistantView({
   conversa,
@@ -99,6 +113,7 @@ export function AssistantView({
   onAbrirDocumento,
   onDesfazer,
   onConfirmarAcao,
+  primeiroUso = false,
 }: Props) {
   const trabalhando =
     agente.atividade === 'preparando' || agente.atividade === 'escrevendo';
@@ -308,6 +323,30 @@ export function AssistantView({
           <div className="tq-abertura">
             <MarcaDoTaq estado="repouso" tamanho={56} ouve />
             <p className="tq-slogan">Sempre te ouvindo</p>
+            {primeiroUso && (
+              <div className="tq-primeiro-uso">
+                <p>Entre numa reunião do Google Meet e aceite registrar: ela aparece aqui.</p>
+                <div className="tq-sugestoes">
+                  {SUGESTOES_DO_PRIMEIRO_USO.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      // Com a IA pronta, a sugestão vai direto; sem ela, vira
+                      // rascunho no campo, e o aviso abaixo diz por que não foi.
+                      onClick={() => {
+                        if (taq.fase === 'pronto' && !gravando && !trabalhando) void onEnviar(s);
+                        else {
+                          onRascunho(s);
+                          campoRef.current?.focus();
+                        }
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           historico
