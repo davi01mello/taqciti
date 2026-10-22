@@ -30,7 +30,8 @@
  * baixado num passado sem esta coleção não aparece aqui: a extensão não tem o
  * conteúdo dele, e oferecer "abrir" seria uma promessa vazia.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFecharAoSair } from '@/shared/ui/useFecharAoSair';
 import { protegerEdicao } from '@/shared/services/navigation';
 import type { MeetingRecord } from '@/shared/types/domain';
 import {
@@ -271,6 +272,9 @@ function EditorDeDocumento({
   const [titulo, setTitulo] = useState(documento.title);
   const [conteudo, setConteudo] = useState(documento.content);
   const [menuAberto, setMenuAberto] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuBotaoRef = useRef<HTMLButtonElement | null>(null);
+  useFecharAoSair(menuAberto, useCallback(() => setMenuAberto(false), []), menuRef, menuBotaoRef);
   const [confirmando, setConfirmando] = useState(false);
   const [erroAcao, setErroAcao] = useState('');
 
@@ -459,11 +463,12 @@ function EditorDeDocumento({
           <Icon name="arrowDown" size={14} />
           Baixar .{documento.formato === 'texto' ? 'txt' : 'md'}
         </button>
-        <div className="tq-menu-secundario">
+        <div className="tq-menu-secundario" ref={menuRef}>
           <button
             type="button"
             className="tq-acao tq-acao-icone"
             aria-haspopup="true"
+            ref={menuBotaoRef}
             aria-expanded={menuAberto}
             title="Mais ações"
             aria-label="Mais ações"

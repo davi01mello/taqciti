@@ -10,7 +10,8 @@
  * precisava se mostrar com o storage vazio; aqui o storage é de verdade, e
  * vazio é uma informação, não um buraco para preencher com ficção.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFecharAoSair } from '@/shared/ui/useFecharAoSair';
 import type { MeetingRecord } from '@/shared/types/domain';
 import type { EstadoDaGravacao, Nota } from '@/features/annotations/notes';
 import type { DocumentoGuardado } from '@/features/documents/store';
@@ -393,6 +394,9 @@ function DetalheDaReuniao({
       : 'transcricao',
   );
   const [menuAberto, setMenuAberto] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuBotaoRef = useRef<HTMLButtonElement | null>(null);
+  useFecharAoSair(menuAberto, useCallback(() => setMenuAberto(false), []), menuRef, menuBotaoRef);
   const [confirmando, setConfirmando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -503,11 +507,12 @@ function DetalheDaReuniao({
         {/* A que está sendo gravada não se apaga, como na lista: a captura
             ainda escreve nela, e o pedido seria recusado depois de confirmado. */}
         {registro.status !== 'recording' && (
-          <div className="tq-menu-secundario">
+          <div className="tq-menu-secundario" ref={menuRef}>
             <button
               type="button"
               className="tq-acao tq-pilula tq-acao-icone"
               aria-haspopup="true"
+              ref={menuBotaoRef}
               aria-expanded={menuAberto}
               title="Mais ações"
               aria-label="Mais ações"

@@ -33,7 +33,7 @@
  * quem ACABOU de enviar: aí a rolagem acompanha, porque ver o que se enviou é
  * o motivo de ter enviado.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import type { EstadoDoAgente } from '@/features/agent/atividade';
 import { anunciarEscrita } from '@/features/agent/escuta';
@@ -60,7 +60,7 @@ interface Props {
   rascunho: string;
   onRascunho: (texto: string) => void;
   /** Resolve `true` se a mensagem foi mesmo gravada. */
-  onEnviar: (texto: string, anexos: string[]) => Promise<boolean>;
+  onEnviar: (texto: string) => Promise<boolean>;
   /** O campo ganhou ou perdeu a atenção — é o que faz a onda subir e descer. */
   onEscrevendo: (escrevendo: boolean) => void;
   /** Sinaliza gesto real da pessoa para a onda do fundo reagir. */
@@ -103,11 +103,7 @@ export function AssistantView({
   const trabalhando =
     agente.atividade === 'preparando' || agente.atividade === 'escrevendo';
   const campoRef = useRef<HTMLTextAreaElement | null>(null);
-  const arquivoRef = useRef<HTMLInputElement | null>(null);
   const noFimRef = useRef(true);
-
-  const [anexos, setAnexos] = useState<string[]>([]);
-  const [menuAberto, setMenuAberto] = useState(false);
 
   // Pela lista, não pela conversa: a gravação troca o array de mensagens,
   // mas pode devolver o mesmo objeto de conversa.
@@ -166,21 +162,12 @@ export function AssistantView({
 
     noFimRef.current = true;
     onPulso(1);
-    const ok = await onEnviar(limpo, anexos);
+    const ok = await onEnviar(limpo);
     // Em falha, o texto FICA: perder o que se escreveu por causa de uma
     // gravação que não deu certo é o pior desfecho possível aqui.
     if (!ok) return;
     onRascunho('');
-    setAnexos([]);
     campoRef.current?.focus();
-  };
-
-  const escolherArquivos = (aceita: string) => {
-    const input = arquivoRef.current;
-    if (!input) return;
-    input.accept = aceita;
-    input.click();
-    setMenuAberto(false);
   };
 
   /*
@@ -228,7 +215,7 @@ export function AssistantView({
                       }
                       onEscolherOpcao={
                         ultima && !trabalhando && !gravando && taq.fase === 'pronto'
-                          ? (texto) => void onEnviar(texto, [])
+                          ? (texto) => void onEnviar(texto)
                           : undefined
                       }
                     />
@@ -370,17 +357,12 @@ export function AssistantView({
             }}
           />
 
+          {/*
+           * Sem o "+" de anexar (21/10/2026): ele abria o seletor de arquivo,
+           * mas só o NOME seguia com a mensagem — quem anexava achava que o Taq
+           * tinha lido o arquivo. Volta quando houver para onde mandá-lo.
+           */}
           <div className="tq-campo-acoes">
-            <button
-              type="button"
-              className="tq-mais"
-              aria-label="Anexar imagem ou documento"
-              aria-expanded={menuAberto}
-              aria-controls="tq-anexo-menu"
-              onClick={() => setMenuAberto((v) => !v)}
-            >
-              <Icon name="plus" size={17} />
-            </button>
             <button
               type="submit"
               className="tq-enviar"
@@ -391,30 +373,6 @@ export function AssistantView({
             </button>
           </div>
         </div>
-
-        {anexos.length > 0 && (
-          <p className="tq-anexos" role="status">
-            {anexos.join(' · ')} — só o nome acompanha a mensagem.
-            <button type="button" className="tq-linkish" onClick={() => setAnexos([])}>
-              remover
-            </button>
-          </p>
-        )}
-
-        {menuAberto && (
-          <div className="tq-anexo-menu" id="tq-anexo-menu">
-            <button type="button" onClick={() => escolherArquivos('image/*')}>
-              <Icon name="image" size={15} /> Imagem
-            </button>
-            <button
-              type="button"
-              onClick={() => escolherArquivos('.pdf,.doc,.docx,.txt,.md,.csv')}
-            >
-              <Icon name="doc" size={15} /> Documento
-            </button>
-            <p>Os arquivos ficam neste computador. Não há para onde enviá-los ainda.</p>
-          </div>
-        )}
 
         {/*
          * O estado da IA, dito ANTES de escrever.
@@ -427,18 +385,6 @@ export function AssistantView({
           <AvisoDoTaq taq={taq} onVerificarDeNovo={onVerificarDeNovo} />
         </div>
       </form>
-
-      <input
-        ref={arquivoRef}
-        type="file"
-        multiple
-        hidden
-        onChange={(e) => {
-          const nomes = Array.from(e.target.files ?? []).map((f) => f.name);
-          if (nomes.length) setAnexos((atual) => [...atual, ...nomes]);
-          e.target.value = '';
-        }}
-      />
     </section>
   );
 }

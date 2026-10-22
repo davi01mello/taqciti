@@ -207,7 +207,7 @@ export class ContentController {
     const rotulo = perguntando
       ? 'TaqCiti: registrar esta reunião? Abrir a sidebar'
       : estado === 'desligada' || estado === 'salva'
-        ? 'Gravar esta reunião e abrir a sidebar do TaqCiti'
+        ? 'Registrar esta reunião e abrir a sidebar do TaqCiti'
         : `${LEITURA_DO_ESTADO[estado]}. Abrir a sidebar do TaqCiti`;
     const montado = this.botaoNaBarra.sincronizar({
       tom,
@@ -221,7 +221,7 @@ export class ContentController {
   }
 
   /**
-   * "Gravar esta reunião" — o caminho à mão, quando o automático não pergunta.
+   * "Registrar esta reunião" — o caminho à mão, quando o automático não pergunta.
    *
    * O automático depende de reconhecer a chamada no DOM do Meet (o botão de
    * sair) e a sala na URL; qualquer mudança do Meet pode silenciá-lo. Aqui a

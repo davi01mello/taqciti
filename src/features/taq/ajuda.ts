@@ -147,7 +147,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     onde: 'Página do Google Meet (a cápsula do TaqCiti) ou a sidebar',
     passos: [
       'Entre na reunião pelo Google Meet, no navegador com a extensão instalada.',
-      'O TaqCiti pergunta “Deseja registrar esta reunião?” ao lado da cápsula: clique em “Iniciar captura”. Na sidebar, a mesma pergunta tem o botão “Registrar”.',
+      'O TaqCiti pergunta “Deseja registrar esta reunião?” ao lado da cápsula e na sidebar: clique em “Registrar”.',
       'O TaqCiti liga as legendas do Meet sozinho e as esconde da tela. Enquanto isso, a sidebar mostra “Preparando a transcrição…”.',
       'As falas aparecem na sidebar, em “Reunião”, na aba “Transcrição”.',
       'Se a sala já tem uma gravação guardada, a pergunta mostra qual é e oferece “Continuar de onde parou” (as falas novas entram nela) ou “Nova gravação”.',
@@ -159,7 +159,7 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     limitacoes: [
       'Não grava áudio nem vídeo: só lê as legendas.',
       'Nada é capturado antes de a pessoa aceitar.',
-      'Respondendo “Agora não”, não há botão para começar depois na mesma participação; a pergunta volta ao entrar de novo na reunião depois de 10 minutos, ou depois de reiniciar o navegador.',
+      'Respondendo “Agora não”, a pergunta não volta nesta participação; para começar depois, use “Registrar esta reunião”, na cápsula ou em “Reuniões”, na sidebar.',
       'Se o TaqCiti não conseguir ligar as legendas, não há controle para ligá-las à mão pela extensão. O que a tela mostra nesse caso não está documentado.',
       'Voltar à mesma sala em até 10 minutos continua a gravação sem perguntar. Continuar uma gravação só é oferecido para gravações feitas a partir de 03/10/2026, que guardam de que sala vieram.',
     ],
@@ -167,9 +167,9 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
       'Deseja registrar esta reunião?',
       'Continuar de onde parou',
       'Nova gravação',
-      'Iniciar captura',
       'Agora não',
       'Registrar',
+      'Registrar esta reunião',
       'Preparando a transcrição…',
       'Reunião',
       'Transcrição',
@@ -618,24 +618,6 @@ export const FUNCIONALIDADES: readonly Funcionalidade[] = [
     comoPedir: 'Peça na conversa: "apague esta conversa" ou "apague a conversa X".',
     verificacao: 'interface',
     palavras: ['apagar', 'excluir', 'deletar', 'remover', 'conversa', 'conversas', 'mensagens'],
-  },
-  {
-    id: 'anexar_arquivo',
-    assunto: 'conversas',
-    titulo: 'Anexar imagem ou documento a uma mensagem',
-    oQueFaz: 'Guarda o NOME do arquivo junto da mensagem. O conteúdo não é lido nem enviado.',
-    onde: 'HOME → “Assistente” → o “+” ao lado do campo',
-    passos: [
-      'Clique no botão de mais, ao lado do campo (“Anexar imagem ou documento”), e escolha “Imagem” ou “Documento”.',
-    ],
-    limitacoes: [
-      'Só o nome do arquivo acompanha a mensagem: o Taq não lê o arquivo.',
-      'Não há como anexar uma reunião ou um documento do TaqCiti por aqui; cite o nome na pergunta.',
-    ],
-    rotulos: ['Anexar imagem ou documento', 'Imagem', 'Documento'],
-    implementacao: [ASSISTENTE],
-    verificacao: 'interface',
-    palavras: ['anexar', 'anexo', 'arquivo', 'upload', 'pdf', 'imagem', 'enviar arquivo'],
   },
   {
     id: 'copiar_resposta',
@@ -1532,6 +1514,14 @@ export const FORA_DO_APP: readonly ForaDoApp[] = [
     situacao: 'indisponivel',
     resposta: 'O TaqCiti não grava áudio nem vídeo: ele só lê as legendas do Google Meet.',
     palavras: ['audio', 'video', 'gravacao', 'microfone', 'mp3', 'mp4'],
+  },
+  {
+    id: 'anexar_arquivo',
+    titulo: 'Anexar imagem ou documento a uma mensagem',
+    situacao: 'indisponivel',
+    resposta:
+      'Ainda não dá para anexar arquivos à conversa. Para falar de uma reunião ou de um documento do TaqCiti, cite o nome dele na pergunta.',
+    palavras: ['anexar', 'anexo', 'arquivo', 'upload', 'pdf', 'imagem', 'enviar arquivo'],
   },
   {
     id: 'outras_plataformas',

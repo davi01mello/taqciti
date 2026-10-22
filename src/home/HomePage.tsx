@@ -366,14 +366,11 @@ export function HomePage() {
   );
 
   const enviar = useCallback(
-    async (texto: string, anexos: string[]): Promise<boolean> => {
+    async (texto: string): Promise<boolean> => {
       setGravando(true);
       setErroEnvio(null);
       try {
-        const id = await acrescentarMensagem(conversa?.id ?? null, {
-          texto,
-          attachments: anexos,
-        });
+        const id = await acrescentarMensagem(conversa?.id ?? null, { texto });
         escolherConversa(id);
         /*
          * Com o Taq pronto, a pergunta segue para ele. Sem esperar: a mensagem

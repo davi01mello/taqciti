@@ -43,7 +43,7 @@ interface Props {
   abertaId: string | null;
   onAbrir: (id: string | null) => void;
   /**
-   * "Gravar esta reunião", à mão e a qualquer momento: o caminho para quando o
+   * "Registrar esta reunião", à mão e a qualquer momento: o caminho para quando o
    * automático não perguntou ou a pessoa disse "agora não". Resolve com o
    * resultado REAL — `ok: false` traz o motivo, e falha não vira confirmação.
    */
@@ -78,9 +78,9 @@ export function Reunioes({
     setFalha(null);
     try {
       const r = await onGravarAgora();
-      if (!r.ok) setFalha(MOTIVO_DA_FALHA[r.motivo ?? ''] ?? 'Não consegui começar a gravar.');
+      if (!r.ok) setFalha(MOTIVO_DA_FALHA[r.motivo ?? ''] ?? 'Não consegui começar a registrar.');
     } catch {
-      setFalha('Não consegui começar a gravar.');
+      setFalha('Não consegui começar a registrar.');
     } finally {
       setGravando(false);
     }
@@ -103,7 +103,7 @@ export function Reunioes({
               disabled={gravando}
               onClick={() => void gravar()}
             >
-              {gravando ? 'Começando…' : 'Gravar esta reunião'}
+              {gravando ? 'Começando…' : 'Registrar esta reunião'}
             </button>
             {falha && (
               <p className="tq-aviso-falha" role="status">

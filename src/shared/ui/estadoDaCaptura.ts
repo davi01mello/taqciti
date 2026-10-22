@@ -78,7 +78,7 @@ export function derivarEstadoDaCaptura(
 }
 /** O que cada estado diz, por extenso — o texto de leitor de tela e de tooltip. */
 export const LEITURA_DO_ESTADO: Record<EstadoDaCaptura, string> = {
-  capturando: 'Gravando: capturando as legendas agora',
+  capturando: 'Transcrevendo: lendo as legendas agora',
   preparando: 'Preparando a captura: ligando as legendas do Meet',
   iniciando: 'Iniciando a captura',
   aguardando_fonte: 'Aguardando legendas: nenhuma fala chegou ainda (pode ser silêncio)',

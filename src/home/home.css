@@ -835,7 +835,6 @@ html {
   opacity: 1;
 }
 
-.tq-mais,
 .tq-enviar {
   display: grid;
   place-items: center;
@@ -851,21 +850,11 @@ html {
     opacity 0.3s;
 }
 
-.tq-mais:hover,
-.tq-mais[aria-expanded='true'] {
-  background: rgb(255 255 255 / 0.08);
-  color: rgb(240 242 244);
-}
-
 /* Enviar é a ação principal desta tela — o hover dela é um dos estados
    pontuais que ficaram com verde. */
 .tq-enviar:not(:disabled):hover {
   background: rgb(var(--c-primary) / 0.14);
   color: rgb(var(--c-glow));
-}
-
-.tq-mais[aria-expanded='true'] {
-  transform: rotate(45deg);
 }
 
 .tq-enviar:disabled {
@@ -901,16 +890,6 @@ html {
   color: rgb(196 176 152);
 }
 
-.tq-anexos {
-  font-size: 11px;
-  color: rgb(174 177 181);
-  margin: 10px 0 0;
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
 .tq-linkish {
   font-size: 11.5px;
   color: rgb(137 140 144);
@@ -928,43 +907,6 @@ html {
 
 .tq-linkish-perigo:hover {
   color: rgb(240 178 172);
-}
-
-.tq-anexo-menu {
-  position: absolute;
-  right: 0;
-  bottom: 74px;
-  z-index: 6;
-  background: rgb(33 34 36 / 0.96);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 14px;
-  padding: 7px;
-  min-width: 230px;
-  box-shadow: 0 10px 35px rgb(0 0 0 / 0.33);
-}
-
-.tq-anexo-menu button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 11px;
-  text-align: left;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.tq-anexo-menu button:hover {
-  background: rgb(255 255 255 / 0.07);
-}
-
-.tq-anexo-menu p {
-  font-size: 10.5px;
-  color: rgb(157 160 164);
-  margin: 6px 9px 4px;
-  line-height: 1.55;
 }
 
 /* ------------------------------------------------------------- páginas */
@@ -2012,7 +1954,6 @@ body .tq-home [role='dialog'] button {
     display: none;
   }
   .tq-enviar,
-  .tq-mais,
   .tq-motion,
   .tq-conversas-botao {
     min-width: 44px;
@@ -2422,12 +2363,6 @@ body .tq-home [role='dialog'] button {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.tq-mais {
-  width: 34px;
-  height: 34px;
-  margin-bottom: 6px;
 }
 
 .tq-escrita-pe {

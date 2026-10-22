@@ -216,7 +216,7 @@ export function Capsula({
       : estado === 'interrompida'
         ? 'religando…'
         : estado === 'capturando'
-          ? `Gravando ${formatElapsedClock(agora - (startedAt ?? agora))}`
+          ? `Transcrevendo ${formatElapsedClock(agora - (startedAt ?? agora))}`
           : estado === 'iniciando'
             ? 'iniciando…'
             : estado === 'aguardando_fonte'
@@ -279,6 +279,12 @@ export function Capsula({
         onPointerUp={(event) => {
           floating.dragHandlers.onPointerUp(event);
           if (floating.wasClick()) abrir();
+        }}
+        // Enter/Espaço: o clique sintetizado pelo teclado tem `detail === 0` e
+        // não passa por pointerup — sem isto, a cápsula focada não abria nada.
+        // O clique do mouse (detail ≥ 1) já foi tratado acima.
+        onClick={(event) => {
+          if (event.detail === 0) abrir();
         }}
         style={{ left: floating.geometry.capsule.left, top: floating.geometry.capsule.top }}
         className={`glass ${SHEEN_HOST_POSITIONED} fixed z-[2147483000] flex items-center gap-2.5 rounded-full py-2.5 pl-3.5 pr-4 text-body font-semibold tabular-nums text-foreground transition-[opacity,transform] duration-300 ease-flow animate-dock-in ${
@@ -353,7 +359,7 @@ export function Capsula({
                   : 'border border-primary/45 bg-primary/[0.16] font-medium text-glow hover:bg-primary/25'
               }`}
             >
-              {gravacaoAnterior ? 'Nova gravação' : 'Iniciar captura'}
+              {gravacaoAnterior ? 'Nova gravação' : 'Registrar'}
             </button>
             <button
               type="button"
@@ -380,7 +386,7 @@ export function Capsula({
             abrir();
             callbacks.onGravarAgora();
           }}
-          title="Começar a gravar esta reunião e abrir a sidebar"
+          title="Começar a registrar esta reunião e abrir a sidebar"
           style={{
             left: Math.max(
               MARGEM_DA_PERGUNTA,
@@ -392,7 +398,7 @@ export function Capsula({
             portaoFalhou ? 'border-primary/45 text-glow' : 'border-white/10 text-muted opacity-70'
           }`}
         >
-          {portaoFalhou ? 'Não consegui perguntar se devo registrar. Gravar esta reunião?' : 'Gravar esta reunião'}
+          {portaoFalhou ? 'Não consegui perguntar se devo registrar. Registrar esta reunião?' : 'Registrar esta reunião'}
         </button>
       )}
 
