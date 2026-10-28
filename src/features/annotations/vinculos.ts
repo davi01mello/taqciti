@@ -135,14 +135,25 @@ export async function limparVinculosDaReuniao(
     }
     // O briefing é escrito SOBRE a reunião, como a nota: sem ela, nenhuma tela o
     // mostra. O perfil de condução, que é da pessoa, fica.
+    // A cópia do perfil fixada quando a reunião começou (`emUso`) também é
+    // dela: até 28/10/2026 ficava, ocupando uma das 30 vagas com o perfil de
+    // uma reunião que não existe mais.
     let briefings = 0;
-    const conducao = bruto[STORAGE_KEYS.conducao] as { briefings?: unknown } | null | undefined;
-    if (conducao && typeof conducao === 'object' && Array.isArray(conducao.briefings)) {
-      const ficam = conducao.briefings.filter(
-        (b: unknown) => !b || typeof b !== 'object' || (b as { reuniaoId?: unknown }).reuniaoId !== meetingId,
-      );
-      briefings = conducao.briefings.length - ficam.length;
-      if (briefings) alteracoes[STORAGE_KEYS.conducao] = { ...conducao, briefings: ficam };
+    const conducao = bruto[STORAGE_KEYS.conducao] as { briefings?: unknown; emUso?: unknown } | null | undefined;
+    if (conducao && typeof conducao === 'object') {
+      const daOutra = (b: unknown) =>
+        !b || typeof b !== 'object' || (b as { reuniaoId?: unknown }).reuniaoId !== meetingId;
+      const ficam = Array.isArray(conducao.briefings) ? conducao.briefings.filter(daOutra) : null;
+      const emUso = Array.isArray(conducao.emUso) ? conducao.emUso.filter(daOutra) : null;
+      briefings = ficam ? (conducao.briefings as unknown[]).length - ficam.length : 0;
+      const tirouEmUso = emUso !== null && emUso.length !== (conducao.emUso as unknown[]).length;
+      if (briefings || tirouEmUso) {
+        alteracoes[STORAGE_KEYS.conducao] = {
+          ...conducao,
+          ...(ficam ? { briefings: ficam } : {}),
+          ...(emUso ? { emUso } : {}),
+        };
+      }
     }
     // As sugestões de condução são derivadas da transcrição que deixou de existir.
     let sugestoes = 0;

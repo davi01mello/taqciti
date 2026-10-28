@@ -83,6 +83,29 @@ describe('limparVinculosDaReuniao', () => {
     });
   });
 
+  /*
+   * A cópia do perfil fixada quando a reunião começou é da reunião; o perfil
+   * da pessoa não. Até 28/10/2026 a cópia ficava, ocupando uma das 30 vagas.
+   */
+  it('leva a cópia do perfil fixada na reunião e deixa o perfil e as outras cópias', async () => {
+    const perfil = { revisao: 3, base: 'personalizado' };
+    await storage.local.set({
+      [STORAGE_KEYS.conducao]: {
+        versao: 2,
+        perfil,
+        briefings: [],
+        emUso: [
+          { reuniaoId: 'm-1', perfilRevisao: 3, perfilUsado: {}, em: 1 },
+          { reuniaoId: 'm-2', perfilRevisao: 2, perfilUsado: {}, em: 2 },
+        ],
+      },
+    });
+    await limparVinculosDaReuniao('m-1');
+    const conducao = ler<{ perfil: unknown; emUso: { reuniaoId: string }[] }>(STORAGE_KEYS.conducao);
+    expect(conducao.emUso.map((x) => x.reuniaoId)).toEqual(['m-2']);
+    expect(conducao.perfil).toEqual(perfil);
+  });
+
   /* O estado dos pontos é leitura da transcrição: vai com a reunião. */
   it('leva o estado dos pontos da reunião e deixa o das outras', async () => {
     await storage.local.set({
