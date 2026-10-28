@@ -36,7 +36,12 @@ export type IconName =
   // navegação lateral — dois lugares diferentes não podem ter o mesmo desenho.
   | 'chats'
   // Copiar a mensagem ou a resposta da conversa.
-  | 'copy';
+  | 'copy'
+  // Preparar: o que é fixo (o Padrão do CITi, as regras que não mudam), o que
+  // a pessoa ajusta (o Personalizado) e o que busca fora do computador.
+  | 'lock'
+  | 'sliders'
+  | 'globe';
 
 interface IconProps {
   name: IconName;
@@ -99,6 +104,25 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <rect x="8.5" y="8.5" width="11" height="11" rx="2.4" />
       <path d="M15.5 8.5V6.9A2.4 2.4 0 0 0 13.1 4.5H6.9A2.4 2.4 0 0 0 4.5 6.9v6.2a2.4 2.4 0 0 0 2.4 2.4h1.6" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="5" y="11" width="14" height="9" rx="2.4" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </>
+  ),
+  sliders: (
+    <>
+      <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="8" cy="17" r="2" />
+    </>
+  ),
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z" />
     </>
   ),
   plus: (

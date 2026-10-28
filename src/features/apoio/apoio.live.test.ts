@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * TESTE AO VIVO — a proposta de perfil e as intervenções discretas contra o
+ * TESTE AO VIVO — as intervenções discretas contra o
  * servidor e o provedor DE VERDADE, com uma reunião INVENTADA.
  *
  * Pulado por padrão. Roda com o servidor no ar:
@@ -19,7 +19,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { lerConducao, salvarBriefing, salvarPerfil } from '@/features/conducao/store';
-import { proporPerfil } from '@/features/conducao/proposta';
 import { criarAdaptadorHttp } from '@/features/taq/modelo';
 import { avaliarReuniao, type FalaDaReuniao } from './gerar';
 import { criarLaco } from './laco';
@@ -90,23 +89,6 @@ rodar('apoio à condução contra o provedor real', () => {
       modo: 'discreto',
     });
   }
-
-  it('propõe um perfil a partir do texto livre, sem salvar', async () => {
-    const r = await proporPerfil({
-      texto:
-        'Conduzo reuniões de descoberta. Quero entender a necessidade real do cliente antes de discutir funcionalidades. ' +
-        'Costumo esquecer de perguntar sobre impacto e processo atual. Me ajude com perguntas curtas, sem interromper toda hora.',
-      adaptador,
-    });
-    console.log('\n[proposta]', JSON.stringify(r, null, 2));
-    resultados.proposta = r.tipo;
-    expect(['ok', 'sem_proposta', 'erro']).toContain(r.tipo);
-    if (r.tipo === 'ok') {
-      expect(r.proposta.missao.length).toBeGreaterThan(0);
-      // Nada foi salvo pela proposta: o perfil guardado continua o do beforeAll.
-      expect((await lerConducao()).perfil?.revisao).toBe(1);
-    }
-  }, 60_000);
 
   it('conversa só de cumprimentos (falas 0 e 1): o padrão é o silêncio', async () => {
     const r = await avaliar(2);

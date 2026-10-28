@@ -1,15 +1,17 @@
 /**
  * O que vai ao modelo do perfil e do briefing — dados sintéticos.
  *
- * Seguram: sem nada configurado, nada é acrescentado; o briefing sem objetivo
- * diz que não há objetivo; a reunião preparada usa a CÓPIA do perfil de quando
- * foi preparada, mesmo depois de o perfil mudar; e os blocos dizem que são
- * preferências, não fatos nem permissões.
+ * Seguram: sem nada configurado vai o Padrão do CITi; só o contexto ligado vai
+ * ao modelo; o briefing sem objetivo diz que não há objetivo; a reunião usa a
+ * CÓPIA do perfil de quando começou (ou, sem ela, de quando foi preparada),
+ * mesmo depois de o perfil mudar; e os blocos dizem que são preferências, não
+ * fatos nem permissões.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { linhasDaConducao, perfilQueValeParaAReuniao } from './contexto';
-import { atualizarPerfilDoBriefing, lerConducao, salvarBriefing, salvarPerfil } from './store';
+import { PADRAO_DO_CITI } from './padrao';
+import { fixarPerfilDaReuniao, lerConducao, salvarBriefing, salvarPerfil } from './store';
 
 const PERFIL = {
   missao: 'Apoiar o entendimento de necessidades.',
@@ -25,8 +27,31 @@ beforeEach(() => {
 });
 
 describe('linhasDaConducao', () => {
-  it('sem perfil nem briefing: nada é acrescentado', async () => {
-    expect(linhasDaConducao(await lerConducao(), REUNIAO)).toEqual([]);
+  it('sem nada salvo vai o Padrão do CITi: os contextos dele e o modo "só quando eu chamar"', async () => {
+    const texto = linhasDaConducao(await lerConducao(), REUNIAO).join('\n');
+    expect(texto).toContain('como intervir: Só quando eu chamar');
+    for (const c of PADRAO_DO_CITI.contextos) expect(texto).toContain(`- ${c.nome}: ${c.texto}`);
+    expect(texto).not.toMatch(/PREPARAÇÃO DA REUNIÃO/);
+  });
+
+  // Guardado é guardado: só o que está ligado vai ao modelo, e a busca (só preferência) não vai.
+  it('contexto guardado não vai ao modelo', async () => {
+    await salvarPerfil(
+      {
+        base: 'personalizado',
+        buscaNaInternet: true,
+        intervencao: { modo: 'discreto' },
+        contextos: [
+          { nome: 'Escopo', texto: 'Cadastro e painel.', ligado: true, vaga: 0 },
+          { nome: 'Histórico', texto: 'SEGREDO GUARDADO', ligado: false, vaga: 1 },
+        ],
+      },
+      0,
+    );
+    const texto = linhasDaConducao(await lerConducao(), null).join('\n');
+    expect(texto).toContain('- Escopo: Cadastro e painel.');
+    expect(texto).not.toContain('SEGREDO GUARDADO');
+    expect(texto).not.toMatch(/busca/i);
   });
 
   it('o perfil entra como preferência, dizendo que não é fato nem permissão', async () => {
@@ -35,7 +60,8 @@ describe('linhasDaConducao', () => {
     expect(texto).toMatch(/preferências dela/);
     expect(texto).toMatch(/não ampliam nem reduzem/);
     expect(texto).toContain('Apoiar o entendimento de necessidades.');
-    expect(texto).toContain('Discreto: uma lembrança relevante por vez — Uma pergunta curta por vez');
+    expect(texto).toContain('como intervir: Discreto: uma lembrança relevante por vez');
+    expect(texto).toContain('- Como intervir: Uma pergunta curta por vez');
   });
 
   it('briefing sem objetivo diz que não há objetivo, e não usa o título', async () => {
@@ -58,7 +84,7 @@ describe('linhasDaConducao', () => {
     expect(texto).toContain('não pode ficar sem encaminhamento: Quem levanta os dados?');
   });
 
-  it('a reunião preparada mantém o perfil antigo até a pessoa pedir o atual', async () => {
+  it('a reunião preparada mantém o perfil de quando foi preparada', async () => {
     await salvarPerfil(PERFIL, 0);
     await salvarBriefing('m-1', { objetivo: 'A' }, 0);
     await salvarPerfil({ ...PERFIL, missao: 'Missão NOVA, depois da reunião preparada.' }, 1);
@@ -68,9 +94,19 @@ describe('linhasDaConducao', () => {
     expect(antes).not.toContain('Missão NOVA');
     // Outra reunião, sem briefing, já usa o perfil de hoje.
     expect(linhasDaConducao(await lerConducao(), { id: 'm-2', titulo: 'Outra' }).join('\n')).toContain('Missão NOVA');
+  });
 
-    await atualizarPerfilDoBriefing('m-1', 1);
-    expect(linhasDaConducao(await lerConducao(), REUNIAO).join('\n')).toContain('Missão NOVA');
+  // A cópia de quando a reunião COMEÇOU vale mais que a de quando foi preparada.
+  it('a reunião que começou usa a cópia do começo, não a da preparação', async () => {
+    await salvarPerfil(PERFIL, 0);
+    await salvarBriefing('m-1', { objetivo: 'A' }, 0);
+    await salvarPerfil({ ...PERFIL, missao: 'Missão de quando a reunião começou.' }, 1);
+    await fixarPerfilDaReuniao('m-1');
+    await salvarPerfil({ ...PERFIL, missao: 'Missão de DEPOIS do começo.' }, 2);
+    const texto = linhasDaConducao(await lerConducao(), REUNIAO).join('\n');
+    expect(texto).toContain('Missão de quando a reunião começou.');
+    expect(texto).not.toContain('DEPOIS do começo');
+    expect(texto).toContain('resultado que querem alcançar: A');
   });
 
   it('o contexto do Taq recebe os blocos da reunião em foco, e só dela', async () => {
@@ -118,13 +154,13 @@ describe('linhasDaConducao', () => {
     // Outra reunião, sem briefing, segue o perfil.
     expect(perfilQueValeParaAReuniao(await lerConducao(), 'm-2')!.intervencao.modo).toBe('discreto');
     expect(linhasDaConducao(await lerConducao(), REUNIAO).join('\n')).toContain('Participativo');
-    // Sem perfil, escolher um modo não liga o apoio.
+    // Sobre o Padrão do CITi, escolher um modo não liga o apoio.
     installChromeStorageMock();
     await salvarBriefing('m-3', { objetivo: 'C', modo: 'participativo' }, 0);
-    expect(perfilQueValeParaAReuniao(await lerConducao(), 'm-3')).toBeNull();
+    expect(perfilQueValeParaAReuniao(await lerConducao(), 'm-3').intervencao.modo).toBe('sob_demanda');
   });
 
-  it('reunião preparada sem perfil não ganha perfil sozinha', async () => {
+  it('reunião preparada sem perfil fica com o padrão daquela hora, não com o perfil salvo depois', async () => {
     await salvarBriefing('m-1', { objetivo: 'A' }, 0);
     await salvarPerfil(PERFIL, 0);
     const texto = linhasDaConducao(await lerConducao(), REUNIAO).join('\n');

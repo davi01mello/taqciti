@@ -11,6 +11,7 @@ import { readLocal, removeLocal, writeLocal } from '@/shared/services/storage';
 import { logger } from '@/shared/services/log';
 import type { MeetingRecord, MeetingState } from '@/shared/types/domain';
 import { buildMeetingRecord } from '@/features/meeting/payload';
+import { migrarConducao } from '@/features/conducao/store';
 import { upsertRecord } from './history';
 
 export async function migrateLocalStorage(): Promise<void> {
@@ -41,6 +42,15 @@ export async function migrateLocalStorage(): Promise<void> {
     // storage da pessoa para sempre.
     await removeLocal('taq:avisos');
     await writeLocal(LOCAL_STORAGE_SCHEMA_VERSION_KEY, 3);
+  }
+
+  if (version < 4) {
+    // O perfil do assistente virou contextos (22/10/2026): missão, o que
+    // observar, intervenção, contexto e preferências passam a ser contextos da
+    // pessoa, com o modo e "ler ao encerrar" preservados. O que não couber fica
+    // guardado como estava (`perfilV1`). Ver `features/conducao/store.ts`.
+    await migrarConducao();
+    await writeLocal(LOCAL_STORAGE_SCHEMA_VERSION_KEY, 4);
   }
 }
 

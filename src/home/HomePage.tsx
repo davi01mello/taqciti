@@ -599,7 +599,7 @@ export function HomePage() {
           />
         )}
 
-        {secao === 'preparar' && <PaginaPreparar registros={records} />}
+        {secao === 'preparar' && <PaginaPreparar registros={records} reuniao={meeting} />}
 
         {secao === 'reunioes' && (
           <PaginaReunioes

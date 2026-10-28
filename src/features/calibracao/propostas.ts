@@ -19,10 +19,13 @@
  */
 import type { Feedback } from '@/features/apoio/store';
 import {
+  MAX_TEXTO_DO_CONTEXTO,
   MODOS_DE_INTERVENCAO,
   ROTULO_DO_MODO,
   conteudoDe,
   salvarPerfil,
+  vagaLivre,
+  type ContextoDoAssistente,
   type ConteudoDoPerfil,
   type ModoDeIntervencao,
   type PerfilDeConducao,
@@ -74,8 +77,9 @@ export function proporAjustes(p: {
   perfil: PerfilDeConducao | null;
   decisoes: DecisoesDeAjuste;
 }): PropostaDeAjuste[] {
-  // Sem perfil não há o que ajustar: o apoio nem age sozinho.
-  if (!p.perfil) return [];
+  // Sem perfil não há o que ajustar: o apoio nem age sozinho. O Padrão do CITi é
+  // fixo: ajustar é personalizar, e isso a pessoa faz no Preparar.
+  if (!p.perfil || p.perfil.base !== 'personalizado') return [];
   const modo = p.perfil.intervencao.modo;
   const propostas: PropostaDeAjuste[] = [];
 
@@ -119,27 +123,64 @@ export function proporAjustes(p: {
   }
 
   const respondido = recentes(['ja_respondido'], 'conferir_o_respondido');
-  const jaTem = p.perfil.preferencias.some((x) => x.toLocaleLowerCase('pt-BR') === PREFERENCIA_DO_JA_RESPONDIDO.toLocaleLowerCase('pt-BR'));
-  if (respondido.length >= LIMIAR_PARA_CONFERIR_O_RESPONDIDO && !jaTem) {
+  const minusculo = (t: string) => t.toLocaleLowerCase('pt-BR');
+  const jaTem = p.perfil.contextos.some((x) => minusculo(x.texto).includes(minusculo(PREFERENCIA_DO_JA_RESPONDIDO)));
+  const jeito = contextoDoJeito(p.perfil);
+  // Sem vaga para a preferência não há o que propor: a proposta diria uma mudança que não cabe.
+  if (respondido.length >= LIMIAR_PARA_CONFERIR_O_RESPONDIDO && !jaTem && comPreferencia(p.perfil, PREFERENCIA_DO_JA_RESPONDIDO)) {
+    const depois = jeito && cabeNoJeito(jeito.texto, PREFERENCIA_DO_JA_RESPONDIDO)
+      ? `${jeito.texto}; ${PREFERENCIA_DO_JA_RESPONDIDO}`
+      : PREFERENCIA_DO_JA_RESPONDIDO;
     propostas.push({
       tipo: 'conferir_o_respondido',
       titulo: 'Conferir se já foi respondido',
       porque: `${respondido.length} dos seus últimos ${total} retornos disseram que o ponto “já estava respondido”.`,
       feedbackIds: respondido.map((f) => f.id),
-      antes: p.perfil.preferencias.length ? `Meu jeito de trabalhar: ${p.perfil.preferencias.join('; ')}` : 'Meu jeito de trabalhar: (nenhuma preferência)',
-      depois: `Meu jeito de trabalhar: ${[...p.perfil.preferencias, PREFERENCIA_DO_JA_RESPONDIDO].join('; ')}`,
+      antes: jeito ? `${JEITO_DE_TRABALHAR}: ${jeito.texto}` : `${JEITO_DE_TRABALHAR}: (nenhum contexto)`,
+      depois: `${JEITO_DE_TRABALHAR}: ${depois}`,
       mudanca: { tipo: 'preferencia', texto: PREFERENCIA_DO_JA_RESPONDIDO },
     });
   }
   return propostas;
 }
 
-/** O conteúdo do perfil depois de aplicar a proposta. Puro: não grava. */
-export function conteudoDepoisDe(perfil: PerfilDeConducao, m: Mudanca): ConteudoDoPerfil {
-  const c = structuredClone(conteudoDe(perfil));
-  if (m.tipo === 'modo') c.intervencao = { ...c.intervencao, modo: m.para };
-  else c.preferencias = [...c.preferencias, m.texto];
+/** O contexto onde a preferência aprovada entra (o nome que a migração da versão 1 usa). */
+const JEITO_DE_TRABALHAR = 'Jeito de trabalhar';
+
+function contextoDoJeito(c: ConteudoDoPerfil): ContextoDoAssistente | null {
+  const alvo = JEITO_DE_TRABALHAR.toLocaleLowerCase('pt-BR');
+  return c.contextos.find((x) => x.nome.toLocaleLowerCase('pt-BR') === alvo) ?? null;
+}
+
+const cabeNoJeito = (texto: string, mais: string) => `${texto}; ${mais}`.length <= MAX_TEXTO_DO_CONTEXTO;
+
+/**
+ * A preferência entra no contexto "Jeito de trabalhar" (ligado), ou num contexto
+ * novo com esse nome se ele não existe ou não comporta mais texto. `null` = não
+ * cabe: as 8 vagas estão ocupadas.
+ */
+function comPreferencia(perfil: ConteudoDoPerfil, texto: string): ConteudoDoPerfil | null {
+  const c = structuredClone(perfil);
+  const jeito = contextoDoJeito(c);
+  if (jeito && cabeNoJeito(jeito.texto, texto)) {
+    jeito.texto = `${jeito.texto}; ${texto}`;
+    jeito.ligado = true;
+    return c;
+  }
+  const vaga = vagaLivre(c.contextos);
+  if (vaga === null) return null;
+  c.contextos.push({ id: `ajuste-${Date.now()}`, nome: JEITO_DE_TRABALHAR, texto, ligado: true, origem: 'seu', vaga });
   return c;
+}
+
+/** O conteúdo do perfil depois de aplicar a proposta. Puro: não grava. `null` = não cabe. */
+export function conteudoDepoisDe(perfil: PerfilDeConducao, m: Mudanca): ConteudoDoPerfil | null {
+  const c = structuredClone(conteudoDe(perfil));
+  if (m.tipo === 'modo') {
+    c.intervencao = { ...c.intervencao, modo: m.para };
+    return c;
+  }
+  return comPreferencia(c, m.texto);
 }
 
 /**
@@ -153,8 +194,10 @@ export async function aplicarAjuste(
 ): Promise<ResultadoDaEdicao<PerfilDeConducao>> {
   if (proposta.mudanca.tipo === 'modo' && !(MODOS_DE_INTERVENCAO as readonly string[]).includes(proposta.mudanca.para))
     return { tipo: 'invalido', motivo: 'Modo desconhecido.' };
+  const depois = conteudoDepoisDe(perfil, proposta.mudanca);
+  if (!depois) return { tipo: 'invalido', motivo: 'Os 8 contextos estão ocupados: remova um para caber o ajuste.' };
   return salvarPerfil(
-    conteudoDepoisDe(perfil, proposta.mudanca),
+    depois,
     perfil.revisao,
     'pessoa',
     `perfil atualizado (ajuste proposto pelo Taq e aprovado: ${proposta.titulo})`,

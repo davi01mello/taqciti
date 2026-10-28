@@ -1,10 +1,9 @@
-// A página "Preparar" (perfil de condução e briefing da reunião)
+// A página "Preparar" (o que levar para todas as reuniões)
 // contra a extensão RODANDO — HOME larga e HOME estreita.
 //
 // Dados [TESTE] semeados direto no storage. Nenhuma chamada de IA: o que se
 // verifica é a tela, o preenchimento à mão, o que cada botão grava e se o que
-// foi gravado volta ao recarregar. "Organizar o que entendi" depende do
-// servidor e do provedor, e fica fora daqui (testado com modelo roteirizado).
+// foi gravado volta ao recarregar, e a migração do perfil antigo (versão 4).
 // Perfil isolado: nunca escreve no perfil pessoal do navegador.
 //
 //   npx vite build --mode development --outDir <pasta>
@@ -15,7 +14,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 
 const extensao = path.resolve(process.argv[3] || 'dist-dev');
-const saida = path.resolve('docs/verification/preparar');
+const saida = path.resolve(process.env.SAIDA || 'docs/verification/preparar');
 fs.mkdirSync(saida, { recursive: true });
 
 const REUNIAO = {
@@ -64,97 +63,129 @@ const falhas = [];
     await page.locator('.tq-home').waitFor();
     await page.evaluate(async (r) => chrome.storage.local.set({ 'taq:history': [r] }), REUNIAO);
 
-    await tentar('Preparar: abre pela navegação e mostra as duas partes', async () => {
+    await tentar('Preparar: abre no Padrão do CITi, só leitura, e nada é salvo ao abrir', async () => {
       await page.goto(`${raiz}/src/home/index.html?secao=preparar`);
-      await page.getByRole('heading', { name: 'Como você quer conduzir suas reuniões?' }).waitFor({ timeout: 10000 });
+      await page.getByRole('heading', { name: 'O que levar para as reuniões' }).waitFor({ timeout: 10000 });
+      await page.waitForTimeout(400);
       verificacoes.titulo_da_pagina = await page.locator('.tq-pagina-topo h1').innerText();
-      verificacoes.tem_preparar_uma_reuniao = (await page.getByRole('heading', { name: 'Preparar uma reunião' }).count()) === 1;
-      verificacoes.usar_desligado_sem_missao = await page.getByRole('button', { name: 'Usar este assistente' }).isDisabled();
-      verificacoes.organizar_desligado_sem_texto = await page.getByRole('button', { name: /Organizar o que entendi/ }).isDisabled();
-      verificacoes.nada_salvo_ao_abrir = (await guardado(page)) === null;
-      await page.screenshot({ path: path.join(saida, 'preparar-vazio.png'), fullPage: true });
+      verificacoes.padrao_escolhido = (await page.locator('.tq-levar-modos [aria-pressed="true"]').innerText()).trim();
+      verificacoes.nos_do_padrao = await page.locator('.tq-mapa-no:not(.tq-mapa-vaga)').evaluateAll((ns) => ns.map((n) => n.querySelector('b')?.textContent));
+      verificacoes.sem_adicionar_no_padrao = (await page.getByRole('button', { name: 'Adicionar contexto' }).count()) === 0;
+      // 23/10/2026: 100% válido para todas as reuniões — sem escolher uma reunião.
+      verificacoes.sem_preparar_uma_reuniao = (await page.getByRole('heading', { name: 'Preparar uma reunião' }).count()) === 0;
+      verificacoes.sem_taq_no_texto = !/\bTaq\b|Mente/.test(await page.locator('.tq-levar').innerText());
+      verificacoes.mapa_em_modo_mapa_1440 = (await page.locator('.tq-mapa-caixa.lista').count()) === 0;
+      verificacoes.nada_salvo_ao_abrir = (await guardado(page))?.perfil ?? null;
+      await page.screenshot({ path: path.join(saida, 'preparar-1440-padrao.png'), fullPage: true });
     });
 
-    await tentar('Preparar: resumo à mão, "Usar este assistente" grava', async () => {
-      await page.getByLabel('Em que vou ajudar').fill('[TESTE] Entender a necessidade real antes de falar de funcionalidades.');
-      await page.getByLabel('O que vou observar (um por linha)').fill('Processo atual\nImpacto');
-      await page.getByLabel(/Discreto/).check();
-      await page.getByLabel('O jeito, em suas palavras').fill('Uma pergunta curta por vez');
-      verificacoes.nada_salvo_antes_de_usar = (await guardado(page)) === null;
+    await tentar('Preparar: o centro mostra as regras que não mudam', async () => {
+      await page.locator('.tq-mapa-centro').click();
+      verificacoes.regras = await page.locator('.tq-ed-regras b').allInnerTexts();
+      await page.locator('.tq-levar').screenshot({ path: path.join(saida, 'preparar-1440-centro.png') });
+    });
+
+    await tentar('Preparar: personalizar, adicionar e editar; só "Usar este assistente" grava', async () => {
+      await page.getByRole('button', { name: /Personalizado/ }).click();
+      await page.getByRole('button', { name: 'Adicionar contexto' }).click();
+      await page.locator('.tq-ed-campo input').fill('[TESTE] Escopo do Portal');
+      await page.locator('.tq-ed-campo textarea').fill('Primeira entrega: cadastro de voluntários e painel da coordenação. Ficam fora: app mobile e pagamentos.');
+      verificacoes.contador = await page.locator('.tq-ed-conta').innerText();
+      verificacoes.nada_salvo_antes_de_usar = (await guardado(page))?.perfil ?? null;
+      verificacoes.status_pendente = await page.locator('.tq-levar-status').innerText();
+      await page.screenshot({ path: path.join(saida, 'preparar-1440-editando.png'), fullPage: true });
       await page.getByRole('button', { name: 'Usar este assistente' }).click();
       await page.waitForTimeout(500);
       const g = await guardado(page);
       verificacoes.perfil_gravado = {
+        base: g?.perfil?.base,
         revisao: g?.perfil?.revisao,
-        missao: g?.perfil?.missao,
-        observar: g?.perfil?.observar,
-        modo: g?.perfil?.intervencao?.modo,
+        contextos: g?.perfil?.contextos?.map((c) => `${c.nome} [${c.origem}${c.ligado ? '' : ', guardado'}] vaga ${c.vaga}`),
       };
-      verificacoes.diz_que_esta_salvo = (await page.getByText(/Salvo \(versão 1\)/).count()) === 1;
-      await page.screenshot({ path: path.join(saida, 'preparar-perfil-salvo.png'), fullPage: true });
+      verificacoes.status_salvo = await page.locator('.tq-levar-status').innerText();
     });
 
-    await tentar('Preparar: o perfil volta ao recarregar', async () => {
+    await tentar('Preparar: guardar um contexto muda o visual e o que vai', async () => {
+      await page.locator('.tq-mapa-no', { hasText: 'Uma pergunta por vez' }).click();
+      await page.locator('.tq-ed .tq-interruptor input').click();
+      verificacoes.guardado_tem_classe = await page.locator('.tq-mapa-no', { hasText: 'Uma pergunta por vez' }).evaluate((n) => n.classList.contains('guardado'));
+      await page.getByRole('button', { name: 'Usar este assistente' }).click();
+      await page.waitForTimeout(500);
+      verificacoes.guardado_gravado = (await guardado(page))?.perfil?.contextos?.find((c) => c.nome === 'Uma pergunta por vez')?.ligado === false;
+      await page.screenshot({ path: path.join(saida, 'preparar-1440-personalizado.png'), fullPage: true });
+    });
+
+    await tentar('Preparar: o assistente volta ao recarregar', async () => {
       await page.reload();
-      await page.getByLabel('Em que vou ajudar').waitFor();
+      await page.getByRole('heading', { name: 'O que levar para as reuniões' }).waitFor();
       await page.waitForTimeout(400);
-      verificacoes.perfil_voltou = await page.getByLabel('Em que vou ajudar').inputValue();
+      verificacoes.voltou_personalizado = (await page.locator('.tq-levar-modos [aria-pressed="true"]').innerText()).includes('Personalizado');
       verificacoes.usar_desligado_sem_edicao = await page.getByRole('button', { name: 'Usar este assistente' }).isDisabled();
     });
 
-    await tentar('Preparar: briefing sem objetivo não finge objetivo', async () => {
-      await page.locator('.tq-prep select').selectOption(REUNIAO.id);
-      await page.getByLabel('O que já sabemos').fill('[TESTE] O cliente relatou filas, sem medição.');
-      await page.getByRole('button', { name: 'Salvar a preparação' }).click();
-      await page.waitForTimeout(500);
-      const b = (await guardado(page))?.briefings?.[0];
-      verificacoes.briefing_sem_objetivo = { objetivo: b?.objetivo, aprovado: b?.aprovado };
-      verificacoes.diz_que_nao_supoe = (await page.getByText(/o Taq não vai supor um/).count()) === 1;
-    });
-
-    await tentar('Preparar: briefing com objetivo, prioridades e perfil fixado', async () => {
-      await page.getByLabel('O resultado que queremos alcançar').fill('[TESTE] Decidir se o piloto começa com uma ou duas unidades.');
-      await page.getByLabel(/O que não pode ficar sem encaminhamento/).fill('Quem levanta os dados?\nQuando revisamos?');
-      await page.getByRole('button', { name: 'Salvar a preparação' }).click();
-      await page.waitForTimeout(500);
-      const g = await guardado(page);
-      const b = g?.briefings?.[0];
-      verificacoes.briefing_gravado = {
-        aprovado: b?.aprovado,
-        prioridades: b?.prioridades,
-        perfilRevisao: b?.perfilRevisao,
-        perfilUsadoMissao: b?.perfilUsado?.missao,
-      };
-      await page.screenshot({ path: path.join(saida, 'preparar-briefing.png'), fullPage: true });
-    });
-
-    await tentar('Preparar: mudar o perfil não muda a reunião já preparada', async () => {
-      await page.getByLabel('Em que vou ajudar').fill('[TESTE] Missão NOVA depois da reunião preparada.');
-      await page.getByRole('button', { name: 'Usar este assistente' }).click();
-      await page.waitForTimeout(500);
-      const b = (await guardado(page))?.briefings?.[0];
-      verificacoes.reuniao_mantem_perfil_antigo = b?.perfilUsado?.missao?.startsWith('[TESTE] Entender') === true;
-      verificacoes.oferece_usar_versao_atual = (await page.getByRole('button', { name: 'Usar a versão atual' }).count()) === 1;
-      await page.getByRole('button', { name: 'Usar a versão atual' }).click();
-      await page.waitForTimeout(500);
-      const b2 = (await guardado(page))?.briefings?.[0];
-      verificacoes.passou_a_usar_o_atual = b2?.perfilUsado?.missao?.includes('Missão NOVA') === true;
-    });
-
-    await tentar('Preparar: a navegação lista "Preparar"', async () => {
-      await page.locator('.tq-edge').click();
-      // A barra recolhida esconde o texto de `innerText`; `textContent` lê o que está no DOM.
-      const rotulos = await page.locator('.tq-navlinks button').evaluateAll((bs) => bs.map((b) => b.textContent));
-      verificacoes.secoes_da_navegacao = rotulos.map((t) => t.trim());
-    });
-
-    await tentar('HOME estreita (390px)', async () => {
+    await tentar('HOME estreita (390px): o mapa vira lista, sem rolagem lateral', async () => {
       await page.setViewportSize({ width: 390, height: 900 });
       await page.goto(`${raiz}/src/home/index.html?secao=preparar`);
-      await page.getByLabel('Em que vou ajudar').waitFor();
+      await page.getByRole('heading', { name: 'O que levar para as reuniões' }).waitFor();
       await page.waitForTimeout(500);
+      verificacoes.lista_em_390 = (await page.locator('.tq-mapa-caixa.lista').count()) === 1;
       verificacoes.sem_rolagem_lateral_390 = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       await page.screenshot({ path: path.join(saida, 'preparar-390.png'), fullPage: true });
+      await page.locator('.tq-mapa-centro').click();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: path.join(saida, 'preparar-390-centro.png'), fullPage: true });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    });
+
+    /*
+     * A migração da versão 4 contra a extensão de verdade: um perfil no formato
+     * anterior, a versão do storage em 3, e a extensão recarregada (é no início
+     * do background que as migrações rodam).
+     */
+    await tentar('Migração v4: o perfil antigo vira contextos ao reiniciar a extensão', async () => {
+      await page.evaluate(async () =>
+        chrome.storage.local.set({
+          'taq:storageSchemaVersion': 3,
+          'taq:conducao': {
+            versao: 1,
+            perfil: {
+              missao: '[TESTE] Apoiar reuniões de descoberta.',
+              observar: ['Impacto', 'Processo atual'],
+              intervencao: { modo: 'participativo', estilo: 'Uma pergunta curta por vez' },
+              contexto: [],
+              preferencias: ['Explicar o motivo só quando eu pedir'],
+              lerAoEncerrar: true,
+              revisao: 4,
+              criadoEm: 1,
+              atualizadoEm: 2,
+              historico: [],
+            },
+            briefings: [],
+          },
+        }),
+      );
+      const novoWorker = context.waitForEvent('serviceworker', { timeout: 20000 });
+      await page.evaluate(() => chrome.runtime.reload()).catch(() => {});
+      await novoWorker;
+      // A aba antiga fechou junto com a extensão: espera fora dela.
+      await new Promise((r) => setTimeout(r, 800));
+      const nova = await context.newPage();
+      await nova.goto(`${raiz}/src/home/index.html?secao=preparar`);
+      await nova.getByRole('heading', { name: 'O que levar para as reuniões' }).waitFor();
+      const bruto = await nova.evaluate(async () => chrome.storage.local.get(['taq:conducao', 'taq:storageSchemaVersion']));
+      const p = bruto['taq:conducao']?.perfil;
+      verificacoes.migracao_v4 = {
+        versaoDoStorage: bruto['taq:storageSchemaVersion'],
+        base: p?.base,
+        revisao: p?.revisao,
+        modo: p?.intervencao?.modo,
+        lerAoEncerrar: p?.lerAoEncerrar,
+        contextos: p?.contextos?.map((c) => `${c.nome}: ${c.texto}`),
+        guardouOriginal: bruto['taq:conducao']?.perfilV1?.coubeInteiro,
+      };
+      await nova.waitForTimeout(400);
+      await nova.screenshot({ path: path.join(saida, 'preparar-1440-migrado.png'), fullPage: true });
+      await nova.close();
     });
 
     verificacoes.erros_de_pagina = erros;

@@ -34,12 +34,14 @@ const fb = (tipo: TipoDeFeedback, em: number): Feedback => {
 const varios = (tipo: TipoDeFeedback, quantos: number, desde = T): Feedback[] =>
   Array.from({ length: quantos }, (_, i) => fb(tipo, desde + i * 1000));
 
+/** Um contexto da pessoa; o "Jeito de trabalhar" é onde a preferência aprovada entra. */
+const ctx = (nome: string, texto: string, vaga: number) => ({ id: `c${vaga}`, nome, texto, ligado: true, origem: 'seu' as const, vaga });
 const perfil = (modo: 'sob_demanda' | 'discreto' | 'participativo', preferencias: string[] = []): PerfilDeConducao => ({
-  missao: 'Apoiar a descoberta.',
-  observar: [],
-  intervencao: { modo, estilo: '' },
-  contexto: [],
-  preferencias,
+  base: 'personalizado',
+  padraoVersao: 1,
+  contextos: [ctx('Em que ajudar', 'Apoiar a descoberta.', 0), ...(preferencias.length ? [ctx('Jeito de trabalhar', preferencias.join('; '), 1)] : [])],
+  buscaNaInternet: false,
+  intervencao: { modo },
   revisao: 1,
   criadoEm: T,
   atualizadoEm: T,
@@ -53,6 +55,12 @@ beforeEach(() => {
 describe('proporAjustes', () => {
   it('sem perfil não há o que ajustar', () => {
     expect(proporAjustes({ feedback: varios('descartada', 6), perfil: null, decisoes: {} })).toEqual([]);
+  });
+
+  // O Padrão do CITi é fixo e igual para todos: ajustar é personalizar, e isso a pessoa faz no Preparar.
+  it('sobre o Padrão do CITi não há proposta', () => {
+    const padrao: PerfilDeConducao = { ...perfil('participativo'), base: 'padrao', contextos: [] };
+    expect(proporAjustes({ feedback: varios('descartada', 6), perfil: padrao, decisoes: {} })).toEqual([]);
   });
 
   it('uma correção pontual não vira proposta: abaixo do limiar, nada', () => {
@@ -123,7 +131,7 @@ describe('aplicar', () => {
     const original = perfil('discreto');
     const copia = JSON.stringify(original);
     const c = conteudoDepoisDe(original, { tipo: 'modo', de: 'discreto', para: 'sob_demanda' });
-    expect(c.intervencao.modo).toBe('sob_demanda');
+    expect(c!.intervencao.modo).toBe('sob_demanda');
     expect(JSON.stringify(original)).toBe(copia);
   });
 
@@ -156,11 +164,11 @@ describe('aplicar', () => {
       1,
     );
     expect((await aplicarAjuste(lido, p!)).tipo).toBe('conflito');
-    expect((await lerConducao()).perfil!.missao).toBe('Outra missão.');
+    expect((await lerConducao()).perfil!.contextos[0]!.texto).toBe('Outra missão.');
     expect((await lerConducao()).perfil!.intervencao.modo).toBe('participativo');
   });
 
-  it('adicionar a preferência respeita o teto da lista e não duplica', async () => {
+  it('a preferência entra no contexto "Jeito de trabalhar" e não duplica', async () => {
     await salvarPerfil(
       { missao: 'Apoiar.', observar: [], intervencao: { modo: 'discreto', estilo: '' }, contexto: [], preferencias: ['a', 'b'] },
       0,
@@ -169,8 +177,14 @@ describe('aplicar', () => {
     const [p] = proporAjustes({ feedback: varios('ja_respondido', 2), perfil: atual, decisoes: {} });
     await aplicarAjuste(atual, p!);
     const depois = (await lerConducao()).perfil!;
-    expect(depois.preferencias).toEqual(['a', 'b', PREFERENCIA_DO_JA_RESPONDIDO]);
+    expect(depois.contextos.find((x) => x.nome === 'Jeito de trabalhar')!.texto).toBe(`a; b; ${PREFERENCIA_DO_JA_RESPONDIDO}`);
     expect(proporAjustes({ feedback: varios('ja_respondido', 2), perfil: depois, decisoes: {} })).toEqual([]);
+  });
+
+  // Sem "Jeito de trabalhar" e com as 8 vagas ocupadas, a preferência não cabe: a proposta não aparece.
+  it('com os 8 contextos ocupados, não há proposta de preferência', () => {
+    const cheio: PerfilDeConducao = { ...perfil('discreto'), contextos: Array.from({ length: 8 }, (_, i) => ctx(`C${i}`, 'texto', i)) };
+    expect(proporAjustes({ feedback: varios('ja_respondido', 2), perfil: cheio, decisoes: {} })).toEqual([]);
   });
 });
 

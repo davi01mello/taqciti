@@ -250,7 +250,7 @@ export const LIVE_SAVE_THROTTLE_MS = 4000;
 export const ACTIVE_IDENTITY_NAMESPACE_KEY = 'taq:activeIdentityNamespace';
 /** Versão global das migrações locais; não pertence a um usuário. */
 export const LOCAL_STORAGE_SCHEMA_VERSION_KEY = 'taq:storageSchemaVersion';
-export const LOCAL_STORAGE_SCHEMA_VERSION = 3;
+export const LOCAL_STORAGE_SCHEMA_VERSION = 4;
 export const ANONYMOUS_IDENTITY_NAMESPACE = 'anonymous';
 
 export const PROVIDER_GOOGLE_MEET = 'google-meet';

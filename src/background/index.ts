@@ -29,6 +29,7 @@ import { remetentePermitido } from './remetente';
 import { forgetPanelTab, rememberPanelTab } from './panelTabs';
 import { liberarSessionParaContentScripts } from './sessionAccess';
 import { limparVinculosDaReuniao } from '@/features/annotations/vinculos';
+import { fixarPerfilDaReuniao } from '@/features/conducao/store';
 import { ensurePanelPrefs } from '@/features/panel/prefsStore';
 import { ligarSincronizacaoAutomatica } from '@/features/sync/sincronizacao';
 import {
@@ -330,6 +331,15 @@ onMessage((message, sender) => {
           captionsEnabled: message.captionsEnabled,
           at: now,
         });
+        // A reunião começa com a versão do assistente em uso e fica com ela até
+        // o fim: mexer no Preparar durante a reunião vale a partir da próxima.
+        // Falhar aqui não pode impedir a captura.
+        const reuniaoId = getState().session?.meetingId;
+        if (reuniaoId) {
+          await fixarPerfilDaReuniao(reuniaoId).catch((e) =>
+            logger.warn('não foi possível guardar o perfil em uso na reunião', e),
+          );
+        }
         return getState();
       }
       case 'meet/ended':

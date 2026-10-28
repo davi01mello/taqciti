@@ -28,7 +28,7 @@ export interface ApoioAoVivo {
 }
 
 const VAZIO_DO_APOIO: Apoio = { versao: 1, sugestoes: [], feedback: [], pausadas: {}, medicoes: {}, ajustes: {} };
-const VAZIA_A_CONDUCAO: Conducao = { versao: 1, perfil: null, briefings: [] };
+const VAZIA_A_CONDUCAO: Conducao = { versao: 2, perfil: null, briefings: [], emUso: [] };
 
 export function useApoioAoVivo(state: MeetingState, taqPronto: boolean): ApoioAoVivo {
   const sessao = state.session;

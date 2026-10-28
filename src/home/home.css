@@ -3246,32 +3246,943 @@ body .tq-home [role='dialog'] button {
   font-size: var(--fs-corpo);
 }
 
-.tq-prep-modos {
-  margin: 10px 0 0;
-  padding: 0;
-  border: 0;
-  display: grid;
-  gap: 4px;
-  font-size: var(--fs-ui);
-  color: rgb(214 218 222);
-}
-
-.tq-prep-modos legend {
-  padding: 0;
-  margin-bottom: 4px;
-  font-size: var(--fs-meta);
-  color: rgb(165 170 175);
-}
-
-.tq-prep-modos label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .tq-prep .tq-c-acoes {
   margin-top: 10px;
   align-items: center;
+}
+
+/*
+ * "O que levar para as reuniões" (OQueLevar.tsx). Espectro: violeta é o
+ * assistente e o que vai junto com ele; verde é só a fala da reunião entrando;
+ * âmbar é o que espera a pessoa (mudança não salva, texto no limite). Todas as
+ * cores vêm de tokens.css (`--c-ideia`, `--c-atencao`, `--c-text`...).
+ */
+.tq-prep:has(.tq-levar) {
+  max-width: 1060px;
+}
+
+/* O mapa e o painel lado a lado pedem a coluna larga, como a reunião aberta. */
+@media (min-width: 900px) {
+  .tq-main:has(.tq-levar) {
+    width: min(1060px, calc(100% - 96px));
+  }
+}
+
+.tq-levar-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px 32px;
+  margin-bottom: 18px;
+}
+
+.tq-levar .tq-levar-modos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: rgb(var(--c-text) / 0.035);
+  box-shadow: inset 0 0 0 1px rgb(var(--c-text) / 0.03);
+}
+
+.tq-levar .tq-levar-modos button {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 11px;
+  color: rgb(var(--c-muted));
+  font-size: var(--fs-ui);
+  font-weight: 600;
+  transition:
+    background var(--dur-base),
+    color var(--dur-base);
+}
+
+.tq-levar .tq-levar-modos button:hover {
+  background: rgb(var(--c-text) / 0.045);
+  color: rgb(var(--c-text));
+}
+
+.tq-levar .tq-levar-modos button[aria-pressed='true'] {
+  background: rgb(var(--c-text) / 0.09);
+  color: rgb(var(--c-text));
+  box-shadow: var(--shadow-sm);
+}
+
+.tq-levar .tq-levar-modos small {
+  font-size: var(--fs-meta);
+  font-weight: 400;
+}
+
+.tq-levar .tq-levar-modos button[aria-pressed='true'] small.seu {
+  color: rgb(var(--c-ideia-clara));
+}
+
+.tq-levar-aviso {
+  max-width: none;
+  margin-bottom: 14px;
+}
+
+.tq-levar-aviso summary {
+  cursor: pointer;
+}
+
+.tq-levar-v1 {
+  margin: var(--sp-2) 0;
+  white-space: pre-line;
+  user-select: text;
+}
+
+.tq-levar-corpo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+/* ------------------------------------------------------------------ o mapa */
+
+.tq-mapa {
+  flex: 999 1 560px;
+  min-width: 0;
+  border: 1px solid rgb(var(--c-text) / 0.07);
+  border-radius: var(--radius-md);
+}
+
+.tq-mapa-cab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-4);
+  padding: 18px 22px 0;
+}
+
+.tq-mapa-cab h3 {
+  margin: 0;
+  font: 600 var(--fs-titulo) / 1.3 var(--font-titulo);
+}
+
+.tq-mapa-cab p {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+  font-variant-numeric: tabular-nums;
+}
+
+.tq-levar .tq-mapa-caixa {
+  padding: var(--sp-2) var(--sp-2) 0;
+}
+
+.tq-mapa-medida {
+  position: relative;
+  margin: 0 auto;
+}
+
+.tq-mapa-palco {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 720px;
+  height: 600px;
+  transform-origin: 0 0;
+}
+
+.tq-mapa-brilho {
+  position: absolute;
+  left: 160px;
+  top: 100px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(var(--c-ideia) / 0.11), rgb(var(--c-ideia) / 0) 62%);
+  pointer-events: none;
+}
+
+.tq-mapa-anel {
+  position: absolute;
+  left: 266px;
+  top: 206px;
+  width: 188px;
+  height: 188px;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--c-ideia) / 0.18);
+  pointer-events: none;
+}
+
+.tq-mapa-fios {
+  position: absolute;
+  inset: 0;
+  width: 720px;
+  height: 600px;
+  overflow: visible;
+  fill: none;
+  pointer-events: none;
+}
+
+.tq-mapa-fios line,
+.tq-mapa-fios ellipse {
+  stroke-width: 1.25;
+}
+
+.tq-fio-orbita {
+  stroke: rgb(var(--c-text) / 0.05);
+  stroke-dasharray: 2 6;
+}
+
+/* A fala entra pela linha verde tracejada, andando: é a única coisa viva aqui. */
+.tq-fio-fala {
+  stroke: rgb(var(--c-primary) / 0.65);
+  stroke-dasharray: 4 6;
+  animation: tq-fala-entra 1.6s linear infinite;
+}
+
+@keyframes tq-fala-entra {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.tq-fio-saida {
+  stroke: rgb(var(--c-text) / 0.18);
+}
+
+.tq-fio,
+.tq-fio-busca {
+  stroke: rgb(var(--c-text) / 0.16);
+  stroke-dasharray: 3 5;
+}
+
+.tq-fio.ligado {
+  stroke: rgb(var(--c-ideia) / 0.45);
+  stroke-dasharray: none;
+}
+
+.tq-fio.ligado.sel {
+  stroke: rgb(var(--c-ideia) / 0.95);
+  stroke-width: 1.6;
+}
+
+.tq-fio-vaga {
+  stroke: rgb(var(--c-text) / 0.1);
+}
+
+.tq-fio-busca.ligado {
+  stroke: rgb(var(--c-text) / 0.4);
+  stroke-dasharray: none;
+  stroke-width: 1.5;
+}
+
+.tq-fio-busca.ligado.sel {
+  stroke: rgb(var(--c-text) / 0.75);
+}
+
+/* Os nós: ligado é placa com borda violeta e ponto cheio; guardado é tracejado e apagado. */
+.tq-levar .tq-mapa-no {
+  position: absolute;
+  width: 192px;
+  height: 52px;
+  margin: 0;
+  padding: 0 var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgb(var(--c-elevated));
+  border: 1px solid rgb(var(--c-ideia) / 0.35);
+  border-radius: var(--sp-3);
+  color: rgb(var(--c-text));
+  text-align: left;
+  transition:
+    border-color var(--dur-base),
+    background var(--dur-base),
+    box-shadow var(--dur-base);
+}
+
+.tq-levar button.tq-mapa-no:hover {
+  border-color: rgb(var(--c-ideia) / 0.7);
+}
+
+.tq-levar .tq-mapa-no svg {
+  flex: none;
+  color: rgb(var(--c-ideia));
+}
+
+.tq-mapa-ponto {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: rgb(var(--c-ideia));
+}
+
+.tq-levar .tq-mapa-no-txt {
+  min-width: 0;
+  font-size: var(--fs-corpo);
+  line-height: 17px;
+}
+
+.tq-levar .tq-mapa-no b,
+.tq-levar .tq-mapa-no small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.tq-levar .tq-mapa-no b {
+  font-weight: 500;
+}
+
+.tq-levar .tq-mapa-no small {
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-mapa-no.sel {
+  /* Opaco: o fio que chega ao nó não pode atravessar o texto. */
+  background: linear-gradient(rgb(var(--c-ideia) / 0.1), rgb(var(--c-ideia) / 0.1)), rgb(var(--c-elevated));
+  border: 1.5px solid rgb(var(--c-ideia));
+  box-shadow: 0 0 0 4px rgb(var(--c-ideia) / 0.1);
+}
+
+.tq-levar .tq-mapa-no.sel small {
+  color: rgb(var(--c-ideia-clara));
+}
+
+.tq-levar .tq-mapa-no.guardado {
+  background: rgb(var(--c-surface));
+  border: 1px dashed rgb(var(--c-text) / 0.22);
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-mapa-no.guardado .tq-mapa-ponto {
+  background: transparent;
+  border: 1.5px solid rgb(var(--c-muted));
+}
+
+.tq-levar .tq-mapa-no.guardado.sel {
+  border: 1.5px dashed rgb(var(--c-ideia));
+}
+
+.tq-levar .tq-mapa-vaga {
+  justify-content: center;
+  background: transparent;
+  border: 1px dashed rgb(var(--c-text) / 0.18);
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-mapa-vaga svg {
+  color: currentColor;
+}
+
+.tq-levar button.tq-mapa-vaga:hover {
+  border-color: rgb(var(--c-text) / 0.4);
+  color: rgb(var(--c-text));
+}
+
+.tq-levar .tq-mapa-vaga.nota {
+  font-size: var(--fs-meta);
+  line-height: 15px;
+  text-align: center;
+  border-color: rgb(var(--c-text) / 0.14);
+}
+
+.tq-mapa-entrada,
+.tq-mapa-saida {
+  position: absolute;
+  height: 44px;
+  padding: 0 var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border-radius: 22px;
+  font-size: var(--fs-corpo);
+}
+
+.tq-mapa-entrada {
+  left: 260px;
+  top: 24px;
+  width: 200px;
+  background: rgb(var(--c-primary) / 0.06);
+  border: 1px solid rgb(var(--c-primary) / 0.45);
+}
+
+.tq-mapa-entrada small {
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-glow));
+}
+
+.tq-mapa-vivo {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: rgb(var(--c-primary));
+}
+
+.tq-mapa-saida {
+  left: 250px;
+  top: 532px;
+  width: 220px;
+  background: rgb(var(--c-elevated));
+  border: 1px solid rgb(var(--c-text) / 0.1);
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-mapa-centro {
+  position: absolute;
+  left: 280px;
+  top: 220px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgb(var(--c-ideia) / 0.08);
+  border: 1px solid rgb(var(--c-ideia) / 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  text-align: center;
+  color: rgb(var(--c-text));
+  transition:
+    box-shadow var(--dur-base),
+    border-color var(--dur-base);
+}
+
+.tq-levar .tq-mapa-centro:hover,
+.tq-levar .tq-mapa-centro.sel {
+  border-color: rgb(var(--c-ideia));
+  box-shadow: 0 0 0 5px rgb(var(--c-ideia) / 0.1);
+}
+
+.tq-levar .tq-mapa-centro b {
+  display: block;
+  font: 700 20px / 1.2 var(--font-titulo);
+}
+
+.tq-levar .tq-mapa-centro small {
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-ideia-clara));
+}
+
+/* A busca é a única parte que sairia do computador: placa neutra, não violeta. */
+.tq-levar .tq-mapa-busca {
+  position: absolute;
+  left: 520px;
+  top: 254px;
+  width: 192px;
+  height: 92px;
+  padding: 11px var(--sp-3);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgb(var(--c-elevated));
+  border: 1px solid rgb(var(--c-text) / 0.3);
+  border-radius: var(--radius-sm);
+  color: rgb(var(--c-text));
+  text-align: left;
+  transition:
+    border-color var(--dur-base),
+    box-shadow var(--dur-base),
+    opacity var(--dur-base);
+}
+
+.tq-levar .tq-mapa-busca:hover {
+  border-color: rgb(var(--c-text) / 0.55);
+}
+
+.tq-levar .tq-mapa-busca.sel {
+  border: 1.5px solid rgb(var(--c-text));
+  box-shadow: 0 0 0 4px rgb(var(--c-text) / 0.08);
+}
+
+.tq-levar .tq-mapa-busca.desligada {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.tq-levar .tq-mapa-busca svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.tq-levar .tq-mapa-busca > span {
+  font-size: var(--fs-corpo);
+  line-height: 17px;
+}
+
+.tq-levar .tq-mapa-busca b {
+  font-weight: 500;
+}
+
+.tq-levar .tq-mapa-busca small {
+  display: block;
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-mapa-busca small.tq-mapa-estado {
+  color: rgb(var(--c-text) / 0.75);
+}
+
+/*
+ * Estreito demais para o mapa (menos de 72% de 720 px): os mesmos botões em
+ * coluna, na ordem do caminho — a fala entra, o assistente, o que vai junto, a
+ * busca, a resposta sai.
+ */
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-palco {
+  position: static;
+  width: auto;
+  height: auto;
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) 0;
+}
+
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-no,
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-entrada,
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-saida,
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-centro,
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-busca {
+  position: static;
+  width: 100%;
+  height: auto;
+  min-height: 48px;
+}
+
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-no b,
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-no small {
+  max-width: none;
+}
+
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-centro {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  padding: 10px var(--sp-3);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-centro b {
+  font-size: var(--fs-titulo);
+}
+
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-entrada,
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-saida {
+  justify-content: flex-start;
+  border-radius: var(--radius-sm);
+}
+
+.tq-levar .tq-mapa-caixa.lista .tq-mapa-no {
+  padding-block: var(--sp-2);
+}
+
+/* --------------------------------------------------------------- o painel */
+
+.tq-ed {
+  flex: 1 1 300px;
+  max-width: 380px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 520px;
+  border: 1px solid rgb(var(--c-text) / 0.08);
+  border-radius: var(--radius-md);
+  background: rgb(var(--c-text) / 0.03);
+  scroll-margin: var(--sp-4);
+}
+
+.tq-ed-cab {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgb(var(--c-text) / 0.06);
+}
+
+.tq-ed-cab > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.tq-ed-cab h3 {
+  margin: 2px 0 0;
+  font: 600 var(--fs-titulo) / 1.3 var(--font-titulo);
+  overflow-wrap: anywhere;
+}
+
+.tq-ed-olho {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.03em;
+  color: rgb(var(--c-muted));
+}
+
+.tq-ed-olho.violeta {
+  color: rgb(var(--c-ideia-clara));
+}
+
+.tq-ed-sub {
+  margin: 6px 0 0;
+  font-size: var(--fs-ui);
+  line-height: 1.6;
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-ed-fechar {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin: -4px -8px 0 0;
+  border-radius: 50%;
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar .tq-ed-fechar:hover {
+  background: rgb(var(--c-text) / 0.045);
+  color: rgb(var(--c-text));
+}
+
+.tq-ed-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px 20px;
+}
+
+.tq-ed-rodape {
+  display: grid;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding: 14px 20px 18px;
+  border-top: 1px solid rgb(var(--c-text) / 0.06);
+}
+
+.tq-ed-vazio {
+  margin: 0;
+  padding: 24px 20px;
+  font-size: var(--fs-corpo);
+  color: rgb(var(--c-muted));
+}
+
+.tq-ed-regras {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tq-ed-regras li {
+  display: grid;
+  gap: 2px;
+  padding: 10px var(--sp-3);
+  border: 1px solid rgb(var(--c-text) / 0.05);
+  border-radius: var(--sp-3);
+  background: rgb(var(--c-surface));
+}
+
+.tq-ed-regras b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-corpo);
+  font-weight: 500;
+}
+
+.tq-ed-regras b svg {
+  color: rgb(var(--c-muted));
+}
+
+.tq-ed-regras span {
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: rgb(var(--c-muted));
+}
+
+.tq-ed-citacao {
+  margin: 0;
+  padding: var(--sp-3) 14px;
+  border-radius: var(--sp-3);
+  background: rgb(var(--c-text) / 0.045);
+  font-size: var(--fs-corpo);
+  line-height: 1.6;
+  color: rgb(var(--c-text) / 0.85);
+}
+
+.tq-ed-aviso {
+  margin: 0;
+  padding: var(--sp-3) 14px;
+  border: 1px solid rgb(var(--c-text) / 0.08);
+  border-radius: 13px;
+  background: rgb(var(--c-text) / 0.035);
+  font-size: var(--fs-ui);
+  line-height: 1.7;
+  color: rgb(var(--c-muted));
+}
+
+.tq-ed-modos {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  font-size: var(--fs-corpo);
+}
+
+.tq-ed-modos legend {
+  padding: 0;
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-ui);
+  color: rgb(var(--c-text) / 0.8);
+}
+
+.tq-ed-modos label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  cursor: pointer;
+}
+
+.tq-ed-modos input {
+  margin: 0;
+  accent-color: rgb(var(--c-ideia));
+}
+
+.tq-ed-modos:disabled label {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tq-ed-modos small {
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+}
+
+/* O interruptor: o checkbox de verdade fica por cima do trilho, invisível. */
+.tq-interruptor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  cursor: pointer;
+}
+
+.tq-interruptor b {
+  display: block;
+  font-size: var(--fs-corpo);
+  font-weight: 500;
+}
+
+.tq-interruptor small {
+  display: block;
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+}
+
+.tq-interruptor input {
+  position: absolute;
+  right: 0;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tq-interruptor-trilho {
+  pointer-events: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  border-radius: 11px;
+  background: rgb(var(--c-text) / 0.14);
+  transition: background var(--dur-fast);
+}
+
+.tq-interruptor-trilho::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgb(var(--c-text));
+  transition: transform var(--dur-fast);
+}
+
+.tq-interruptor input:checked + .tq-interruptor-trilho {
+  background: rgb(var(--c-ideia));
+}
+
+.tq-interruptor input:checked + .tq-interruptor-trilho::after {
+  transform: translateX(16px);
+}
+
+.tq-interruptor input:focus-visible + .tq-interruptor-trilho {
+  outline: 2px solid rgb(var(--c-primary));
+  outline-offset: 3px;
+}
+
+.tq-ed-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-ui);
+  color: rgb(var(--c-text) / 0.8);
+}
+
+.tq-ed-campo-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.tq-ed-campo small {
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+}
+
+.tq-ed-campo input,
+.tq-ed-campo textarea {
+  min-height: 38px;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid rgb(var(--c-text) / 0.1);
+  border-radius: var(--radius-xs);
+  background: rgb(var(--c-surface));
+  color: rgb(var(--c-text));
+  font: inherit;
+  font-size: var(--fs-corpo);
+  line-height: 1.55;
+  user-select: text;
+}
+
+.tq-ed-campo textarea {
+  min-height: 116px;
+  resize: vertical;
+  border-color: rgb(var(--c-ideia) / 0.4);
+}
+
+.tq-ed-campo input:focus,
+.tq-ed-campo textarea:focus {
+  outline: none;
+  border-color: rgb(var(--c-ideia));
+}
+
+.tq-ed-conta {
+  font-size: var(--fs-meta);
+  color: rgb(var(--c-muted));
+  font-variant-numeric: tabular-nums;
+}
+
+.tq-ed-conta.cheio {
+  color: rgb(var(--c-atencao));
+}
+
+.tq-levar .tq-ed-remover {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-ui);
+  color: rgb(var(--c-danger) / 0.85);
+}
+
+.tq-levar .tq-ed-remover:hover {
+  color: rgb(var(--c-danger));
+}
+
+.tq-ed-confirma {
+  display: grid;
+  gap: 10px;
+}
+
+.tq-ed-confirma p {
+  margin: 0;
+  font-size: var(--fs-ui);
+  line-height: 1.6;
+  color: rgb(var(--c-text) / 0.8);
+}
+
+.tq-ed-confirma div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* "Usar este assistente": claro, não verde — verde é a fala da reunião. */
+.tq-levar .tq-prep-usar {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--sp-2);
+  min-height: 40px;
+  padding: 0 var(--sp-4);
+  border-radius: 11px;
+  background: rgb(var(--c-text));
+  color: rgb(var(--c-background));
+  font-size: var(--fs-corpo);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity var(--dur-fast);
+}
+
+.tq-levar .tq-prep-usar:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tq-levar-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  padding: 18px 0 var(--sp-2);
+}
+
+.tq-levar-status {
+  font-size: var(--fs-ui);
+  color: rgb(var(--c-muted));
+}
+
+.tq-levar-status.pendente {
+  color: rgb(var(--c-atencao));
+}
+
+/* Em coluna o painel vem embaixo do mapa: vazio, não reserva altura. */
+@media (max-width: 760px) {
+  .tq-ed {
+    min-height: 0;
+  }
+}
+
+.tq-levar .tq-mapa-caixa.lista {
+  padding-bottom: var(--sp-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tq-fio-fala {
+    animation: none;
+  }
 }
 
 /* ------------------------------------------- documento personalizado */
