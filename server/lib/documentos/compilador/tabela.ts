@@ -50,7 +50,11 @@ export function larguraDasColunas(
       ...linhas.map((l) => textoPlano(l[i] ?? '').length),
     );
     // Raiz: uma coluna de texto longo ganha mais, mas não esmaga as curtas.
-    return Math.max(6, Math.sqrt(Math.min(maior, 400)));
+    // O peso mínimo era 6 (≈ 36 caracteres) até 28/10/2026: numa tabela de
+    // encaminhamentos (Ação · Responsável · Prazo) as três colunas saíam iguais
+    // e a ação quebrava linha ao lado de um "sexta" sobrando espaço. O `piso`
+    // em pontos continua impedindo a coluna estreita de sumir.
+    return Math.max(3, Math.sqrt(Math.min(maior, 400)));
   });
   const soma = pesos.reduce((a, b) => a + b, 0);
   let larguras = pesos.map((p) => Math.max(piso, (p / soma) * larguraTotal));

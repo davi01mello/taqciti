@@ -260,6 +260,51 @@ export function filtrarFrases(
   return { texto: ficou.join('').trim(), caiu };
 }
 
+const palavrasDe = (texto: string): string[] => normalizar(texto).split(/[^a-z0-9]+/).filter(Boolean);
+const temPalavra = (palavra: string, onde: string): boolean => new RegExp(`\\b${palavra}\\b`).test(onde);
+
+/**
+ * O dono do encaminhamento aparece nas falas em volta (como quem fala ou como
+ * quem é chamado)? Vale o nome inteiro ou o PRIMEIRO nome: a transcrição diz
+ * "Ana Souza:" e a fala diz "a Ana fica com isso". Qualquer parte do nome não
+ * vale: em "Pessoa D" e "Pessoa Z" a parte comum aprovaria o dono errado.
+ */
+export function nomeAparece(nome: string, perto: string): boolean {
+  const partes = palavrasDe(nome);
+  if (partes.length === 0) return false;
+  if (new RegExp(`\\b${partes.join('\\W+')}\\b`).test(perto)) return true;
+  return partes.length > 1 && partes[0]!.length >= 3 && temPalavra(partes[0]!, perto) && !nomeCompostoComOutro(partes, perto);
+}
+
+/**
+ * "Pessoa Z" contra "Pessoa D": o primeiro nome aparece, mas sempre seguido de
+ * OUTRO segundo nome — então quem aparece é outra pessoa. Se o primeiro nome
+ * aparece solto ("a Ana fica"), vale.
+ */
+function nomeCompostoComOutro(partes: string[], perto: string): boolean {
+  const seguintes = [...perto.matchAll(new RegExp(`\\b${partes[0]}\\b(?:\\W+([a-z0-9]+))?`, 'g'))].map((m) => m[1]);
+  return seguintes.every((s) => s !== undefined && s !== partes[1] && ehSegundoNome(s));
+}
+
+/** Depois do primeiro nome, palavra curta ("d") ou que não é verbo/ligação lê como outro segundo nome. */
+const ehSegundoNome = (palavra: string): boolean => palavra.length <= 2 || !DEPOIS_DO_PRIMEIRO_NOME.has(palavra);
+const DEPOIS_DO_PRIMEIRO_NOME = new Set(['fica', 'vai', 'faz', 'pode', 'assume', 'disse', 'falou', 'ver', 'que', 'com', 'pra', 'para', 'ja', 'tambem', 'vou', 'consegue']);
+
+/** Palavras que não identificam um prazo: "até sexta" e "sexta" são o mesmo prazo. */
+const LIGACAO_DO_PRAZO = new Set(['ate', 'o', 'a', 'os', 'as', 'de', 'do', 'da', 'no', 'na', 'dia', 'para', 'que', 'em', 'proximo', 'proxima']);
+
+/**
+ * O prazo foi DITO nas falas em volta? Cada palavra que identifica o prazo
+ * ("sexta", "12", "semana", "vem") tem de estar lá. "15/11" quando a fala disse
+ * "dia quinze" não passa, de propósito: o prompt pede o prazo como foi dito, e
+ * um prazo convertido é um prazo que alguém pode ter calculado errado.
+ */
+export function prazoAparece(prazo: string, perto: string): boolean {
+  return palavrasDe(prazo)
+    .filter((p) => !LIGACAO_DO_PRAZO.has(p))
+    .every((p) => temPalavra(p, perto));
+}
+
 /**
  * Aplica as guardas ao `DocumentData` que o Leitor devolveu, no lugar. Item de
  * lista (decisão, outcome, output, ponto genérico) é UMA afirmação: cai inteiro.
@@ -345,6 +390,48 @@ export function guardarFidelidade(data: DocumentData, transcricao: string): Desc
   if (data.decisions) data.decisions = itens('decisoes', 'decisions', data.decisions)!;
   if (data.outcomes) data.outcomes = itens('outcomes', 'outcomes', data.outcomes)!;
   if (data.outputs) data.outputs = itens('outputs', 'outputs', data.outputs)!;
+  // Cada frase do resumo executivo é um item: cai a frase, ficam as outras.
+  if (data.executiveSummary) data.executiveSummary = itens('resumo_executivo', 'executiveSummary', data.executiveSummary)!;
+  if (data.openPoints) data.openPoints = itens('em_aberto', 'openPoints', data.openPoints)!;
+
+  // Atuação do participante: a palavra de cargo cai com ela, e a pessoa fica.
+  if (data.participants) {
+    data.participants = data.participants.map((p, i) => {
+      if (!p.atuacao) return p;
+      const r = filtrarFrases({ texto: p.atuacao, citacoes: quotes(p.quotes) }, transcricao);
+      if (r.caiu.length === 0) return p;
+      descartes.push({ sectionId: 'participantes', path: `participants[${i}].atuacao`, texto: p.atuacao, motivo: r.caiu[0]!.motivo });
+      const { atuacao: _fora, ...resto } = p;
+      return resto;
+    });
+  }
+
+  if (data.actionItems) {
+    data.actionItems = data.actionItems.flatMap((e, i) => {
+      const path = `actionItems[${i}]`;
+      const em = quotes(e.quotes);
+      const r = filtrarFrases({ texto: e.acao, citacoes: em }, transcricao);
+      if (r.caiu.length > 0) {
+        descartes.push({ sectionId: 'encaminhamentos', path, texto: e.acao, motivo: r.caiu[0]!.motivo });
+        return [];
+      }
+      // Dono e prazo têm de estar nas falas em volta das citações. O dono que
+      // não aparece ali foi deduzido (de quem falava mais, do assunto); o
+      // prazo que não aparece foi calculado. Os dois caem SOZINHOS: a ação
+      // segue, sem dono ou sem prazo, que é o que a reunião sustenta.
+      const perto = normalizar(em.join('\n'));
+      const fica = { ...e };
+      if (e.responsavel && !nomeAparece(e.responsavel, perto)) {
+        descartes.push({ sectionId: 'encaminhamentos', path: `${path}.responsavel`, texto: e.responsavel, motivo: 'ninguém com esse nome assume a ação nas falas citadas' });
+        delete fica.responsavel;
+      }
+      if (e.prazo && !prazoAparece(e.prazo, perto)) {
+        descartes.push({ sectionId: 'encaminhamentos', path: `${path}.prazo`, texto: e.prazo, motivo: 'o prazo não foi dito nas falas citadas' });
+        delete fica.prazo;
+      }
+      return [fica];
+    });
+  }
   if (data.generic) {
     for (const [secao, lista] of Object.entries(data.generic)) {
       data.generic[secao] = itens(secao, `generic.${secao}`, lista)!;

@@ -43,6 +43,8 @@ import {
   rotuloDoPeriodo,
   specForSection,
   textoDeLacuna,
+  juntarFrases,
+  linhaDoEncaminhamento,
   type DocumentData,
   type Gap,
 } from '../documentData';
@@ -197,12 +199,13 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
           const cargo = participante.role
             ? escapeHtml(participante.role)
             : lacunaDe(gaps, `participants[${participante.name}].role`);
-          return cargo
+          const nome = cargo
             ? `${escapeHtml(participante.name)} &ndash; ${cargo}`
             : escapeHtml(participante.name);
+          return participante.atuacao ? `${nome}: ${escapeHtml(participante.atuacao)}` : nome;
         });
       return [
-        p(`<span style="${S.rotulo}">PARTICIPANTES &ndash; CARGO:</span>`, S.rotuloLinha),
+        p(`<span style="${S.rotulo}">PARTICIPANTES:</span>`, S.rotuloLinha),
         lista(itens, false, S.itemParticipante),
       ]
         .filter(Boolean)
@@ -240,9 +243,41 @@ export const SECTION_RENDERERS: Record<string, SectionRenderer> = {
     render: (data) => lista((data.outputs ?? []).map((o) => escapeHtml(o.text))),
   },
 
-  conclusao: {
+  resumo_executivo: {
     cabecalho: true,
-    render: (data) => (data.conclusion ? p(escapeHtml(data.conclusion.text)) : ''),
+    // Um parágrafo corrido: a prova é frase a frase nos dados, a leitura não.
+    render: (data) => {
+      const texto = juntarFrases((data.executiveSummary ?? []).map((a) => a.text));
+      return texto ? p(escapeHtml(texto)) : '';
+    },
+  },
+
+  encaminhamentos: {
+    cabecalho: true,
+    // Lista, e não tabela: o HTML é o que o import do Google Docs aceita. A
+    // tabela fica no PDF. Sem dono, a ação vai para o próprio rótulo.
+    render(data) {
+      const todos = data.actionItems ?? [];
+      const comDono = todos.filter((e) => e.responsavel).map((e) => escapeHtml(linhaDoEncaminhamento(e)));
+      const semDono = todos.filter((e) => !e.responsavel).map((e) => escapeHtml(linhaDoEncaminhamento(e)));
+      return [
+        comDono.length > 0 ? lista(comDono) : '',
+        semDono.length > 0 ? p(`<span style="${S.rotulo}">SEM RESPONSÁVEL DEFINIDO:</span>`, S.rotuloLinha) : '',
+        semDono.length > 0 ? lista(semDono) : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    },
+  },
+
+  em_aberto: {
+    cabecalho: true,
+    render: (data) => lista((data.openPoints ?? []).map((a) => escapeHtml(a.text))),
+  },
+
+  pontos_de_atencao: {
+    cabecalho: true,
+    render: (data) => lista((data.openPoints ?? []).map((a) => escapeHtml(a.text))),
   },
 
   assinatura: {

@@ -20,6 +20,8 @@
 import type { DocumentType } from '../documentTypes';
 import { TEMPLATES } from '../templates';
 import {
+  juntarFrases,
+  linhaDoParticipante,
   rotuloDoPeriodo,
   soDuvidasExtremas,
   type DocumentData,
@@ -78,17 +80,30 @@ function corpoDe(documentType: DocumentType, data: DocumentData): SemId<Bloco>[]
     if (limpos.length > 0) blocos.push({ tipo: 'lista', ordenada, itens: limpos, fontes: [], origem: 'agente' });
   };
   const secao = (id: string): string => template.sections.find((s) => s.id === id)?.title ?? id;
+  const pontos = (id: string, itens: { text: string }[] | undefined) => {
+    if (!itens?.some((i) => i.text.trim())) return;
+    titulo(secao(id));
+    lista(itens.map((i) => i.text));
+  };
 
-  // --- Ata -------------------------------------------------------------
+  // --- Ata: as linhas rotuladas abrem a página, antes de qualquer título ----
+  // Depois do título do resumo executivo elas liam como parte dele.
   if (data.generalTopic) {
     paragrafo(`**Tópico:** ${data.generalTopic.topic}`);
     paragrafo(`**Andamento:** ${data.generalTopic.progress}`);
   }
 
+  // --- Resumo executivo (Ata e Resumo): o que quem tem dois minutos lê --------
+  const executivo = juntarFrases((data.executiveSummary ?? []).map((a) => a.text));
+  if (executivo) {
+    titulo(secao('resumo_executivo'));
+    paragrafo(executivo);
+  }
+
   const participantes = (data.participants ?? []).filter((p) => !ehRotuloDeSelf(p.name));
   if (participantes.length > 0) {
     titulo(secao('participantes'));
-    lista(participantes.map((p) => (p.role ? `**${p.name}** – ${p.role}` : `**${p.name}**`)));
+    lista(participantes.map((p) => linhaDoParticipante({ ...p, name: `**${p.name}**` }, p.role)));
   }
 
   const topicos = data.topicsDiscussed ?? [];
@@ -100,20 +115,37 @@ function corpoDe(documentType: DocumentType, data: DocumentData): SemId<Bloco>[]
     });
   }
 
-  const listas: [string, string[] | undefined][] = [
-    ['decisoes', data.decisions?.map((d) => d.text)],
-    ['outcomes', data.outcomes?.map((o) => o.text)],
-    ['outputs', data.outputs?.map((o) => o.text)],
-  ];
-  for (const [id, itens] of listas) {
-    if (itens && itens.some((i) => i.trim())) {
-      titulo(secao(id));
-      lista(itens);
-    }
+  pontos('decisoes', data.decisions);
+
+  // Encaminhamentos: tabela com quem assumiu; a coluna Prazo só existe se
+  // algum prazo foi dito. Sem dono, a ação vai para a caixa própria — e não
+  // para uma célula vazia, que leria como esquecimento.
+  const encaminhamentos = data.actionItems ?? [];
+  const comDono = encaminhamentos.filter((e) => e.responsavel);
+  const semDono = encaminhamentos.filter((e) => !e.responsavel);
+  if (encaminhamentos.length > 0) titulo(secao('encaminhamentos'));
+  if (comDono.length > 0) {
+    const comPrazo = comDono.some((e) => e.prazo);
+    blocos.push({
+      tipo: 'tabela',
+      cabecalho: comPrazo ? ['Ação', 'Responsável', 'Prazo'] : ['Ação', 'Responsável'],
+      linhas: comDono.map((e) => (comPrazo ? [e.acao, e.responsavel!, e.prazo ?? '—'] : [e.acao, e.responsavel!])),
+      fontes: [],
+      origem: 'agente',
+    });
+  }
+  if (semDono.length > 0) {
+    paragrafo('**Sem responsável definido**');
+    lista(semDono.map((e) => (e.prazo ? `${e.acao} (prazo: ${e.prazo})` : e.acao)));
   }
 
+  if (documentType !== 'resumo') pontos('em_aberto', data.openPoints);
+  pontos('outcomes', data.outcomes);
+  pontos('outputs', data.outputs);
+
+  // Documentos salvos antes de 28/10/2026, quando o resumo executivo a substituiu.
   if (data.conclusion?.text.trim()) {
-    titulo(secao('conclusao'));
+    titulo('Conclusão');
     linhas(data.conclusion.text).forEach(paragrafo);
   }
 
@@ -140,6 +172,7 @@ function corpoDe(documentType: DocumentType, data: DocumentData): SemId<Bloco>[]
     if (intervalo) paragrafo(`**${intervalo}**`);
     linhas(periodo.summary).forEach(paragrafo);
   });
+  if (documentType === 'resumo') pontos('pontos_de_atencao', data.openPoints);
 
   // --- Daily, Planning, Review (seções genéricas) ------------------------
   for (const [id, itens] of Object.entries(data.generic ?? {})) {

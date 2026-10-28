@@ -151,15 +151,20 @@ Este repositório é **público**.
 ## Estado e próximos passos
 
 - Desenho das melhorias de conteúdo dos documentos (fidelidade, estrutura por tipo,
-  layout curto): `docs/redesenho-dos-documentos.md`. A fase de fidelidade está
-  implementada; as demais estão desenhadas e não começaram.
+  layout curto): `docs/redesenho-dos-documentos.md`. Fidelidade implementada. Desde
+  28/10/2026 o produto foca em **Ata e Resumo** (decisão do usuário), e os dois têm a
+  estrutura nova (resumo executivo, atuação, encaminhamentos, em aberto); os outros
+  tipos ficam como estão. Exemplos em PDF: `docs/exemplos/`. Teste ao vivo:
+  `ATA_LIVE=1 npx vitest run lib/documentos/ataResumo.live.test.ts` (em `server/`).
 - Plano de segurança: `docs/plano-de-seguranca.md`. Commitadas: a fase 1 (servidor,
   `09e99ab`: identidade e cota por pessoa nas rotas de IA, RLS, TLS do banco, tetos), a
   fase 2 (extensão, `923ea5a`: content script só no Meet, barreira de remetente, efeito
   `exclusao`, link seguro, trava de build) e a fase 3 (`bcb3355`: política de dados
   obrigatória em produção, MCP somente leitura, expiração dos tokens do conector,
-  delimitador de fonte). As fases 4 (cadeia de suprimento e distribuição) e 5 (decisões
-  estruturais) não começaram. **Antes de publicar o servidor:** definir
+  delimitador de fonte). A fase 4 (cadeia de suprimento) foi feita em parte (`1d5dee5`:
+  actions por SHA, permissões mínimas, versão validada, SHA256SUMS, payload do macOS);
+  faltam versão fixa de `innosetup`/`makeself`, *environment* com aprovação, escopo da
+  conta do Drive e assinatura dos instaladores. A fase 5 (decisões estruturais) não começou. **Antes de publicar o servidor:** definir
   `DOCCITI_DATA_POLICY` no host de produção.
 - Documentos personalizados: `docs/documentos-personalizados.md`.
 - Release e instaladores: `docs/publicar-release.md`.

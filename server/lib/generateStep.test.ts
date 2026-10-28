@@ -52,7 +52,11 @@ const DOCUMENTO = {
   },
   outcomes: { items: [] },
   outputs: { items: [] },
-  conclusao: { text: 'O projeto segue com a entrega remarcada.' },
+  resumo_executivo: {
+    items: [{ text: 'A entrega foi adiada para sexta-feira.', quotes: ['Entao adiamos a entrega para sexta-feira.'] }],
+  },
+  encaminhamentos: { items: [] },
+  em_aberto: { items: [] },
 };
 
 const reply = (parsed: unknown) => ({
@@ -112,17 +116,27 @@ describe('custo da Ata', () => {
     mockPipeline();
     const { report } = await run();
 
-    // Maria, Joao e a decisão.
+    // A frase do resumo executivo, Maria, Joao e a decisão.
     expect(report.verdicts.map((v) => v.path)).toEqual([
+      'executiveSummary[0]',
       'participants[0]',
       'participants[1]',
       'decisions[0]',
     ]);
-    expect(report.verdicts.map((v) => v.sectionId)).toEqual(['participantes', 'participantes', 'decisoes']);
+    expect(report.verdicts.map((v) => v.sectionId)).toEqual([
+      'resumo_executivo',
+      'participantes',
+      'participantes',
+      'decisoes',
+    ]);
   });
 
   it('nada a conferir: não chama o Auditor', async () => {
-    mockPipeline({ participantes: { participants: [] }, decisoes: { decisions: [] } });
+    mockPipeline({
+      participantes: { participants: [] },
+      decisoes: { decisions: [] },
+      resumo_executivo: { items: [] },
+    });
     await run();
     expect(chamadasDe('auditor')).toHaveLength(0);
   });
@@ -145,9 +159,9 @@ describe('montagem da Ata', () => {
       .slice()
       .sort((a, b) => a.order - b.order)
       .map((s) => s.id)
-      // outcomes, outputs e assinatura somem: `omitWhenEmpty` e sem item (a
-      // assinatura, sem nome de quem assina).
-      .filter((id) => id !== 'outcomes' && id !== 'outputs' && id !== 'assinatura');
+      // As seções `omitWhenEmpty` sem item somem (a assinatura, sem nome de
+      // quem assina).
+      .filter((id) => !['outcomes', 'outputs', 'encaminhamentos', 'em_aberto', 'assinatura'].includes(id));
 
     expect(sections.map((s) => s.id)).toEqual(esperada);
   });
@@ -169,7 +183,7 @@ describe('montagem da Ata', () => {
     expect(por('decisoes')).toContain('- Adiar a entrega para sexta-feira');
     // A concordância é evidência para a auditoria, não texto da ata.
     expect(por('decisoes')).not.toContain('De acordo, sexta.');
-    expect(por('conclusao')).toContain('O projeto segue com a entrega remarcada.');
+    expect(por('resumo_executivo')).toContain('A entrega foi adiada para sexta-feira.');
   });
 
   /*
@@ -301,7 +315,7 @@ describe('o que o Auditor rejeita', () => {
 
 describe('guarda contra vazamento', () => {
   it('FALHA ALTO quando a instrução do PDF vaza para o documento', async () => {
-    mockPipeline({ conclusao: { text: 'Narrativa Resumida do encontro.' } });
+    mockPipeline({ topico_geral: { topic: 'Cronograma', progress: 'Narrativa Resumida do encontro.' } });
     await expect(run()).rejects.toThrow(/vazou/);
   });
 });

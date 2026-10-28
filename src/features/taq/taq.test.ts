@@ -331,13 +331,14 @@ describe('documento pedido', () => {
     const c = salvo.content;
     // A estrutura é a do catálogo, na ordem dele.
     const titulos = [...c.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+    // Desde 28/10/2026 o resumo executivo abre a Ata e substitui a Conclusão.
     expect(titulos).toEqual([
       'Identificação',
+      'Resumo executivo',
       'Tópico geral',
-      'Participantes e cargos',
+      'Participantes',
       'Tópicos discutidos',
       'Decisões tomadas',
-      'Conclusão',
       'Assinatura',
       'Pendências',
       'Fontes',
@@ -345,7 +346,7 @@ describe('documento pedido', () => {
     expect(c).toContain('**Projeto:** Sprint 12');
     expect(c).toContain('**Data:** 18/09/2026');
     expect(c).toContain('**Assinado por:** Não informado');
-    expect(c).toMatch(/## Conclusão\n\n_A confirmar._/);
+    expect(c).toMatch(/## Resumo executivo\n\n_A confirmar._/);
     // Citação vira nota legível; a inventada some.
     expect(c).toContain('Deploy mantido na sexta [1]. Inventado.');
     expect(c).toContain(
@@ -354,7 +355,7 @@ describe('documento pedido', () => {
     expect(c).not.toMatch(/\[r\d+\]/);
     expect(r.informacoesAusentes).toEqual(
       expect.arrayContaining([
-        'Conclusão: a confirmar',
+        'Resumo executivo: a confirmar',
         'Assinado por: não informado',
         'Responsável pela revisão do contrato',
       ]),

@@ -28,6 +28,17 @@ import type { DocumentTemplate } from './types';
  * guidance abaixo, nunca conteúdo do documento gerado. O mesmo vale pros
  * placeholders de forma do PDF ([Nome do Tópico], [Decisão A], [Nome] –
  * [Cargo] etc.): são forma, não texto a copiar.
+ *
+ * 28/10/2026 — a Ata passou a responder "o que foi decidido e o que ficou
+ * combinado?" para quem faltou (`docs/redesenho-dos-documentos.md`, 3.3):
+ * - RESUMO EXECUTIVO no topo, frase a frase com citação, no lugar da
+ *   Conclusão: a Conclusão era o mesmo texto no fim, `audit: 'none'`, e quem lê
+ *   para no começo. Documentos salvos com `conclusion` continuam a mostrá-la.
+ * - PARTICIPANTES com a atuação de cada um na reunião ("apresentou", "validou"):
+ *   a reunião quase nunca diz cargo, e a lista de nomes soltos não informava.
+ * - ENCAMINHAMENTOS com responsável e prazo SÓ quando ditos, e EM ABERTO.
+ * Campo ausente continua não entrando (sem `[A preencher]`): ação sem dono vai
+ * para "Sem responsável definido", que é informação, não lacuna.
  */
 export const ata: DocumentTemplate = {
   documentType: 'ata',
@@ -58,9 +69,28 @@ export const ata: DocumentTemplate = {
     },
 
     {
+      id: 'resumo_executivo',
+      title: 'Resumo executivo',
+      order: 2,
+      required: true,
+      audit: 'strict',
+      omitWhenEmpty: true,
+      needs: ['o que aconteceu de mais importante, para quem não esteve na reunião'],
+      guidance: [
+        'Duas ou três frases que contam a quem NÃO esteve na reunião o que importa:',
+        'o assunto, o que foi decidido ou combinado e o que ficou em aberto.',
+        'Cada frase é um item separado, com as citações literais que a sustentam; a',
+        'frase sem citação localizável cai sozinha.',
+        'Afirme só o que foi dito: sem avaliação ("reunião produtiva"), sem causa e sem',
+        'cargo que a reunião não trouxe, e proposta não vira decisão.',
+      ].join(' '),
+      askWhenMissing: [],
+    },
+
+    {
       id: 'topico_geral',
       title: 'Tópico geral',
-      order: 2,
+      order: 3,
       required: true,
       audit: 'none',
       omitWhenEmpty: false,
@@ -80,22 +110,25 @@ export const ata: DocumentTemplate = {
 
     {
       id: 'participantes',
-      title: 'Participantes e cargos',
-      order: 3,
+      title: 'Participantes',
+      order: 4,
       required: true,
       audit: 'strict',
       omitWhenEmpty: false,
       needs: [
         'nomes das pessoas que participaram',
-        'cargo ou papel de cada participante',
-        'origem da informação de cargo',
+        'cargo de cada participante, só quando dito',
+        'o que cada participante fez na reunião',
       ],
       guidance: [
-        'Formato: [Nome] – [Cargo/Papel], um por linha.',
         'Os nomes devem ser extraídos automaticamente.',
-        'Os cargos só devem ser preenchidos automaticamente quando houver evidência',
-        'suficiente na reunião. Sem evidência, o cargo é DESCONHECIDO e vira pergunta,',
-        'nunca um chute.',
+        'Os cargos só devem ser preenchidos quando a reunião os disser. Sem evidência,',
+        'OMITA o cargo — nunca um chute.',
+        'ATUAÇÃO: o que a pessoa fez nesta reunião, em poucas palavras, com verbos no',
+        'passado e por evidência nas falas dela ("apresentou o cronograma; levantou a',
+        'dúvida sobre os acessos; validou a proposta de adiamento"). A atuação NÃO é',
+        'cargo: quem conduziu a conversa não vira "gerente" nem "líder". Sem nada além',
+        'de presença, omita a atuação. As citações devem cobrir a atuação também.',
         'Exemplo: de "João explicou..." extrai-se apenas o nome; de "Maria, gerente de',
         'dados, respondeu..." extrai-se nome e cargo. Resultado: João – cargo desconhecido;',
         'Maria – Gerente de Dados.',
@@ -119,7 +152,7 @@ export const ata: DocumentTemplate = {
     {
       id: 'topicos_discutidos',
       title: 'Tópicos discutidos',
-      order: 4,
+      order: 5,
       required: true,
       audit: 'light',
       omitWhenEmpty: false,
@@ -147,7 +180,7 @@ export const ata: DocumentTemplate = {
     {
       id: 'decisoes',
       title: 'Decisões tomadas',
-      order: 5,
+      order: 6,
       required: true,
       audit: 'strict',
       omitWhenEmpty: false,
@@ -173,9 +206,33 @@ export const ata: DocumentTemplate = {
     },
 
     {
+      id: 'encaminhamentos',
+      title: 'Encaminhamentos',
+      order: 7,
+      required: false,
+      audit: 'strict',
+      omitWhenEmpty: true,
+      needs: ['ações combinadas', 'quem assumiu cada ação', 'prazos ditos'],
+      guidance: [
+        'As ações que ficaram combinadas para depois da reunião, com verbo no infinitivo',
+        '("Enviar a lista de acessos ao cliente").',
+        'RESPONSÁVEL só quando a pessoa ASSUMIU a ação ("eu faço", "deixa comigo", "vou',
+        'ver isso", "fico com essa") ou foi designada e ACEITOU. "Alguém deveria", "a',
+        'gente pode", "seria bom" não definem responsável: omita o campo, e a ação sai',
+        'como sem responsável definido — isso também é informação.',
+        'PRAZO só quando foi dito ("até sexta", "dia 12", "semana que vem"); copie como',
+        'foi dito, sem converter em data.',
+        'Cite a fala que combina a ação e, quando houver, a que a assume e a do prazo.',
+        'Uma decisão não precisa ser repetida aqui se não houver ação a fazer depois dela.',
+        'Não invente ação para preencher a seção.',
+      ].join(' '),
+      askWhenMissing: [],
+    },
+
+    {
       id: 'outcomes',
       title: 'Outcomes da reunião',
-      order: 6,
+      order: 8,
       required: false,
       audit: 'strict',
       omitWhenEmpty: true,
@@ -197,7 +254,7 @@ export const ata: DocumentTemplate = {
     {
       id: 'outputs',
       title: 'Outputs da reunião',
-      order: 7,
+      order: 9,
       required: false,
       audit: 'strict',
       omitWhenEmpty: true,
@@ -216,20 +273,19 @@ export const ata: DocumentTemplate = {
     },
 
     {
-      id: 'conclusao',
-      title: 'Conclusão',
-      order: 8,
-      required: true,
-      audit: 'none',
-      omitWhenEmpty: false,
-      needs: ['situação atual, principais decisões, andamento e foco imediato'],
+      id: 'em_aberto',
+      title: 'Em aberto',
+      order: 10,
+      required: false,
+      audit: 'strict',
+      omitWhenEmpty: true,
+      needs: ['perguntas sem resposta, pendências sem encaminhamento, assuntos adiados'],
       guidance: [
-        'Um único parágrafo executivo.',
-        'Deve permitir que alguém que não leia a ata inteira entenda: situação atual,',
-        'principais decisões, andamento do projeto, foco imediato e próximos movimentos.',
-        'Objetiva e profissional. Não repetir integralmente os tópicos anteriores.',
-        'Prosa em texto corrido, com suas próprias palavras — nunca reproduzir fala da',
-        'transcrição entre aspas aqui. Esta seção não tem campo de citação.',
+        'O que a reunião deixou EXPLICITAMENTE sem resposta: pergunta feita e não',
+        'respondida, pendência reconhecida sem encaminhamento, assunto adiado sem data.',
+        'Uma frase por item, com a citação de onde ficou em aberto.',
+        'Não crie pendência por dedução, e não repita aqui um encaminhamento que já',
+        'tem ação combinada.',
       ].join(' '),
       askWhenMissing: [],
     },
@@ -237,7 +293,7 @@ export const ata: DocumentTemplate = {
     {
       id: 'assinatura',
       title: 'Assinatura',
-      order: 9,
+      order: 11,
       required: true,
       audit: 'none',
       // Sem nome de quem assina, a seção some: a transcrição não diz quem

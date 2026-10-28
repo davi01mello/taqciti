@@ -24,7 +24,12 @@ const completa: DocumentData = {
   ],
   outcomes: [],
   outputs: [{ text: 'Lista dos endpoints alterados', quotes: [] }],
-  conclusion: { text: 'O projeto segue com a entrega remarcada.' },
+  executiveSummary: [{ text: 'A entrega foi remarcada para 28/08/2026.', quotes: [] }],
+  actionItems: [
+    { acao: 'Enviar a lista de endpoints', responsavel: 'Ana', prazo: 'sexta', quotes: [] },
+    { acao: 'Revisar o contrato da API', quotes: [] },
+  ],
+  openPoints: [{ text: 'Ninguém respondeu quem libera o acesso de produção.', quotes: [] }],
   signature: { name: 'Ana Souza', role: 'Gerente de Projetos' },
 };
 
@@ -39,7 +44,15 @@ const render = (data: DocumentData = completa, gaps: Gap[] = [lacunaCargo]) =>
   renderHtml({ documentType: 'ata', data, gaps, title: 'Ata de Reunião — Projeto Fênix' });
 
 /** As seções que o modelo apresenta COM cabeçalho próprio. */
-const COM_CABECALHO = ['topicos_discutidos', 'decisoes', 'outcomes', 'outputs', 'conclusao'];
+const COM_CABECALHO = [
+  'resumo_executivo',
+  'topicos_discutidos',
+  'decisoes',
+  'encaminhamentos',
+  'outcomes',
+  'outputs',
+  'em_aberto',
+];
 
 describe('cobertura', () => {
   it('toda seção da Ata tem renderizador próprio', () => {
@@ -107,7 +120,8 @@ describe('estilo do modelo institucional', () => {
             quotes: [],
           },
         ],
-        conclusion: { text: 'Fecha com "aspas" & sinais <perigosos>.' },
+        executiveSummary: [{ text: 'Fecha com "aspas" & sinais <perigosos>.', quotes: [] }],
+        actionItems: [{ acao: 'Medir <p95> & p99', responsavel: 'Ana <Souza>', quotes: [] }],
       },
       gaps: [],
       title: 'Ata & <teste>',
@@ -118,6 +132,8 @@ describe('estilo do modelo institucional', () => {
     expect(html).not.toContain('<Ltda>');
     expect(html).not.toContain('<Souza>');
     expect(html).not.toContain('<perigosos>');
+    expect(html).not.toContain('<p95>');
+    expect(html).toContain('Medir &lt;p95&gt; &amp; p99 — responsável: Ana &lt;Souza&gt;');
     expect(html).toContain('&lt;200ms');
     expect(html).toContain('Alpha &amp; Beta &lt;Ltda&gt;');
     expect(html).toContain('&quot;aspas&quot; &amp; sinais &lt;perigosos&gt;');
@@ -173,9 +189,28 @@ describe('estilo do modelo institucional', () => {
   });
 
   it('participantes vêm sob o rótulo do modelo, sem cabeçalho de seção', () => {
+    // O rótulo era "PARTICIPANTES – CARGO:" até 28/10/2026; a reunião quase
+    // nunca diz cargo, e a linha agora traz a atuação de cada um.
     const html = render();
-    expect(html).toContain('PARTICIPANTES &ndash; CARGO:');
-    expect(html).not.toContain('>Participantes e cargos</h2>');
+    expect(html).toContain('PARTICIPANTES:');
+    expect(html).not.toContain('>Participantes</h2>');
+  });
+
+  it('a atuação vem depois do nome, e o cargo só quando foi dito', () => {
+    const html = render({
+      ...completa,
+      participants: [
+        { name: 'Carlos', roleSource: 'unknown', atuacao: 'apresentou o cronograma', quotes: [] },
+      ],
+    });
+    expect(html).toContain('Carlos: apresentou o cronograma');
+  });
+
+  it('encaminhamento sem dono vai para o próprio rótulo, sem célula vazia', () => {
+    const html = render();
+    expect(html).toContain('Enviar a lista de endpoints — responsável: Ana · prazo: sexta');
+    expect(html).toContain('SEM RESPONSÁVEL DEFINIDO:');
+    expect(html.indexOf('SEM RESPONSÁVEL DEFINIDO:')).toBeLessThan(html.indexOf('Revisar o contrato da API'));
   });
 
   it('fecha com "Atenciosamente," e a assinatura', () => {
@@ -208,7 +243,7 @@ describe('escape', () => {
     // `<` solto quebraria a estrutura; um `<script>` seria pior que quebrar.
     const html = render({
       ...completa,
-      conclusion: { text: '<script>alert(1)</script> & "aspas" > fim' },
+      executiveSummary: [{ text: '<script>alert(1)</script> & "aspas" > fim', quotes: [] }],
     });
     expect(html).toContain('&lt;script&gt;');
     expect(html).not.toContain('<script>');

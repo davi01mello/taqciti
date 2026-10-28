@@ -62,7 +62,7 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
     id: 'ata',
     nome: 'Ata de Reunião',
     finalidade:
-      'Registra o fechamento de uma reunião: participantes, tópicos, decisões e conclusão, para as pessoas envolvidas revisarem.',
+      'Registra o fechamento de uma reunião para quem não esteve nela: resumo executivo, o que cada um fez, decisões, encaminhamentos com responsável e o que ficou em aberto.',
     tituloDoDocumento: 'Ata de reunião',
     apelidos: ['ata', 'ata de reuniao', 'ata da reuniao'],
     estrutura: [
@@ -73,6 +73,12 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
         precisa: ['data da reunião', 'nome do projeto'],
       },
       {
+        id: 'resumo_executivo',
+        titulo: 'Resumo executivo',
+        obrigatoria: true,
+        precisa: ['o que aconteceu de mais importante, em duas ou três frases'],
+      },
+      {
         id: 'topico_geral',
         titulo: 'Tópico geral',
         obrigatoria: true,
@@ -80,9 +86,9 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
       },
       {
         id: 'participantes',
-        titulo: 'Participantes e cargos',
+        titulo: 'Participantes',
         obrigatoria: true,
-        precisa: ['quem participou', 'cargo ou papel de cada um'],
+        precisa: ['quem participou', 'o que cada um fez na reunião', 'cargo, só quando dito'],
       },
       {
         id: 'topicos_discutidos',
@@ -97,6 +103,12 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
         precisa: ['decisões confirmadas (não propostas)'],
       },
       {
+        id: 'encaminhamentos',
+        titulo: 'Encaminhamentos',
+        obrigatoria: false,
+        precisa: ['ações combinadas', 'quem assumiu cada uma', 'prazos ditos'],
+      },
+      {
         id: 'outcomes',
         titulo: 'Outcomes da reunião',
         obrigatoria: false,
@@ -109,10 +121,10 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
         precisa: ['artefatos e resultados concretos'],
       },
       {
-        id: 'conclusao',
-        titulo: 'Conclusão',
-        obrigatoria: true,
-        precisa: ['situação atual, andamento e foco imediato'],
+        id: 'em_aberto',
+        titulo: 'Em aberto',
+        obrigatoria: false,
+        precisa: ['perguntas sem resposta e pendências sem encaminhamento'],
       },
       {
         id: 'assinatura',
@@ -182,7 +194,7 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
     id: 'resumo',
     nome: 'Resumo completo',
     finalidade:
-      'Conta a reunião inteira por trechos de tempo, do começo ao fim, mostrando etapa por etapa o que foi discutido.',
+      'Conta a reunião inteira por trechos de tempo, do começo ao fim, com um resumo executivo no topo e os pontos de atenção que ficaram sem resposta.',
     tituloDoDocumento: 'Resumo completo da reunião',
     // Só nomes que dizem qual resumo é. "Resumo da reunião" solto fica de fora
     // de propósito: é pedido ambíguo (pode ser a ata, pode ser texto na
@@ -196,10 +208,22 @@ export const CATALOGO_DE_DOCUMENTOS: readonly TipoDeDocumento[] = [
     ],
     estrutura: [
       {
+        id: 'resumo_executivo',
+        titulo: 'Resumo executivo',
+        obrigatoria: true,
+        precisa: ['o que aconteceu de mais importante, em duas ou três frases'],
+      },
+      {
         id: 'resumo_por_periodo',
         titulo: 'Resumo por período',
         obrigatoria: true,
         precisa: ['os assuntos tratados, trecho a trecho, do começo ao fim da reunião'],
+      },
+      {
+        id: 'pontos_de_atencao',
+        titulo: 'Pontos de atenção',
+        obrigatoria: false,
+        precisa: ['dúvidas e preocupações levantadas e não resolvidas'],
       },
     ],
     campos: [],

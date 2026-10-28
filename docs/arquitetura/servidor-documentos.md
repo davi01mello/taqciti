@@ -45,9 +45,17 @@ Tipos em `lib/ai/types.ts`: `AgentName = 'leitor' | 'auditor'`. Já existiram An
 
 | Tipo | Seções (id: audit) |
 |---|---|
-| `ata` | `identificacao`: light; `topico_geral`: none; `participantes`: strict; `topicos_discutidos`: light; `decisoes`: strict; `outcomes`: strict (omitida se vazia); `outputs`: strict (omitida se vazia); `conclusao`: none; `assinatura`: none (`fromUserOnly`, omitida sem nome) |
+| `ata` | `identificacao`: light; `resumo_executivo`: strict (frase a frase, omitida se vazia); `topico_geral`: none; `participantes`: strict (com `atuacao`, conferida à parte); `topicos_discutidos`: light; `decisoes`: strict; `encaminhamentos`: strict (omitida se vazia); `outcomes`: strict (omitida se vazia); `outputs`: strict (omitida se vazia); `em_aberto`: strict (omitida se vazia); `assinatura`: none (`fromUserOnly`, omitida sem nome) |
 | `x1` | `perguntas_respostas`: strict (pares pergunta/resposta de entrevista 1:1) |
-| `resumo` | `resumo_por_periodo`: strict (trechos cronológicos, carimbos `HH:MM:SS` copiados, nunca calculados) |
+| `resumo` | `resumo_executivo`: strict; `resumo_por_periodo`: strict (trechos cronológicos, carimbos `HH:MM:SS` copiados, nunca calculados); `pontos_de_atencao`: strict (omitida se vazia) |
+
+**Ata e Resumo desde 28/10/2026** (`docs/redesenho-dos-documentos.md`, 3.3; só esses dois tipos receberam a mudança — Daily, Planning, Review e X1 ficaram como estavam):
+
+- **Resumo executivo** (`executiveSummary`): duas ou três frases, cada uma com citação e auditada sozinha; o PDF as junta num parágrafo. Substituiu a Conclusão da Ata, que era o mesmo texto no fim, sem auditoria. `conclusion` segue no tipo para documentos salvos: o PDF ainda a mostra, o HTML não.
+- **Atuação** (`Participant.atuacao`): o que a pessoa fez na reunião. Claim própria (`participants[i].atuacao`): reprovada, cai a atuação e a pessoa fica. Palavra de cargo nela cai pela guarda lexical.
+- **Encaminhamentos** (`actionItems`): `acao`, `responsavel?`, `prazo?`. A claim leva dono e prazo ao Auditor. Antes dele, `guardarFidelidade` tira o dono cujo nome (inteiro ou primeiro nome) não aparece nas falas em volta das citações, e o prazo cujas palavras não aparecem lá (`nomeAparece`, `prazoAparece`); a ação fica, sem dono ou sem prazo. No PDF, as ações com dono viram tabela (Ação · Responsável · Prazo, coluna Prazo só se algum foi dito, "—" na célula sem prazo) e as sem dono vão para "Sem responsável definido".
+- **Em aberto / Pontos de atenção** (`openPoints`): mesmo campo, título por tipo. A claim diz ao Auditor que afirma uma pendência (`afirma` em `listSpec`): sem isso, na primeira rodada ao vivo ele derrubou pendências reais como "fato não confirmado".
+- Teste ao vivo: `ATA_LIVE=1 npx vitest run lib/documentos/ataResumo.live.test.ts`, sobre `docs/fixtures/reuniao-longa-ruidosa.txt` e o gabarito dela. Em 28/10/2026 passou com Gemini (2 chamadas por documento).
 | `daily`, `planning`, `review` | uma seção `documento`: strict, placeholder genérico (`DocumentData.generic`) |
 
 A afirmação auditável de cada seção, e como removê-la, está em `SECTION_DATA_SPECS` (`lib/documentData.ts`): cada seção define `schema`, `merge`, `claims`, `drop`, `serialize` e `markdown`. Acrescentar seção não exige mexer no Auditor.

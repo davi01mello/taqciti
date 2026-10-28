@@ -2,6 +2,8 @@
 
 Estado em 20/10/2026. Estudo feito sobre a reunião real de alinhamento semanal (anonimizada), com os seis tipos do catálogo e um documento personalizado, no estilo da Apostila. O visual está resolvido. Este documento trata do que falta para o conteúdo ser usável sem revisão humana.
 
+> **Atualização de 28/10/2026.** Decisão do usuário: o produto precisa só da **Ata** e do **Resumo**; Daily, Planning, Review e X1 continuam no catálogo como estão, sem as fases B a D. Para os dois, o contrato da tabela 3.3 está implementado: resumo executivo frase a frase (no lugar da Conclusão), atuação de cada participante no lugar de cargo deduzido, encaminhamentos com dono e prazo só quando ditos (tabela no PDF, "Sem responsável definido" para o resto), "Em aberto" na Ata e "Pontos de atenção" no Resumo. As decisões da seção 6 ficaram assim: (1) "Sem responsável definido" entra; (2) papel na reunião entra como *atuação*, e cargo só quando dito; (3) e (4) não se aplicam aos dois tipos (a Ata mantém a capa) e o custo extra do Auditor ficou dentro das 2 chamadas por documento. Medido ao vivo com o gabarito da reunião sintética; exemplos em [`exemplos/`](exemplos/README.md). Detalhe técnico em `arquitetura/servidor-documentos.md`, seção 4.
+
 ## 1. Diagnóstico: causas, não sintomas
 
 | # | Sintoma visto | Causa-raiz (com evidência) |

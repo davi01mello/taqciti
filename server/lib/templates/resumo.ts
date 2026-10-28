@@ -12,6 +12,11 @@ import type { DocumentTemplate } from './types';
  * `SECTION_DATA_SPECS['resumo_por_periodo']` em `documentData.ts` para como
  * cada trecho vira dado auditável, e `SECTION_RENDERERS` em `render/html.ts`
  * para o desenho.
+ *
+ * 28/10/2026 — o Resumo responde "em 2 minutos, o que aconteceu?": ganhou o
+ * RESUMO EXECUTIVO no topo (as mesmas frases com citação da Ata) e os PONTOS DE
+ * ATENÇÃO no fim, com o que alguém levantou e ficou sem resposta. Os trechos
+ * por horário continuam sendo o corpo e a âncora de navegação.
  */
 export const resumo: DocumentTemplate = {
   documentType: 'resumo',
@@ -19,9 +24,28 @@ export const resumo: DocumentTemplate = {
   documentTitle: 'Resumo completo da reunião',
   sections: [
     {
+      id: 'resumo_executivo',
+      title: 'Resumo executivo',
+      order: 1,
+      required: true,
+      audit: 'strict',
+      omitWhenEmpty: true,
+      needs: ['o que aconteceu de mais importante na reunião'],
+      guidance: [
+        'Duas ou três frases que dizem, a quem tem dois minutos, o que aconteceu na',
+        'reunião: o assunto, o que se resolveu e o que ficou em aberto.',
+        'Cada frase é um item separado, com as citações literais que a sustentam; a',
+        'frase sem citação localizável cai sozinha.',
+        'Afirme só o que foi dito: sem avaliação, sem causa e sem cargo que a reunião',
+        'não trouxe, e proposta não vira decisão.',
+      ].join(' '),
+      askWhenMissing: [],
+    },
+
+    {
       id: 'resumo_por_periodo',
       title: 'Resumo por período',
-      order: 1,
+      order: 2,
       required: true,
       audit: 'strict',
       omitWhenEmpty: true,
@@ -50,6 +74,23 @@ export const resumo: DocumentTemplate = {
         'localizável é descartado inteiro pelo auditor.',
         'Conversa social, problemas de áudio e trechos sem conteúdo não ganham trecho',
         'próprio; só entram se mudarem o rumo da reunião.',
+      ].join(' '),
+      askWhenMissing: [],
+    },
+
+    {
+      id: 'pontos_de_atencao',
+      title: 'Pontos de atenção',
+      order: 3,
+      required: false,
+      audit: 'strict',
+      omitWhenEmpty: true,
+      needs: ['dúvidas, preocupações e riscos levantados e não resolvidos'],
+      guidance: [
+        'O que alguém levantou na reunião e ficou SEM resposta ou sem encaminhamento:',
+        'dúvida, preocupação, risco, pendência reconhecida.',
+        'Uma frase por item, com a citação de quem levantou. Só o que foi dito: não',
+        'aponte risco por conta própria, e não liste o que foi resolvido na conversa.',
       ].join(' '),
       askWhenMissing: [],
     },

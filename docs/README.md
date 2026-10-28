@@ -33,7 +33,8 @@ armadilhas que os comentários do código guardam, e diz como testar a área.
 | [`taq-progresso.md`](taq-progresso.md) | Estado das etapas do Taq e do que foi medido |
 | [`segundo-cerebro.md`](segundo-cerebro.md) | O "segundo cérebro": estado dos pontos, acompanhamentos e decisões |
 | [`documentos-personalizados.md`](documentos-personalizados.md) | Documentos pedidos em linguagem natural, no padrão visual do CITi |
-| [`redesenho-dos-documentos.md`](redesenho-dos-documentos.md) | Diagnóstico e plano para tornar os documentos úteis e fiéis (a fase de fidelidade está implementada; as demais estão desenhadas) |
+| [`redesenho-dos-documentos.md`](redesenho-dos-documentos.md) | Diagnóstico e plano para tornar os documentos úteis e fiéis (fidelidade implementada; a estrutura nova da Ata e do Resumo também, desde 28/10/2026; os demais tipos ficam como estão) |
+| [`exemplos/`](exemplos/README.md) | Ata e Resumo de exemplo em PDF, gerados de uma reunião inventada, com o modelo de cada documento |
 | [`roteiro-reuniao-real.md`](roteiro-reuniao-real.md) | Roteiro manual para testar numa reunião de verdade |
 | [`verification/`](verification) | Relatórios das passadas de verificação no navegador |
 
@@ -41,7 +42,7 @@ armadilhas que os comentários do código guardam, e diz como testar a área.
 
 | Documento | Para quê |
 |---|---|
-| [`plano-de-seguranca.md`](plano-de-seguranca.md) | Mapa das fragilidades e plano de correção em fases (as fases 1 a 3 estão commitadas: servidor, extensão e política de dados/conector; as fases 4 e 5 não começaram) |
+| [`plano-de-seguranca.md`](plano-de-seguranca.md) | Mapa das fragilidades e plano de correção em fases (as fases 1 a 3 estão commitadas: servidor, extensão e política de dados/conector; a 4 em parte, no `1d5dee5` — faltam versão fixa de `innosetup`/`makeself`, *environment* com aprovação, escopo da conta do Drive e assinatura dos instaladores; a 5 depende de decisões) |
 | [`google-oauth-setup.md`](google-oauth-setup.md) | Configuração do cliente OAuth do Google e dos escopos |
 | [`integracoes-google-workspace.md`](integracoes-google-workspace.md) | O que o Taq faz em Gmail, Agenda e Docs, e como |
 

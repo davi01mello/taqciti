@@ -80,6 +80,39 @@ export interface Participant {
   /** Ausente quando não há evidência. Ausência é lacuna, não "desconhecido". */
   role?: string;
   roleSource: RoleSource;
+  /**
+   * O que a pessoa FEZ na reunião ("apresentou o cronograma; validou a
+   * proposta"), por evidência. Entrou em 28/10/2026 porque a reunião quase
+   * nunca diz cargo, e uma lista de nomes soltos não informa nada; o que ela
+   * mostra é a atuação de cada um. É conferida à parte do nome (claim
+   * `participants[i].atuacao`): atuação reprovada some e a pessoa fica.
+   */
+  atuacao?: string;
+  quotes: AnchoredQuote[];
+}
+
+/**
+ * Uma frase com a citação que a sustenta. É a unidade de prova do resumo
+ * executivo e dos pontos em aberto: cada frase é conferida SOZINHA, e a que
+ * não se sustenta cai sem levar as outras. Parágrafo inteiro contra um punhado
+ * de citações foi o que deixou "vou mandar logo" virar "logomarca".
+ */
+export interface Afirmacao {
+  text: string;
+  quotes: AnchoredQuote[];
+}
+
+/**
+ * Uma ação que ficou combinada. `responsavel` e `prazo` só existem se a
+ * reunião os disse: responsável é quem ASSUMIU ("eu faço", "deixa comigo") ou
+ * foi designado e aceitou; "alguém deveria" não define dono. Sem dono, a ação
+ * sai em "Sem responsável definido", que é informação, e não num campo vazio.
+ */
+export interface Encaminhamento {
+  acao: string;
+  responsavel?: string;
+  /** Como foi dito ("até sexta", "dia 12"), nunca convertido em data. */
+  prazo?: string;
   quotes: AnchoredQuote[];
 }
 
@@ -179,12 +212,24 @@ export function rotuloDoPeriodo(period: Pick<MeetingPeriod, 'start' | 'end'>): s
 
 export interface DocumentData {
   metadata?: Metadata;
+  /** Ata e Resumo — duas ou três frases para quem não esteve na reunião. */
+  executiveSummary?: Afirmacao[];
   generalTopic?: GeneralTopic;
   participants?: Participant[];
   topicsDiscussed?: DiscussedTopic[];
   decisions?: Decision[];
   outcomes?: Outcome[];
   outputs?: Output[];
+  /** Ata — as ações combinadas, com dono e prazo só quando ditos. */
+  actionItems?: Encaminhamento[];
+  /** Ata ("Em aberto") e Resumo ("Pontos de atenção") — o que ficou sem resposta. */
+  openPoints?: Afirmacao[];
+  /**
+   * A Conclusão da Ata até 28/10/2026, quando o resumo executivo no topo a
+   * substituiu. Fica no tipo porque documentos salvos ainda a trazem: o PDF
+   * (`doCatalogo.ts`) continua a mostrá-la; o HTML, que sai das seções do
+   * template, não.
+   */
   conclusion?: Conclusion;
   signature?: Signature;
   /** X1 — pares pergunta/resposta, na ordem em que apareceram na entrevista. */
@@ -325,9 +370,15 @@ const QUOTES: JsonSchema = {
     'procurada na transcrição, e a que não for encontrada invalida a afirmação.',
 };
 
+/**
+ * Lista de afirmações com citação, uma claim por item. `prosa` = o documento a
+ * mostra como um parágrafo corrido (resumo executivo); a prova continua frase a
+ * frase nos dados.
+ */
 function listSpec(
-  key: 'outcomes' | 'outputs',
+  key: 'outcomes' | 'outputs' | 'executiveSummary' | 'openPoints',
   itemDescription: string,
+  { prosa = false, afirma = '' }: { prosa?: boolean; afirma?: string } = {},
 ): SectionDataSpec {
   return {
     schema: {
@@ -355,7 +406,7 @@ function listSpec(
     claims(data) {
       return (data[key] ?? []).map((item, index) => ({
         path: `${key}[${index}]`,
-        text: item.text,
+        text: `${afirma}${item.text}`,
         anchors: located(item.quotes),
       }));
     },
@@ -366,10 +417,39 @@ function listSpec(
       return bullets((data[key] ?? []).map((item) => item.text));
     },
     markdown(data, section) {
-      const lista = bullets((data[key] ?? []).map((item) => item.text));
+      const textos = (data[key] ?? []).map((item) => item.text);
+      if (prosa) return secaoMarkdown(section, textos.length > 0 ? [juntarFrases(textos)] : []);
+      const lista = bullets(textos);
       return secaoMarkdown(section, lista ? [lista] : []);
     },
   };
+}
+
+/** Frases soltas como um parágrafo: cada uma termina em pontuação, uma vez só. */
+export function juntarFrases(frases: string[]): string {
+  return frases
+    .map((f) => f.trim())
+    .filter(Boolean)
+    .map((f) => (/[.!?…]$/.test(f) ? f : `${f}.`))
+    .join(' ');
+}
+
+/**
+ * "Nome – cargo: atuação", com cada parte só quando existe. `cargo` vem de
+ * fora porque cada saída decide o que mostrar no lugar de um cargo ausente.
+ */
+export function linhaDoParticipante(p: Pick<Participant, 'name' | 'atuacao'>, cargo?: string | null): string {
+  const nome = cargo ? `${p.name} – ${cargo}` : p.name;
+  return p.atuacao ? `${nome}: ${p.atuacao}` : nome;
+}
+
+/** "Ação — responsável: X · prazo: Y", igual no markdown e no HTML. */
+export function linhaDoEncaminhamento(e: Encaminhamento): string {
+  const extras = [
+    e.responsavel ? `responsável: ${e.responsavel}` : '',
+    e.prazo ? `prazo: ${e.prazo}` : '',
+  ].filter(Boolean);
+  return extras.length > 0 ? `${e.acao} — ${extras.join(' · ')}` : e.acao;
 }
 
 /** Fallback para seção sem estrutura própria — templates placeholder. */
@@ -521,6 +601,13 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
                   'OMITA quando não houver evidência na reunião. Não escreva "desconhecido".',
               },
               roleSource: { type: 'string', enum: ['meeting', 'user', 'unknown'] },
+              atuacao: {
+                type: 'string',
+                description:
+                  'O que a pessoa fez NESTA reunião, em poucas palavras e com verbos no ' +
+                  'passado ("apresentou o cronograma; levantou a dúvida sobre o acesso"). ' +
+                  'OMITA se as falas dela não mostram nada além de presença.',
+              },
               quotes: QUOTES,
             },
             required: ['name', 'roleSource', 'quotes'],
@@ -543,45 +630,154 @@ export const SECTION_DATA_SPECS: Record<string, SectionDataSpec> = {
           name: limparRotuloDeSelf(p.name),
           ...(p.role ? { role: p.role } : {}),
           roleSource: p.role ? (p.roleSource ?? 'meeting') : 'unknown',
+          ...(p.atuacao?.trim() ? { atuacao: p.atuacao.trim() } : {}),
           quotes: anchorQuotes(p.quotes, locate),
         }));
     },
     claims(data) {
-      return (data.participants ?? []).map((p, index) => ({
-        path: `participants[${index}]`,
-        // O que se audita é a afirmação inteira: quem participou E qual o
-        // cargo. Auditar só o nome deixaria o cargo passar sem conferência,
-        // e cargo inventado é o erro que a Ata mais precisa evitar.
-        text: p.role
-          ? `${p.name} participou da reunião e tem o cargo/papel de ${p.role}.`
-          : `${p.name} participou da reunião.`,
-        anchors: located(p.quotes),
-      }));
+      return (data.participants ?? []).flatMap((p, index) => [
+        {
+          path: `participants[${index}]`,
+          // O que se audita é a afirmação inteira: quem participou E qual o
+          // cargo. Auditar só o nome deixaria o cargo passar sem conferência,
+          // e cargo inventado é o erro que a Ata mais precisa evitar.
+          text: p.role
+            ? `${p.name} participou da reunião e tem o cargo/papel de ${p.role}.`
+            : `${p.name} participou da reunião.`,
+          anchors: located(p.quotes),
+        },
+        // A atuação é outra afirmação: reprovada, cai só ela, e a pessoa fica.
+        ...(p.atuacao
+          ? [
+              {
+                path: `participants[${index}].atuacao`,
+                text: `Na reunião, ${p.name} ${p.atuacao}`,
+                anchors: located(p.quotes),
+              },
+            ]
+          : []),
+      ]);
     },
     drop(data, paths) {
-      data.participants = (data.participants ?? []).filter(
-        (_, index) => !paths.has(`participants[${index}]`),
-      );
+      data.participants = (data.participants ?? [])
+        .map((p, index) => {
+          if (!paths.has(`participants[${index}].atuacao`)) return p;
+          const { atuacao: _fora, ...resto } = p;
+          return resto;
+        })
+        .filter((_, index) => !paths.has(`participants[${index}]`));
     },
     serialize(data) {
       return bullets(
         (data.participants ?? []).map(
-          (p) => `${p.name} — ${p.role ?? 'cargo não determinado'} (origem: ${p.roleSource})`,
+          (p) =>
+            `${p.name} — ${p.role ?? 'cargo não determinado'} (origem: ${p.roleSource})` +
+            (p.atuacao ? `; na reunião: ${p.atuacao}` : ''),
         ),
       );
     },
     markdown(data, _section, gaps) {
       // "Você" não é nome: sem nome real, a linha não entra (e nenhuma pergunta
-      // é feita). Sem cargo, sai só o nome.
+      // é feita). Sem cargo, sai só o nome; sem atuação, nada depois dele.
       const linhas = (data.participants ?? [])
         .filter((p) => !ehRotuloDeSelf(p.name))
-        .map((p) => {
-          const cargo = p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`));
-          return cargo ? `- ${p.name} – ${cargo}` : `- ${p.name}`;
-        });
-      return ['## Participantes e cargos', '', '**PARTICIPANTES – CARGO:**', '', ...linhas].join('\n');
+        .map((p) => `- ${linhaDoParticipante(p, p.role ?? marcador(lacunaDoCampo(gaps, `participants[${p.name}].role`)))}`);
+      return ['## Participantes', '', ...linhas].join('\n');
     },
   },
+
+  encaminhamentos: {
+    schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              acao: {
+                type: 'string',
+                description: 'A ação combinada, com verbo no infinitivo ("Enviar a lista de acessos").',
+              },
+              responsavel: {
+                type: 'string',
+                description:
+                  'Nome de quem ASSUMIU a ação ("eu faço", "deixa comigo") ou foi designado e ' +
+                  'aceitou. OMITA se ninguém assumiu — "alguém deveria" não define dono.',
+              },
+              prazo: {
+                type: 'string',
+                description: 'O prazo como foi DITO ("até sexta", "dia 12"). OMITA se ninguém disse.',
+              },
+              quotes: QUOTES,
+            },
+            required: ['acao', 'quotes'],
+          },
+        },
+      },
+      required: ['items'],
+    },
+    merge(data, payload, _sectionId, locate) {
+      data.actionItems = (
+        (payload as { items?: { acao?: string; responsavel?: string; prazo?: string; quotes?: unknown }[] })
+          ?.items ?? []
+      )
+        .filter((i) => i?.acao?.trim())
+        .map((i) => ({
+          acao: i.acao!.trim(),
+          ...(i.responsavel?.trim() && !ehRotuloDeSelf(i.responsavel) ? { responsavel: limparRotuloDeSelf(i.responsavel.trim()) } : {}),
+          ...(i.prazo?.trim() ? { prazo: i.prazo.trim() } : {}),
+          quotes: anchorQuotes(i.quotes, locate),
+        }));
+    },
+    claims(data) {
+      // A afirmação inteira vai ao Auditor: a ação, quem a assumiu e o prazo.
+      // Dono ou prazo que a reunião não sustenta derruba o item, e não só o
+      // campo — um encaminhamento com dono errado é pior que nenhum.
+      return (data.actionItems ?? []).map((e, index) => ({
+        path: `actionItems[${index}]`,
+        text:
+          `Ficou combinado na reunião: ${e.acao}` +
+          (e.responsavel ? `; ${e.responsavel} assumiu a tarefa` : '') +
+          (e.prazo ? `; prazo dito: ${e.prazo}` : '') +
+          '.',
+        anchors: located(e.quotes),
+      }));
+    },
+    drop(data, paths) {
+      data.actionItems = (data.actionItems ?? []).filter((_, index) => !paths.has(`actionItems[${index}]`));
+    },
+    serialize(data) {
+      return bullets((data.actionItems ?? []).map(linhaDoEncaminhamento));
+    },
+    markdown(data, section) {
+      const todos = data.actionItems ?? [];
+      const comDono = bullets(todos.filter((e) => e.responsavel).map(linhaDoEncaminhamento));
+      const semDono = bullets(todos.filter((e) => !e.responsavel).map(linhaDoEncaminhamento));
+      return secaoMarkdown(section, [
+        ...(comDono ? [comDono] : []),
+        ...(semDono ? [...(comDono ? [''] : []), '**Sem responsável definido:**', '', semDono] : []),
+      ]);
+    },
+  },
+
+  resumo_executivo: listSpec(
+    'executiveSummary',
+    'Uma frase do resumo executivo, curta e factual, sustentada pelas próprias citações.',
+    { prosa: true },
+  ),
+  // O Auditor precisa saber que a frase afirma uma PENDÊNCIA. Sem isso, na
+  // primeira geração ao vivo (28/10/2026) ele leu "ambiente de homologação"
+  // como fato concluído e o derrubou com o motivo "não houve aprovação" —
+  // justamente o que provava que o ponto ficou em aberto.
+  em_aberto: listSpec('openPoints', 'Uma pergunta, pendência ou assunto que a reunião deixou sem resposta.', {
+    afirma: 'Ficou EM ABERTO ao fim da reunião (sem resposta, sem decisão ou sem encaminhamento): ',
+  }),
+  pontos_de_atencao: listSpec(
+    'openPoints',
+    'Uma dúvida, preocupação ou risco que alguém levantou e que ficou sem resposta.',
+    { afirma: 'Alguém levantou na reunião, e ficou sem resposta: ' },
+  ),
 
   topicos_discutidos: {
     schema: {

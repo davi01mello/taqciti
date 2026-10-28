@@ -8,7 +8,9 @@ import {
   certezaIndevida,
   frases,
   guardarFidelidade,
+  nomeAparece,
   normalizar,
+  prazoAparece,
   palavrasForaDaFonte,
   turnosEmVolta,
 } from './guardaDeFidelidade';
@@ -206,5 +208,59 @@ describe('guardarFidelidade no DocumentData', () => {
     const antes = JSON.stringify(data);
     expect(guardarFidelidade(data, TRANSCRICAO)).toEqual([]);
     expect(JSON.stringify(data)).toBe(antes);
+  });
+});
+
+/**
+ * Encaminhamentos (28/10/2026): dono e prazo só ficam se estão nas falas em
+ * volta das citações. O defeito de origem: "A e D farão a limpeza" quando um
+ * só comentou o assunto (`docs/redesenho-dos-documentos.md`, causa 2).
+ */
+describe('dono e prazo do encaminhamento', () => {
+  const transcricao = [
+    '[10:00] Pessoa A: Precisamos limpar a base de teste.',
+    '[10:01] Pessoa D: Deixa comigo, faço até sexta.',
+    '[10:02] Pessoa C: Beleza.',
+  ].join('\n');
+  const ancora = (trecho: string) => {
+    const start = transcricao.indexOf(trecho);
+    return { quote: trecho, anchor: { start, end: start + trecho.length, exact: true } };
+  };
+
+  it('o nome vale por parte, como a fala o chama', () => {
+    expect(nomeAparece('Pessoa D', normalizar('[10:01] Pessoa D: Deixa comigo'))).toBe(true);
+    expect(nomeAparece('Ana Souza', normalizar('a Ana fica com isso'))).toBe(true);
+    expect(nomeAparece('Bruno', normalizar('a Ana fica com isso'))).toBe(false);
+  });
+
+  it('prazo: palavras de ligação não contam; prazo convertido não passa', () => {
+    expect(prazoAparece('até sexta', normalizar('faço até sexta'))).toBe(true);
+    expect(prazoAparece('sexta-feira', normalizar('faço até sexta'))).toBe(false);
+    expect(prazoAparece('15/11', normalizar('dia quinze de novembro'))).toBe(false);
+    expect(prazoAparece('semana que vem', normalizar('na semana que vem eu vejo'))).toBe(true);
+  });
+
+  it('dono que não aparece nas falas sai, e a ação fica sem dono', () => {
+    const data: DocumentData = {
+      actionItems: [
+        { acao: 'Limpar a base de teste', responsavel: 'Pessoa D', prazo: 'até sexta', quotes: [ancora('Deixa comigo, faço até sexta.')] },
+        { acao: 'Revisar o dashboard', responsavel: 'Pessoa Z', prazo: 'amanhã', quotes: [ancora('Beleza.')] },
+      ],
+    };
+    const descartes = guardarFidelidade(data, transcricao);
+    expect(data.actionItems![0]).toMatchObject({ responsavel: 'Pessoa D', prazo: 'até sexta' });
+    expect(data.actionItems![1]!.responsavel).toBeUndefined();
+    expect(data.actionItems![1]!.prazo).toBeUndefined();
+    expect(data.actionItems![1]!.acao).toBe('Revisar o dashboard');
+    expect(descartes.map((d) => d.path)).toEqual(['actionItems[1].responsavel', 'actionItems[1].prazo']);
+  });
+
+  it('cargo na atuação derruba a atuação, e a pessoa fica', () => {
+    const data: DocumentData = {
+      participants: [{ name: 'Pessoa A', roleSource: 'unknown', atuacao: 'como gerente, pediu a limpeza', quotes: [ancora('Precisamos limpar a base de teste.')] }],
+    };
+    guardarFidelidade(data, transcricao);
+    expect(data.participants).toHaveLength(1);
+    expect(data.participants![0]!.atuacao).toBeUndefined();
   });
 });

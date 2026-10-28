@@ -80,6 +80,9 @@ describe('cobertura do registro', () => {
       ],
       outcomes: [{ text: 'O', quotes: [] }],
       outputs: [{ text: 'P', quotes: [] }],
+      executiveSummary: [{ text: 'E', quotes: [] }],
+      actionItems: [{ acao: 'A', quotes: [] }],
+      openPoints: [{ text: 'Q', quotes: [] }],
       generic: { documento: [{ text: 'G', quotes: [] }] },
       qa: [{ pergunta: 'P', quotesPergunta: [], resposta: 'R', quotesResposta: [] }],
       periods: [{ title: 'T', summary: 'S', quotes: [] }],
@@ -317,7 +320,8 @@ describe('identificação e assinatura', () => {
 });
 
 describe('resumo_por_periodo', () => {
-  const section = TEMPLATES.resumo.sections[0]!;
+  // Por id: desde 28/10/2026 o resumo executivo é a primeira seção do Resumo.
+  const section = TEMPLATES.resumo.sections.find((s) => s.id === 'resumo_por_periodo')!;
   const spec = specForSection(section);
   const registro = TRANSCRIPT.split('\n')[0]!;
 
@@ -379,5 +383,117 @@ describe('resumo_por_periodo', () => {
     const md = spec.markdown(data, section, []);
     expect(md).toContain('### 1. Abertura (00:00:00 – 00:05:00)');
     expect(md).toContain('Maria abriu.');
+  });
+});
+
+/**
+ * As seções de 28/10/2026 (`docs/redesenho-dos-documentos.md`, 3.3): o
+ * resumo executivo, a atuação de quem participou, os encaminhamentos e o que
+ * ficou em aberto. Cada teste fixa uma decisão de fidelidade.
+ */
+describe('participantes: atuação', () => {
+  const spec = specForSection(sectionById('participantes'));
+
+  it('a atuação é uma afirmação à parte, e reprovada cai SÓ ela', () => {
+    // Juntar a atuação na claim do nome faria uma atuação mal escrita apagar
+    // da ata uma pessoa que esteve na reunião.
+    const data: DocumentData = {};
+    spec.merge(
+      data,
+      { participants: [{ name: 'Ana', roleSource: 'unknown', atuacao: ' propôs adiar a entrega ', quotes: ['Ana: Então adiamos a entrega para sexta-feira.'] }] },
+      'participantes',
+      locator(),
+    );
+    const claims = spec.claims(data, 'participantes');
+    expect(claims.map((c) => c.path)).toEqual(['participants[0]', 'participants[0].atuacao']);
+    expect(claims[1]!.text).toBe('Na reunião, Ana propôs adiar a entrega');
+
+    spec.drop(data, new Set(['participants[0].atuacao']), 'participantes');
+    expect(data.participants).toHaveLength(1);
+    expect(data.participants![0]!.atuacao).toBeUndefined();
+  });
+
+  it('markdown: nome, cargo só quando dito, e a atuação depois', () => {
+    const data: DocumentData = {
+      participants: [
+        { name: 'Maria', role: 'Gerente de Dados', roleSource: 'meeting', atuacao: 'abriu a reunião', quotes: [] },
+        { name: 'João', roleSource: 'unknown', quotes: [] },
+      ],
+    };
+    const md = spec.markdown(data, sectionById('participantes'), []);
+    expect(md).toContain('- Maria – Gerente de Dados: abriu a reunião');
+    expect(md).toMatch(/- João$/m);
+    expect(md).not.toContain('cargo');
+  });
+});
+
+describe('encaminhamentos', () => {
+  const section = sectionById('encaminhamentos');
+  const spec = specForSection(section);
+
+  it('dono e prazo só entram quando vieram; "Você" não é dono', () => {
+    // "Você" é o rótulo do Meet para quem gravou: virar dono de uma ação na
+    // ata do cliente seria um nome que ninguém reconhece.
+    const data: DocumentData = {};
+    spec.merge(
+      data,
+      {
+        items: [
+          { acao: 'Fazer o deploy', responsavel: 'Carlos', prazo: 'quinta', quotes: ['Carlos: Sobre o deploy de quinta, fechamos assim?'] },
+          { acao: 'Avaliar desnormalizações', responsavel: 'Você', quotes: [] },
+          { acao: '  ', quotes: [] },
+        ],
+      },
+      section.id,
+      locator(),
+    );
+    expect(data.actionItems).toHaveLength(2);
+    expect(data.actionItems![0]).toMatchObject({ responsavel: 'Carlos', prazo: 'quinta' });
+    expect(data.actionItems![1]!.responsavel).toBeUndefined();
+  });
+
+  it('a claim leva o dono e o prazo ao Auditor', () => {
+    // Dono errado é o erro mais caro do encaminhamento: ele precisa ser
+    // conferido junto com a ação, e não passar por fora da auditoria.
+    const data: DocumentData = { actionItems: [{ acao: 'Fazer o deploy', responsavel: 'Carlos', prazo: 'quinta', quotes: [] }] };
+    expect(spec.claims(data, section.id)[0]!.text).toBe(
+      'Ficou combinado na reunião: Fazer o deploy; Carlos assumiu a tarefa; prazo dito: quinta.',
+    );
+  });
+
+  it('markdown separa o que tem dono do que ficou sem responsável', () => {
+    const data: DocumentData = {
+      actionItems: [
+        { acao: 'Fazer o deploy', responsavel: 'Carlos', prazo: 'quinta', quotes: [] },
+        { acao: 'Avaliar desnormalizações', quotes: [] },
+      ],
+    };
+    const md = spec.markdown(data, section, []);
+    expect(md).toContain('- Fazer o deploy — responsável: Carlos · prazo: quinta');
+    expect(md).toContain('**Sem responsável definido:**\n\n- Avaliar desnormalizações');
+  });
+});
+
+describe('resumo executivo e em aberto', () => {
+  it('o resumo executivo é auditado frase a frase e lido como um parágrafo', () => {
+    const spec = SECTION_DATA_SPECS['resumo_executivo']!;
+    const data: DocumentData = {
+      executiveSummary: [
+        { text: 'A entrega foi adiada para sexta', quotes: [] },
+        { text: 'O deploy ficou para quinta.', quotes: [] },
+      ],
+    };
+    expect(spec.claims(data, 'resumo_executivo')).toHaveLength(2);
+    expect(spec.markdown(data, sectionById('resumo_executivo'), [])).toContain(
+      'A entrega foi adiada para sexta. O deploy ficou para quinta.',
+    );
+  });
+
+  it('Ata e Resumo guardam o que ficou em aberto no mesmo campo', () => {
+    expect(SECTION_DATA_SPECS['em_aberto']).toBeDefined();
+    expect(SECTION_DATA_SPECS['pontos_de_atencao']).toBeDefined();
+    const data: DocumentData = {};
+    SECTION_DATA_SPECS['pontos_de_atencao']!.merge(data, { items: [{ text: 'Ninguém respondeu sobre o acesso.', quotes: [] }] }, 'pontos_de_atencao', locator());
+    expect(data.openPoints).toHaveLength(1);
   });
 });
