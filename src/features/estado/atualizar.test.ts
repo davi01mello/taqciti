@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { installChromeStorageMock } from '@/test/chromeStorageMock';
 import { lerConducao, salvarBriefing } from '@/features/conducao/store';
 import { ErroDoModelo, type AdaptadorDeModelo, type PedidoDeTurno, type RespostaDoTurno } from '@/features/taq/modelo';
-import { INSTRUCOES_DO_ESTADO, atualizarEstadoDaReuniao } from './atualizar';
+import { INSTRUCOES_DO_ESTADO, TENTATIVAS_TRANSITORIAS, atualizarEstadoDaReuniao } from './atualizar';
 import { corrigirPontoDaReuniao, idDoPontoDaPreparacao, lerEstados } from './store';
 
 const FALAS = [
@@ -133,9 +133,43 @@ describe('atualizarEstadoDaReuniao', () => {
   it('falha do provedor é dita e não suja o que estava guardado', async () => {
     await rodar(modelo({ pontos: [{ id: ESPERA, estado: 'discutido', falas: [3] }] }).adaptador);
     const antes = JSON.stringify((await lerEstados())['m-1']);
-    const r = await rodar(modelo(new ErroDoModelo('limite_do_provedor', 'A cota acabou.', true)).adaptador);
+    const { adaptador, pedidos } = modelo(new ErroDoModelo('limite_do_provedor', 'A cota acabou.', true, 1));
+    const r = await rodar(adaptador);
     expect(r).toEqual({ tipo: 'erro', codigo: 'limite_do_provedor', mensagem: 'A cota acabou.' });
+    // Transitório: a primeira chamada e mais TENTATIVAS_TRANSITORIAS, e só então o erro.
+    expect(pedidos).toHaveLength(1 + TENTATIVAS_TRANSITORIAS);
     expect(JSON.stringify((await lerEstados())['m-1'])).toBe(antes);
+  });
+
+  /*
+   * Visto ao vivo em 28/10/2026: o provedor devolveu "Failed to parse tool call
+   * arguments as JSON" (transitório) e quem tinha clicado "Ler a reunião" via um
+   * erro que a segunda chamada resolveria. Erro que não é transitório não repete.
+   */
+  it('erro transitório repete e, se a nova chamada responde, a leitura vale', async () => {
+    let chamadas = 0;
+    const adaptador: AdaptadorDeModelo = {
+      async turno() {
+        chamadas += 1;
+        if (chamadas === 1) throw new ErroDoModelo('falha_do_provedor', 'JSON quebrado', true, 1);
+        return {
+          ...BASE,
+          tipo: 'ferramentas',
+          texto: '',
+          chamadas: [{ id: 'c', nome: 'atualizar_pontos', argumentos: { pontos: [{ id: ESPERA, estado: 'discutido', falas: [3] }] } }],
+        } as RespostaDoTurno;
+      },
+    };
+    const r = await rodar(adaptador);
+    expect(r.tipo).toBe('ok');
+    expect(chamadas).toBe(2);
+  });
+
+  it('erro que não é transitório não repete', async () => {
+    const { adaptador, pedidos } = modelo(new ErroDoModelo('recusado', 'Recusado.', false));
+    const r = await rodar(adaptador);
+    expect(r).toMatchObject({ tipo: 'erro', codigo: 'recusado' });
+    expect(pedidos).toHaveLength(1);
   });
 
   it('resposta sem a chamada ou fora do formato mantém o estado e nasce a base', async () => {

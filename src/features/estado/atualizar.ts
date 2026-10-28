@@ -26,6 +26,18 @@ import {
 } from './store';
 
 export const INSTRUCOES_DO_ESTADO = 'estado-v1';
+/** Novas tentativas para erro transitório do provedor (a primeira chamada não conta). */
+export const TENTATIVAS_TRANSITORIAS = 2;
+const ESPERA_BASE_MS = 800;
+const ESPERA_MAXIMA_MS = 15_000;
+
+/** Espera que termina antes se a leitura for cancelada. */
+function esperar(ms: number, sinal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    sinal.addEventListener('abort', () => { clearTimeout(t); resolve(); }, { once: true });
+  });
+}
 export const JANELA_EM_FALAS = 60;
 const MAX_TEXTO_DA_FALA = 320;
 
@@ -146,21 +158,33 @@ export async function atualizarEstadoDaReuniao(p: {
     descreverPontos(anterior),
   ].join('\n');
 
+  const sinal = p.sinal ?? new AbortController().signal;
   let r;
-  try {
-    r = await p.adaptador.turno(
-      {
-        instrucoes: INSTRUCOES_DO_ESTADO,
-        contexto,
-        mensagens: [{ papel: 'pessoa', texto: `Transcrição recente:\n${transcricao}` }],
-        ferramentas: [FERRAMENTA],
-        maxTokensDeSaida: 1200,
-      },
-      p.sinal ?? new AbortController().signal,
-    );
-  } catch (e) {
-    if (e instanceof ErroDoModelo) return { tipo: 'erro', codigo: e.codigo, mensagem: e.message };
-    return { tipo: 'erro', codigo: 'falha_interna', mensagem: (e as Error)?.message ?? 'erro' };
+  for (let tentativa = 0; ; tentativa += 1) {
+    try {
+      r = await p.adaptador.turno(
+        {
+          instrucoes: INSTRUCOES_DO_ESTADO,
+          contexto,
+          mensagens: [{ papel: 'pessoa', texto: `Transcrição recente:\n${transcricao}` }],
+          ferramentas: [FERRAMENTA],
+          maxTokensDeSaida: 1200,
+        },
+        sinal,
+      );
+      break;
+    } catch (e) {
+      // Falha passageira do provedor ("JSON quebrado na chamada de ferramenta",
+      // sobrecarga) se repete, como no runtime do Taq: quem clicou "Ler a
+      // reunião" não deve ver erro por um tropeço que a segunda chamada resolve.
+      // Visto ao vivo em 28/10/2026 (verify-ao-vivo.cjs, Groq gratuito).
+      if (e instanceof ErroDoModelo && e.transitorio && tentativa < TENTATIVAS_TRANSITORIAS && !sinal.aborted) {
+        await esperar(Math.min(e.esperarMs ?? ESPERA_BASE_MS * 2 ** tentativa, ESPERA_MAXIMA_MS), sinal);
+        continue;
+      }
+      if (e instanceof ErroDoModelo) return { tipo: 'erro', codigo: e.codigo, mensagem: e.message };
+      return { tipo: 'erro', codigo: 'falha_interna', mensagem: (e as Error)?.message ?? 'erro' };
+    }
   }
 
   const uso = { latenciaMs: r.latenciaMs, entrada: r.uso.entrada, saida: r.uso.saida };
