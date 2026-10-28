@@ -27,7 +27,10 @@ import {
   MENSAGEM_DE_CONTA_DE_FORA,
   contaEhDoCiti,
   desligarSincronizacao,
+  entrarParaIa,
   estadoDaSincronizacao,
+  estadoDoLogin,
+  sairDaIa,
   identidadeConfigurada,
   identidadeParaIa,
   ligarSincronizacao,
@@ -492,6 +495,58 @@ describe('identidadeParaIa — a IA exige a conta do CITi', () => {
     expect(await identidadeParaIa()).toBeNull();
     expect(await identidadeParaIa()).toBeNull();
     expect(pedidos).toHaveLength(1);
+  });
+
+  // Abrir a Home pergunta ao servidor se o Taq está pronto. Antes isso abria a
+  // janela do Google sem clique — e, quando ela falhava, parecia que a Home
+  // exigia login. Consulta silenciosa nunca abre janela.
+  it('{ interativo: false } sem conta guardada não abre janela nenhuma', async () => {
+    const { pedidos } = montarChrome();
+    expect(await identidadeParaIa({ interativo: false })).toBeNull();
+    expect(pedidos).toHaveLength(0);
+    // E não conta como recusa: o primeiro pedido de verdade ainda abre o login.
+    expect(await identidadeParaIa()).toBeTruthy();
+    expect(pedidos[0]!.interactive).toBe(true);
+  });
+
+  it('{ interativo: false } com a conta guardada ainda usa o silencioso', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.contaDaIa]: { email: 'ana@citi.org.br' } });
+    const { pedidos } = montarChrome();
+    expect(await identidadeParaIa({ interativo: false })).toBeTruthy();
+    expect(pedidos.map((p) => p.interactive)).toEqual([false]);
+  });
+
+  // O botão de Conexões: entrar abre a janela no clique e mostra o motivo da
+  // falha; o estado ao abrir a página nunca abre janela.
+  it('estadoDoLogin sem conta guardada diz "fora", sem janela', async () => {
+    const { pedidos } = montarChrome();
+    expect(await estadoDoLogin()).toEqual({ situacao: 'fora' });
+    expect(pedidos).toHaveLength(0);
+  });
+
+  it('entrarParaIa guarda a conta, e o estado passa a "dentro"', async () => {
+    const { pedidos } = montarChrome();
+    expect(await entrarParaIa()).toEqual({ email: 'ana@citi.org.br' });
+    expect(pedidos[0]!.interactive).toBe(true);
+    expect(await estadoDoLogin()).toEqual({ situacao: 'dentro', email: 'ana@citi.org.br', pelaSincronizacao: false });
+  });
+
+  it('entrarParaIa com conta de fora devolve o motivo', async () => {
+    montarChrome({ payload: { email: 'alguem@gmail.com' } });
+    expect(await entrarParaIa()).toEqual({ erro: MENSAGEM_DE_CONTA_DE_FORA });
+  });
+
+  it('sessão vencida aparece como "vencido", com o e-mail', async () => {
+    await chrome.storage.local.set({ [STORAGE_KEYS.contaDaIa]: { email: 'ana@citi.org.br' } });
+    montarChrome({ idToken: null });
+    expect(await estadoDoLogin()).toEqual({ situacao: 'vencido', email: 'ana@citi.org.br' });
+  });
+
+  it('sairDaIa esquece a conta', async () => {
+    montarChrome();
+    await entrarParaIa();
+    await sairDaIa();
+    expect(await estadoDoLogin()).toEqual({ situacao: 'fora' });
   });
 
   it('chamadas simultâneas dividem o mesmo login', async () => {

@@ -134,6 +134,12 @@ export function criarAdaptadorHttp(
      * treinamento o recusa, que é o comportamento certo.
      */
     sintetica?: boolean;
+    /**
+     * `false` para quem chama o modelo SOZINHO, sem a pessoa pedir (o laço do
+     * apoio): sem conta guardada, segue sem identidade em vez de abrir a janela
+     * do Google no meio da reunião. Ver `identidadeParaIa`.
+     */
+    interativo?: boolean;
   } = {},
 ): AdaptadorHttp {
   const baseUrl = (opcoes.baseUrl ?? SERVER_BASE_URL).replace(/\/+$/, '');
@@ -141,7 +147,7 @@ export function criarAdaptadorHttp(
   const transporte =
     opcoes.transporte ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
 
-  async function pedir(caminho: string, init: RequestInit): Promise<unknown> {
+  async function pedir(caminho: string, init: RequestInit, interativo = true): Promise<unknown> {
     let resposta: Response;
     try {
       // `fetchDeIa` acrescenta a identidade do Google quando a pessoa a ligou
@@ -157,6 +163,7 @@ export function criarAdaptadorHttp(
           },
         },
         transporte,
+        { interativo },
       );
     } catch {
       if (init.signal?.aborted) throw new ErroDoModelo('cancelado', 'Cancelado.');
@@ -204,7 +211,7 @@ export function criarAdaptadorHttp(
         method: 'POST',
         body: JSON.stringify(opcoes.sintetica ? { ...pedido, sintetica: true } : pedido),
         signal: sinal,
-      });
+      }, opcoes.interativo ?? true);
       const lido = respostaDoTurnoSchema.safeParse(corpo);
       if (!lido.success) {
         throw new ErroDoModelo(
@@ -216,10 +223,13 @@ export function criarAdaptadorHttp(
     },
 
     async estado(sinal) {
-      const corpo = await pedir('/api/taq/estado', {
-        method: 'GET',
-        ...(sinal ? { signal: sinal } : {}),
-      });
+      // Consulta feita ao abrir a Home, sem a pessoa pedir nada: nunca abre a
+      // janela do Google (ver `identidadeParaIa`). A rota não gasta modelo.
+      const corpo = await pedir(
+        '/api/taq/estado',
+        { method: 'GET', ...(sinal ? { signal: sinal } : {}) },
+        false,
+      );
       const lido = estadoDoTaqSchema.safeParse(corpo);
       if (!lido.success) {
         throw new ErroDoModelo(

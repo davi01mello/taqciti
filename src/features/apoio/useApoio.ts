@@ -42,7 +42,8 @@ export function useApoioAoVivo(state: MeetingState, taqPronto: boolean): ApoioAo
   useEffect(() => observarConducao(setConducao), []);
 
   useEffect(() => {
-    laco.current = criarLaco({ adaptador: criarAdaptadorHttp() });
+    // O laço roda sozinho: nunca abre a janela do Google no meio da reunião.
+    laco.current = criarLaco({ adaptador: criarAdaptadorHttp({ interativo: false }) });
     return () => {
       laco.current?.parar();
       laco.current = null;

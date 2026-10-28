@@ -40,9 +40,13 @@ import { useSituacaoDoSync } from '@/features/sync/useSituacao';
 import { formatDate, formatTime } from '@/shared/ui/format';
 import {
   type EstadoDaSincronizacao,
+  type EstadoDoLogin,
   desligarSincronizacao,
+  entrarParaIa,
   estadoDaSincronizacao,
+  estadoDoLogin,
   ligarSincronizacao,
+  sairDaIa,
 } from '@/shared/services/identidade';
 import {
   ConectorIndisponivel,
@@ -310,6 +314,104 @@ function LinhasDoSync({ sync }: { sync: SituacaoDoSync }) {
     </>
   );
 }
+
+/**
+ * "Sua conta": entrar e sair do Google para o Taq, com o estado à vista.
+ *
+ * Antes (até 28/10/2026) o único jeito de entrar era fazer uma pergunta ao Taq
+ * e esperar a janela do Google abrir sozinha — e não havia onde ver se a
+ * pessoa estava dentro. Aqui a janela só abre no clique em "Entrar", e a
+ * consulta ao abrir a página é silenciosa (`estadoDoLogin`).
+ */
+function SuaConta() {
+  const [login, setLogin] = useState<EstadoDoLogin | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  const recarregar = useCallback(async () => setLogin(await estadoDoLogin()), []);
+  useEffect(() => {
+    void recarregar();
+  }, [recarregar]);
+
+  async function aoEntrar() {
+    setOcupado(true);
+    setErro(null);
+    try {
+      const r = await entrarParaIa();
+      if (r.erro) setErro(r.erro);
+      await recarregar();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function aoSair() {
+    setOcupado(true);
+    try {
+      await sairDaIa();
+      await recarregar();
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  const dentro = login?.situacao === 'dentro';
+  return (
+    <section className="tq-hub-grupo" aria-labelledby="tq-hub-sua-conta">
+      <h2 id="tq-hub-sua-conta">Sua conta</h2>
+      <ul className="tq-hub-lista">
+        <li>
+          <span className="tq-hub-icone" aria-hidden="true">
+            <span>G</span>
+          </span>
+          <div role="status">
+            <b>{dentro ? 'Conectado' : 'Não conectado'}</b>
+            {login === null && <small>Verificando…</small>}
+            {login?.situacao === 'dentro' && <small>{login.email ?? 'conta do CITi'}</small>}
+            {login?.situacao === 'dentro' && login.pelaSincronizacao && (
+              <small>pela sincronização — para sair, desconecte a Conta Google abaixo</small>
+            )}
+            {login?.situacao === 'vencido' && (
+              <small>A sessão de {login.email} venceu. Entre de novo para o Taq voltar a responder.</small>
+            )}
+            {login?.situacao === 'fora' && (
+              <small>Entre com a sua conta @citi.org.br para usar o Taq e gerar documentos.</small>
+            )}
+            {login?.situacao === 'sem-oauth' && (
+              <small>O login do Google não está configurado nesta versão do TaqCiti.</small>
+            )}
+            {erro && <small className="tq-hub-falha">{erro}</small>}
+          </div>
+          {dentro ? (
+            !login.pelaSincronizacao && (
+              <button type="button" className="tq-linkish" disabled={ocupado} onClick={aoSair}>
+                Sair
+              </button>
+            )
+          ) : (
+            login !== null &&
+            login.situacao !== 'sem-oauth' && (
+              <button
+                type="button"
+                className="tq-acao tq-acao-principal tq-pilula"
+                disabled={ocupado}
+                onClick={aoEntrar}
+              >
+                {ocupado ? 'Abrindo o Google…' : 'Entrar com o Google'}
+              </button>
+            )
+          )}
+          {dentro && (
+            <span className="tq-hub-ok" aria-label="conectado">
+              <Icon name="check" size={16} />
+            </span>
+          )}
+        </li>
+      </ul>
+    </section>
+  );
+}
+
 export function PaginaConexoes({
   registros,
 }: {
@@ -614,6 +716,8 @@ export function PaginaConexoes({
   return (
     <div className="tq-pagina tq-conexoes">
       <Cabecalho titulo="Conexões" />
+
+      <SuaConta />
 
       {estado === null ? (
         <p className="tq-vazio">Verificando…</p>

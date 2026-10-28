@@ -55,7 +55,7 @@
  * fronteira de segurança do próprio token que ele mesmo pediu.
  */
 import { STORAGE_KEYS } from '@/shared/config/constants';
-import { readLocal, writeLocal } from '@/shared/services/storage';
+import { readLocal, removeLocal, writeLocal } from '@/shared/services/storage';
 import { logger } from '@/shared/services/log';
 
 /** Só o necessário para dizer quem é. `drive.file` NÃO entra aqui — ver o cabeçalho. */
@@ -157,10 +157,16 @@ export function contaEhDoCiti(idToken: string): boolean {
  * O erro do Chrome no login ("The user did not approve access.", "OAuth2 not
  * granted or revoked.") é em inglês e fala do mecanismo. A tela recebe o que
  * fazer; o texto bruto vai para o log.
+ *
+ * Fechar a janela é escolha da pessoa, não defeito: vai para `debug`. Como
+ * `warn` ele aparecia em "Erros" de chrome://extensions a cada janela fechada
+ * (28/10/2026). Só o que não é recusa continua `warn`.
  */
 function motivoDoChrome(bruto: string): string {
-  logger.warn(`login do Google não concluído: ${bruto}`);
-  return /approve|cancel|closed|not granted|revoked/i.test(bruto)
+  const recusa = /approve|cancel|closed|not granted|revoked/i.test(bruto);
+  if (recusa) logger.debug(`login do Google recusado: ${bruto}`);
+  else logger.warn(`login do Google não concluído: ${bruto}`);
+  return recusa
     ? 'A janela do Google foi fechada ou o acesso não foi permitido. Tente de novo e escolha a sua conta do CITi.'
     : 'O Google não concluiu o login. Tente de novo em instantes.';
 }
@@ -319,23 +325,30 @@ export async function tokenDeIdentidade(interativo: boolean): Promise<string | n
  *
  * Entrar para usar a IA NÃO liga a sincronização: o e-mail vai para
  * `contaDaIa`, não para o "sim" de `sync`.
+ *
+ * `{ interativo: false }` para em 2: é o de quem só CONSULTA sem a pessoa ter
+ * pedido nada (o "o Taq está pronto?" ao abrir a Home). Sem isso, abrir a Home
+ * abria a janela do Google sem clique — e, se ela falhava, a pessoa achava que
+ * precisava logar para ver a Home. A rota de estado não gasta modelo e aceita
+ * a ponte do segredo, então seguir sem identidade ali não perde nada.
  */
 const PAUSA_DO_LOGIN_MS = 10 * 60_000;
 let loginRecusadoEm = 0;
-let loginEmCurso: Promise<string | null> | null = null;
+let loginEmCurso: { interativo: boolean; promessa: Promise<string | null> } | null = null;
 
-export function identidadeParaIa(): Promise<string | null> {
+export function identidadeParaIa({ interativo = true }: { interativo?: boolean } = {}): Promise<string | null> {
   // Várias chamadas ao mesmo tempo (o Taq e uma geração) dividem o mesmo
-  // login: duas janelas do Google para a mesma pergunta seria confuso.
-  if (!loginEmCurso) {
-    loginEmCurso = obterIdentidadeParaIa().finally(() => {
-      loginEmCurso = null;
-    });
-  }
-  return loginEmCurso;
+  // login: duas janelas do Google para a mesma pergunta seria confuso. Quem
+  // pode abrir a janela não pega carona num pedido silencioso, que não a abriria.
+  if (loginEmCurso && (loginEmCurso.interativo || !interativo)) return loginEmCurso.promessa;
+  const promessa = obterIdentidadeParaIa(interativo).finally(() => {
+    if (loginEmCurso?.promessa === promessa) loginEmCurso = null;
+  });
+  loginEmCurso = { interativo, promessa };
+  return promessa;
 }
 
-async function obterIdentidadeParaIa(): Promise<string | null> {
+async function obterIdentidadeParaIa(interativo: boolean): Promise<string | null> {
   try {
     if (!identidadeConfigurada()) return null;
     const guardado = doCache();
@@ -352,7 +365,7 @@ async function obterIdentidadeParaIa(): Promise<string | null> {
       }
     }
 
-    if (Date.now() - loginRecusadoEm < PAUSA_DO_LOGIN_MS) return null;
+    if (!interativo || Date.now() - loginRecusadoEm < PAUSA_DO_LOGIN_MS) return null;
     const { idToken } = await pedirIdentidade(true);
     if (!idToken) {
       loginRecusadoEm = Date.now();
@@ -367,6 +380,58 @@ async function obterIdentidadeParaIa(): Promise<string | null> {
   }
 }
 
+// ------------------------------------------------- entrar e sair, por clique
+
+/**
+ * Onde está o login da IA, para a página Conexões mostrar — SEM abrir janela:
+ * só o cache e o caminho silencioso com a conta já escolhida.
+ *
+ * `pelaSincronizacao` diz que a conta vem do "sim" da sincronização: sair por
+ * aqui não adiantaria (a sincronização a usaria de novo), então quem quer sair
+ * desconecta a sincronização.
+ */
+export type EstadoDoLogin =
+  | { situacao: 'sem-oauth' }
+  | { situacao: 'fora' }
+  | { situacao: 'dentro'; email?: string; pelaSincronizacao: boolean }
+  /** Já entrou uma vez, mas a sessão do Google venceu: precisa de um clique. */
+  | { situacao: 'vencido'; email: string };
+
+export async function estadoDoLogin(): Promise<EstadoDoLogin> {
+  if (!identidadeConfigurada()) return { situacao: 'sem-oauth' };
+  const sim = await lerSim();
+  const conta = await readLocal<{ email?: string }>(STORAGE_KEYS.contaDaIa);
+  const pelaSincronizacao = sim.ligada && Boolean(sim.email);
+  const email = (pelaSincronizacao ? sim.email : undefined) ?? conta?.email;
+  if (!email) return { situacao: 'fora' };
+  const token = await identidadeParaIa({ interativo: false });
+  return token ? { situacao: 'dentro', email, pelaSincronizacao } : { situacao: 'vencido', email };
+}
+
+/**
+ * O botão "Entrar" de Conexões: abre a janela do Google e, diferente do
+ * caminho automático, devolve o MOTIVO de uma falha — quem clicou quer saber.
+ * Um clique também desfaz a pausa de `identidadeParaIa` depois de uma janela
+ * fechada.
+ */
+export async function entrarParaIa(): Promise<{ email?: string; erro?: string }> {
+  if (!identidadeConfigurada()) return { erro: 'O login do Google não está configurado nesta versão.' };
+  const { idToken, erro } = await pedirIdentidade(true);
+  if (!idToken) return { erro: erro ?? 'O Google não concluiu o login. Tente de novo.' };
+  loginRecusadoEm = 0;
+  guardarNoCache(idToken);
+  const email = payloadDoJwt(idToken)?.email;
+  if (typeof email !== 'string') return {};
+  await writeLocal(STORAGE_KEYS.contaDaIa, { email });
+  return { email };
+}
+
+/** Sair: esquece a conta da IA e o token em memória. Não mexe na sincronização. */
+export async function sairDaIa(): Promise<void> {
+  emCache = null;
+  await removeLocal(STORAGE_KEYS.contaDaIa);
+}
+
 /**
  * Cabeçalhos de uma chamada às rotas de IA, e o `fetch` que os usa.
  *
@@ -374,13 +439,16 @@ async function obterIdentidadeParaIa(): Promise<string | null> {
  * Se o servidor recusar o token (401 — vencido, revogado), descarta o cache e
  * repete UMA vez só com o segredo: um token velho não pode derrubar a geração
  * de uma ata enquanto a ponte do segredo estiver de pé no servidor.
+ *
+ * `interativo: false` nunca abre a janela do Google — ver `identidadeParaIa`.
  */
 export async function fetchDeIa(
   url: string,
   init: RequestInit & { headers?: Record<string, string> },
   transporte: typeof fetch = fetch,
+  { interativo = true }: { interativo?: boolean } = {},
 ): Promise<Response> {
-  const token = await identidadeParaIa();
+  const token = await identidadeParaIa({ interativo });
   const resposta = await transporte(url, {
     ...init,
     headers: { ...(init.headers ?? {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
