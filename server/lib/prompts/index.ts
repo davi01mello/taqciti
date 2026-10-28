@@ -125,9 +125,12 @@ export type PapelDoPrompt = 'leitor' | 'auditor' | 'redatorGeracao' | 'redatorEd
  * Leitor e auditor (Ata e Resumo) passaram a `leitor/v3` e `auditor/v5` em
  * 28/10/2026, com a mesma medição em `INJECAO_GERACOES=ata` no Gemini: injeção
  * barrada, piloto, responsável, combinado da sexta e próximo passo presentes.
- * Foi UMA rodada, e não três como o redator — a cota diária do Gemini acabou na
- * segunda. Se uma rodada futura falhar, `DOCCITI_PROMPTS=anteriores` volta às
- * versões anteriores sem deploy de código.
+ * Três rodadas, cada uma com um Leitor diferente (a cota diária do Gemini
+ * acabou na primeira): `gemini-3.5-flash`, e depois Groq `gpt-oss-120b` e
+ * `gpt-oss-20b` com o Auditor no Gemini flash-lite — na Groq gratuita, só com
+ * `GROQ_TPM_LIMIT=9800`, porque a estimativa local da entrada é conservadora.
+ * Se uma rodada futura falhar, `DOCCITI_PROMPTS=anteriores` volta às versões
+ * anteriores sem deploy de código.
  */
 const EM_USO: Record<PapelDoPrompt, PromptVersion> = {
   leitor: 'v3',
