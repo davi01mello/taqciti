@@ -108,6 +108,13 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
      */
     let amplitudeAtual = PERFIL.repouso.amplitude;
     let recuoAtual = 1;
+    /*
+     * O pulso DESENHADO. Cada tecla soma 0,4 em `pulsoRef` de uma vez, e
+     * desenhar esse valor cru era um degrau de ~10px na amplitude a cada letra
+     * — a onda "pulava" enquanto se digitava. Ele persegue o acumulado, rápido
+     * o bastante para ainda ler como reação ao gesto.
+     */
+    let pulsoAtual = 0;
 
     const medir = () => {
       const r = canvas.getBoundingClientRect();
@@ -126,7 +133,9 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
 
       const perfil = PERFIL[estadoRef.current];
       if (animandoRef.current) fase += dt * perfil.velocidade;
-      pulsoRef.current *= 0.972;
+      // O decaimento pelo tempo, e não por quadro: o mesmo a 60Hz e a 144Hz.
+      pulsoRef.current *= Math.pow(0.972, dt / 16.7);
+      pulsoAtual += (pulsoRef.current - pulsoAtual) * (1 - Math.exp(-dt / 90));
 
       // Interpolação exponencial: mesma suavidade a 60Hz e a 144Hz.
       const k = 1 - Math.exp(-dt / 260);
@@ -171,7 +180,7 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
       }
 
       // --- 2. A onda verde. É ela que carrega o estado do produto.
-      const amplitude = (amplitudeAtual + pulsoRef.current * 26) * recuo;
+      const amplitude = (amplitudeAtual + pulsoAtual * 26) * recuo;
       const eixo = altura * 0.74 + Math.sin(fase * 1.4) * 12;
 
       /*
@@ -257,7 +266,7 @@ export function WaveField({ estado, animando, pulso, discreta }: Props) {
       const chegando =
         Math.abs(perfil.amplitude - amplitudeAtual) > 0.4 ||
         Math.abs((discretaRef.current ? 0.4 : 1) - recuoAtual) > 0.005;
-      if (animandoRef.current || pulsoRef.current > 0.01 || chegando) {
+      if (animandoRef.current || pulsoRef.current > 0.01 || pulsoAtual > 0.01 || chegando) {
         quadro = requestAnimationFrame(desenhar);
       }
     };

@@ -224,6 +224,16 @@ const TRABALHANDO: ReadonlySet<AtividadeDoAgente> = new Set(['preparando', 'escr
 /** Das bordas para o centro: o som chegando. */
 const PARA_DENTRO = (u: number) => (0.5 - Math.abs(u - 0.5)) * 2;
 
+/** A escala vertical que a barra mostra AGORA, rajada em curso incluída. */
+function escalaAtual(el: HTMLElement | null): number {
+  if (!el) return 1;
+  const t = getComputedStyle(el).transform;
+  // `matrix(a, b, c, d, e, f)`: com só scaleY, `d` é a escala.
+  const d = /^matrix\(([^)]+)\)$/.exec(t)?.[1]?.split(',')[3];
+  const valor = d === undefined ? NaN : Number(d);
+  return Number.isFinite(valor) && valor > 0 ? valor : 1;
+}
+
 function movimentoReduzido(): boolean {
   return typeof matchMedia === 'function'
     ? matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -249,12 +259,23 @@ function MarcaDoTaqBase({
   const rajadas = useRef<Animation[]>([]);
   const ultimaRajada = useRef(0);
 
+  /** O anel avulso em curso: um novo não o reinicia no meio do caminho. */
+  const anelEmCurso = useRef<Animation | null>(null);
+
   /**
    * Uma rajada: cada barra sobe e volta, com o atraso que `atraso(u)` der. É
    * disparada daqui, mas tocada pelo compositor.
+   *
+   * A rajada nova PARTE de onde a barra está. Digitando, uma tecla chega a cada
+   * ~120 ms e a rajada dura 300 ms mais o atraso: ela quase sempre é trocada no
+   * meio. Começar de `scaleY(1)` (e cancelar a anterior) fazia a barra saltar
+   * do alto da subida para o desenho do ícone a cada tecla — o "corte abrupto"
+   * de quem digita. Por isso a escala atual é lida antes do `cancel`, e
+   * `fill: 'backwards'` a segura também durante o atraso.
    */
   const rajada = (forca: number, duracao: number, atraso: (u: number) => number) => {
     if (movimentoReduzido()) return;
+    const atuais = energiaRef.current.map(escalaAtual);
     for (const a of rajadas.current) a.cancel();
     rajadas.current = [];
     energiaRef.current.forEach((el, i) => {
@@ -263,21 +284,31 @@ function MarcaDoTaqBase({
       rajadas.current.push(
         el.animate(
           [
-            { transform: 'scaleY(1)' },
-            { transform: `scaleY(${1 + forca})`, offset: 0.3 },
+            { transform: `scaleY(${atuais[i]})` },
+            { transform: `scaleY(${Math.max(atuais[i]!, 1 + forca)})`, offset: 0.3 },
             { transform: 'scaleY(1)' },
           ],
-          { duration: duracao, delay: atraso(u), easing: 'cubic-bezier(.3,.7,.4,1)' },
+          {
+            duration: duracao,
+            delay: atraso(u),
+            easing: 'cubic-bezier(.3,.7,.4,1)',
+            fill: 'backwards',
+          },
         ),
       );
     });
   };
 
-  /** Um anel avulso — para dentro (ouvindo) ou para fora (um ping). */
+  /**
+   * Um anel avulso — para dentro (ouvindo) ou para fora (um ping). Com um anel
+   * ainda correndo, o novo não entra: trocar um anel no meio o fazia sumir de
+   * repente, e digitando ele nunca chegava ao fim.
+   */
   const anel = (dentro: boolean, opacidade: number) => {
     const el = pulsoRef.current;
     if (!el?.animate || movimentoReduzido()) return;
-    el.animate(
+    if (anelEmCurso.current?.playState === 'running') return;
+    anelEmCurso.current = el.animate(
       dentro
         ? [
             { transform: 'scale(1.5)', opacity: 0 },
