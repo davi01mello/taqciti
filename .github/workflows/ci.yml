@@ -73,7 +73,9 @@ jobs:
           VITE_DOCCITI_SERVER_URL: https://ci.invalid
           VITE_DOCCITI_SHARED_KEY: ci-build-only
       - name: Instalar Inno Setup
-        run: choco install innosetup --no-progress -y
+        # Versão fixa (plano de segurança D2): sem ela, cada build instalava o que
+        # o Chocolatey tivesse de mais novo no dia. 6.7.1 = última aprovada em 28/10/2026.
+        run: choco install innosetup --version 6.7.1 --no-progress -y
       # Versão fictícia: aqui só interessa se COMPILA. A de verdade sai do
       # nome da tag, no release.yml.
       - name: Compilar instalador

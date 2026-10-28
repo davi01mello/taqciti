@@ -78,7 +78,9 @@ jobs:
       - run: npm run build
 
       - name: Instalar Inno Setup
-        run: choco install innosetup --no-progress -y
+        # Versão fixa (plano de segurança D2): sem ela, cada build instalava o que
+        # o Chocolatey tivesse de mais novo no dia. 6.7.1 = última aprovada em 28/10/2026.
+        run: choco install innosetup --version 6.7.1 --no-progress -y
 
       - name: Resolver versão
         id: version
@@ -98,7 +100,9 @@ jobs:
           if-no-files-found: error
 
   build-linux:
-    runs-on: ubuntu-latest
+    # Runner fixo: a versão do makeself no apt (2.5.0-1) é a da série 24.04, e
+    # ubuntu-latest troca de série sozinho.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -114,7 +118,7 @@ jobs:
       - name: Instalar makeself
         run: |
           sudo apt-get update
-          sudo apt-get install -y makeself
+          sudo apt-get install -y makeself=2.5.0-1
 
       - name: Resolver versão
         id: version

@@ -42,7 +42,7 @@ armadilhas que os comentários do código guardam, e diz como testar a área.
 
 | Documento | Para quê |
 |---|---|
-| [`plano-de-seguranca.md`](plano-de-seguranca.md) | Mapa das fragilidades e plano de correção em fases (as fases 1 a 3 estão commitadas: servidor, extensão e política de dados/conector; a 4 em parte, no `1d5dee5` — faltam versão fixa de `innosetup`/`makeself`, *environment* com aprovação, escopo da conta do Drive e assinatura dos instaladores; a 5 depende de decisões) |
+| [`plano-de-seguranca.md`](plano-de-seguranca.md) | Mapa das fragilidades e plano de correção em fases (as fases 1 a 3 estão commitadas: servidor, extensão e política de dados/conector; a 4 em parte, no `1d5dee5` — faltam *environment* com aprovação, escopo da conta do Drive e assinatura dos instaladores; a 5 depende de decisões) |
 | [`google-oauth-setup.md`](google-oauth-setup.md) | Configuração do cliente OAuth do Google e dos escopos |
 | [`integracoes-google-workspace.md`](integracoes-google-workspace.md) | O que o Taq faz em Gmail, Agenda e Docs, e como |
 

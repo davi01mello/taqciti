@@ -163,7 +163,7 @@ Este repositório é **público**.
   obrigatória em produção, MCP somente leitura, expiração dos tokens do conector,
   delimitador de fonte). A fase 4 (cadeia de suprimento) foi feita em parte (`1d5dee5`:
   actions por SHA, permissões mínimas, versão validada, SHA256SUMS, payload do macOS);
-  faltam versão fixa de `innosetup`/`makeself`, *environment* com aprovação, escopo da
+  faltam *environment* com aprovação, escopo da
   conta do Drive e assinatura dos instaladores. A fase 5 (decisões estruturais) não começou. **Antes de publicar o servidor:** definir
   `DOCCITI_DATA_POLICY` no host de produção.
 - Documentos personalizados: `docs/documentos-personalizados.md`.
