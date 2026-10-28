@@ -118,16 +118,20 @@ export function renderPrompt(
 export type PapelDoPrompt = 'leitor' | 'auditor' | 'redatorGeracao' | 'redatorEdicao';
 
 /**
- * O redator já está na versão nova: medida em 21/10/2026 com
- * `lib/injecao.live.test.ts` (3 rodadas, Groq gpt-oss-120b) — injeção barrada e
- * nenhum combinado legítimo perdido. Leitor e auditor (a Ata) continuam nas
- * anteriores até a mesma medição rodar com `INJECAO_GERACOES=ata` — a chave
- * local estourou a cota do Gemini, e a Ata não cabe no limite do Groq gratuito.
- * Os arquivos `leitor/v3` e `auditor/v5` estão prontos; trocar é mudar aqui.
+ * O redator está na versão nova desde 21/10/2026, medida com
+ * `lib/injecao.live.test.ts` (3 rodadas, Groq gpt-oss-120b): injeção barrada e
+ * nenhum combinado legítimo perdido.
+ *
+ * Leitor e auditor (Ata e Resumo) passaram a `leitor/v3` e `auditor/v5` em
+ * 28/10/2026, com a mesma medição em `INJECAO_GERACOES=ata` no Gemini: injeção
+ * barrada, piloto, responsável, combinado da sexta e próximo passo presentes.
+ * Foi UMA rodada, e não três como o redator — a cota diária do Gemini acabou na
+ * segunda. Se uma rodada futura falhar, `DOCCITI_PROMPTS=anteriores` volta às
+ * versões anteriores sem deploy de código.
  */
 const EM_USO: Record<PapelDoPrompt, PromptVersion> = {
-  leitor: 'v2',
-  auditor: 'v4',
+  leitor: 'v3',
+  auditor: 'v5',
   redatorGeracao: 'v5',
   redatorEdicao: 'v6',
 };
