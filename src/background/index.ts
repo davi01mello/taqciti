@@ -347,7 +347,15 @@ onMessage((message, sender) => {
       case 'meet/captions':
         return dispatch({ type: 'CAPTIONS_STATE', enabled: message.enabled });
       case 'meet/chunk':
-        return dispatch({ type: 'CAPTION_CHUNK', chunk: message.chunk });
+        /*
+         * Responde só "ok", nunca o estado. A legenda chega várias vezes por
+         * segundo, e devolver o estado INTEIRO (a transcrição toda) a cada uma
+         * desfazia o agrupamento de `STATE_FLUSH_INTERVAL_MS`: o custo de copiar
+         * a resposta crescia com a reunião e deixava a aba do Meet lenta. A
+         * cápsula ignora a resposta; o estado chega pelo `state/updated`.
+         */
+        await dispatch({ type: 'CAPTION_CHUNK', chunk: message.chunk });
+        return { ok: true as const };
       case 'meet/participants':
         return dispatch({
           type: 'PARTICIPANTS_UPDATED',

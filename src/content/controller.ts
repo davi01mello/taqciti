@@ -706,12 +706,13 @@ export class ContentController {
 
     this.recutIfNeeded(prev, state);
 
-    const inMeeting = this.provider.detectMeeting() !== null;
     const minha =
       state.session !== null && state.session.meetingCode === this.salaDaCaptura;
 
     // Legendas: liga sozinho enquanto a reunião (DESTA aba) espera por elas.
-    if (state.phase === 'captionsRequired' && inMeeting && minha) {
+    // `detectMeeting` varre o DOM do Meet: só quando a resposta importa, e não
+    // a cada estado novo (que chega várias vezes por segundo gravando).
+    if (state.phase === 'captionsRequired' && minha && this.provider.detectMeeting() !== null) {
       this.ensureCaptionRetries();
     } else if (state.phase !== 'captionsRequired') {
       this.stopCaptionRetries();
